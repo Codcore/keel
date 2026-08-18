@@ -6,13 +6,26 @@ The method itself — why steps, contracts and revisions exist — is in
 [KEEL.md](KEEL.md). This file is what runs it. Either may point at the other
 freely: KEEL.md says what has to be true, README says which command checks it.
 
-## Running it
+## Installing
 
 ```bash
-python3 keel.py check
+curl -fsSL https://raw.githubusercontent.com/Codcore/keel/main/install.sh | sh
 ```
 
-Python 3 is needed. Nothing else.
+It clones the repository into `~/.keel` and puts a `keel` command in
+`~/.local/bin`. Run it again to update — the second run is a `git pull`.
+`KEEL_REPO`, `KEEL_HOME` and `KEEL_BIN` override all three.
+
+A single downloaded file would not do: `keel init` copies the references into the
+project beside the tool, so the whole repository has to be somewhere on disk.
+
+Then, in the project you want to work in:
+
+```bash
+keel init
+```
+
+git and Python 3 are needed. Nothing else.
 
 **Standard library only, and this is not asceticism.** The method does not depend
 on the project's language, so the tool should not either; Python is on every
