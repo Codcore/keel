@@ -819,10 +819,9 @@ CHECK_NAMES = {
     5: "у кожного сценарію зелений тест",
     6: "модулі експортують обіцяне",
     7: "імена в шапці збігаються із заголовками",
-    8: "переклади довідників не відстали від джерела",
 }
 
-FAST_CHECKS = (1, 2, 3, 4, 7, 8)
+FAST_CHECKS = (1, 2, 3, 4, 7)
 KEEL_DIR_PREFIX = "keel/"
 
 
@@ -1080,7 +1079,6 @@ def run_checks(project, only=None, run_tests=True):
         5: lambda: check_scenarios(project, run_tests=run_tests),
         6: lambda: check_exports(project),
         7: lambda: check_headings(project),
-        8: lambda: check_translations(project),
     }
     for number in sorted(runners):
         results[number] = runners[number]() if number in only else None
@@ -1429,6 +1427,31 @@ LANGS = ("uk", "en")
 DEFAULTS = {"docs": SOURCE_LANG, "lang": SOURCE_LANG}
 
 
+def generated_files(root, settings):
+    """{path in the project: what the methodology would put there now}.
+
+    Only files Keel owns whole. AGENTS.md and .claude/settings.json are shared
+    with the project — Keel owns a block inside them, not the file — so they are
+    merged rather than tracked, and `update` refreshes them the same way `init`
+    does.
+    """
+    out = {VENDORED: read_text(os.path.abspath(__file__))}
+    for name in REFERENCES:
+        source = doc_source(name, settings["docs"])
+        if os.path.exists(source):
+            out[f"keel/{name}"] = strip_front_matter(read_text(source))
+    for skill in SKILLS:
+        for agent, relative in skill_targets(skill):
+            out[relative] = render_skill(skill, agent, settings["lang"])
+    adapter = detect_adapter(root)
+    out[CI_FILE] = CI_TEMPLATE.format(
+        tool=VENDORED,
+        setup="".join(line + "\n" for line in (adapter.ci_steps(root) if adapter else [])))
+    out[CURSOR_HOOKS] = json.dumps(cursor_hook_config(), ensure_ascii=False,
+                                   indent=2) + "\n"
+    return out
+
+
 def read_config(root):
     settings = dict(DEFAULTS)
     path = os.path.join(root, CONFIG_FILE)
@@ -1444,10 +1467,51 @@ def read_config(root):
     return settings
 
 
-def write_config(root, settings, done):
-    write_if_changed(os.path.join(root, CONFIG_FILE),
-                     json.dumps(settings, indent=2, sort_keys=True) + "\n",
-                     done, CONFIG_FILE)
+def write_config(root, settings, done, manifest=None):
+    stored = dict(settings)
+    if manifest is not None:
+        stored["generated"] = manifest
+    path = os.path.join(root, CONFIG_FILE)
+    text = json.dumps(stored, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    if os.path.exists(path) and read_text(path) == text:
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(text)
+    if CONFIG_FILE not in done:
+        done.append(CONFIG_FILE)
+
+
+def read_manifest(root):
+    path = os.path.join(root, CONFIG_FILE)
+    if not os.path.exists(path):
+        return {}
+    try:
+        stored = json.loads(read_text(path))
+    except ValueError:
+        return {}
+    found = stored.get("generated") if isinstance(stored, dict) else None
+    return found if isinstance(found, dict) else {}
+
+
+def survey(project):
+    """(fresh, stale, touched, absent) — what update would do to each file."""
+    manifest = read_manifest(project.root)
+    fresh, stale, touched, absent = [], [], [], []
+    for relative, wanted in generated_files(project.root, project.settings).items():
+        path = os.path.join(project.root, relative)
+        if not os.path.exists(path):
+            absent.append(relative)
+            continue
+        now = read_text(path)
+        if now == wanted:
+            fresh.append(relative)
+        elif manifest.get(relative) and digest(now) != manifest[relative]:
+            # Differs from what we last wrote: somebody edited it.
+            touched.append(relative)
+        else:
+            stale.append(relative)
+    return fresh, stale, touched, absent
 
 
 def doc_source(name, lang):
@@ -1485,7 +1549,9 @@ def check_translations(project):
     """A translation that stopped following its source is worse than none.
 
     Same rule as everywhere else in Keel: whoever leans on a text holds its
-    revision. Here the English page leans on the Ukrainian one.
+    revision. Here the English page leans on the Ukrainian one. This lives with
+    `update` rather than with `check`: the six checks are about a project's own
+    graph, and this one is about the methodology's copies of itself.
     """
     lang = project.settings["docs"]
     if lang == SOURCE_LANG:
@@ -2024,10 +2090,10 @@ def write_verdict(project, payload):
                     f"заборонений, він має лишитися рядком у diff.")
 
 
-def write_hook_configs(root, done):
+def write_hook_configs(root, done, manifest=None):
     write_if_changed(os.path.join(root, CURSOR_HOOKS),
                      json.dumps(cursor_hook_config(), ensure_ascii=False, indent=2) + "\n",
-                     done, CURSOR_HOOKS)
+                     done, CURSOR_HOOKS, manifest)
     merge_claude_settings(os.path.join(root, CLAUDE_SETTINGS), done)
 
 
@@ -2109,11 +2175,12 @@ def cmd_skills(project, args=None):
     return 0
 
 
-def write_skills(root, lang, done):
+def write_skills(root, lang, done, manifest=None):
     for skill in SKILLS:
         for agent, relative in skill_targets(skill):
             write_if_changed(os.path.join(root, relative),
-                             render_skill(skill, agent, lang), done, relative)
+                             render_skill(skill, agent, lang), done, relative,
+                             manifest)
 
 
 def principles_lines(lang=SOURCE_LANG):
@@ -2140,23 +2207,23 @@ def cmd_init(project, args):
              + ", ".join(missing + ([] if principles else ["PRINCIPLES.md"]))
              + ". init запускають із репозиторію методики")
 
-    done = []
+    done, manifest = [], {}
     for folder in INIT_DIRS:
         os.makedirs(os.path.join(project.root, folder), exist_ok=True)
     done.append("keel/steps, keel/contracts, keel/decisions")
-    write_config(project.root, settings, done)
     project.settings = settings
 
     source = os.path.abspath(__file__)
     target = os.path.join(project.root, VENDORED)
     if os.path.abspath(target) != source:
-        write_if_changed(target, read_text(source), done, VENDORED)
+        write_if_changed(target, read_text(source), done, VENDORED, manifest)
     for name, path in sources.items():
         write_if_changed(os.path.join(project.root, "keel", name),
-                         strip_front_matter(read_text(path)), done, f"keel/{name}")
+                         strip_front_matter(read_text(path)), done,
+                         f"keel/{name}", manifest)
 
-    write_skills(project.root, settings["lang"], done)
-    write_hook_configs(project.root, done)
+    write_skills(project.root, settings["lang"], done, manifest)
+    write_hook_configs(project.root, done, manifest)
 
     block = AGENTS_BLOCK.format(
         start=AGENTS_START, end=AGENTS_END, tool=VENDORED,
@@ -2169,14 +2236,27 @@ def cmd_init(project, args):
         os.path.join(project.root, CI_FILE),
         CI_TEMPLATE.format(tool=VENDORED,
                            setup="".join(line + "\n" for line in setup)),
-        done, CI_FILE)
+        done, CI_FILE, manifest)
+    write_config(project.root, settings, done, manifest)
 
     for line in done:
         print(f"  {line}")
     return cmd_hooks(project, args)
 
 
-def write_if_changed(path, text, done, label):
+def digest(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+def write_if_changed(path, text, done, label, manifest=None):
+    """Write, and remember what we wrote.
+
+    The manifest is what lets `update` tell "the methodology moved on" apart from
+    "a person edited this by hand". Without it the two look identical, and the
+    only safe move would be to never overwrite anything.
+    """
+    if manifest is not None:
+        manifest[label] = digest(text)
     if os.path.exists(path) and read_text(path) == text:
         return False
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -2279,6 +2359,66 @@ def cmd_hooks(project, args):
         print("\nkeel hooks --install щоб поставити" if missing else "\nстоять обидва")
         return 0
     return 1 if problems else 0
+
+
+def cmd_update(project, args):
+    """Bring the project's copies up to the methodology, without clobbering work.
+
+    The open question was what to do with a generated file somebody edited by
+    hand: asking stops an autonomous run, and not asking destroys the edit. The
+    answer here is neither — refuse that one file, say so, and carry on with the
+    rest. Nothing is lost and nothing waits for a human.
+    """
+    problems = check_translations(project)
+    if problems:
+        print("переклади відстали від джерела:")
+        for problem in problems:
+            print(problem.render())
+        print()
+
+    fresh, stale, touched, absent = survey(project)
+    wanted = generated_files(project.root, project.settings)
+
+    if args.diff:
+        for relative in stale + touched:
+            print_diff(project.root, relative, wanted[relative])
+        if not stale and not touched:
+            print("різниці немає")
+        return 0
+
+    done, manifest = [], read_manifest(project.root)
+    for relative in absent + stale + (touched if args.force else []):
+        write_if_changed(os.path.join(project.root, relative), wanted[relative],
+                         done, relative, manifest)
+    # AGENTS.md and settings.json are shared: they get merged, never replaced.
+    principles = principles_lines(project.settings["docs"])
+    if principles:
+        block = AGENTS_BLOCK.format(start=AGENTS_START, end=AGENTS_END,
+                                    tool=VENDORED, principles="\n".join(principles))
+        if update_agents(os.path.join(project.root, "AGENTS.md"), block):
+            done.append("AGENTS.md (блок між маркерами)")
+    merge_claude_settings(os.path.join(project.root, CLAUDE_SETTINGS), done)
+    write_config(project.root, project.settings, done, manifest)
+
+    for line in done:
+        print(f"  оновлено: {line}")
+    for relative in touched:
+        if not args.force:
+            print(f"  правлено руками, не чіпаю: {relative}")
+    if not done and not touched:
+        print("усе на місці")
+    if touched and not args.force:
+        print("\nkeel update --diff покаже різницю, --force перепише")
+        return 1
+    return 0 if not problems else 1
+
+
+def print_diff(root, relative, wanted):
+    import difflib
+    now = read_text(os.path.join(root, relative)).splitlines(keepends=True)
+    for line in difflib.unified_diff(now, wanted.splitlines(keepends=True),
+                                     fromfile=relative, tofile=f"{relative} (нове)"):
+        print(line, end="" if line.endswith("\n") else "\n")
 
 
 def read_text(path):
@@ -2409,6 +2549,11 @@ def build_parser():
 
     sub.add_parser("skills", help="перепородити скіли з методики")
 
+    update = sub.add_parser("update", help="оновити копії методики в проєкті")
+    update.add_argument("--diff", action="store_true", help="показати різницю")
+    update.add_argument("--force", action="store_true",
+                        help="перезаписати й те, що правили руками")
+
     hook = sub.add_parser("hook", help="відповісти хукові агента (кличеться конфігом)")
     hook.add_argument("event", choices=("session", "write"))
     hook.add_argument("--agent", choices=("claude", "cursor"), required=True)
@@ -2430,7 +2575,8 @@ def main(argv=None):
 
     handlers = {"new": cmd_new, "gaps": cmd_gaps, "check": cmd_check,
                 "next": cmd_next, "rev": cmd_rev, "hooks": cmd_hooks,
-                "init": cmd_init, "skills": cmd_skills, "hook": cmd_hook}
+                "init": cmd_init, "skills": cmd_skills, "hook": cmd_hook,
+                "update": cmd_update}
     return handlers[args.command](project, args)
 
 
