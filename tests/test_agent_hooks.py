@@ -97,9 +97,33 @@ class TestWriteVerdict(ProjectCase):
         self.assertIsNone(keel.write_verdict(
             self.project, self.payload("keel/steps/0001-session-loop.md")))
 
-    def test_file_outside_the_repository_passes(self):
+    def test_file_outside_the_repository_is_named_not_ignored(self):
         self.fixture.branch("0001-session-loop")
-        self.assertIsNone(keel.write_verdict(self.project, self.payload("/etc/hosts")))
+        kind, message = keel.write_verdict(self.project, self.payload("/etc/hosts"))
+        self.assertEqual(kind, "note")
+        self.assertIn("поза репозиторієм", message)
+
+    def test_a_symlinked_path_still_resolves_to_the_project(self):
+        """На macOS /tmp — симлінк; без realpath хук мовчав би геть завжди."""
+        self.fixture.branch("0001-session-loop")
+        unresolved = self.fixture.root.replace("/private/var", "/var")
+        unresolved = unresolved.replace("/private/tmp", "/tmp")
+        verdict = keel.write_verdict(
+            self.project, self.payload(os.path.join(unresolved, "lib/extra.ex")))
+        self.assertIsNotNone(verdict, unresolved)
+        self.assertEqual(verdict[0], "deny")
+
+    def test_notebook_path_is_recognised(self):
+        self.fixture.branch("0001-session-loop")
+        kind, message = keel.write_verdict(self.project, {
+            "tool_name": "NotebookEdit",
+            "tool_input": {"notebook_path": "lib/extra.ipynb"}})
+        self.assertEqual(kind, "deny")
+        self.assertIn("lib/extra.ipynb", message)
+
+    def test_a_path_nested_in_a_list_is_found(self):
+        self.assertEqual(keel.find_path(
+            {"tool_input": {"edits": [{"file_path": "/repo/a.ex"}]}}), "/repo/a.ex")
 
     def test_unknown_payload_speaks_up_instead_of_passing_silently(self):
         self.fixture.branch("0001-session-loop")

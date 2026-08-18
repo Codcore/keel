@@ -62,6 +62,23 @@ class TestNext(ProjectCase):
         self.assertIn(f'proves: :finishes_when_no_tool_called, rev: "{self.fixture.scenario_rev()}"',
                       out)
 
+    def test_a_longer_slug_does_not_close_a_shorter_one(self):
+        """`add-more:` не має закривати трансформу `add`."""
+        self.fixture.branch("0001-session-loop")
+        self.fixture.write("lib/session.ex", "змінено\n")
+        self.fixture.git("commit", "-am", "drive-turns-later: чуже")
+        code, out = self.run_next()
+        self.assertEqual(code, 0)
+        self.assertIn("# drive-turns", out)
+
+    def test_a_slug_mentioned_in_the_body_does_not_close_it(self):
+        self.fixture.branch("0001-session-loop")
+        self.fixture.write("lib/session.ex", "змінено\n")
+        self.fixture.git("commit", "-am", "щось інше\n\nпоки не чіпаю drive-turns")
+        code, out = self.run_next()
+        self.assertEqual(code, 0)
+        self.assertIn("# drive-turns", out)
+
     def test_closed_transform_is_not_handed_out_again(self):
         self.fixture.branch("0001-session-loop")
         self.fixture.write("lib/session.ex", "змінено\n")
@@ -153,6 +170,22 @@ class TestRev(ProjectCase):
         self.assertEqual(text.count("rev:"), 1)
         self.assertNotIn("старий", text)
         self.assertEqual(keel.check_scenarios(self.project, run_tests=False), [])
+
+    def test_write_touches_the_header_and_nothing_else(self):
+        """Гола заміна підрядком нівечила імена трансформ, файли й прозу."""
+        step = "keel/steps/0001-session-loop.md"
+        text = self.fixture.read(step).replace(
+            f"session-run@{self.fixture.contract_rev}", "session-run")
+        text = text.replace("## transform: drive-turns",
+                            "## transform: drive-turns").replace(
+            "Крутити ходи", "Крутити ходи session-run")
+        self.fixture.write(step, text)
+        self.run_rev(write=True)
+        after = self.fixture.read(step)
+        self.assertNotIn("@@", after)
+        self.assertIn("Крутити ходи session-run", after)
+        self.assertIn("files:      [lib/session.ex]", after)
+        self.assertEqual(keel.check_revisions(self.project), [])
 
     def test_adds_missing_tag_revision(self):
         self.fixture.write(

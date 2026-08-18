@@ -94,6 +94,22 @@ class TestYaml(unittest.TestCase):
         with self.assertRaises(keel.YamlError):
             keel.parse_yaml("exports: [a, b\n")
 
+    def test_two_colons_in_a_line_are_an_error(self):
+        with self.assertRaises(keel.YamlError):
+            keel.parse_yaml("a: b: c")
+
+    def test_a_key_without_a_space_after_the_colon_is_an_error(self):
+        with self.assertRaises(keel.YamlError):
+            keel.parse_yaml("a:b")
+
+    def test_a_url_is_still_a_plain_value(self):
+        self.assertEqual(keel.parse_yaml("x: http://e.com/p")["x"], "http://e.com/p")
+
+    def test_a_top_level_list_is_an_error_not_an_empty_header(self):
+        """Порожня шапка читалась би як крок без трансформ — і вимикала хук."""
+        with self.assertRaises(keel.YamlError):
+            keel.parse_yaml("- a\n- b\n")
+
     def test_missing_colon_is_an_error(self):
         with self.assertRaises(keel.YamlError) as caught:
             keel.parse_yaml("module Foo\n")

@@ -145,7 +145,12 @@ def parse_yaml(text):
     value, index = _parse_block(lines, 0, 0)
     if index != len(lines):
         raise YamlError(lines[index][0], "несподіваний відступ")
-    return value if isinstance(value, dict) else {}
+    if not isinstance(value, dict):
+        # Returning {} here would turn a malformed header into a step with no
+        # transforms — which reads as "nothing declared" and switches the write
+        # hook off without a word.
+        raise YamlError(1, "шапка має бути набором ключів, а не списком")
+    return value
 
 
 def _parse_block(lines, index, indent):
@@ -177,9 +182,14 @@ def _parse_map(lines, index, indent):
             break
         if own > indent:
             raise YamlError(number, "несподіваний відступ")
-        if ":" not in text:
-            raise YamlError(number, f"немає двокрапки: {text!r}")
-        key, _, rest = text.partition(":")
+        if text.startswith("- "):
+            raise YamlError(number, "список там, де очікується ключ")
+        match = re.match(r"^([^:]+):(\s|$)", text)
+        if not match:
+            raise YamlError(number, f"немає ключа перед двокрапкою: {text!r}")
+        key, rest = match.group(1), text[match.end(1) + 1:]
+        if re.match(r"^\s*[^\s\"'\[{][^:]*:(\s|$)", rest):
+            raise YamlError(number, f"дві двокрапки в одному рядку: {text!r}")
         key = _scalar(key, number)
         if not key:
             raise YamlError(number, "порожній ключ")
@@ -789,7 +799,11 @@ class Project:
         found = {}
         for sha, message, files in self.git.commits_since(base):
             for slug in step.transforms:
-                if slug in message and slug not in found:
+                # First word of the message, not anywhere in it: otherwise a
+                # commit for `add-more` also closes `add`, and a passing
+                # mention in the body closes whatever it names.
+                named = re.match(rf"\s*{re.escape(slug)}(?![\w-])", message)
+                if named and slug not in found:
                     found[slug] = (sha, files)
         return {slug: found.get(slug, (None, set())) for slug in step.transforms}
 
@@ -953,7 +967,14 @@ def check_scope(project):
         # Passing silently would be a green check where none ever ran.
         return [Problem(4, "HEAD відчеплений, імені гілки git не знає — "
                            "передай його прапорцем --branch")]
-    base = project.git.merge_base(project.git.main_branch)
+    main = project.git.main_branch
+    base = project.git.merge_base(main)
+    if not base:
+        # Without a base the diff covers nothing but uncommitted work, so every
+        # committed file would pass unseen. Green here would be a lie.
+        return [Problem(4, f"не знайшов, від чого відійшла гілка: {main} немає "
+                           f"або історія обрізана. Межі не звірено — це не "
+                           f"означає, що вони цілі.")]
     changed = {
         name for name in project.git.changed_files(base)
         if not name.startswith(KEEL_DIR_PREFIX)
@@ -1506,11 +1527,12 @@ def survey(project):
         now = read_text(path)
         if now == wanted:
             fresh.append(relative)
-        elif manifest.get(relative) and digest(now) != manifest[relative]:
-            # Differs from what we last wrote: somebody edited it.
-            touched.append(relative)
-        else:
+        elif relative in manifest and digest(now) == manifest[relative]:
+            # Exactly what we last wrote, so the methodology moved on.
             stale.append(relative)
+        else:
+            # Edited, or we have no record. Both mean: do not overwrite.
+            touched.append(relative)
     return fresh, stale, touched, absent
 
 
@@ -1572,6 +1594,32 @@ def check_translations(project):
                 8, f"переклад тримає {recorded}, а {name} зараз {revision(text)}",
                 where))
     return problems
+
+AGENTS_BLOCK_EN = """{start}
+## Keel
+
+This project's method: three kinds of document — step, contract, decision — and
+six checks. Steps live in `keel/steps/`, contracts in `keel/contracts/`.
+
+{principles}
+
+Two commands:
+
+- `python3 {tool} next` — what to do next: the transform, its files and
+  boundaries, the scenarios it brings closer, the contracts it leans on.
+- `python3 {tool} check` — what is wrong right now. Before a commit and before a PR.
+
+Three references — open them when something is unclear:
+
+- `keel/KEEL.md` — the method: what goes in a step's header, how revisions work,
+  what each of the six checks looks at.
+- `keel/README.md` — the tool: every command with its flags, language adapters,
+  hooks, skills.
+- `keel/QUALITY.md` — forty quality cuts. Walked once per step, where the
+  scenarios are written.
+
+This block is generated; edits between the markers are overwritten on the next update.
+{end}"""
 
 AGENTS_BLOCK = """{start}
 ## Keel
@@ -1635,8 +1683,16 @@ own pull request.
 
 Create the branch and the skeleton:
 
-    git checkout -b plan/<slug>
     python3 keel/keel.py new step <slug>
+
+It prints the file it made, and the number in that name is part of the step's
+identity. Branch after the file, not after the slug you typed:
+
+    git checkout -b plan/0007-session-loop
+
+Get this the wrong way round and nothing links the branch to the step: the tool
+looks the step up by branch name, finds nothing, and the session hook will tell
+you the step does not exist while you are looking straight at it.
 
 The slug may arrive as an argument to `/keel-plan`. If it did not, ask in one
 sentence which step we are writing rather than inventing it for the person.
@@ -1915,7 +1971,8 @@ HOOK_TAG = "keel.py hook"
 # it for beforeReadFile and afterFileEdit, and its Write tool takes the same key.
 # The rest of the list is defence: a hook that cannot find the path must say so,
 # never wave the write through in silence.
-PATH_KEYS = ("file_path", "filePath", "path", "target_file", "absolute_path")
+PATH_KEYS = ("file_path", "notebook_path", "filePath", "path", "target_file",
+             "absolute_path")
 
 
 def hook_command(event, agent):
@@ -1966,6 +2023,12 @@ def find_path(payload):
                 except ValueError:
                     return None
             return None
+        if isinstance(node, list):
+            for item in node:
+                found = walk(item, depth + 1)
+                if found:
+                    return found
+            return None
         if not isinstance(node, dict):
             return None
         for key in PATH_KEYS:
@@ -1989,7 +2052,7 @@ def session_context(project):
         where = f"крок {step.slug}" if step else f"файла кроку для {branch} ще немає"
         return (f"Keel: гілка плану {branch}, {where}. Тут пишеться план, не код.\n"
                 f"Візьми скіл keel-plan. Чого бракує — скаже "
-                f"`python3 {VENDORED} plan`.")
+                f"`python3 {VENDORED} gaps`.")
 
     step = project.step_for_branch(branch)
     if step is None:
@@ -2076,11 +2139,19 @@ def write_verdict(project, payload):
                         "межі не перевірено. Оголошені кроком файли: "
                         + (", ".join(sorted(declared)) or "жодного"))
 
+    # realpath on both sides: on macOS /tmp is a symlink to /private/tmp, and the
+    # agent hands over the path the user sees. Comparing the two unresolved turns
+    # every write into "outside the repository" — that is, into silence.
     absolute = target if os.path.isabs(target) else os.path.join(project.root, target)
-    relative = os.path.relpath(os.path.abspath(absolute), project.root)
+    relative = os.path.relpath(os.path.realpath(absolute),
+                               os.path.realpath(project.root))
     relative = relative.replace(os.sep, "/")
-    if relative.startswith("..") or relative.startswith(KEEL_DIR_PREFIX):
-        return None      # поза репозиторієм або документи плану — не наша справа
+    if relative == ".." or relative.startswith("../"):
+        return ("note", f"keel: {target} лежить поза репозиторієм, тож межі "
+                        f"кроку до нього не застосовні. Перевір сам, чи туди "
+                        f"треба писати.")
+    if relative.startswith(KEEL_DIR_PREFIX):
+        return None      # документи плану під scope не підпадають
     if relative in declared:
         return None
 
@@ -2127,6 +2198,14 @@ def is_ours(entry):
         return False
     return any(HOOK_TAG in str(item.get("command", ""))
                for item in entry.get("hooks", []) if isinstance(item, dict))
+
+
+def agents_block(lang, principles):
+    """The block follows the reference language: a Ukrainian frame around
+    English principles reads as a bug, because it is one."""
+    template = AGENTS_BLOCK if lang == SOURCE_LANG else AGENTS_BLOCK_EN
+    return template.format(start=AGENTS_START, end=AGENTS_END, tool=VENDORED,
+                           principles="\n".join(principles))
 
 
 def home():
@@ -2225,9 +2304,7 @@ def cmd_init(project, args):
     write_skills(project.root, settings["lang"], done, manifest)
     write_hook_configs(project.root, done, manifest)
 
-    block = AGENTS_BLOCK.format(
-        start=AGENTS_START, end=AGENTS_END, tool=VENDORED,
-        principles="\n".join(principles))
+    block = agents_block(settings["docs"], principles)
     if update_agents(os.path.join(project.root, "AGENTS.md"), block):
         done.append("AGENTS.md (блок між маркерами)")
 
@@ -2369,6 +2446,14 @@ def cmd_update(project, args):
     answer here is neither — refuse that one file, say so, and carry on with the
     rest. Nothing is lost and nothing waits for a human.
     """
+    # Run from the copy inside a project, every source would be compared against
+    # itself and the answer would always be "nothing to do" — a no-op wearing the
+    # face of a clean result.
+    if not os.path.exists(os.path.join(home(), "PRINCIPLES.md")):
+        fail("update звіряє проєкт із домом методики, а поруч із цією копією "
+             "джерел немає. Запусти з репозиторію keel:\n"
+             "  python3 <keel>/keel.py -C " + project.root + " update")
+
     problems = check_translations(project)
     if problems:
         print("переклади відстали від джерела:")
@@ -2387,14 +2472,15 @@ def cmd_update(project, args):
         return 0
 
     done, manifest = [], read_manifest(project.root)
+    for relative in fresh:
+        manifest[relative] = digest(wanted[relative])   # heal a lost record
     for relative in absent + stale + (touched if args.force else []):
         write_if_changed(os.path.join(project.root, relative), wanted[relative],
                          done, relative, manifest)
     # AGENTS.md and settings.json are shared: they get merged, never replaced.
     principles = principles_lines(project.settings["docs"])
     if principles:
-        block = AGENTS_BLOCK.format(start=AGENTS_START, end=AGENTS_END,
-                                    tool=VENDORED, principles="\n".join(principles))
+        block = agents_block(project.settings["docs"], principles)
         if update_agents(os.path.join(project.root, "AGENTS.md"), block):
             done.append("AGENTS.md (блок між маркерами)")
     merge_claude_settings(os.path.join(project.root, CLAUDE_SETTINGS), done)
@@ -2476,11 +2562,27 @@ def cmd_rev(project, args):
             if isinstance(old, tuple):
                 text = rewrite_tag(text, old[1], new)
             else:
-                text = text.replace(old, new)
+                text = rewrite_ref(text, old, new)
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
     print(f"\nвписано: {len(report)}")
     return 0
+
+
+def rewrite_ref(text, raw, new):
+    """Restamp one contract reference — in the header, and nowhere else.
+
+    A bare slug is an ordinary word: replacing it across the file also hits the
+    prose, the file names and the transform's own name, and a second run cannot
+    undo any of it. So the rewrite is bounded to the front matter and to a whole
+    reference, revision included if one is already there.
+    """
+    front, body, _ = split_front_matter(text)
+    if front is None:
+        return text
+    slug = Ref(raw).slug
+    pattern = re.compile(rf"(?<![\w@./-]){re.escape(slug)}(@[0-9a-fA-F]*)?(?![\w@./-])")
+    return "---\n" + pattern.sub(new, front) + "\n---\n" + body
 
 
 def rewrite_tag(text, slug, fresh):

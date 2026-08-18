@@ -1,6 +1,6 @@
 ---
 translates: KEEL.md
-source-rev: 47b53d
+source-rev: 988490
 ---
 
 # Keel
@@ -117,9 +117,9 @@ contracts: [session-run@7c40de]                            transform → contrac
 The first catches "the scenario was rewritten, the test stayed old and green".
 The second is its mirror: "the contract was rewritten, the code was left alone".
 
-**A revision is six hexadecimal digits**, compared by prefix: a shorter record
-passes if it matches the start of the current hash. A contract is hashed whole,
-header included, because changing `exports` changes the promise; a scenario is
+**A revision is six hexadecimal digits**, compared by prefix: a record of four
+digits or more passes if it matches the start of the current hash. A contract is
+hashed whole, header included, because changing `exports` changes the promise; a scenario is
 hashed by the body of its section.
 
 **A revision changes on any change of a word.** Before hashing, only repeated
@@ -136,7 +136,7 @@ No status is written by hand.
 
 | What | Closed when | Where it shows |
 |---|---|---|
-| Transform | the branch has a commit whose message carries its slug, and the commit's files match those declared | git log, git diff |
+| Transform | the branch has a commit whose message begins with its slug | git log |
 | Scenario | a test with its name exists, is green, and the revision matches | the test run, the step's text |
 | Contract | the revision matches the one recorded and the module exports what was promised | the file, the compiled module |
 | Step | every transform closed, every scenario proved, six checks green | all of the above together |
@@ -322,3 +322,7 @@ name of the skill to take.
 **Approval of a plan is written nowhere — it is derived.** The step file being on
 the main branch means a person read it and let it through; `keel next` hands out
 no transforms from a step that is not there yet. No fields and no log lines.
+
+The agent remembers nothing between moves, and that is deliberate: in an
+autonomous run the context is cleared anyway. The stages did not disappear — they
+became state that is derived, instead of a page somebody has to hold in mind.

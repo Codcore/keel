@@ -1,6 +1,6 @@
 ---
 translates: QUALITY.md
-source-rev: 83a3ec
+source-rev: ff5518
 ---
 
 # Quality model
@@ -105,10 +105,10 @@ the thing this file exists against.
 - **reusability** — is any of it usable elsewhere
 - **analysability** — can a person find out what broke
 - **modifiability** — how much has to move to change it
+- **testability** — can it be tested at all
 
 ### 8. Flexibility
 
-- **testability** — can it be tested at all
 - **adaptability** — does it survive a change of environment
 - **scalability** — does it survive more of everything
 - **installability** — what does installing it take

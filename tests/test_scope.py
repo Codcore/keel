@@ -60,6 +60,18 @@ class TestScope(ProjectCase):
         self.assertEqual(len(problems), 1)
         self.assertIn("гілка плану чіпає код", problems[0].message)
 
+    def test_a_missing_merge_base_is_red_not_silently_green(self):
+        """Без бази diff бачить лише незакомічене — і все закомічене проходить."""
+        self.fixture.git("branch", "-m", "main", "trunk")
+        self.fixture.branch("0001-session-loop")
+        self.fixture.write("lib/session.ex", "змінено\n")
+        self.fixture.write("lib/undeclared.ex", "не оголошено\n")
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "drive-turns: хід")
+        problems = keel.check_scope(self.project)
+        self.assertTrue(problems)
+        self.assertIn("не знайшов, від чого відійшла гілка", problems[0].message)
+
     def test_branch_that_is_not_a_step(self):
         self.fixture.branch("random-branch")
         problems = keel.check_scope(self.project)
