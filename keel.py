@@ -1284,6 +1284,16 @@ def cmd_next(project, args):
                    f"Далі: keel check, потім PR.")
         return emit_next_error(args, message, code=0)
 
+    package = next_package(project, step, slug, state)
+    if args.json:
+        print(json.dumps(package, ensure_ascii=False, indent=2))
+    else:
+        print(render_next(package))
+    return 0
+
+
+def next_package(project, step, slug, state):
+    """Everything needed for one move, and nothing beyond it."""
     contracts = []
     for ref in step.transform_contracts(slug):
         contract = project.contracts.get(ref.slug)
@@ -1307,7 +1317,7 @@ def cmd_next(project, args):
             "body": (body or "").strip(),
         })
 
-    package = {
+    return {
         "step": {"id": step.slug, "file": step.rel, "why": step.why.strip()},
         "transform": {
             "slug": slug,
@@ -1324,12 +1334,6 @@ def cmd_next(project, args):
             {"scenario": item["slug"], "rev": item["rev"]} for item in scenarios
         ],
     }
-
-    if args.json:
-        print(json.dumps(package, ensure_ascii=False, indent=2))
-    else:
-        print(render_next(package))
-    return 0
 
 
 def emit_next_error(args, message, code=1):
@@ -1626,6 +1630,236 @@ def yaml_string(text):
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Agent hooks
+#
+# Event names match across agents; the replies do not. One command answers in
+# whichever dialect the flag names, so the configs stay thin and cannot drift
+# apart. Codex is left out until its apply_patch payload is worked out.
+# ─────────────────────────────────────────────────────────────────────────────
+
+CLAUDE_SETTINGS = ".claude/settings.json"
+CURSOR_HOOKS = ".cursor/hooks.json"
+HOOK_TAG = "keel.py hook"
+
+# Claude documents file_path for Write, Edit and NotebookEdit. Cursor documents
+# it for beforeReadFile and afterFileEdit, and its Write tool takes the same key.
+# The rest of the list is defence: a hook that cannot find the path must say so,
+# never wave the write through in silence.
+PATH_KEYS = ("file_path", "filePath", "path", "target_file", "absolute_path")
+
+
+def hook_command(event, agent):
+    # Claude documents a variable for the project root; Cursor's own examples
+    # use a relative path, so that is the best available there.
+    root = "${CLAUDE_PROJECT_DIR}/" if agent == "claude" else "./"
+    return f"python3 {root}{VENDORED} hook {event} --agent {agent}"
+
+
+def claude_hook_config():
+    return {
+        "SessionStart": [{
+            "matcher": "startup|resume|clear",
+            "hooks": [{"type": "command",
+                       "command": hook_command("session", "claude"),
+                       "timeout": 30}],
+        }],
+        "PreToolUse": [{
+            "matcher": "Write|Edit|NotebookEdit",
+            "hooks": [{"type": "command",
+                       "command": hook_command("write", "claude"),
+                       "timeout": 10}],
+        }],
+    }
+
+
+def cursor_hook_config():
+    return {
+        "version": 1,
+        "hooks": {
+            "sessionStart": [{"command": hook_command("session", "cursor")}],
+            "preToolUse": [{"command": hook_command("write", "cursor")}],
+        },
+    }
+
+
+def find_path(payload):
+    """Dig the target path out of a hook payload. None when nothing looks like one."""
+    def walk(node, depth=0):
+        if depth > 5:
+            return None
+        # Cursor hands tool_input over as a JSON string for some tools.
+        if isinstance(node, str):
+            stripped = node.strip()
+            if stripped.startswith("{"):
+                try:
+                    return walk(json.loads(stripped), depth + 1)
+                except ValueError:
+                    return None
+            return None
+        if not isinstance(node, dict):
+            return None
+        for key in PATH_KEYS:
+            value = node.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        for value in node.values():
+            found = walk(value, depth + 1)
+            if found:
+                return found
+        return None
+
+    return walk(payload)
+
+
+def session_context(project):
+    """What the agent needs at session start — and which skill answers it."""
+    branch = project.branch or "?"
+    if project.is_plan_branch(branch):
+        step = project.step_for_branch(branch)
+        where = f"крок {step.slug}" if step else f"файла кроку для {branch} ще немає"
+        return (f"Keel: гілка плану {branch}, {where}. Тут пишеться план, не код.\n"
+                f"Візьми скіл keel-plan. Чого бракує — скаже "
+                f"`python3 {VENDORED} plan`.")
+
+    step = project.step_for_branch(branch)
+    if step is None:
+        return (f"Keel: гілка {branch} не називається кроком, тож роботи за планом "
+                f"тут немає.\nНовий крок починається в гілці plan/<крок> командою "
+                f"`python3 {VENDORED} new step <slug>`. Візьми скіл keel-plan.")
+    if step.error:
+        return f"Keel: {step.rel} не читається: {step.error}"
+
+    slug, state = next_transform(project, step)
+    if slug is None:
+        return (f"Keel: усі трансформи кроку {step.slug} закриті коммітами.\n"
+                f"Візьми скіл keel-review. Далі — `python3 {VENDORED} check` і PR.")
+
+    package = next_package(project, step, slug, state)
+    return ("Keel: візьми скіл keel-work. Ось пакет наступної дії — "
+            "працюй за ним, довкола нічого відкривати не треба.\n\n"
+            + render_next(package))
+
+
+def hook_reply(agent, event, kind, message):
+    """The same verdict, in the dialect of one agent."""
+    if agent == "claude":
+        if event == "session":
+            return {"hookSpecificOutput": {"hookEventName": "SessionStart",
+                                           "additionalContext": message}}
+        if kind == "deny":
+            return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                           "permissionDecision": "deny",
+                                           "permissionDecisionReason": message}}
+        return {"systemMessage": message}
+
+    if event == "session":
+        return {"additional_context": message}
+    if kind == "deny":
+        return {"permission": "deny",
+                "agent_message": message,
+                "user_message": message}
+    # No permission field: the normal flow stays, the note is still seen.
+    return {"agent_message": message}
+
+
+def cmd_hook(project, args):
+    payload = read_stdin_json()
+    if args.event == "session":
+        reply = hook_reply(args.agent, "session", "context", session_context(project))
+    else:
+        verdict = write_verdict(project, payload)
+        if verdict is None:
+            return 0
+        reply = hook_reply(args.agent, "write", *verdict)
+    print(json.dumps(reply, ensure_ascii=False))
+    return 0
+
+
+def read_stdin_json():
+    try:
+        raw = sys.stdin.read() if not sys.stdin.isatty() else ""
+    except (OSError, ValueError):
+        return {}
+    try:
+        return json.loads(raw) if raw.strip() else {}
+    except ValueError:
+        return {}
+
+
+def write_verdict(project, payload):
+    """(kind, message), or None when there is nothing to say."""
+    branch = project.branch
+    if (not branch or branch in ("HEAD", project.git.main_short)
+            or project.is_plan_branch(branch)):
+        return None
+    step = project.step_for_branch(branch)
+    if step is None or step.error or not step.transforms:
+        return None
+
+    declared = set()
+    for slug in step.transforms:
+        declared.update(step.transform_files(slug))
+
+    target = find_path(payload)
+    if target is None:
+        return ("note", "keel: у вхідних даних хука не знайшлося шляху файлу, тож "
+                        "межі не перевірено. Оголошені кроком файли: "
+                        + (", ".join(sorted(declared)) or "жодного"))
+
+    absolute = target if os.path.isabs(target) else os.path.join(project.root, target)
+    relative = os.path.relpath(os.path.abspath(absolute), project.root)
+    relative = relative.replace(os.sep, "/")
+    if relative.startswith("..") or relative.startswith(KEEL_DIR_PREFIX):
+        return None      # поза репозиторієм або документи плану — не наша справа
+    if relative in declared:
+        return None
+
+    return ("deny", f"{relative} не оголошений у кроці {step.slug}. Оголошені: "
+                    f"{', '.join(sorted(declared)) or 'жодного'}. Якщо потрібен саме "
+                    f"цей файл — допиши його в трансформу у {step.rel}: дрейф не "
+                    f"заборонений, він має лишитися рядком у diff.")
+
+
+def write_hook_configs(root, done):
+    write_if_changed(os.path.join(root, CURSOR_HOOKS),
+                     json.dumps(cursor_hook_config(), ensure_ascii=False, indent=2) + "\n",
+                     done, CURSOR_HOOKS)
+    merge_claude_settings(os.path.join(root, CLAUDE_SETTINGS), done)
+
+
+def merge_claude_settings(path, done):
+    """Settings.json belongs to the project; we own only our own entries in it."""
+    try:
+        data = json.loads(read_text(path)) if os.path.exists(path) else {}
+    except ValueError:
+        print(f"  {CLAUDE_SETTINGS}: не читається як JSON, не чіпаю")
+        return
+    if not isinstance(data, dict):
+        print(f"  {CLAUDE_SETTINGS}: не обʼєкт, не чіпаю")
+        return
+
+    before = json.dumps(data, ensure_ascii=False, sort_keys=True)
+    hooks = data.setdefault("hooks", {})
+    for event, entries in claude_hook_config().items():
+        existing = [item for item in hooks.get(event, []) if not is_ours(item)]
+        hooks[event] = existing + entries
+    after = json.dumps(data, ensure_ascii=False, sort_keys=True)
+    if before == after:
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+    done.append(CLAUDE_SETTINGS)
+
+
+def is_ours(entry):
+    if not isinstance(entry, dict):
+        return False
+    return any(HOOK_TAG in str(item.get("command", ""))
+               for item in entry.get("hooks", []) if isinstance(item, dict))
+
+
 def home():
     return os.path.dirname(os.path.abspath(__file__))
 
@@ -1699,6 +1933,7 @@ def cmd_init(project, args):
                          read_text(path), done, f"keel/{name}")
 
     write_skills(project.root, done)
+    write_hook_configs(project.root, done)
 
     block = AGENTS_BLOCK.format(
         start=AGENTS_START, end=AGENTS_END, tool=VENDORED,
@@ -1948,6 +2183,10 @@ def build_parser():
 
     sub.add_parser("skills", help="перепородити скіли з методики")
 
+    hook = sub.add_parser("hook", help="відповісти хукові агента (кличеться конфігом)")
+    hook.add_argument("event", choices=("session", "write"))
+    hook.add_argument("--agent", choices=("claude", "cursor"), required=True)
+
     return parser
 
 
@@ -1965,7 +2204,7 @@ def main(argv=None):
 
     handlers = {"new": cmd_new, "plan": cmd_plan, "check": cmd_check,
                 "next": cmd_next, "rev": cmd_rev, "hooks": cmd_hooks,
-                "init": cmd_init, "skills": cmd_skills}
+                "init": cmd_init, "skills": cmd_skills, "hook": cmd_hook}
     return handlers[args.command](project, args)
 
 
