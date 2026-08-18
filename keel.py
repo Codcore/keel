@@ -838,6 +838,17 @@ CHECK_NAMES = {
 FAST_CHECKS = (1, 2, 3, 4, 7)
 KEEL_DIR_PREFIX = "keel/"
 
+# Keel's own furniture in a project. A plan branch may carry it: it is not the
+# project's code, and refusing it walls off the very first plan commit whenever
+# `init` or `update` has just refreshed something.
+KEEL_OWNED = (KEEL_DIR_PREFIX, ".claude/skills/", ".cursor/skills/",
+              ".claude/settings.json", ".cursor/hooks.json", ".codex/hooks.json",
+              ".github/workflows/keel.yml", "AGENTS.md")
+
+
+def keel_owns(name):
+    return name.startswith(KEEL_OWNED)
+
 
 def check_structure(project):
     return [Problem(0, doc.error, doc.rel) for doc in project.broken]
@@ -981,7 +992,7 @@ def check_scope(project):
     }
 
     if project.is_plan_branch(branch):
-        stray = sorted(changed)
+        stray = sorted(name for name in changed if not keel_owns(name))
         return [Problem(4, f"гілка плану чіпає код: {name}") for name in stray]
 
     step = project.step_for_branch(branch)
@@ -2321,11 +2332,39 @@ def cmd_init(project, args):
 
     for line in done:
         print(f"  {line}")
-    return cmd_hooks(project, args)
+    code = cmd_hooks(project, args)
+    for line in closing_hint(project, restart=True):
+        print(line)
+    return code
 
 
 def digest(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+def closing_hint(project, restart=False):
+    """What to do with what we just wrote.
+
+    Not a check and not a wall: an uncommitted setup does no harm by itself, and
+    stopping the run over it would be the same mistake as asking. But it bites
+    later — at the first plan commit, or at a session that never sees the skills —
+    so it gets said once, here, with the command attached.
+    """
+    lines = []
+    if project.git.available:
+        code, stdout, _ = project.git.run("status", "--porcelain", "--untracked-files=all")
+        pending = [row[3:] for row in stdout.splitlines()
+                   if code == 0 and keel_owns(row[3:])]
+        if pending:
+            lines.append(f"\n{len(pending)} файлів Keel ще не в git. Закоміть їх "
+                         f"окремо від роботи:\n  git add " +
+                         " ".join(sorted({name.split('/')[0] for name in pending})) +
+                         '\n  git commit -m "Keel у проєкті"')
+    if restart:
+        lines.append("\nПерезапусти сесію агента — не /clear, а справжній "
+                     "перезапуск. Теку скілів агент бере на облік при старті, "
+                     "і щойно створену не побачить.")
+    return lines
 
 
 def write_if_changed(path, text, done, label, manifest=None):
@@ -2559,6 +2598,8 @@ def cmd_update(project, args):
             print(f"  правлено руками, не чіпаю: {relative}")
     if not done and not touched:
         print("усе на місці")
+    for line in closing_hint(project):
+        print(line)
     if touched and not args.force:
         print("\nkeel update --diff покаже різницю, --force перепише")
         return 1

@@ -53,6 +53,15 @@ class TestScope(ProjectCase):
         self.fixture.write("keel/decisions/no-retry.md", "Повторів немає.\n")
         self.assertEqual(keel.check_scope(self.project), [])
 
+    def test_a_plan_branch_may_carry_keels_own_files(self):
+        """Інакше перший же комміт плану впирається в те, що поклав init."""
+        self.fixture.branch("plan/0001-session-loop")
+        for name in ("AGENTS.md", ".claude/skills/keel-plan/SKILL.md",
+                     ".cursor/hooks.json", ".github/workflows/keel.yml",
+                     ".claude/settings.json"):
+            self.fixture.write(name, "породжене\n")
+        self.assertEqual(keel.check_scope(self.project), [])
+
     def test_plan_branch_must_not_touch_code(self):
         self.fixture.branch("plan/0001-session-loop")
         self.fixture.write("lib/session.ex", "код у гілці плану\n")

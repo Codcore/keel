@@ -50,6 +50,14 @@ class TestInit(unittest.TestCase):
             sys.stdout = saved
         return code, stream.getvalue()
 
+    def test_init_says_to_commit_and_restart(self):
+        """Дві речі, які інакше зʼїдають годину: незакомічене й нестартована сесія."""
+        _, out = self.init()
+        self.assertIn("не в git", out)
+        self.assertIn("git add", out)
+        self.assertIn("Перезапусти сесію", out)
+        self.assertIn("не /clear", out)
+
     def test_creates_the_three_folders(self):
         self.init()
         for folder in keel.INIT_DIRS:
@@ -129,11 +137,12 @@ class TestInit(unittest.TestCase):
         self.init()
         self.assertTrue(os.access(os.path.join(self.root, ".git/hooks/pre-commit"), os.X_OK))
 
-    def test_second_init_changes_nothing(self):
+    def test_second_init_writes_nothing_new(self):
         self.init()
         _, out = self.init()
-        self.assertNotIn("AGENTS.md", out)
-        self.assertNotIn(keel.CI_FILE, out)
+        written = [row for row in out.splitlines() if row.startswith("  ")]
+        self.assertNotIn("  AGENTS.md (блок між маркерами)", written)
+        self.assertNotIn(f"  {keel.CI_FILE}", written)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

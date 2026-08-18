@@ -1,6 +1,6 @@
 ---
 translates: README.md
-source-rev: 3ec8e5
+source-rev: 88b989
 ---
 
 # keel
@@ -178,6 +178,16 @@ alone and says so.
 
 The skills are installed **as both sets at once**: they are cheap, and which
 agent you will be working with tomorrow is unknown.
+
+**After `init` there are two things to do, and it says so.** Commit what it put
+there — otherwise the first plan commit runs into the uncommitted setup. And
+**restart the agent's session**: an agent registers its skills directory at
+startup, so it will not see one that has just appeared, and `/clear` does not
+help — the process has to restart.
+
+**A plan branch may carry Keel's own files.** The rule "a plan touches no code"
+is about the project's code, not about what `init` put there: otherwise it would
+wall off the first step every time `init` or `update` refreshed something.
 
 **Updating does not clobber work.** `keel init` records the digest of every
 generated file in `keel/keel.json`, and that is what lets `keel update` tell "the
