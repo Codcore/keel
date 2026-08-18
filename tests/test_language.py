@@ -91,6 +91,103 @@ class TestCatalogue(unittest.TestCase):
         self.assertEqual(same, [])
 
 
+class TestWhatIsWrittenIntoAProject(unittest.TestCase):
+    """Generated files travel to strangers; none of them may be a stray language."""
+
+    def test_the_ci_workflow_is_english(self):
+        text = keel.CI_TEMPLATE.format(tool=keel.VENDORED, setup="")
+        self.assertNotRegex(text, "[\u0400-\u04FF]")
+
+    def test_the_git_hook_script_is_english(self):
+        for name in keel.HOOKS:
+            script = keel.hook_script(name, "/somewhere/keel.py")
+            self.assertNotRegex(script, "[\u0400-\u04FF]", name)
+
+    def test_the_failure_message_a_stranger_meets_is_english(self):
+        """Його бачать на зламаному пуші — найгірший момент для чужої мови."""
+        script = keel.hook_script("pre-push", "/somewhere/keel.py")
+        self.assertIn("no tool found", script)
+
+    def test_the_skill_files_are_english(self):
+        for skill in keel.SKILLS:
+            for agent, relative in keel.skill_targets(skill):
+                for lang in keel.LANGS:
+                    body = keel.render_skill(skill, agent, lang).split("---", 2)[2]
+                    self.assertNotRegex(body, "[\u0400-\u04FF]", relative)
+
+
+class TestTheTemplatesFollowTheLanguage(unittest.TestCase):
+    """`keel new` writes into somebody's project; it may not write in a stray one."""
+
+    def setUp(self):
+        self.addCleanup(setattr, keel, "OUTPUT_LANG", keel.OUTPUT_LANG)
+
+    def render(self, lang):
+        keel.OUTPUT_LANG = lang
+        return keel.step_skeleton("0001-thing"), keel.contract_skeleton()
+
+    def test_english_by_default(self):
+        step, contract = self.render("en")
+        self.assertIn("## Why", step)
+        self.assertIn("Boundaries:", step)
+        self.assertNotRegex(step, "[\u0400-\u04FF]")
+        self.assertNotRegex(contract, "[\u0400-\u04FF]")
+
+    def test_ukrainian_when_asked(self):
+        step, contract = self.render("uk")
+        self.assertIn("## Навіщо", step)
+        self.assertIn("Межі:", step)
+        self.assertIn("Модуль", contract)
+
+    def test_the_header_shape_is_the_same_in_both(self):
+        """Поля стають кодом — мова їх не чіпає."""
+        for lang in keel.LANGS:
+            step, contract = self.render(lang)
+            for field in ("depends_on:", "scenarios:", "transforms:",
+                          "implements:", "contracts:", "files:"):
+                self.assertIn(field, step, f"{lang}: {field}")
+            for field in ("module:", "exports:", "verify:"):
+                self.assertIn(field, contract, f"{lang}: {field}")
+
+    def test_both_skeletons_parse(self):
+        """Шаблон, що не читається власним читачем, — зламаний старт."""
+        for lang in keel.LANGS:
+            step, contract = self.render(lang)
+            for text in (step, contract):
+                front, _, _ = keel.split_front_matter(text)
+                self.assertIsNotNone(front, lang)
+                keel.parse_yaml(front)
+
+    def step(self, text):
+        root = tempfile.mkdtemp(prefix="keel-skel-")
+        self.addCleanup(shutil.rmtree, root, True)
+        folder = os.path.join(root, "keel", "steps")
+        os.makedirs(folder)
+        path = os.path.join(folder, "0001-thing.md")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        return keel.Step(path, "keel/steps/0001-thing.md")
+
+    def test_the_why_heading_is_read_in_either_language(self):
+        """Проєкт може змінити мову — наявні кроки лишаються читаними."""
+        for lang in keel.LANGS:
+            text, _ = self.render(lang)
+            keel.OUTPUT_LANG = "en"
+            self.assertTrue(self.step(text).why.strip(), lang)
+
+    def test_the_untouched_placeholder_is_caught_in_either_language(self):
+        """gaps має бачити незаповнене «навіщо», хоч якою мовою його написано."""
+        for lang in keel.LANGS:
+            text, _ = self.render(lang)
+            self.assertTrue(keel.unfilled_why(self.step(text)), lang)
+
+    def test_a_filled_in_why_is_not_mistaken_for_the_placeholder(self):
+        text, _ = self.render("en")
+        filled = text.replace("why this step exists and what is missing without it",
+                              "the loop cannot end without it")
+        self.assertFalse(keel.unfilled_why(self.step(filled)))
+
+
 class TestSpokenLanguage(unittest.TestCase):
     """A real run, both ways, in a real project."""
 

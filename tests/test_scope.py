@@ -62,6 +62,25 @@ class TestScope(ProjectCase):
             self.fixture.write(name, "породжене\n")
         self.assertEqual(keel.check_scope(self.project), [])
 
+    def test_a_work_branch_may_carry_keels_own_files_too(self):
+        """`update` серед роботи не має вимагати оголосити наш власний скіл."""
+        self.fixture.branch("0001-session-loop")
+        self.fixture.write("lib/session.ex", "змінено\n")
+        for name in ("AGENTS.md", ".claude/skills/keel-plan/SKILL.md",
+                     ".cursor/hooks.json", ".github/workflows/keel.yml",
+                     ".claude/settings.json"):
+            self.fixture.write(name, "породжене\n")
+        self.assertEqual(keel.check_scope(self.project), [])
+
+    def test_a_work_branch_still_catches_an_undeclared_project_file(self):
+        """Звільнення стосується нашої обстановки, не будь-чого поруч."""
+        self.fixture.branch("0001-session-loop")
+        self.fixture.write("lib/session.ex", "змінено\n")
+        self.fixture.write("lib/stray.ex", "не оголошено\n")
+        problems = keel.check_scope(self.project)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("lib/stray.ex", problems[0].message)
+
     def test_plan_branch_must_not_touch_code(self):
         self.fixture.branch("plan/0001-session-loop")
         self.fixture.write("lib/session.ex", "код у гілці плану\n")

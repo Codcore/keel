@@ -205,6 +205,20 @@ UK = {
         "{file}: не читається як JSON, не чіпаю",
     "{file}: not an object, leaving it alone": "{file}: не обʼєкт, не чіпаю",
     "the skills did not change": "скіли не змінились",
+    "path/to/file": "шлях/до/файлу",
+    "What exactly is promised, and to whom.": "Що саме обіцяно й кому.",
+    "Why": "Навіщо",
+    "why this step exists and what is missing without it":
+        "навіщо цей крок і чого без нього бракує",
+    "What it does.": "Що робить.",
+    "Boundaries": "Межі",
+    "what it does not do.": "чого не робить.",
+    "A module that promises something:": "Модуль, який щось обіцяє:",
+    "A name with an arity or a whole signature — what is written is what gets "
+    "checked:":
+        "Імʼя з арністю або ціла сигнатура — перевіряється те, що написано:",
+    "Or a promise that is not a module — a command whose success is the proof:":
+        "Або обіцянка, що не є модулем — команда, успіх якої і є доказом:",
     "{file}: not what Keel wrote, leaving it in place — the hooks in it still run":
         "{file}: це не те, що писав Keel, лишаю на місці — хуки в ньому далі "
         "працюють",
@@ -735,7 +749,7 @@ class Step(Doc):
     @property
     def why(self):
         for title, text in self.sections.items():
-            if title.strip().lower() in ("навіщо", "why"):
+            if title.strip().lower() in WHY_HEADINGS:
                 return text
         return ""
 
@@ -1181,7 +1195,10 @@ def find_root(start):
     while True:
         if os.path.isdir(os.path.join(current, "keel", "steps")):
             return current
-        if os.path.isdir(os.path.join(current, ".git")):
+        if os.path.exists(os.path.join(current, ".git")):
+            # A file, not a directory, in a linked worktree and in a submodule.
+            # Testing for a directory walks straight past the root and lands the
+            # tool in whatever repository happens to sit further up.
             return current
         parent = os.path.dirname(current)
         if parent == current:
@@ -1353,14 +1370,17 @@ def check_scope(project):
         return [Problem(4, t("cannot tell where this branch left from: {main} is missing or "
                         "the history is truncated. Scope was not compared, which "
                         "is not the same as scope being intact.", main=main))]
-    changed = {
-        name for name in project.git.changed_files(base)
-        if not name.startswith(KEEL_DIR_PREFIX)
-    }
+    changed = project.git.changed_files(base)
 
     if project.is_plan_branch(branch):
         stray = sorted(name for name in changed if not keel_owns(name))
         return [Problem(4, t("a plan branch is touching code: {name}", name=name)) for name in stray]
+
+    # Keel's own furniture is out of scope on a work branch too. `update` may
+    # refresh a skill in the middle of the work, and telling the person to
+    # declare our own generated file in their transform is the same mine the
+    # plan branch was cleared of.
+    changed = {name for name in changed if not keel_owns(name)}
 
     step = project.step_for_branch(branch)
     if step is None:
@@ -1499,7 +1519,7 @@ def check_exports(project, run_tests=True):
         if contract.error:
             continue
         if not run_tests and contract.verify:
-            continue      # --no-tests означає «нічого не запускай», і це теж запуск
+            continue      # --no-tests means run nothing, and this is a run too
         if "verify" in contract.front and not contract.verify:
             # Written, but not as a command we can run — a list, a number, an
             # empty string. Skipping it would print a green check over a promise
@@ -1636,6 +1656,10 @@ def run_checks(project, only=None, run_tests=True):
 # Commands
 # ─────────────────────────────────────────────────────────────────────────────
 
+# The skeletons are written into somebody's project, so they follow `lang` like
+# every other line the tool produces. The heading is the one structural word in
+# them, and the reader accepts either spelling — a project may change language
+# without its existing steps becoming unreadable.
 STEP_SKELETON = """---
 depends_on: []
 
@@ -1646,12 +1670,12 @@ transforms:
   # <slug>:
   #   implements: [<scenario>]
   #   contracts:  [<contract>@<rev>]
-  #   files:      [<шлях/до/файлу>]
+  #   files:      [<{path}>]
 ---
 
-## Навіщо
+## {why}
 
-{slug}: навіщо цей крок і чого без нього бракує.
+{slug}: {why_hint}
 
 ## scenario: <slug>
 
@@ -1661,24 +1685,59 @@ transforms:
 
 ## transform: <slug>
 
-Що робить.
+{does}
 
-Межі: чого не робить.
+{bounds}: {bounds_hint}
 """
 
 CONTRACT_SKELETON = """---
-# Модуль, який щось обіцяє:
+# {module_hint}
 module: <Module.Name>
-# Імʼя з арністю або ціла сигнатура — перевіряється те, що написано:
+# {exports_hint}
 exports: []
-#   - "run(binary(), keyword()) :: {:ok, term()}"
+#   - "run(binary(), keyword()) :: {{:ok, term()}}"
 #   - "halt/1"
-# Або обіцянка, що не є модулем — команда, успіх якої і є доказом:
+# {verify_hint}
 # verify: curl -sf http://localhost:11434/api/tags
 ---
 
-Що саме обіцяно й кому.
+{prose}
 """
+
+
+WHY_HEADINGS = ("why", "навіщо")
+
+
+def step_skeleton(slug):
+    """One formatting pass: two would need the literal braces escaped twice."""
+    return STEP_SKELETON.format(
+        slug=slug,
+        path=t("path/to/file"),
+        why=t("Why"),
+        why_hint=t("why this step exists and what is missing without it"),
+        does=t("What it does."),
+        bounds=t("Boundaries"),
+        bounds_hint=t("what it does not do."))
+
+
+def contract_skeleton():
+    return CONTRACT_SKELETON.format(
+        module_hint=t("A module that promises something:"),
+        exports_hint=t("A name with an arity or a whole signature — what is "
+                       "written is what gets checked:"),
+        verify_hint=t("Or a promise that is not a module — a command whose "
+                      "success is the proof:"),
+        prose=t("What exactly is promised, and to whom."))
+
+
+def unfilled_why(step):
+    """The skeleton's own placeholder, in whatever language it was written in."""
+    text = step.why.strip()
+    if not text.startswith(f"{step.slug}:"):
+        return False
+    tail = text[len(step.slug) + 1:].strip().lower()
+    return any(tail.startswith(hint.lower()) for hint in (
+        "why this step exists", "навіщо цей крок"))
 
 
 def cmd_new(project, args):
@@ -1693,11 +1752,11 @@ def cmd_new(project, args):
                    if (m := re.match(r"(\d{4})-", name))] if os.path.isdir(folder) else []
         number = max(numbers, default=0) + 1
         name = f"{number:04d}-{clean}.md"
-        text = STEP_SKELETON.format(slug=clean)
+        text = step_skeleton(clean)
     else:
         folder = os.path.join(project.keel, "contracts")
         name = f"{clean}.md"
-        text = CONTRACT_SKELETON
+        text = contract_skeleton()
 
     path = os.path.join(folder, name)
     if os.path.exists(path):
@@ -1722,7 +1781,7 @@ def cmd_gaps(project, args):
         if step.error:
             problems.append(Problem(0, step.error, step.rel))
             continue
-        if not step.why.strip() or step.why.strip().startswith(f"{step.slug}: навіщо"):
+        if not step.why.strip() or unfilled_why(step):
             problems.append(Problem(0, t("the Why section is empty"), step.rel))
         if not step.scenarios:
             problems.append(Problem(0, t("no scenarios at all"), step.rel))
@@ -2219,7 +2278,7 @@ AGENTS_BLOCK = """{start}
 {end}"""
 
 CI_TEMPLATE = """name: keel
-# Породжено `keel init`. Правки затре наступне оновлення.
+# Generated by `keel init`. Edits are overwritten by the next update.
 on: [push, pull_request]
 
 jobs:
@@ -2228,7 +2287,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # перевірка меж звіряє гілку з main
+          fetch-depth: 0   # the scope check compares the branch against main
 {setup}      - run: python3 {tool} check --branch "${{{{ github.head_ref || github.ref_name }}}}"
 """
 
@@ -2276,8 +2335,9 @@ language this project writes in — and write commit messages the same way.
 
 ## Order
 
-**`## Навіщо`** — one or two sentences on what is missing without this step. Not
-a retelling of what you will do: the reason it is worth doing.
+**The Why section** — the heading `keel new step` wrote, one or two sentences on
+what is missing without this step. Not a retelling of what you will do: the
+reason it is worth doing.
 
 **Scenarios** — what we promise. Each one becomes a test, so word them so that it
 is visible when one fails: **Given** a state, **When** an action, **Then** an
@@ -2343,8 +2403,9 @@ Check what arrived with the library before claiming something is missing.
 ## Where the line runs
 
 **Scenario or boundary.** If a test can prove it, it is a scenario. If it is "we
-deliberately do not do this", it is the `Межі` paragraph inside the transform. A
-boundary without a scenario is honest; a scenario without a test is not.
+deliberately do not do this", it is the boundaries paragraph inside the
+transform — the one the skeleton opens for you. A boundary without a scenario is
+honest; a scenario without a test is not.
 
 **A transform is not yet atomic** if you cannot name its files in advance. That
 is not a reason to write a glob, it is a reason to cut further. The other tell:
@@ -2356,8 +2417,8 @@ binary — is the same thing, and it carries `verify`, a command whose success i
 the proof. A promise nothing can check is not a contract; it is a boundary.
 
 **There are no decision files.** What outlives a step and promises something is a
-contract; "we deliberately do not do this" is the `Межі` paragraph; a rule about
-architecture belongs to the linter's config.
+contract; "we deliberately do not do this" is the boundaries paragraph; a rule
+about architecture belongs to the linter's config.
 
 ## Before handing the plan over
 
@@ -2747,7 +2808,7 @@ def write_verdict(project, payload):
                           "step's scope does not apply to it. Judge for yourself "
                           "whether it should be written to.", target=target))
     if relative.startswith(KEEL_DIR_PREFIX):
-        return None      # документи плану під scope не підпадають
+        return None      # plan documents are not subject to scope
     if relative in declared:
         return None
 
@@ -3104,8 +3165,8 @@ HOOKS = {
 HOOK_MARK = "# keel hook:"
 
 HOOK_SCRIPT = """#!/bin/sh
-{mark} {name}. Породжено `keel hooks --install`.
-# Правки цього файлу затре наступна установка.
+{mark} {name}. Generated by `keel hooks --install`.
+# Edits to this file are overwritten by the next install.
 set -eu
 
 run() {{
@@ -3115,8 +3176,8 @@ run() {{
   esac
 }}
 
-# Інструмент шукається в такому порядку: змінна KEEL, PATH, копія в проєкті,
-# і аж тоді шлях, який був у машини під час установки.
+# The tool is looked for in this order: the KEEL variable, PATH, the copy in the
+# project, and only then the path this machine had when the hook was installed.
 if [ -n "${{KEEL:-}}" ] && [ -f "${{KEEL}}" ]; then run "${{KEEL}}"; fi
 
 tool=$(command -v keel 2>/dev/null || true)
@@ -3127,7 +3188,7 @@ if [ -f "$root/keel/keel.py" ]; then run "$root/keel/keel.py"; fi
 
 if [ -f "{baked}" ]; then run "{baked}"; fi
 
-echo "keel: інструмента не знайшов. Постав KEEL=/шлях/до/keel.py" >&2
+echo "keel: no tool found. Set KEEL=/path/to/keel.py" >&2
 exit 1
 """
 

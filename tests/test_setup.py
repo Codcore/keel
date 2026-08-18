@@ -19,6 +19,47 @@ from tests.support import Args  # noqa: E402
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Finding the project root
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestFindRoot(unittest.TestCase):
+    """Where the tool decides a project begins."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="keel-root-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.main = os.path.join(self.tmp, "proj")
+        os.makedirs(os.path.join(self.main, "keel", "steps"))
+        subprocess.run(["git", "init", "-b", "main", "-q", self.main], check=True)
+        for name, value in (("user.email", "t@e.com"), ("user.name", "t")):
+            subprocess.run(["git", "-C", self.main, "config", name, value], check=True)
+        subprocess.run(["git", "-C", self.main, "commit", "-q", "--allow-empty",
+                        "-m", "base"], check=True)
+
+    def test_an_ordinary_repository_from_a_subdirectory(self):
+        deep = os.path.join(self.main, "lib", "nested")
+        os.makedirs(deep)
+        self.assertEqual(keel.find_root(deep), self.main)
+
+    def test_a_linked_worktree_is_a_root(self):
+        """У робочому дереві .git — файл, а не тека, і isdir проходив повз."""
+        side = os.path.join(self.tmp, "side")
+        done = subprocess.run(["git", "-C", self.main, "worktree", "add", "-q",
+                               side, "-b", "side"], capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertTrue(os.path.isfile(os.path.join(side, ".git")),
+                        "очікували файл .git, інакше тест нічого не доводить")
+        deep = os.path.join(side, "lib", "nested")
+        os.makedirs(deep)
+        self.assertEqual(keel.find_root(deep), side)
+
+    def test_a_keel_directory_wins_over_the_repository(self):
+        inner = os.path.join(self.main, "sub")
+        os.makedirs(os.path.join(inner, "keel", "steps"))
+        self.assertEqual(keel.find_root(inner), inner)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # keel init
 # ─────────────────────────────────────────────────────────────────────────────
 
