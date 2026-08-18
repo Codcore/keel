@@ -2,6 +2,7 @@
 """new, gaps, next, rev, check — the commands a person runs."""
 
 import os
+import re
 import sys
 import unittest
 
@@ -285,6 +286,71 @@ class TestNewAndPlan(ProjectCase):
 # ─────────────────────────────────────────────────────────────────────────────
 # keel check
 # ─────────────────────────────────────────────────────────────────────────────
+
+class TestShow(ProjectCase):
+    """Читальний вигляд: посилання ведуть кудись, стан виводиться."""
+
+    def show(self, step=None):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_show(self.project, Args(step=step))
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def test_links_resolve_from_the_step_file(self):
+        code, out = self.show("0001-session-loop")
+        self.assertEqual(code, 0)
+        base = os.path.dirname(self.fixture.path("keel/steps/0001-session-loop.md"))
+        for target in re.findall(r"\]\(([^)#]+)\)", out):
+            self.assertTrue(os.path.exists(os.path.normpath(
+                os.path.join(base, target))), target)
+
+    def test_shows_the_scenario_text_and_its_revision(self):
+        _, out = self.show("0001-session-loop")
+        self.assertIn("**Then** розмова завершується.", out)
+        self.assertIn(self.fixture.scenario_rev(), out)
+
+    def test_a_matching_contract_revision_is_ticked(self):
+        _, out = self.show("0001-session-loop")
+        self.assertIn("✓", out)
+        self.assertNotIn("✗", out)
+
+    def test_a_stale_contract_revision_is_crossed(self):
+        self.fixture.write("keel/contracts/session-run.md", CONTRACT + "\nЩе речення.\n")
+        _, out = self.show("0001-session-loop")
+        self.assertIn("✗", out)
+
+    def test_transform_state_is_derived_not_written(self):
+        self.fixture.branch("0001-session-loop")
+        _, out = self.show()
+        self.assertIn("drive-turns — відкрита", out)
+        self.fixture.write("lib/session.ex", "змінено\n")
+        self.fixture.git("commit", "-am", "drive-turns: хід")
+        _, out = self.show()
+        self.assertIn("закрита", out)
+
+    def test_an_existing_file_is_not_marked_as_missing(self):
+        _, out = self.show("0001-session-loop")
+        self.assertIn("[lib/session.ex]", out)
+        self.assertNotIn("ще немає", out)
+
+    def test_a_file_that_does_not_exist_yet_says_so(self):
+        """Видно, що з оголошеного вже лежить, а чого ще нема."""
+        step = "keel/steps/0001-session-loop.md"
+        self.fixture.write(step, self.fixture.read(step).replace(
+            "files:      [lib/session.ex]",
+            "files:      [lib/session.ex, lib/поки_немає.ex]"))
+        _, out = self.show("0001-session-loop")
+        self.assertIn("ще немає", out)
+        self.assertIn("lib/поки_немає.ex", out)
+
+    def test_an_unknown_step_refuses(self):
+        with self.assertRaises(SystemExit):
+            self.show("0009-nope")
+
 
 class TestCheck(ProjectCase):
     def capture(self, args):

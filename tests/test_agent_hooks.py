@@ -167,6 +167,11 @@ class TestHookReply(unittest.TestCase):
 
 
 class TestSessionContext(ProjectCase):
+    def test_the_hook_does_not_contradict_the_skill_on_order(self):
+        """Номер зʼявляється після new step, тож гілку заводять після нього."""
+        text = keel.session_context(self.project)
+        self.assertLess(text.index("new step"), text.index("plan/"), text)
+
     def test_main_branch_points_at_planning(self):
         text = keel.session_context(self.project)
         self.assertIn("keel-plan", text)

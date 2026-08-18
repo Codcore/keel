@@ -2056,9 +2056,12 @@ def session_context(project):
 
     step = project.step_for_branch(branch)
     if step is None:
+        # Order matters and is easy to get backwards: the number only exists
+        # after `new step`, and a branch named before it never links to the step.
         return (f"Keel: гілка {branch} не називається кроком, тож роботи за планом "
-                f"тут немає.\nНовий крок починається в гілці plan/<крок> командою "
-                f"`python3 {VENDORED} new step <slug>`. Візьми скіл keel-plan.")
+                f"тут немає.\nНовий крок: спершу `python3 {VENDORED} new step "
+                f"<слаг>` — він надрукує імʼя файла разом із номером, — і аж тоді "
+                f"гілка `plan/<те саме імʼя>`. Візьми скіл keel-plan.")
     if step.error:
         return f"Keel: {step.rel} не читається: {step.error}"
 
@@ -2438,6 +2441,69 @@ def cmd_hooks(project, args):
     return 1 if problems else 0
 
 
+def cmd_show(project, args):
+    """A step as a person reads it: links that resolve, and derived state.
+
+    The header is YAML because a machine reads it, and a preview renders that
+    badly. Rather than split the file — which would let the slug and its text
+    drift apart in two places — this view is built on the fly and stored nowhere.
+    """
+    step = project.steps.get(args.step) if args.step else project.step_for_branch()
+    if step is None:
+        fail("не знайшов кроку: " + (args.step or f"гілка {project.branch}"))
+    if step.error:
+        fail(f"{step.rel}: {step.error}")
+
+    state = project.transform_state(step) if project.git.available else {}
+    # Every link is relative to the step file, so they resolve wherever the
+    # rendered text is read from — including the file's own directory.
+    out = [f"# {step.slug}", "",
+           f"[{step.rel}]({os.path.basename(step.path)})", ""]
+    if step.why.strip():
+        out += [step.why.strip(), ""]
+
+    depends = [f"[{ref.slug}](../steps/{ref.slug}.md)" for ref in step.depends_on]
+    if depends:
+        out += ["**Залежить від:** " + ", ".join(depends), ""]
+
+    out += ["## Сценарії", ""]
+    for slug in step.scenarios:
+        proves = []
+        for ref in step.proves(slug):
+            contract = project.contracts.get(ref.slug)
+            ok = contract and not contract.error and contract.rev_ok(ref.rev)
+            proves.append(f"[{ref.slug}](../contracts/{ref.slug}.md)"
+                          f"@{ref.rev or '—'} {'✓' if ok else '✗'}")
+        out.append(f"### {slug}")
+        out.append("")
+        out.append(f"Доводить: {', '.join(proves) or '—'} · редакція "
+                   f"`{step.scenario_revision(slug) or '—'}`")
+        out.append("")
+        out.append((step.scenario_body(slug) or "_тіла немає_").strip())
+        out.append("")
+
+    out += ["## Трансформи", ""]
+    for slug in step.transforms:
+        sha = state.get(slug, (None, set()))[0]
+        out.append(f"### {slug} — {'закрита ' + sha[:7] if sha else 'відкрита'}")
+        out.append("")
+        near = ", ".join(f"[{name}](#{name})"
+                         for name in step.transform_implements(slug))
+        out.append(f"Наближає: {near or '—'}")
+        for ref in step.transform_contracts(slug):
+            out.append(f"Реалізує: [{ref.slug}](../contracts/{ref.slug}.md)@{ref.rev or '—'}")
+        out.append("")
+        for name in step.transform_files(slug):
+            here = os.path.exists(os.path.join(project.root, name))
+            out.append(f"- [{name}](../../{name}){'' if here else ' — ще немає'}")
+        out.append("")
+        out.append((step.transform_body(slug) or "_тіла немає_").strip())
+        out.append("")
+
+    print("\n".join(out).rstrip() + "\n")
+    return 0
+
+
 def cmd_update(project, args):
     """Bring the project's copies up to the methodology, without clobbering work.
 
@@ -2651,6 +2717,9 @@ def build_parser():
 
     sub.add_parser("skills", help="перепородити скіли з методики")
 
+    show = sub.add_parser("show", help="крок так, як його читає людина")
+    show.add_argument("step", nargs="?", help="крок; без нього — крок гілки")
+
     update = sub.add_parser("update", help="оновити копії методики в проєкті")
     update.add_argument("--diff", action="store_true", help="показати різницю")
     update.add_argument("--force", action="store_true",
@@ -2678,7 +2747,7 @@ def main(argv=None):
     handlers = {"new": cmd_new, "gaps": cmd_gaps, "check": cmd_check,
                 "next": cmd_next, "rev": cmd_rev, "hooks": cmd_hooks,
                 "init": cmd_init, "skills": cmd_skills, "hook": cmd_hook,
-                "update": cmd_update}
+                "update": cmd_update, "show": cmd_show}
     return handlers[args.command](project, args)
 
 
