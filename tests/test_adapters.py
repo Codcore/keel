@@ -271,8 +271,11 @@ class TestSpecContracts(unittest.TestCase):
         project.adapter = StubAdapter(answer)
         return keel.check_exports(project)
 
-    def declared(self, spec):
-        return {"Demo": {"run/2"}, ("specs", "Demo"): {"run/2": spec}}
+    def declared(self, *specs):
+        """The module exports exactly what the specs describe — no hand-kept pair."""
+        named = ["{0}/{1}".format(*keel.promised_signature(one)) for one in specs]
+        self.assertEqual(len(set(named)), 1, "клаузи мають бути про одну функцію")
+        return {"Demo": set(named), ("specs", "Demo"): {named[0]: list(specs)}}
 
     def test_a_matching_spec_passes(self):
         self.assertEqual(
@@ -299,6 +302,32 @@ class TestSpecContracts(unittest.TestCase):
                               self.declared("run( binary(), keyword() ) :: :error"))
         self.assertIn("run(binary(), keyword()) :: :error", problems[0].message)
 
+    def test_a_function_may_declare_more_than_one_spec(self):
+        """Кілька @spec на одну функцію — кожна з них чесно обіцяна."""
+        two = self.declared("run(integer()) :: :small", "run(binary()) :: :big")
+        self.assertEqual(self.check("run(binary()) :: :big", two), [])
+        self.assertEqual(self.check("run(integer()) :: :small", two), [])
+
+    def test_a_mismatch_shows_every_clause(self):
+        problems = self.check("run(atom()) :: :other",
+                              self.declared("run(integer()) :: :small",
+                                            "run(binary()) :: :big"))
+        self.assertEqual(len(problems), 1)
+        self.assertIn(":small", problems[0].message)
+        self.assertIn(":big", problems[0].message)
+
+    def test_named_arguments_are_read_not_rejected(self):
+        """Компілятор сам віддає імена аргументів — їх і копіюють у контракт."""
+        spec = "run(text :: binary(), opts :: keyword()) :: {:ok, term()}"
+        self.assertEqual(self.check(spec, self.declared(spec)), [])
+
+    def test_spacing_around_commas_and_bars_is_not_a_difference(self):
+        self.assertEqual(
+            self.check("run(binary()) :: {:ok,term()}|{:error,term()}",
+                       self.declared("run(binary()) :: {:ok, term()} | "
+                                     "{:error, term()}")),
+            [])
+
     def test_a_module_without_the_spec_is_named_not_passed(self):
         """Функція є, @spec немає — обіцянка є, підтвердження немає."""
         problems = self.check("run(binary(), keyword()) :: :ok",
@@ -315,7 +344,7 @@ class TestSpecContracts(unittest.TestCase):
     def test_the_short_form_still_ignores_specs(self):
         """run/2 обіцяє імʼя й арність — специфікацію ніхто не обіцяв."""
         self.assertEqual(
-            self.check("run/2", self.declared("run(integer()) :: :error")), [])
+            self.check("run/1", self.declared("run(integer()) :: :error")), [])
 
     def test_an_entry_that_is_neither_is_named(self):
         problems = self.check("сміття", {"Demo": {"run/2"}})
@@ -377,6 +406,12 @@ class TestSpecsAgainstARealMixProject(unittest.TestCase):
                 "defmodule Specs do\n"
                 "  @spec run(binary(), keyword()) :: {:ok, term()} | {:error, term()}\n"
                 "  def run(text, opts), do: {:ok, {text, opts}}\n\n"
+                "  @spec named(text :: binary()) :: :ok\n"
+                "  def named(text), do: {:ok, text}\n\n"
+                "  @spec pick(integer()) :: :small\n"
+                "  @spec pick(binary()) :: :big\n"
+                "  def pick(x) when is_integer(x), do: :small\n"
+                "  def pick(x) when is_binary(x), do: :big\n\n"
                 "  def undeclared(x), do: x\n"
                 "end\n")
         os.makedirs(os.path.join(cls.root, "keel", "contracts"))
@@ -396,8 +431,8 @@ class TestSpecsAgainstARealMixProject(unittest.TestCase):
         answer = keel.ElixirAdapter().exports(self.root, ["Specs"])
         self.assertIn("run/2", answer["Specs"])
         self.assertEqual(answer[("specs", "Specs")]["run/2"],
-                         "run( binary(), keyword() ) :: {:ok, term()} | "
-                         "{:error, term()}")
+                         ["run( binary(), keyword() ) :: {:ok, term()} | "
+                          "{:error, term()}"])
 
     def test_a_spec_copied_into_the_contract_passes(self):
         self.contract("run(binary(), keyword()) :: {:ok, term()} | {:error, term()}")
@@ -408,6 +443,12 @@ class TestSpecsAgainstARealMixProject(unittest.TestCase):
         problems = keel.check_exports(keel.Project(self.root))
         self.assertEqual(len(problems), 1)
         self.assertIn("{:error, term()}", problems[0].message)
+
+    def test_a_named_argument_spec_survives_the_round_trip(self):
+        """Те, що віддав компілятор, скопійоване в контракт, має проходити."""
+        answer = keel.ElixirAdapter().exports(self.root, ["Specs"])
+        self.contract(keel.flatten_spec(answer[("specs", "Specs")]["run/2"][0]))
+        self.assertEqual(keel.check_exports(keel.Project(self.root)), [])
 
     def test_a_function_without_a_spec_is_named(self):
         self.contract("undeclared(term()) :: term()")

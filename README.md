@@ -136,8 +136,13 @@ CI versions are not guessed: `keel init` asks `elixir --version` on the machine
 it was run on and writes down what it found.
 
 A language without an adapter does not break the whole of `check`, only checks 5
-and 6, and it says so plainly. A new adapter is a class with a marker, a test
-command, a tag pattern and a way to get the exports.
+and 6, and it says so plainly. A new adapter is a class inheriting from
+`Adapter`, with a marker, a test command, a tag pattern and a way to get the
+exports. The inheritance is not a formality: the base class carries
+`supports_specs = False`, and that is what makes the check say "this language
+cannot be asked about types" instead of putting a green mark over something
+nobody compared. A language that can sets it to `True`, and then `exports()`
+returns the specs as well.
 
 ### Exports, short and long
 
@@ -151,12 +156,31 @@ exports:
 
 Both are checked for what they say. `run/3` says the function exists with that
 arity. The signature says that too — the arity is counted from the arguments —
-and, where the adapter can read types, that the module declares exactly this
-`@spec`. Spacing and line breaks are not a difference; a type is. On a mismatch
-the check prints what the module declares, in the form you would write it, so
-the fix is a copy. A function with no `@spec` at all is reported rather than
-passed, and so is a shape promised in a language whose adapter cannot read types
-— Python today.
+and, where the adapter can read types, that the module declares this `@spec`. On
+a mismatch the check prints what the module declares, in the form you would write
+it, so the fix is a copy. A function with no `@spec` at all is reported rather
+than passed, and so is a shape promised in a language whose adapter cannot read
+types — Python today.
+
+**Arguments may be named.** `run(text :: binary(), opts :: keyword()) :: :ok` is
+exactly how the compiler hands them back, and exactly how people write them. The
+separator is the `::` outside any bracket, so names inside break nothing.
+
+**Several `@spec` lines on one function are several honest promises.** A contract
+may name any of them, and the check is green if one matches. On a mismatch it
+prints them all, not an arbitrary first:
+
+```
+✗ the promised shape of pick/1 is not what the module declares:
+      pick(integer()) :: :small
+      pick(binary()) :: :big
+```
+
+**A type is a difference; a layout is not.** Both sides are squeezed the same way
+before comparison: line breaks go, spaces hugging a bracket go, exactly one space
+follows a comma, exactly one sits either side of `|`. The compiler writes
+`run( binary() )` and a person writes `run(binary())`, and those are the same
+thing. So are `{:ok,term()}` and `{:ok, term()}`.
 
 ### A contract with `verify`
 
@@ -341,6 +365,10 @@ A hook cannot load a skill: all it can do is **put text into the context**. So
 The point is that git knows the stage, not the agent. Without this the agent
 would have to guess.
 
+In `manual` mode the sentence addresses not the agent but, through it, the
+person: the agent is not allowed to take the skill there, and telling it to would
+produce a blocked call. So the text says "ask them to type /keel-plan".
+
 ### The hook before a write
 
 It compares the file against those declared in the step — deliberately the same
@@ -396,8 +424,19 @@ keel init --mode manual --agent-hooks
 ```
 
 The mode is written into `keel/keel.json` and read back by `keel skills` and
-`keel update`, so regenerating never quietly hands the procedures back to the
-model.
+`keel update`, so regenerating never quietly hands back either the procedures to
+the model or the hooks the mode did not want.
+
+**Narrowing the mode also takes back what a wider one installed.** `keel init
+--mode manual` over a strict install does not merely stop writing hooks: it
+removes `.cursor/hooks.json` and takes our entries out of `.claude/settings.json`,
+leaving everything else in that file untouched. Otherwise the output would say
+"no agent hooks" while the hooks went on refusing writes — and a report the
+filesystem contradicts is the one thing this whole tool exists against.
+
+A file we did not write is not ours to take away: if `.cursor/hooks.json` no
+longer matches what Keel put there, it is named and left — the same answer
+`update` gives a file somebody edited by hand.
 
 ## Skills
 
@@ -421,7 +460,8 @@ Cursor also has rules in `.cursor/rules/*.mdc`, but those are for short standing
 constraints, and multi-step procedures are skills.
 
 **A skill is not only for the model to pick up.** The directory name is the
-command, so the operator starts a stage of the cycle directly:
+command, so the operator starts a stage of the cycle directly — and in `manual`
+mode the operator is the only one who starts it:
 
 | Command | When |
 |---|---|

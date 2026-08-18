@@ -172,18 +172,92 @@ class TestTheModeIsRemembered(ModeCase):
                          keel.DEFAULTS["mode"])
 
 
+class TestNarrowingTheModeTakesTheHooksBack(ModeCase):
+    """Installing is half the job; a mode that excludes them has to remove them."""
+
+    def test_the_cursor_file_goes(self):
+        self.init()
+        self.assertTrue(os.path.exists(self.path(keel.CURSOR_HOOKS)))
+        self.init(mode="manual")
+        self.assertFalse(os.path.exists(self.path(keel.CURSOR_HOOKS)))
+
+    def test_our_entries_leave_the_claude_settings(self):
+        self.init()
+        self.init(mode="soft")
+        self.assertFalse(self.has_agent_hooks())
+
+    def test_somebody_elses_settings_survive_it(self):
+        """Файл наш лише почасти — решта в ньому чужа й лишається."""
+        self.init()
+        path = self.path(keel.CLAUDE_SETTINGS)
+        data = json.loads(self.read(keel.CLAUDE_SETTINGS))
+        data["model"] = "opus"
+        data["hooks"].setdefault("SessionStart", []).append(
+            {"hooks": [{"type": "command", "command": "echo чуже"}]})
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(data, handle)
+        self.init(mode="manual")
+        after = json.loads(self.read(keel.CLAUDE_SETTINGS))
+        self.assertEqual(after["model"], "opus")
+        self.assertIn("echo чуже", json.dumps(after, ensure_ascii=False))
+        self.assertNotIn(keel.HOOK_TAG, json.dumps(after, ensure_ascii=False))
+
+    def test_a_hand_edited_file_is_named_and_left(self):
+        """Файл, якого ми не писали, не наш, щоб його видаляти."""
+        self.init()
+        with open(self.path(keel.CURSOR_HOOKS), "w", encoding="utf-8") as handle:
+            handle.write('{"version": 1, "hooks": {}}\n')
+        out = self.init(mode="manual")
+        self.assertTrue(os.path.exists(self.path(keel.CURSOR_HOOKS)))
+        self.assertIn("not what Keel wrote", out)
+
+    def test_the_line_it_prints_is_true(self):
+        """Раніше воно писало «хуків немає», поки хуки далі перехоплювали."""
+        self.init()
+        out = self.init(mode="manual")
+        self.assertIn("no agent hooks", out)
+        self.assertFalse(self.has_agent_hooks())
+
+
+class TestUpdateKeepsTheMode(ModeCase):
+    """The refresh that quietly put the guard back."""
+
+    def update(self):
+        done = subprocess.run(
+            [sys.executable, os.path.join(keel.home(), "keel.py"),
+             "-C", self.root, "update"], capture_output=True, text=True)
+        return done.stdout + done.stderr
+
+    def test_update_does_not_reinstall_what_the_mode_excluded(self):
+        self.init(mode="manual")
+        self.update()
+        self.assertFalse(self.has_agent_hooks())
+
+    def test_update_still_installs_them_under_strict(self):
+        self.init(mode="strict")
+        os.remove(self.path(keel.CURSOR_HOOKS))
+        self.update()
+        self.assertTrue(os.path.exists(self.path(keel.CURSOR_HOOKS)))
+
+
 class TestGitHooksAreNotTheAgentHooks(ModeCase):
     """Two different animals under one word: these guard the repository."""
 
-    def test_they_go_in_whatever_the_mode(self):
-        for mode in keel.MODES:
-            with self.subTest(mode=mode):
-                self.setUp()
-                self.init(mode=mode)
-                folder = os.path.join(self.root, ".git", "hooks")
-                for name in keel.HOOKS:
-                    self.assertTrue(os.path.exists(os.path.join(folder, name)),
-                                    f"{mode}: {name}")
+    def assert_git_hooks(self, mode):
+        self.init(mode=mode)
+        folder = os.path.join(self.root, ".git", "hooks")
+        for name in keel.HOOKS:
+            self.assertTrue(os.path.exists(os.path.join(folder, name)),
+                            f"{mode}: {name}")
+
+    def test_under_strict(self):
+        self.assert_git_hooks("strict")
+
+    def test_under_soft(self):
+        self.assert_git_hooks("soft")
+
+    def test_under_manual(self):
+        self.assert_git_hooks("manual")
 
 
 if __name__ == "__main__":

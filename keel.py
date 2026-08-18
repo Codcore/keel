@@ -205,6 +205,11 @@ UK = {
         "{file}: не читається як JSON, не чіпаю",
     "{file}: not an object, leaving it alone": "{file}: не обʼєкт, не чіпаю",
     "the skills did not change": "скіли не змінились",
+    "{file}: not what Keel wrote, leaving it in place — the hooks in it still run":
+        "{file}: це не те, що писав Keel, лишаю на місці — хуки в ньому далі "
+        "працюють",
+    "{file} removed": "{file} прибрано",
+    "{file} (our hook entries taken out)": "{file} (наші записи хуків вилучено)",
     "Implements: [{slug}](../contracts/{slug}.md)@{rev}":
         "Виконує: [{slug}](../contracts/{slug}.md)@{rev}",
     "Proves: {proves} · revision `{rev}`":
@@ -950,8 +955,14 @@ class ElixirAdapter(Adapter):
             f"    IO.puts(\"{EXPORT_MARK}\" <> name <> \"|\" <> body)\n"
             "    case Code.Typespec.fetch_specs(mod) do\n"
             "      {:ok, specs} ->\n"
-            "        for {{f, a}, [spec | _]} <- specs do\n"
+            # Every clause, not the first: a function may carry several @spec
+            # lines, and comparing a contract against an arbitrary one of them
+            # would call a kept promise broken.
+            "        for {{f, a}, list} <- specs, spec <- list do\n"
             "          text = Code.Typespec.spec_to_quoted(f, spec) |> Macro.to_string()\n"
+            # One line per clause is the protocol this is read back through, so
+            # the line breaks Macro.to_string puts in a long spec have to go
+            # here. Everything else about spacing is settled in flatten_spec.
             "          flat = String.replace(text, ~r/\\s+/, \" \")\n"
             f"          IO.puts(\"{SPEC_MARK}\" <> name <> \"|#{{f}}/#{{a}}|\" <> flat)\n"
             "        end\n"
@@ -1039,13 +1050,18 @@ class PythonAdapter(Adapter):
 
 
 def parse_export_output(proc, modules):
-    """{module: {exports}} plus {("specs", module): {"name/arity": spec text}}."""
+    """{module: {exports}} plus {("specs", module): {"name/arity": [spec, ...]}}.
+
+    A list because one function may declare several specs, and every one of them
+    is a shape the module honestly promises.
+    """
     out = {}
     for line in proc.stdout.splitlines():
         if line.startswith(SPEC_MARK):
             name, _, rest = line[len(SPEC_MARK):].partition("|")
             signature, _, text = rest.partition("|")
-            out.setdefault(("specs", name), {})[signature] = text.strip()
+            out.setdefault(("specs", name), {}).setdefault(signature, []).append(
+                text.strip())
             continue
         if not line.startswith(EXPORT_MARK):
             continue
@@ -1403,24 +1419,27 @@ def check_scenarios(project, run_tests=True):
     return problems
 
 
-def promised_signature(entry):
-    """What an `exports:` entry names: ("run", 3), from `run/3` or from a spec.
+def spec_head(entry):
+    """The part before the `::` that separates a signature from its return type.
 
-    A contract may promise as little as a name and an arity, or as much as the
-    whole signature. Both are checkable, and what is written is what gets
-    checked — the short form loses nothing by the long form existing.
+    The separator is the one at bracket depth zero, not the first one in the
+    string. Elixir names its arguments — `run(text :: binary()) :: :ok` is what
+    the compiler itself hands back — so splitting on the first `::` would cut
+    the entry in the middle of an argument and leave an unbalanced paren.
     """
-    entry = entry.strip()
-    if "::" not in entry:
-        name, _, arity = entry.partition("/")
-        return (name.strip(), int(arity)) if arity.strip().isdigit() else None
-    head = entry.split("::", 1)[0].strip()
-    match = re.match(r"^([a-z_][A-Za-z0-9_]*[?!]?)\s*\((.*)\)$", head, re.S)
-    if not match:
-        return None
-    name, inside = match.group(1), match.group(2).strip()
-    if not inside:
-        return (name, 0)
+    depth = 0
+    for index, char in enumerate(entry):
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == ":" and depth == 0 and entry[index:index + 2] == "::":
+            return entry[:index].strip()
+    return None
+
+
+def count_arguments(inside):
+    """Commas at depth zero. A comma inside a type is part of that one type."""
     depth, count = 0, 1
     for char in inside:
         if char in "([{":
@@ -1429,7 +1448,29 @@ def promised_signature(entry):
             depth -= 1
         elif char == "," and depth == 0:
             count += 1
-    return (name, count)
+    return count
+
+
+def promised_signature(entry):
+    """What an `exports:` entry names: ("run", 3), from `run/3` or from a spec.
+
+    A contract may promise as little as a name and an arity, or as much as the
+    whole signature. Both are checkable, and what is written is what gets
+    checked — the short form loses nothing by the long form existing.
+    """
+    entry = entry.strip()
+    head = spec_head(entry)
+    if head is None:
+        name, _, arity = entry.partition("/")
+        # isdigit() is wider than what int() accepts — it is true of a
+        # superscript, which int() then refuses. A stray character in a contract
+        # has to turn a check red, not end the run in a traceback.
+        return (name.strip(), int(arity)) if arity.strip().isdecimal() else None
+    match = re.match(r"^([a-z_][A-Za-z0-9_]*[?!]?)\s*\((.*)\)$", head, re.S)
+    if not match:
+        return None
+    name, inside = match.group(1), match.group(2).strip()
+    return (name, count_arguments(inside) if inside else 0)
 
 
 def flatten_spec(text):
@@ -1437,13 +1478,16 @@ def flatten_spec(text):
 
     The compiler renders a spec its own way — `run( binary() )` where a person
     writes `run(binary())`. Comparing those raw would report a difference in
-    whitespace as a broken promise, so both sides are squeezed the same way
-    first: no space hugging a bracket, none before a comma.
+    whitespace as a broken promise, and the message would print a line the eye
+    cannot tell from what is already in the contract. So both sides are squeezed
+    the same way first, and the squeezing is symmetric: no space hugging a
+    bracket, exactly one after a comma, exactly one around a union bar.
     """
     text = re.sub(r"\s+", " ", text).strip()
     text = re.sub(r"([(\[{]) ", r"\1", text)
     text = re.sub(r" ([)\]}])", r"\1", text)
-    return re.sub(r" ,", ",", text)
+    text = re.sub(r"\s*,\s*", ", ", text)
+    return re.sub(r"\s*\|\s*", " | ", text)
 
 
 def check_exports(project, run_tests=True):
@@ -1525,7 +1569,7 @@ def check_exports(project, run_tests=True):
             # From here on the contract promises a shape, not just a name. If we
             # cannot read the shape, saying so beats a green check over a
             # promise nothing compared.
-            if not project.adapter.supports_specs:
+            if not getattr(project.adapter, "supports_specs", False):
                 problems.append(Problem(
                     6, t("{language} cannot be asked for types, so the promised shape of {promised} goes unchecked", language=project.adapter.name, promised=named),
                     contract.rel, contract.line_of(promised)))
@@ -1533,11 +1577,13 @@ def check_exports(project, run_tests=True):
                 problems.append(Problem(
                     6, t("{module} declares no @spec for {promised}", module=contract.module, promised=named),
                     contract.rel, contract.line_of(promised)))
-            elif flatten_spec(promised) != flatten_spec(specs[named]):
-                problems.append(Problem(
-                    6, t("the promised shape of {promised} is not what the module declares:", promised=named)
-                       + "\n      " + flatten_spec(specs[named]),
-                    contract.rel, contract.line_of(promised)))
+            else:
+                declared = [flatten_spec(one) for one in specs[named]]
+                if flatten_spec(promised) not in declared:
+                    problems.append(Problem(
+                        6, t("the promised shape of {promised} is not what the module declares:", promised=named)
+                           + "".join("\n      " + one for one in declared),
+                        contract.rel, contract.line_of(promised)))
     return problems
 
 
@@ -1966,8 +2012,9 @@ def generated_files(root, settings):
     out[CI_FILE] = CI_TEMPLATE.format(
         tool=VENDORED,
         setup="".join(line + "\n" for line in (adapter.ci_steps(root) if adapter else [])))
-    out[CURSOR_HOOKS] = json.dumps(cursor_hook_config(), ensure_ascii=False,
-                                   indent=2) + "\n"
+    if agent_hooks_wanted(settings):
+        out[CURSOR_HOOKS] = json.dumps(cursor_hook_config(), ensure_ascii=False,
+                                       indent=2) + "\n"
     return out
 
 
@@ -2720,6 +2767,57 @@ def write_hook_configs(root, done, manifest=None):
     merge_claude_settings(os.path.join(root, CLAUDE_SETTINGS), done)
 
 
+def remove_hook_configs(root, done):
+    """Take back the hooks a narrower mode no longer wants.
+
+    Installing is not the whole job. Switching a project from strict to manual
+    and leaving the guard running would print a line saying the guard is gone
+    while it still refuses writes — a report the filesystem contradicts, which is
+    the one thing this tool exists to stop.
+
+    A file we did not write is not ours to delete: if `.cursor/hooks.json` no
+    longer matches what we put there, it is named and left, the same answer
+    `update` gives a hand-edited file.
+    """
+    strip_claude_settings(os.path.join(root, CLAUDE_SETTINGS), done)
+    path = os.path.join(root, CURSOR_HOOKS)
+    if not os.path.exists(path):
+        return
+    if digest(read_text(path)) != read_manifest(root).get(CURSOR_HOOKS):
+        print("  " + t("{file}: not what Keel wrote, leaving it in place — the "
+                       "hooks in it still run", file=CURSOR_HOOKS))
+        return
+    os.remove(path)
+    done.append(t("{file} removed", file=CURSOR_HOOKS))
+
+
+def strip_claude_settings(path, done):
+    """Ours out of a file that is not ours: the rest of it stays untouched."""
+    if not os.path.exists(path):
+        return
+    try:
+        data = json.loads(read_text(path))
+    except ValueError:
+        print("  " + t("{file}: does not parse as JSON, leaving it alone", file=CLAUDE_SETTINGS))
+        return
+    if not isinstance(data, dict) or not isinstance(data.get("hooks"), dict):
+        return
+    before = json.dumps(data, ensure_ascii=False, sort_keys=True)
+    for event in list(data["hooks"]):
+        kept = [item for item in data["hooks"][event] if not is_ours(item)]
+        if kept:
+            data["hooks"][event] = kept
+        else:
+            del data["hooks"][event]
+    if not data["hooks"]:
+        del data["hooks"]
+    if json.dumps(data, ensure_ascii=False, sort_keys=True) == before:
+        return
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+    done.append(t("{file} (our hook entries taken out)", file=CLAUDE_SETTINGS))
+
+
 def merge_claude_settings(path, done):
     """Settings.json belongs to the project; we own only our own entries in it."""
     try:
@@ -2873,6 +2971,7 @@ def cmd_init(project, args):
     if agent_hooks_wanted(settings, args):
         write_hook_configs(project.root, done, manifest)
     else:
+        remove_hook_configs(project.root, done)
         done.append(t("no agent hooks: mode is {mode}", mode=settings["mode"]))
 
     block = agents_block(settings["docs"], principles)
@@ -3188,7 +3287,8 @@ def cmd_update(project, args):
         block = agents_block(project.settings["docs"], principles)
         if update_agents(os.path.join(project.root, "AGENTS.md"), block):
             done.append("AGENTS.md " + t("(block between the markers)"))
-    merge_claude_settings(os.path.join(project.root, CLAUDE_SETTINGS), done)
+    if agent_hooks_wanted(project.settings):
+        merge_claude_settings(os.path.join(project.root, CLAUDE_SETTINGS), done)
     write_config(project.root, project.settings, done, manifest)
 
     for line in done:

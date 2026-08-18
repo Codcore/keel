@@ -62,9 +62,11 @@ signature, `run(binary(), keyword()) :: {:ok, term()}`. The short form promises
 that the function exists; the long one promises its shape as well, and where the
 language can be asked about types — Elixir can — the check compares it against
 what the module declares and prints the module's own version of any difference.
-Write as much as you mean to promise: the short form is not weaker for the long
-one existing. Promise a shape in a language that keeps none, and the check says
-so rather than passing.
+Arguments may be named, the way the compiler itself names them; where a function
+carries several `@spec` lines, any one of them may be the promise. Write as much
+as you mean to promise: the short form is not weaker for the long one existing.
+Promise a shape in a language that keeps none, and the check says so rather than
+passing.
 
 A promise nothing can check is not a contract but a boundary, and it lives as a
 paragraph inside a transform.

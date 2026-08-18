@@ -16,6 +16,24 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import keel  # noqa: E402
 
 
+def spoken_strings():
+    """Every literal handed to t() in the tool, read out of the source itself.
+
+    Both guards below are defined against this one set: widen the extraction —
+    to catch t() reached through an alias, say — and the pair widens together.
+    Two copies would let one of them keep checking the narrower set in silence.
+    """
+    source = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "keel.py")
+    with open(source, encoding="utf-8") as handle:
+        tree = ast.parse(handle.read())
+    return {node.args[0].value for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name) and node.func.id == "t"
+            and node.args and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)}
+
+
 class TestCatalogue(unittest.TestCase):
     """The catalogue is keyed by English, so a gap degrades to readable English."""
 
@@ -56,32 +74,14 @@ class TestCatalogue(unittest.TestCase):
 
         Це той самий тихий клас, що й зелена перевірка над неперевіреним: у
         проєкті з lang: uk половина фрази українською, половина ні, і ніщо
-        про це не каже. Дістаємо всі виклики t() із файла й вимагаємо запис.
+        про це не каже.
         """
-        source = os.path.join(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))), "keel.py")
-        with open(source, encoding="utf-8") as handle:
-            tree = ast.parse(handle.read())
-        wanted = {node.args[0].value for node in ast.walk(tree)
-                  if isinstance(node, ast.Call)
-                  and isinstance(node.func, ast.Name) and node.func.id == "t"
-                  and node.args and isinstance(node.args[0], ast.Constant)
-                  and isinstance(node.args[0].value, str)}
-        missing = sorted(text for text in wanted if text not in keel.UK)
+        missing = sorted(text for text in spoken_strings() if text not in keel.UK)
         self.assertEqual(missing, [], f"без перекладу: {len(missing)}")
 
     def test_the_catalogue_holds_nothing_the_tool_never_says(self):
         """Запис без виклику — слід перейменованої фрази, і він старіє мовчки."""
-        source = os.path.join(os.path.dirname(os.path.dirname(
-            os.path.abspath(__file__))), "keel.py")
-        with open(source, encoding="utf-8") as handle:
-            tree = ast.parse(handle.read())
-        said = {node.args[0].value for node in ast.walk(tree)
-                if isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name) and node.func.id == "t"
-                and node.args and isinstance(node.args[0], ast.Constant)
-                and isinstance(node.args[0].value, str)}
-        said |= set(keel.CHECK_NAMES.values())
+        said = spoken_strings() | set(keel.CHECK_NAMES.values())
         stale = sorted(text for text in keel.UK if text not in said)
         self.assertEqual(stale, [], f"мертвих записів: {len(stale)}")
 
