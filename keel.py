@@ -205,6 +205,13 @@ UK = {
         "{file}: не читається як JSON, не чіпаю",
     "{file}: not an object, leaving it alone": "{file}: не обʼєкт, не чіпаю",
     "the skills did not change": "скіли не змінились",
+    "the tests did not finish within {seconds}s ({command}). Nothing was proved, "
+    "which is not the same as nothing being wrong.":
+        "тести не завершились за {seconds}с ({command}). Нічого не доведено, а це "
+        "не те саме, що «нічого не зламано».",
+    "{command} did not answer within {seconds}s":
+        "{command} не відповів за {seconds}с",
+    "{command} was not found": "{command} не знайдено",
     "path/to/file": "шлях/до/файлу",
     "What exactly is promised, and to whom.": "Що саме обіцяно й кому.",
     "Why": "Навіщо",
@@ -349,7 +356,13 @@ def t(text, **fields):
 
 REV_LEN = 6          # how many hex digits keel rev writes
 REV_MIN = 4          # a shorter revision in a reference is not accepted
-VERIFY_TIMEOUT = 30  # a contract's proof is a probe, not a build
+VERIFY_TIMEOUT = 30
+# A test run is longer work than a promise being probed, but not unbounded: the
+# same reasoning applies. Everything here executes the project's own code, and a
+# suite that waits on input or on a socket would hold pre-push and CI for as
+# long as they are allowed to run.
+TEST_TIMEOUT = 600
+PROBE_TIMEOUT = 120  # a contract's proof is a probe, not a build
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -861,6 +874,31 @@ EXPORT_MARK = "keel-exports|"
 SPEC_MARK = "keel-spec|"
 
 
+class Probe:
+    """What a finished subprocess looks like to parse_export_output."""
+
+    def __init__(self, returncode, stdout, stderr):
+        self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
+
+
+def run_probe(command, root, env=None):
+    """Ask the project what it declares — under a bound, and without a stdin.
+
+    Loading a module runs whatever that module runs at load: a connection, a
+    prompt, a retry loop. Check 6 is what pre-push and CI run, so an unbounded
+    wait here is an unbounded wait on every push.
+    """
+    try:
+        return subprocess.run(command, cwd=root, capture_output=True, text=True,
+                              stdin=subprocess.DEVNULL, timeout=PROBE_TIMEOUT,
+                              **({"env": env} if env else {}))
+    except subprocess.TimeoutExpired:
+        return Probe(1, "", t("{command} did not answer within {seconds}s",
+                              command=command[0], seconds=PROBE_TIMEOUT))
+    except FileNotFoundError:
+        return Probe(1, "", t("{command} was not found", command=command[0]))
+
+
 class Adapter:
     name = "?"
     marker = ()
@@ -987,11 +1025,8 @@ class ElixirAdapter(Adapter):
             "  end\n"
             "end\n"
         )
-        proc = subprocess.run(
-            ["mix", "run", "--no-start", "-e", script],
-            cwd=root, capture_output=True, text=True,
-        )
-        return parse_export_output(proc, modules)
+        return parse_export_output(
+            run_probe(["mix", "run", "--no-start", "-e", script], root), modules)
 
 
 class PythonAdapter(Adapter):
@@ -1055,12 +1090,11 @@ class PythonAdapter(Adapter):
             "            out.append(n + '/' + str(count))\n"
             f"    print('{EXPORT_MARK}' + name + '|' + ','.join(out))\n"
         )
-        proc = subprocess.run(
-            [sys.executable, "-c", script],
-            cwd=root, capture_output=True, text=True,
-            env={**os.environ, "PYTHONPATH": root + os.pathsep + os.environ.get("PYTHONPATH", "")},
-        )
-        return parse_export_output(proc, modules)
+        return parse_export_output(run_probe(
+            [sys.executable, "-c", script], root,
+            env={**os.environ,
+                 "PYTHONPATH": root + os.pathsep + os.environ.get("PYTHONPATH", "")}),
+            modules)
 
 
 def parse_export_output(proc, modules):
@@ -1226,13 +1260,21 @@ KEEL_DIR_PREFIX = "keel/"
 # Keel's own furniture in a project. A plan branch may carry it: it is not the
 # project's code, and refusing it walls off the very first plan commit whenever
 # `init` or `update` has just refreshed something.
-KEEL_OWNED = (KEEL_DIR_PREFIX, ".claude/skills/", ".cursor/skills/",
-              ".claude/settings.json", ".cursor/hooks.json", ".codex/hooks.json",
-              ".github/workflows/keel.yml", "AGENTS.md")
+KEEL_OWNED_DIRS = (KEEL_DIR_PREFIX, ".claude/skills/", ".cursor/skills/")
+KEEL_OWNED_FILES = (".claude/settings.json", ".cursor/hooks.json",
+                    ".codex/hooks.json", ".github/workflows/keel.yml",
+                    "AGENTS.md")
+KEEL_OWNED = KEEL_OWNED_DIRS + KEEL_OWNED_FILES
 
 
 def keel_owns(name):
-    return name.startswith(KEEL_OWNED)
+    """Ours, by whole path — not by anything that merely starts the same way.
+
+    A bare prefix test claimed AGENTS.mdx and .claude/settings.json.bak, which
+    let a plan branch modify somebody's unrelated file and let `init` sweep it
+    into its own commit — against the one promise that commit makes.
+    """
+    return name.startswith(KEEL_OWNED_DIRS) or name in KEEL_OWNED_FILES
 
 
 def check_structure(project):
@@ -1430,7 +1472,16 @@ def check_scenarios(project, run_tests=True):
 
     if run_tests:
         command = project.adapter.test_command()
-        proc = subprocess.run(command, cwd=project.root, capture_output=True, text=True)
+        try:
+            proc = subprocess.run(command, cwd=project.root, capture_output=True,
+                                  text=True, stdin=subprocess.DEVNULL,
+                                  timeout=TEST_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            return problems + [Problem(
+                5, t("the tests did not finish within {seconds}s ({command}). "
+                     "Nothing was proved, which is not the same as nothing "
+                     "being wrong.", seconds=TEST_TIMEOUT,
+                     command=" ".join(command)))]
         if proc.returncode != 0:
             tail = (proc.stdout or proc.stderr).strip().splitlines()[-12:]
             problems.append(Problem(
@@ -2852,35 +2903,16 @@ def remove_hook_configs(root, done):
     done.append(t("{file} removed", file=CURSOR_HOOKS))
 
 
-def strip_claude_settings(path, done):
-    """Ours out of a file that is not ours: the rest of it stays untouched."""
-    if not os.path.exists(path):
-        return
-    try:
-        data = json.loads(read_text(path))
-    except ValueError:
-        print("  " + t("{file}: does not parse as JSON, leaving it alone", file=CLAUDE_SETTINGS))
-        return
-    if not isinstance(data, dict) or not isinstance(data.get("hooks"), dict):
-        return
-    before = json.dumps(data, ensure_ascii=False, sort_keys=True)
-    for event in list(data["hooks"]):
-        kept = [item for item in data["hooks"][event] if not is_ours(item)]
-        if kept:
-            data["hooks"][event] = kept
-        else:
-            del data["hooks"][event]
-    if not data["hooks"]:
-        del data["hooks"]
-    if json.dumps(data, ensure_ascii=False, sort_keys=True) == before:
-        return
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
-    done.append(t("{file} (our hook entries taken out)", file=CLAUDE_SETTINGS))
+def edit_claude_settings(path, change, done, label, create=False):
+    """Load, hand the file to `change`, write it back if anything moved.
 
-
-def merge_claude_settings(path, done):
-    """Settings.json belongs to the project; we own only our own entries in it."""
+    Both the adding and the removing pass go through here. Two copies of this
+    were how the two ended up validating the file differently, and only one of
+    them noticed that a hook event holding something other than a list is not
+    ours to rewrite.
+    """
+    if not os.path.exists(path) and not create:
+        return
     try:
         data = json.loads(read_text(path)) if os.path.exists(path) else {}
     except ValueError:
@@ -2891,17 +2923,61 @@ def merge_claude_settings(path, done):
         return
 
     before = json.dumps(data, ensure_ascii=False, sort_keys=True)
-    hooks = data.setdefault("hooks", {})
-    for event, entries in claude_hook_config().items():
-        existing = [item for item in hooks.get(event, []) if not is_ours(item)]
-        hooks[event] = existing + entries
-    after = json.dumps(data, ensure_ascii=False, sort_keys=True)
-    if before == after:
+    change(data)
+    if json.dumps(data, ensure_ascii=False, sort_keys=True) == before:
         return
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
-    done.append(CLAUDE_SETTINGS)
+    done.append(label)
+
+
+def ours_only(entries):
+    """Our entries out of one hook event, or None when it is not a list of them.
+
+    A value we do not recognise stays exactly as it is: this file belongs to the
+    project, and rewriting a shape we did not expect would destroy somebody's
+    configuration while reporting that we only took our own out.
+    """
+    if not isinstance(entries, list):
+        return None
+    return [item for item in entries if not is_ours(item)]
+
+
+def strip_claude_settings(path, done):
+    """Ours out of a file that is not ours: the rest of it stays untouched."""
+    def change(data):
+        hooks = data.get("hooks")
+        if not isinstance(hooks, dict):
+            return
+        for event in list(hooks):
+            kept = ours_only(hooks[event])
+            if kept is None:
+                continue
+            if kept:
+                hooks[event] = kept
+            else:
+                del hooks[event]
+        if not hooks:
+            del data["hooks"]
+
+    edit_claude_settings(path, change, done,
+                         t("{file} (our hook entries taken out)", file=CLAUDE_SETTINGS))
+
+
+def merge_claude_settings(path, done):
+    """Settings.json belongs to the project; we own only our own entries in it."""
+    def change(data):
+        hooks = data.setdefault("hooks", {})
+        if not isinstance(hooks, dict):
+            return
+        for event, entries in claude_hook_config().items():
+            existing = ours_only(hooks.get(event, []))
+            if existing is None:
+                continue      # somebody else's shape; adding to it would break it
+            hooks[event] = existing + entries
+
+    edit_claude_settings(path, change, done, CLAUDE_SETTINGS, create=True)
 
 
 def is_ours(entry):
@@ -3350,6 +3426,12 @@ def cmd_update(project, args):
             done.append("AGENTS.md " + t("(block between the markers)"))
     if agent_hooks_wanted(project.settings):
         merge_claude_settings(os.path.join(project.root, CLAUDE_SETTINGS), done)
+    else:
+        # Refusing to add them back is half the job: a mode narrowed by hand in
+        # keel.json would otherwise leave the old entries firing forever, and
+        # generated_files no longer lists the cursor file, so survey never
+        # mentions it either.
+        remove_hook_configs(project.root, done)
     write_config(project.root, project.settings, done, manifest)
 
     for line in done:

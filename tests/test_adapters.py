@@ -190,6 +190,71 @@ class TestExports(unittest.TestCase):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Nothing that runs the project's own code may run without a bound
+# ─────────────────────────────────────────────────────────────────────────────
+
+class SleepAdapter(keel.Adapter):
+    """An adapter whose test command never finishes."""
+
+    name = "sleepy"
+
+    def test_command(self):
+        return ["sleep", "30"]
+
+    def test_files(self, root):
+        return []
+
+    def exports(self, root, modules):
+        return {}
+
+
+class TestNothingHangsForever(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-hang-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        os.makedirs(os.path.join(self.root, "keel/steps"))
+        os.makedirs(os.path.join(self.root, "keel/contracts"))
+        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("---\nscenarios:\n  does-a: {}\n---\n\n"
+                         "## scenario: does-a\n\n**Given** щось.\n")
+
+    def test_a_test_run_that_hangs_is_cut_off_and_named(self):
+        """Без межі зависла збірка тримала б pre-push і CI скільки завгодно."""
+        project = keel.Project(self.root)
+        project.adapter = SleepAdapter()
+        with unittest.mock.patch.object(keel, "TEST_TIMEOUT", 1):
+            problems = keel.check_scenarios(project)
+        self.assertTrue(any("did not finish within 1s" in p.message for p in problems),
+                        [p.message for p in problems])
+
+    def test_a_probe_that_hangs_comes_back_as_an_error(self):
+        with unittest.mock.patch.object(keel, "PROBE_TIMEOUT", 1):
+            probe = keel.run_probe(["sleep", "30"], self.root)
+        self.assertNotEqual(probe.returncode, 0)
+        self.assertIn("did not answer within 1s", probe.stderr)
+
+    def test_a_probe_never_inherits_stdin(self):
+        """Команда з підказкою має впасти одразу, а не зʼїсти таймаут."""
+        probe = keel.run_probe(
+            [sys.executable, "-c", "input()"], self.root)
+        self.assertNotEqual(probe.returncode, 0)
+
+    def test_a_missing_interpreter_is_named_not_a_traceback(self):
+        probe = keel.run_probe(["немає-такої-команди"], self.root)
+        self.assertNotEqual(probe.returncode, 0)
+        self.assertIn("was not found", probe.stderr)
+
+    def test_a_timed_out_probe_reads_as_a_failed_build(self):
+        """parse_export_output має розібрати відповідь заглушки як помилку."""
+        with unittest.mock.patch.object(keel, "PROBE_TIMEOUT", 1):
+            probe = keel.run_probe(["sleep", "30"], self.root)
+        parsed = keel.parse_export_output(probe, ["Demo"])
+        self.assertIn("__error__", parsed)
+        self.assertIsNone(parsed["Demo"])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Check 6: exports written as whole signatures
 # ─────────────────────────────────────────────────────────────────────────────
 

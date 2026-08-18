@@ -240,6 +240,92 @@ class TestUpdateKeepsTheMode(ModeCase):
         self.assertTrue(os.path.exists(self.path(keel.CURSOR_HOOKS)))
 
 
+class TestSomebodyElsesSettingsFile(ModeCase):
+    """The file is the project's; Keel owns some entries inside it and no more."""
+
+    def settings(self, data):
+        with open(self.path(keel.CLAUDE_SETTINGS), "w", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False)
+
+    def read_settings(self):
+        return json.loads(self.read(keel.CLAUDE_SETTINGS))
+
+    def test_an_unexpected_shape_is_left_exactly_as_it_was(self):
+        """Обʼєкт замість списку раніше ставав списком своїх ключів."""
+        self.init()
+        theirs = {"model": "opus",
+                  "hooks": {"SessionStart": {"note": "не список"}}}
+        self.settings(theirs)
+        self.init(mode="manual")
+        self.assertEqual(self.read_settings(), theirs)
+
+    def test_an_unexpected_shape_is_not_added_to_either(self):
+        self.init(mode="manual")
+        theirs = {"hooks": {"PreToolUse": "рядок, а не список"}}
+        self.settings(theirs)
+        self.init(mode="strict")
+        self.assertEqual(self.read_settings()["hooks"]["PreToolUse"],
+                         "рядок, а не список")
+
+    def test_a_file_that_is_not_json_is_left_alone(self):
+        self.init()
+        with open(self.path(keel.CLAUDE_SETTINGS), "w", encoding="utf-8") as handle:
+            handle.write("{ це не json\n")
+        self.init(mode="manual")
+        with open(self.path(keel.CLAUDE_SETTINGS), encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), "{ це не json\n")
+
+    def test_an_empty_hooks_object_is_removed_not_left_hanging(self):
+        self.init()
+        self.init(mode="manual")
+        self.assertNotIn("hooks", self.read_settings())
+
+
+class TestUpdateTakesTheHooksBack(ModeCase):
+    """A mode narrowed by hand in keel.json, then a routine refresh."""
+
+    def update(self):
+        done = subprocess.run(
+            [sys.executable, os.path.join(keel.home(), "keel.py"),
+             "-C", self.root, "update"], capture_output=True, text=True)
+        return done.stdout + done.stderr
+
+    def narrow_by_hand(self, mode):
+        path = self.path(keel.CONFIG_FILE)
+        with open(path, encoding="utf-8") as handle:
+            stored = json.load(handle)
+        stored["mode"] = mode
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(stored, handle)
+
+    def test_update_removes_what_the_narrowed_mode_no_longer_wants(self):
+        self.init()
+        self.assertTrue(self.has_agent_hooks())
+        self.narrow_by_hand("manual")
+        self.update()
+        self.assertFalse(self.has_agent_hooks())
+
+    def test_it_says_so_rather_than_doing_it_silently(self):
+        self.init()
+        self.narrow_by_hand("soft")
+        self.assertIn(".cursor/hooks.json", self.update())
+
+
+class TestOwnership(unittest.TestCase):
+    """What counts as Keel's own furniture, and what merely looks like it."""
+
+    def test_whole_paths_only(self):
+        self.assertTrue(keel.keel_owns("AGENTS.md"))
+        self.assertFalse(keel.keel_owns("AGENTS.mdx"))
+        self.assertTrue(keel.keel_owns(".claude/settings.json"))
+        self.assertFalse(keel.keel_owns(".claude/settings.json.bak"))
+
+    def test_directories_still_match_by_prefix(self):
+        self.assertTrue(keel.keel_owns("keel/steps/0001-a.md"))
+        self.assertTrue(keel.keel_owns(".claude/skills/keel-plan/SKILL.md"))
+        self.assertFalse(keel.keel_owns("keeling/x.md"))
+
+
 class TestGitHooksAreNotTheAgentHooks(ModeCase):
     """Two different animals under one word: these guard the repository."""
 

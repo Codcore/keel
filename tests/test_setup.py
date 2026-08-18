@@ -101,6 +101,15 @@ class TestInit(unittest.TestCase):
         return subprocess.run(["git", "-C", self.root, "log", "--format=%s"],
                               capture_output=True, text=True).stdout
 
+    def test_a_lookalike_file_is_not_swept_into_our_commit(self):
+        """AGENTS.mdx лише починається так само — він чужий."""
+        self.write("AGENTS.mdx", "чиєсь своє, ще не закомічене\n")
+        self.init()
+        self.assertIn("AGENTS.mdx", self.porcelain())
+        self.assertNotIn("AGENTS.mdx", subprocess.run(
+            ["git", "-C", self.root, "show", "--name-only", "--format=", "HEAD"],
+            capture_output=True, text=True).stdout)
+
     def test_init_commits_only_its_own_files(self):
         """Чуже незакомічене поруч лишається чужим."""
         self.write("mine.txt", "моє, ще не закомічене\n")
