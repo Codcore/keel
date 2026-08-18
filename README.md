@@ -78,8 +78,8 @@ is its metavar. The project root is searched upwards: the first directory with
 
 ## Two languages, and they are independent
 
-`keel init` records two values in `keel/keel.json`, and they should not be
-conflated:
+`keel init` records two of them in `keel/keel.json` — the third is the mode —
+and the two should not be conflated:
 
 | Key | What it decides | Flag |
 |---|---|---|
@@ -90,9 +90,9 @@ They are separate because wanting an English reference with Ukrainian triggers i
 a reasonable thing to want. A skill's body depends on neither: it is read by the
 model, and it is always English.
 
-This is the only thing Keel keeps in a settings file. Neither value can be
-guessed: the language of a project's prose is a team's decision, not a property
-of the code.
+Those two and the mode are the whole of what Keel keeps in a settings file.
+Neither language can be guessed: the language of a project's prose is a team's
+decision, not a property of the code.
 
 `lang` also decides what this tool says. Its messages are keyed by their English
 text, so a missing translation degrades to readable English rather than to an
@@ -183,7 +183,7 @@ reads files **in the project it works on**, and `keel init` puts them there:
 ```
 keel/steps/                     empty directories
 keel/contracts/
-keel/keel.json                  the two languages: references and project
+keel/keel.json                  the settings: two languages and the mode
 keel/keel.py                    the tool itself, as a copy
 keel/KEEL.md                    the method, as a copy
 keel/README.md                  this file, as a copy
@@ -192,7 +192,7 @@ AGENTS.md                       a block between markers: principles and pointers
 .github/workflows/keel.yml      CI, generated
 .claude/skills/keel-*/SKILL.md  generated
 .cursor/skills/keel-*/SKILL.md  generated — the same format
-.claude/settings.json           agent hooks, generated; anything else stays
+.claude/settings.json           agent hooks in strict mode; anything else stays
 .cursor/hooks.json              the same for Cursor
 .codex/hooks.json               the same for Codex — not generated yet
 .git/hooks/                     pre-commit and pre-push, which call keel
@@ -360,6 +360,44 @@ Passing in silence would look like a check that never happened.
 Codex has no hooks yet: writes go through `apply_patch`, and the path sits inside
 the patch text rather than in a field. Its hooks also have to be switched on in
 `config.toml` with `[features] hooks = true`, and they do not work on Windows.
+
+## Three modes
+
+A skill file and a slash command are the same object in both agents. One line in
+the header decides who may reach it: with `disable-model-invocation: true` only a
+person typing `/keel-plan` can start the procedure, and the description leaves
+the model's context entirely; without it the model reads the description and may
+take the procedure when it judges the moment right. Cursor's own migration
+converts old slash commands to skills with exactly that line.
+
+So the question is not skills or commands. It is who starts a procedure, and
+whether anything watches while it runs. `keel init --mode` answers both in one
+word:
+
+| Mode | Who starts a procedure | Agent hooks |
+|---|---|---|
+| `strict` (default) | the agent, on its own judgement | installed |
+| `soft` | the agent, on its own judgement | none |
+| `manual` | only you, by typing `/keel-plan` | none |
+
+The default is `strict` because a method nobody starts is not a method.
+
+**The hooks in that column are the agent hooks** — the ones that read what the
+agent is about to write and refuse a file the step does not declare. Git hooks
+are a different animal and go in whatever the mode: they guard the repository
+against a broken step reaching the remote, and they guard it against you too.
+
+Three words cover three positions, and lose a fourth: starting every procedure
+by hand while keeping the guard that refuses an undeclared write. `--agent-hooks`
+and `--no-agent-hooks` overrule the mode, so that combination stays reachable:
+
+```bash
+keel init --mode manual --agent-hooks
+```
+
+The mode is written into `keel/keel.json` and read back by `keel skills` and
+`keel update`, so regenerating never quietly hands the procedures back to the
+model.
 
 ## Skills
 

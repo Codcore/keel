@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """The tool speaks the project's language, and says the same thing in both."""
 
+import ast
 import json
 import os
 import re
@@ -49,6 +50,40 @@ class TestCatalogue(unittest.TestCase):
     def test_every_check_name_is_translated(self):
         for name in keel.CHECK_NAMES.values():
             self.assertIn(name, keel.UK, f"немає перекладу: {name}")
+
+    def test_every_string_that_reaches_a_person_is_in_the_catalogue(self):
+        """Пропущений запис не падає — він тихо виходить англійською.
+
+        Це той самий тихий клас, що й зелена перевірка над неперевіреним: у
+        проєкті з lang: uk половина фрази українською, половина ні, і ніщо
+        про це не каже. Дістаємо всі виклики t() із файла й вимагаємо запис.
+        """
+        source = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "keel.py")
+        with open(source, encoding="utf-8") as handle:
+            tree = ast.parse(handle.read())
+        wanted = {node.args[0].value for node in ast.walk(tree)
+                  if isinstance(node, ast.Call)
+                  and isinstance(node.func, ast.Name) and node.func.id == "t"
+                  and node.args and isinstance(node.args[0], ast.Constant)
+                  and isinstance(node.args[0].value, str)}
+        missing = sorted(text for text in wanted if text not in keel.UK)
+        self.assertEqual(missing, [], f"без перекладу: {len(missing)}")
+
+    def test_the_catalogue_holds_nothing_the_tool_never_says(self):
+        """Запис без виклику — слід перейменованої фрази, і він старіє мовчки."""
+        source = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "keel.py")
+        with open(source, encoding="utf-8") as handle:
+            tree = ast.parse(handle.read())
+        said = {node.args[0].value for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name) and node.func.id == "t"
+                and node.args and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)}
+        said |= set(keel.CHECK_NAMES.values())
+        stale = sorted(text for text in keel.UK if text not in said)
+        self.assertEqual(stale, [], f"мертвих записів: {len(stale)}")
 
     def test_no_translation_is_left_identical(self):
         """Однаковий рядок означає забутий переклад, а не збіг."""

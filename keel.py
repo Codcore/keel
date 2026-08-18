@@ -205,6 +205,83 @@ UK = {
         "{file}: не читається як JSON, не чіпаю",
     "{file}: not an object, leaving it alone": "{file}: не обʼєкт, не чіпаю",
     "the skills did not change": "скіли не змінились",
+    "Implements: [{slug}](../contracts/{slug}.md)@{rev}":
+        "Виконує: [{slug}](../contracts/{slug}.md)@{rev}",
+    "Proves: {proves} · revision `{rev}`":
+        "Доводить: {proves} · ревізія `{rev}`",
+    "Test tag: `proves: :{atom}, rev: \"{rev}\"`":
+        "Тег тесту: `proves: :{atom}, rev: \"{rev}\"`",
+    "The skills /keel-plan, /keel-work and /keel-review are in place. Start the "
+    "agent in the project directory itself:\n  cd {root} && <agent>\nIf it answers "
+    "\"Unknown skill\" they have not been picked up yet: /reload-skills, or simply "
+    "call again. A session opened before the install has to be restarted; /clear "
+    "does not register the directory.":
+        "Скіли /keel-plan, /keel-work і /keel-review на місці. Запускай агента в "
+        "самій теці проєкту:\n  cd {root} && <агент>\nЯкщо він відповідає "
+        "\"Unknown skill\" — вони ще не підхопились: /reload-skills або просто "
+        "поклич ще раз. Сесію, відкриту до встановлення, треба перезапустити; "
+        "/clear теки не реєструє.",
+    "The transform slug in the message is the only link between the work and the plan.":
+        "Слаг трансформа в повідомленні — єдиний звʼязок роботи з планом.",
+    "branch {branch} is not named after a step. Work happens on a branch named "
+    "after the step, planning on plan/<step>.":
+        "гілка {branch} не названа за кроком. Робота йде на гілці, названій за "
+        "кроком, планування — на plan/<крок>.",
+    "every transform of step {step} is closed by a commit. Next: keel check, "
+    "then the PR.":
+        "кожен трансформ кроку {step} закрито комітом. Далі: keel check, потім PR.",
+    "keel: the hook payload carried no file path, so scope was not checked. "
+    "Files the step declares: {declared}":
+        "keel: у виклику хука не було шляху до файла, тож обсяг не перевірено. "
+        "Файли, які оголошує крок: {declared}",
+    "keel: {target} is outside the repository, so the step's scope does not "
+    "apply to it. Judge for yourself whether it should be written to.":
+        "keel: {target} лежить поза репозиторієм, тож обсяг кроку на нього не "
+        "поширюється. Чи варто туди писати — вирішуй сам.",
+    "step {step} is not on {main} yet: the plan is not approved and there is no work.":
+        "кроку {step} ще немає на {main}: план не затверджено, і роботи немає.",
+    "this is a plan branch: the step is written here, not code. keel gaps says "
+    "what is missing.":
+        "це гілка плану: тут пишеться крок, а не код. Чого бракує — каже keel gaps.",
+    "{count} Keel files are not in git yet. Commit them separately from the "
+    "work:\n  git add {paths}\n  git commit -m \"Keel in the project\"":
+        "{count} файлів Keel ще не в git. Закоміть їх окремо від роботи:\n"
+        "  git add {paths}\n  git commit -m \"Keel у проєкті\"",
+    "{name} is not declared in step {step}. Declared: {declared}. If this file "
+    "is the one you need, add it to the transform in {file}: drift is not "
+    "forbidden, it has to stay a line in the diff.":
+        "{name} не оголошено в кроці {step}. Оголошено: {declared}. Якщо потрібен "
+        "саме цей файл, додай його до трансформа в {file}: відхилення не "
+        "заборонене, воно має лишитись рядком у diff.",
+    "⚠ the step holds {held}, the contract is now {now} — keel rev first":
+        "⚠ крок тримає {held}, контракт тепер {now} — спершу keel rev",
+    "Take the {name} skill.": "Візьми скіл {name}.",
+    "Keel is in manual mode: ask the person to type /{name}.":
+        "Keel у ручному режимі: попроси людину набрати /{name}.",
+    "no agent hooks: mode is {mode}": "агентських хуків немає: режим {mode}",
+    "step {slug}": "крок {slug}",
+    "there is no step file for {branch} yet": "файла кроку для {branch} ще немає",
+    "Keel: plan branch {branch}, {where}. The plan is written here, not code.\n"
+    "{take} What is missing is what `python3 {tool} gaps` says.":
+        "Keel: гілка плану {branch}, {where}. Тут пишеться план, а не код.\n"
+        "{take} Чого бракує — каже `python3 {tool} gaps`.",
+    "Keel: branch {branch} is not named after a step, so there is no planned "
+    "work here.\nA new step: first `python3 {tool} new step <slug>` — it prints "
+    "the file name with its number — and only then the branch "
+    "`plan/<that same name>`. {take}":
+        "Keel: гілка {branch} не названа за кроком, тож запланованої роботи тут "
+        "немає.\nНовий крок: спершу `python3 {tool} new step <слаг>` — він друкує "
+        "імʼя файла з номером — і аж тоді гілка `plan/<те саме імʼя>`. {take}",
+    "Keel: {file} does not parse: {reason}":
+        "Keel: {file} не розбирається: {reason}",
+    "Keel: every transform of step {slug} is closed by a commit.\n{take} Then "
+    "`python3 {tool} check` and the PR.":
+        "Keel: кожен трансформ кроку {slug} закрито комітом.\n{take} Тоді "
+        "`python3 {tool} check` і PR.",
+    "Keel: {take} Here is the package for the next move — work from it, nothing "
+    "around it needs opening.":
+        "Keel: {take} Ось пакет для наступного руху — працюй із нього, довкола "
+        "нічого відкривати не треба.",
     "{root} is not a git repository, and Keel reads all of its state from\n"
     "git — transform closure, scope, the approval of a plan.\nFirst:\n  git init":
         "у {root} немає git-репозиторію, а Keel увесь свій стан читає з git —\n"
@@ -1858,7 +1935,13 @@ CONFIG_FILE = "keel/keel.json"
 SOURCE_LANG = "uk"          # the language the methodology is written in
 PUBLISHED_LANG = "en"       # the one at the root: the face of the repository
 LANGS = ("uk", "en")
-DEFAULTS = {"docs": PUBLISHED_LANG, "lang": PUBLISHED_LANG}
+# How much of itself Keel installs. One word rather than a row of switches,
+# because the three answers people actually give are whole positions, not
+# independent bits: let the method drive, let it advise, or let it wait to be
+# called. `strict` is the default because a method nobody starts is not a method.
+MODES = ("strict", "soft", "manual")
+DEFAULTS = {"docs": PUBLISHED_LANG, "lang": PUBLISHED_LANG, "mode": "strict"}
+ALLOWED = {"docs": LANGS, "lang": LANGS, "mode": MODES}
 REVISIONS = "docs/revisions.json"
 
 
@@ -1877,7 +1960,8 @@ def generated_files(root, settings):
             out[f"keel/{name}"] = strip_front_matter(read_text(source))
     for skill in SKILLS:
         for agent, relative in skill_targets(skill):
-            out[relative] = render_skill(skill, agent, settings["lang"])
+            out[relative] = render_skill(skill, agent, settings["lang"],
+                                         settings["mode"])
     adapter = detect_adapter(root)
     out[CI_FILE] = CI_TEMPLATE.format(
         tool=VENDORED,
@@ -1885,6 +1969,18 @@ def generated_files(root, settings):
     out[CURSOR_HOOKS] = json.dumps(cursor_hook_config(), ensure_ascii=False,
                                    indent=2) + "\n"
     return out
+
+
+def agent_hooks_wanted(settings, args=None):
+    """Whether to install the hooks that watch what the agent writes.
+
+    The mode decides, and a flag can overrule it. `manual --agent-hooks` is the
+    combination the three words alone would lose: a person who starts every
+    procedure by hand may still want the guard that refuses a write outside the
+    declared files.
+    """
+    chosen = getattr(args, "agent_hooks", None)
+    return settings["mode"] == "strict" if chosen is None else chosen
 
 
 def read_config(root):
@@ -1897,7 +1993,7 @@ def read_config(root):
             return settings
         if isinstance(stored, dict):
             for key in DEFAULTS:
-                if stored.get(key) in LANGS:
+                if stored.get(key) in ALLOWED[key]:
                     settings[key] = stored[key]
     return settings
 
@@ -2475,6 +2571,18 @@ def find_path(payload):
     return walk(payload)
 
 
+def take(project, name):
+    """How to reach a procedure — which is not the same sentence in every mode.
+
+    In manual mode the model is not allowed to load the skill at all, so telling
+    it to would produce a blocked call and a confused agent. There the sentence
+    addresses the person instead, through the agent.
+    """
+    if project.settings["mode"] == "manual":
+        return t("Keel is in manual mode: ask the person to type /{name}.", name=name)
+    return t("Take the {name} skill.", name=name)
+
+
 def session_context(project):
     """What the agent needs at session start — and which skill answers it."""
     branch = project.branch or "?"
@@ -2483,9 +2591,10 @@ def session_context(project):
         where = (t("step {slug}", slug=step.slug) if step
                  else t("there is no step file for {branch} yet", branch=branch))
         return t("Keel: plan branch {branch}, {where}. The plan is written here, "
-                 "not code.\nTake the keel-plan skill. What is missing is what "
+                 "not code.\n{take} What is missing is what "
                  "`python3 {tool} gaps` says.",
-                 branch=branch, where=where, tool=VENDORED)
+                 branch=branch, where=where, tool=VENDORED,
+                 take=take(project, "keel-plan"))
 
     step = project.step_for_branch(branch)
     if step is None:
@@ -2494,8 +2603,8 @@ def session_context(project):
         return t("Keel: branch {branch} is not named after a step, so there is no "
                  "planned work here.\nA new step: first `python3 {tool} new step "
                  "<slug>` — it prints the file name with its number — and only then "
-                 "the branch `plan/<that same name>`. Take the keel-plan skill.",
-                 branch=branch, tool=VENDORED)
+                 "the branch `plan/<that same name>`. {take}",
+                 branch=branch, tool=VENDORED, take=take(project, "keel-plan"))
     if step.error:
         return t("Keel: {file} does not parse: {reason}",
                  file=step.rel, reason=step.error)
@@ -2503,12 +2612,13 @@ def session_context(project):
     slug, state = next_transform(project, step)
     if slug is None:
         return t("Keel: every transform of step {slug} is closed by a commit.\n"
-                 "Take the keel-review skill. Then `python3 {tool} check` and the PR.",
-                 slug=step.slug, tool=VENDORED)
+                 "{take} Then `python3 {tool} check` and the PR.",
+                 slug=step.slug, tool=VENDORED, take=take(project, "keel-review"))
 
     package = next_package(project, step, slug, state)
-    return (t("Keel: take the keel-work skill. Here is the package for the next "
-              "move — work from it, nothing around it needs opening.") + "\n\n"
+    return (t("Keel: {take} Here is the package for the next "
+              "move — work from it, nothing around it needs opening.",
+              take=take(project, "keel-work")) + "\n\n"
             + render_next(package))
 
 
@@ -2654,9 +2764,17 @@ def home():
     return os.path.dirname(os.path.abspath(__file__))
 
 
-def render_skill(skill, agent, lang=DEFAULTS["lang"]):
-    """One skill. Both agents take the same fields; only extras differ."""
+def render_skill(skill, agent, lang=DEFAULTS["lang"], mode=DEFAULTS["mode"]):
+    """One skill. Both agents take the same fields; only extras differ.
+
+    In manual mode one line in the header turns a skill into a plain command:
+    both Claude Code and Cursor read `disable-model-invocation`, and both stop
+    offering the procedure to the model — the description leaves the agent's
+    context entirely, and only `/keel-plan` typed by a person brings it back.
+    """
     extra = ""
+    if mode == "manual":
+        extra += "disable-model-invocation: true\n"
     if skill.get("paths"):
         extra += "paths:\n" + "".join(
             f"  - {yaml_string(item)}\n" for item in skill["paths"])
@@ -2688,7 +2806,8 @@ def skill_targets(skill):
 
 def cmd_skills(project, args=None):
     done = []
-    write_skills(project.root, project.settings["lang"], done)
+    write_skills(project.root, project.settings["lang"], done,
+                 mode=project.settings["mode"])
     for line in done:
         print(f"  {line}")
     if not done:
@@ -2696,12 +2815,12 @@ def cmd_skills(project, args=None):
     return 0
 
 
-def write_skills(root, lang, done, manifest=None):
+def write_skills(root, lang, done, manifest=None, mode=DEFAULTS["mode"]):
     for skill in SKILLS:
         for agent, relative in skill_targets(skill):
             write_if_changed(os.path.join(root, relative),
-                             render_skill(skill, agent, lang), done, relative,
-                             manifest)
+                             render_skill(skill, agent, lang, mode), done,
+                             relative, manifest)
 
 
 def principles_lines(lang=SOURCE_LANG):
@@ -2750,8 +2869,11 @@ def cmd_init(project, args):
                          strip_front_matter(read_text(path)), done,
                          f"keel/{name}", manifest)
 
-    write_skills(project.root, settings["lang"], done, manifest)
-    write_hook_configs(project.root, done, manifest)
+    write_skills(project.root, settings["lang"], done, manifest, settings["mode"])
+    if agent_hooks_wanted(settings, args):
+        write_hook_configs(project.root, done, manifest)
+    else:
+        done.append(t("no agent hooks: mode is {mode}", mode=settings["mode"]))
 
     block = agents_block(settings["docs"], principles)
     if update_agents(os.path.join(project.root, "AGENTS.md"), block):
@@ -3241,6 +3363,18 @@ def build_parser():
     init.add_argument("--lang", choices=LANGS,
                       help="language the agent writes in, the skills catch, "
                            "and this tool speaks")
+    init.add_argument("--mode", choices=MODES,
+                      help="how much of itself Keel installs: strict (the agent "
+                           "starts the procedures and the hooks watch the "
+                           "boundaries), soft (the agent starts them, nothing "
+                           "watches), manual (only you start them, by typing "
+                           "/keel-plan)")
+    init.add_argument("--agent-hooks", dest="agent_hooks", action="store_true",
+                      default=None,
+                      help="install the hooks that watch what the agent writes, "
+                           "whatever the mode says")
+    init.add_argument("--no-agent-hooks", dest="agent_hooks", action="store_false",
+                      help="leave them out, whatever the mode says")
     init.set_defaults(install=True)
 
     sub.add_parser("skills", help="regenerate the skills from the methodology")
