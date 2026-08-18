@@ -1,6 +1,6 @@
 ---
 translates: README.md
-source-rev: 9b7336
+source-rev: 8bf475
 ---
 
 # keel
@@ -97,7 +97,10 @@ from a translation quietly falling behind.
 
 Two of the six checks depend on the language: what runs the tests (5) and where a
 module's exports come from (6). A contract with `verify` needs no adapter — it
-carries a command. The adapter is chosen by a marker in the project
+carries a command. It has to be a string, or the check turns red rather than
+passing it over in silence, and it is bounded at 30 seconds: a promise is a
+probe, not a build, and a hung probe would hold `pre-push` and CI for as long
+as they are allowed to run. The adapter is chosen by a marker in the project
 root.
 
 | | Elixir | Python |

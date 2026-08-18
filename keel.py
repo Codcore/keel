@@ -26,6 +26,7 @@ VERSION = "0.1.0"
 
 REV_LEN = 6          # how many hex digits keel rev writes
 REV_MIN = 4          # a shorter revision in a reference is not accepted
+VERIFY_TIMEOUT = 30  # a contract's proof is a probe, not a build
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1061,10 +1062,31 @@ def check_exports(project):
     # service answering, a binary on PATH, a dependency of the right version.
     # Whoever makes the promise does not have to be our code for it to be checkable.
     for contract in project.contracts.values():
-        if contract.error or not contract.verify:
+        if contract.error:
             continue
-        proc = subprocess.run(contract.verify, shell=True, cwd=project.root,
-                              capture_output=True, text=True)
+        if "verify" in contract.front and not contract.verify:
+            # Written, but not as a command we can run — a list, a number, an
+            # empty string. Skipping it would print a green check over a promise
+            # nobody proved, and that is worse than having no verify at all.
+            problems.append(Problem(
+                6, f"verify має бути командою рядком, а тут "
+                   f"{type(contract.front['verify']).__name__}: "
+                   f"{contract.front['verify']!r}",
+                contract.rel, contract.line_of("verify")))
+            continue
+        if not contract.verify:
+            continue
+        try:
+            proc = subprocess.run(contract.verify, shell=True, cwd=project.root,
+                                  capture_output=True, text=True,
+                                  timeout=VERIFY_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            # Unbounded, a hung command holds pre-push and CI for as long as
+            # they are allowed to run, and says nothing while it does.
+            problems.append(Problem(
+                6, f"контракт не відповів за {VERIFY_TIMEOUT} с: {contract.verify}",
+                contract.rel, contract.line_of("verify")))
+            continue
         if proc.returncode != 0:
             tail = (proc.stderr or proc.stdout).strip().splitlines()[-3:]
             problems.append(Problem(

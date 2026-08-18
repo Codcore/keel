@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import sys
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -141,6 +142,35 @@ class TestExports(unittest.TestCase):
         problems = keel.check_exports(keel.Project(self.root))
         self.assertEqual(len(problems), 1)
         self.assertIn("runtime.md", problems[0].where)
+
+    def test_a_command_that_hangs_is_cut_off_and_reported(self):
+        """Без межі зависла команда тримала б pre-push і CI скільки завгодно."""
+        self.write("keel/contracts/slow.md",
+                   '---\nverify: "sleep 30"\n---\n\nПовільна.\n')
+        with unittest.mock.patch.object(keel, "VERIFY_TIMEOUT", 1):
+            problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("не відповів за 1 с", problems[0].message)
+
+    def test_a_verify_that_is_not_a_command_is_named_not_skipped(self):
+        """Список замість рядка не має давати зеленої перевірки."""
+        self.write("keel/contracts/listy.md",
+                   '---\nverify: ["curl", "-sf", "x"]\n---\n\nСписком.\n')
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("має бути командою рядком", problems[0].message)
+        self.assertIn("list", problems[0].message)
+
+    def test_an_empty_verify_is_named_too(self):
+        self.write("keel/contracts/empty.md",
+                   '---\nverify: ""\n---\n\nПорожня.\n')
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("має бути командою рядком", problems[0].message)
+
+    def test_a_contract_without_verify_at_all_is_left_alone(self):
+        self.write("keel/contracts/prose.md", "---\nmodule: demo\n---\n\nСама проза.\n")
+        self.assertEqual(keel.check_exports(keel.Project(self.root)), [])
 
     def test_module_absent(self):
         self.write("keel/contracts/demo.md",
