@@ -57,6 +57,15 @@ loads the module and compares. Somebody else's — a library, a service, a binar
 works the same way, only it carries `verify`: a command whose success is the
 proof. Who makes the promise does not matter; that it can be checked does.
 
+An export is written either as a name with an arity, `run/3`, or as the whole
+signature, `run(binary(), keyword()) :: {:ok, term()}`. The short form promises
+that the function exists; the long one promises its shape as well, and where the
+language can be asked about types — Elixir can — the check compares it against
+what the module declares and prints the module's own version of any difference.
+Write as much as you mean to promise: the short form is not weaker for the long
+one existing. Promise a shape in a language that keeps none, and the check says
+so rather than passing.
+
 A promise nothing can check is not a contract but a boundary, and it lives as a
 paragraph inside a transform.
 
@@ -220,7 +229,8 @@ the next turn is the retry.
 ```markdown
 ---
 module: KeelAgent.Session
-exports: [run/3]
+exports:
+  - "run(Context.t(), [Tool.t()], Config.t()) :: Outcome.t()"
 ---
 
 One conversation with one model. `opening` is the first context, `tools` are the

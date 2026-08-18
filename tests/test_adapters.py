@@ -3,6 +3,7 @@
 
 import os
 import shutil
+import subprocess
 import tempfile
 import sys
 import unittest
@@ -72,13 +73,6 @@ class TestScenarios(ProjectCase):
     def test_slug_dashes_match_atom_underscores(self):
         self.assertEqual(keel.normalise_slug("finishes_when_no_tool_called"),
                          keel.normalise_slug("finishes-when-no-tool-called"))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Check 6: exports (the Python adapter — it runs without mix)
-# ─────────────────────────────────────────────────────────────────────────────
-
-
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -193,6 +187,233 @@ class TestExports(unittest.TestCase):
                    "---\nmodule: nosuchmodule\nexports: [run/1]\n---\n\nТекст.\n")
         problems = keel.check_exports(keel.Project(self.root))
         self.assertIn("did not build", problems[0].message)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Check 6: exports written as whole signatures
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestPromisedSignature(unittest.TestCase):
+    """`run/3` and `run(a, b, c) :: t` name the same function; both are read."""
+
+    def test_name_and_arity(self):
+        self.assertEqual(keel.promised_signature("run/3"), ("run", 3))
+
+    def test_a_whole_spec_counts_its_arguments(self):
+        self.assertEqual(
+            keel.promised_signature("run(binary(), keyword()) :: {:ok, term()}"),
+            ("run", 2))
+
+    def test_no_arguments_is_arity_zero(self):
+        self.assertEqual(keel.promised_signature("start() :: :ok"), ("start", 0))
+
+    def test_commas_inside_a_type_do_not_add_arguments(self):
+        """{:ok, term()} — один аргумент, а не два."""
+        self.assertEqual(
+            keel.promised_signature("halt({:ok, term()}, [a: b]) :: :ok"),
+            ("halt", 2))
+
+    def test_a_question_mark_belongs_to_the_name(self):
+        self.assertEqual(keel.promised_signature("valid?(t()) :: boolean()"),
+                         ("valid?", 1))
+
+    def test_nonsense_is_nonsense(self):
+        for entry in ("сміття", "run/x", "run/", ":: t()", "run :: t()"):
+            self.assertIsNone(keel.promised_signature(entry), entry)
+
+
+class TestFlattenSpec(unittest.TestCase):
+    """The compiler and the person write the same spec differently."""
+
+    def test_the_two_renderings_meet(self):
+        compiler = "run( binary(), keyword() ) :: {:ok, term()} | {:error, term()}"
+        person = "run(binary(), keyword()) :: {:ok, term()} | {:error, term()}"
+        self.assertEqual(keel.flatten_spec(compiler), keel.flatten_spec(person))
+
+    def test_line_breaks_are_not_a_difference(self):
+        self.assertEqual(keel.flatten_spec("run(a) ::\n  {:ok, b}"),
+                         "run(a) :: {:ok, b}")
+
+    def test_a_real_difference_survives(self):
+        self.assertNotEqual(keel.flatten_spec("run(binary()) :: :ok"),
+                            keel.flatten_spec("run(integer()) :: :ok"))
+
+
+class StubAdapter(keel.Adapter):
+    """An adapter that answers from a dictionary — no compiler, no waiting."""
+
+    name = "stub"
+    supports_specs = True
+
+    def __init__(self, answer):
+        self.answer = answer
+
+    def exports(self, root, modules):
+        return self.answer
+
+
+class TestSpecContracts(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-spec-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        os.makedirs(os.path.join(self.root, "keel/contracts"))
+        os.makedirs(os.path.join(self.root, "keel/steps"))
+
+    def contract(self, exports):
+        path = os.path.join(self.root, "keel/contracts/demo.md")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(f"---\nmodule: Demo\nexports:\n  - \"{exports}\"\n"
+                         "---\n\nЩо обіцяє Demo.\n")
+
+    def check(self, exports, answer):
+        self.contract(exports)
+        project = keel.Project(self.root)
+        project.adapter = StubAdapter(answer)
+        return keel.check_exports(project)
+
+    def declared(self, spec):
+        return {"Demo": {"run/2"}, ("specs", "Demo"): {"run/2": spec}}
+
+    def test_a_matching_spec_passes(self):
+        self.assertEqual(
+            self.check("run(binary(), keyword()) :: {:ok, term()}",
+                       self.declared("run(binary(), keyword()) :: {:ok, term()}")),
+            [])
+
+    def test_the_compilers_spacing_is_not_a_difference(self):
+        self.assertEqual(
+            self.check("run(binary(), keyword()) :: {:ok, term()}",
+                       self.declared("run( binary(), keyword() ) :: {:ok, term()}")),
+            [])
+
+    def test_a_different_type_is_reported_with_what_the_module_declares(self):
+        problems = self.check("run(binary(), keyword()) :: :ok",
+                              self.declared("run(binary(), keyword()) :: {:ok, term()}"))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("is not what the module declares", problems[0].message)
+        self.assertIn("{:ok, term()}", problems[0].message)
+
+    def test_the_reported_spec_is_written_the_way_a_person_would(self):
+        """Повідомлення існує, щоб його скопіювати в контракт."""
+        problems = self.check("run(binary(), keyword()) :: :ok",
+                              self.declared("run( binary(), keyword() ) :: :error"))
+        self.assertIn("run(binary(), keyword()) :: :error", problems[0].message)
+
+    def test_a_module_without_the_spec_is_named_not_passed(self):
+        """Функція є, @spec немає — обіцянка є, підтвердження немає."""
+        problems = self.check("run(binary(), keyword()) :: :ok",
+                              {"Demo": {"run/2"}})
+        self.assertEqual(len(problems), 1)
+        self.assertIn("declares no @spec", problems[0].message)
+
+    def test_a_missing_function_is_reported_before_its_shape(self):
+        problems = self.check("halt(binary()) :: :ok", {"Demo": {"run/2"}})
+        self.assertEqual(len(problems), 1)
+        self.assertIn("does not export what was promised: halt/1",
+                      problems[0].message)
+
+    def test_the_short_form_still_ignores_specs(self):
+        """run/2 обіцяє імʼя й арність — специфікацію ніхто не обіцяв."""
+        self.assertEqual(
+            self.check("run/2", self.declared("run(integer()) :: :error")), [])
+
+    def test_an_entry_that_is_neither_is_named(self):
+        problems = self.check("сміття", {"Demo": {"run/2"}})
+        self.assertEqual(len(problems), 1)
+        self.assertIn("neither name/arity nor a spec", problems[0].message)
+
+
+class TestSpecsWhereTheLanguageCannot(unittest.TestCase):
+    """Python has no @spec. A shape promised there must be said to be unchecked."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-nospec-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        os.makedirs(os.path.join(self.root, "keel/contracts"))
+        os.makedirs(os.path.join(self.root, "keel/steps"))
+        for name, text in (("pyproject.toml", "[project]\nname = 'demo'\n"),
+                           ("demo.py", "def run(a, b, c):\n    return a\n")):
+            with open(os.path.join(self.root, name), "w", encoding="utf-8") as handle:
+                handle.write(text)
+
+    def contract(self, exports):
+        with open(os.path.join(self.root, "keel/contracts/demo.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write(f"---\nmodule: demo\nexports:\n  - \"{exports}\"\n"
+                         "---\n\nПроза.\n")
+
+    def test_the_python_adapter_admits_it_cannot_check_a_shape(self):
+        self.assertFalse(keel.PythonAdapter.supports_specs)
+        self.contract("run(a, b, c) :: str")
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("cannot be asked for types", problems[0].message)
+        self.assertIn("python", problems[0].message)
+
+    def test_the_arity_is_still_checked_there(self):
+        self.contract("halt(a) :: str")
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("does not export what was promised: halt/1",
+                      problems[0].message)
+
+
+@unittest.skipUnless(shutil.which("mix"), "mix недоступний")
+class TestSpecsAgainstARealMixProject(unittest.TestCase):
+    """The stubs agree with each other; this one agrees with the compiler."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = tempfile.mkdtemp(prefix="keel-mix-")
+        done = subprocess.run(["mix", "new", "specs"], cwd=cls.root,
+                              capture_output=True, text=True)
+        if done.returncode != 0:
+            shutil.rmtree(cls.root, True)
+            raise unittest.SkipTest("mix new не спрацював: " + done.stderr[:200])
+        cls.root = os.path.join(cls.root, "specs")
+        with open(os.path.join(cls.root, "lib", "specs.ex"), "w",
+                  encoding="utf-8") as handle:
+            handle.write(
+                "defmodule Specs do\n"
+                "  @spec run(binary(), keyword()) :: {:ok, term()} | {:error, term()}\n"
+                "  def run(text, opts), do: {:ok, {text, opts}}\n\n"
+                "  def undeclared(x), do: x\n"
+                "end\n")
+        os.makedirs(os.path.join(cls.root, "keel", "contracts"))
+        os.makedirs(os.path.join(cls.root, "keel", "steps"))
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(os.path.dirname(cls.root), True)
+
+    def contract(self, exports):
+        with open(os.path.join(self.root, "keel/contracts/specs.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write(f"---\nmodule: Specs\nexports:\n  - \"{exports}\"\n"
+                         "---\n\nЩо обіцяє Specs.\n")
+
+    def test_the_compiler_hands_back_the_spec_we_wrote(self):
+        answer = keel.ElixirAdapter().exports(self.root, ["Specs"])
+        self.assertIn("run/2", answer["Specs"])
+        self.assertEqual(answer[("specs", "Specs")]["run/2"],
+                         "run( binary(), keyword() ) :: {:ok, term()} | "
+                         "{:error, term()}")
+
+    def test_a_spec_copied_into_the_contract_passes(self):
+        self.contract("run(binary(), keyword()) :: {:ok, term()} | {:error, term()}")
+        self.assertEqual(keel.check_exports(keel.Project(self.root)), [])
+
+    def test_a_spec_that_drifted_is_caught(self):
+        self.contract("run(binary(), keyword()) :: :ok")
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("{:error, term()}", problems[0].message)
+
+    def test_a_function_without_a_spec_is_named(self):
+        self.contract("undeclared(term()) :: term()")
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("declares no @spec", problems[0].message)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

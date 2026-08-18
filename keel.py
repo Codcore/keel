@@ -122,6 +122,14 @@ UK = {
     "the modules did not build:": "модулі не зібралися:",
     "the module is missing or did not build: {module}":
         "модуля немає або він не зібрався: {module}",
+    "this export is neither name/arity nor a spec: {promised}":
+        "цей запис не є ні імʼям з арністю, ні специфікацією: {promised}",
+    "{language} cannot be asked for types, so the promised shape of {promised} goes unchecked":
+        "{language} не вміє відповідати про типи, тож обіцяна форма {promised} лишається неперевіреною",
+    "{module} declares no @spec for {promised}":
+        "{module} не оголошує @spec для {promised}",
+    "the promised shape of {promised} is not what the module declares:":
+        "обіцяна форма {promised} не збігається з тим, що оголошує модуль:",
     "{module} does not export what was promised: {promised}":
         "{module} не експортує обіцяне: {promised}",
     "the heading ## {title} appears twice — the first is read and the last is "
@@ -754,6 +762,7 @@ class Git:
 # ─────────────────────────────────────────────────────────────────────────────
 
 EXPORT_MARK = "keel-exports|"
+SPEC_MARK = "keel-spec|"
 
 
 class Adapter:
@@ -796,6 +805,8 @@ class Adapter:
                     (os.path.relpath(path, root).replace(os.sep, "/"), line, match.group(2))
                 )
         return out
+
+    supports_specs = False    # can this language be asked what a function promises
 
     def exports(self, root, modules):
         raise NotImplementedError
@@ -847,6 +858,8 @@ class ElixirAdapter(Adapter):
         return (elixir.group(1) if elixir else "1.18",
                 otp.group(1) if otp else "27")
 
+    supports_specs = True
+
     def exports(self, root, modules):
         if not modules:
             return {}
@@ -858,6 +871,15 @@ class ElixirAdapter(Adapter):
             "    funs = mod.__info__(:functions) ++ mod.__info__(:macros)\n"
             "    body = Enum.map_join(funs, \",\", fn {f, a} -> \"#{f}/#{a}\" end)\n"
             f"    IO.puts(\"{EXPORT_MARK}\" <> name <> \"|\" <> body)\n"
+            "    case Code.Typespec.fetch_specs(mod) do\n"
+            "      {:ok, specs} ->\n"
+            "        for {{f, a}, [spec | _]} <- specs do\n"
+            "          text = Code.Typespec.spec_to_quoted(f, spec) |> Macro.to_string()\n"
+            "          flat = String.replace(text, ~r/\\s+/, \" \")\n"
+            f"          IO.puts(\"{SPEC_MARK}\" <> name <> \"|#{{f}}/#{{a}}|\" <> flat)\n"
+            "        end\n"
+            "      _ -> :ok\n"
+            "    end\n"
             "  else\n"
             f"    IO.puts(\"{EXPORT_MARK}\" <> name <> \"|__missing__\")\n"
             "  end\n"
@@ -940,8 +962,14 @@ class PythonAdapter(Adapter):
 
 
 def parse_export_output(proc, modules):
+    """{module: {exports}} plus {("specs", module): {"name/arity": spec text}}."""
     out = {}
     for line in proc.stdout.splitlines():
+        if line.startswith(SPEC_MARK):
+            name, _, rest = line[len(SPEC_MARK):].partition("|")
+            signature, _, text = rest.partition("|")
+            out.setdefault(("specs", name), {})[signature] = text.strip()
+            continue
         if not line.startswith(EXPORT_MARK):
             continue
         name, _, body = line[len(EXPORT_MARK):].partition("|")
@@ -951,7 +979,8 @@ def parse_export_output(proc, modules):
     for name in modules:
         if name not in out:
             out[name] = None
-    if proc.returncode != 0 and not any(out.values()):
+    if proc.returncode != 0 and not any(
+            value for key, value in out.items() if isinstance(key, str)):
         out["__error__"] = (proc.stderr or proc.stdout).strip()[:400]
     return out
 
@@ -1297,6 +1326,49 @@ def check_scenarios(project, run_tests=True):
     return problems
 
 
+def promised_signature(entry):
+    """What an `exports:` entry names: ("run", 3), from `run/3` or from a spec.
+
+    A contract may promise as little as a name and an arity, or as much as the
+    whole signature. Both are checkable, and what is written is what gets
+    checked — the short form loses nothing by the long form existing.
+    """
+    entry = entry.strip()
+    if "::" not in entry:
+        name, _, arity = entry.partition("/")
+        return (name.strip(), int(arity)) if arity.strip().isdigit() else None
+    head = entry.split("::", 1)[0].strip()
+    match = re.match(r"^([a-z_][A-Za-z0-9_]*[?!]?)\s*\((.*)\)$", head, re.S)
+    if not match:
+        return None
+    name, inside = match.group(1), match.group(2).strip()
+    if not inside:
+        return (name, 0)
+    depth, count = 0, 1
+    for char in inside:
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == "," and depth == 0:
+            count += 1
+    return (name, count)
+
+
+def flatten_spec(text):
+    """One line, and spacing that both sides agree on.
+
+    The compiler renders a spec its own way — `run( binary() )` where a person
+    writes `run(binary())`. Comparing those raw would report a difference in
+    whitespace as a broken promise, so both sides are squeezed the same way
+    first: no space hugging a bracket, none before a comma.
+    """
+    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"([(\[{]) ", r"\1", text)
+    text = re.sub(r" ([)\]}])", r"\1", text)
+    return re.sub(r" ,", ",", text)
+
+
 def check_exports(project, run_tests=True):
     problems = []
     # A promise that is not a module carries the command that proves it: a
@@ -1357,10 +1429,37 @@ def check_exports(project, run_tests=True):
                 6, t("the module is missing or did not build: {module}", module=contract.module),
                 contract.rel, contract.line_of("module")))
             continue
+        specs = actual.get(("specs", contract.module), {})
         for promised in contract.exports:
-            if promised not in have:
+            signature = promised_signature(promised)
+            if signature is None:
                 problems.append(Problem(
-                    6, t("{module} does not export what was promised: {promised}", module=contract.module, promised=promised),
+                    6, t("this export is neither name/arity nor a spec: {promised}", promised=promised),
+                    contract.rel, contract.line_of(promised)))
+                continue
+            named = "{0}/{1}".format(*signature)
+            if named not in have:
+                problems.append(Problem(
+                    6, t("{module} does not export what was promised: {promised}", module=contract.module, promised=named),
+                    contract.rel, contract.line_of(promised)))
+                continue
+            if "::" not in promised:
+                continue
+            # From here on the contract promises a shape, not just a name. If we
+            # cannot read the shape, saying so beats a green check over a
+            # promise nothing compared.
+            if not project.adapter.supports_specs:
+                problems.append(Problem(
+                    6, t("{language} cannot be asked for types, so the promised shape of {promised} goes unchecked", language=project.adapter.name, promised=named),
+                    contract.rel, contract.line_of(promised)))
+            elif named not in specs:
+                problems.append(Problem(
+                    6, t("{module} declares no @spec for {promised}", module=contract.module, promised=named),
+                    contract.rel, contract.line_of(promised)))
+            elif flatten_spec(promised) != flatten_spec(specs[named]):
+                problems.append(Problem(
+                    6, t("the promised shape of {promised} is not what the module declares:", promised=named)
+                       + "\n      " + flatten_spec(specs[named]),
                     contract.rel, contract.line_of(promised)))
     return problems
 
@@ -1447,7 +1546,10 @@ transforms:
 CONTRACT_SKELETON = """---
 # Модуль, який щось обіцяє:
 module: <Module.Name>
+# Імʼя з арністю або ціла сигнатура — перевіряється те, що написано:
 exports: []
+#   - "run(binary(), keyword()) :: {:ok, term()}"
+#   - "halt/1"
 # Або обіцянка, що не є модулем — команда, успіх якої і є доказом:
 # verify: curl -sf http://localhost:11434/api/tags
 ---

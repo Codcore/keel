@@ -125,6 +125,7 @@ root.
 | where tests live | `test/**/*_test.exs` | `tests/**/test_*.py`, `*_test.py` |
 | scenario tag | `@tag proves: :slug, rev: "a3f1c0"` | `# proves: slug, rev: "a3f1c0"` |
 | exports | `mix run --no-start` asks `__info__(:functions)` | import the module, `__all__` or the public names |
+| types | `Code.Typespec.fetch_specs` — a whole `@spec` is checkable | none: a promised shape is reported as unchecked |
 | CI steps | `erlef/setup-beam` plus `mix deps.get` | `actions/setup-python` |
 
 A scenario's slug and the name in the tag are compared after normalising, so
@@ -137,6 +138,25 @@ it was run on and writes down what it found.
 A language without an adapter does not break the whole of `check`, only checks 5
 and 6, and it says so plainly. A new adapter is a class with a marker, a test
 command, a tag pattern and a way to get the exports.
+
+### Exports, short and long
+
+An `exports:` entry is either `run/3` or a whole signature:
+
+```yaml
+exports:
+  - "run(binary(), keyword()) :: {:ok, term()} | {:error, term()}"
+  - "halt/1"
+```
+
+Both are checked for what they say. `run/3` says the function exists with that
+arity. The signature says that too — the arity is counted from the arguments —
+and, where the adapter can read types, that the module declares exactly this
+`@spec`. Spacing and line breaks are not a difference; a type is. On a mismatch
+the check prints what the module declares, in the form you would write it, so
+the fix is a copy. A function with no `@spec` at all is reported rather than
+passed, and so is a shape promised in a language whose adapter cannot read types
+— Python today.
 
 ### A contract with `verify`
 
