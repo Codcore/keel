@@ -62,6 +62,20 @@ UK = {
     "two colons on one line: {line}": "дві двокрапки в одному рядку: {line}",
     "empty key": "порожній ключ",
     "no header between --- markers": "немає шапки між рисками ---",
+    "cannot be read: {reason}": "не читається: {reason}",
+    "this link leaves the repository: {target}":
+        "це посилання виходить за межі репозиторію: {target}",
+    "keel: {file} does not parse, so scope is not being checked: {reason}":
+        "keel: {file} не розбирається, тож обсяг не перевіряється: {reason}",
+    "keel: step {step} declares no transforms, so nothing says which files "
+    "belong to this work.":
+        "keel: крок {step} не оголошує трансформ, тож ніщо не каже, які файли "
+        "належать цій роботі.",
+    "{field} has to be {kind}, and this is {actual}":
+        "{field} має бути {kind}, а це {actual}",
+    "a list": "списком",
+    "a set of named entries": "набором іменованих записів",
+    "a name": "імʼям",
     "header does not parse: {reason}": "шапка не читається: {reason}",
 
     # назви перевірок
@@ -620,6 +634,13 @@ class Ref:
         return f"Ref({self.raw!r})"
 
 
+def shape_names():
+    """Spelled out as literals so the catalogue guard can see them."""
+    return {"list": t("a list"),
+            "map": t("a set of named entries"),
+            "name": t("a name")}
+
+
 class Doc:
     def __init__(self, path, root):
         self.path = path
@@ -631,8 +652,16 @@ class Doc:
         self.sections = {}          # heading -> the text under it
         self.section_lines = {}     # heading -> line number
         self.repeated = []          # headings written more than once
-        with open(path, encoding="utf-8") as handle:
-            text = handle.read()
+        try:
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+        except OSError as exc:
+            # A broken symlink, a permission change, a file removed while an
+            # agent was writing beside it. Every other bad input here becomes a
+            # named problem; this one used to be a traceback out of startup.
+            self.text = ""
+            self.error = t("cannot be read: {reason}", reason=exc.strerror or exc)
+            return
         self.text = text
         front_text, self.body, self.body_offset = split_front_matter(text)
         if front_text is None:
@@ -643,7 +672,27 @@ class Doc:
         except YamlError as exc:
             self.error = t("header does not parse: {reason}", reason=exc)
             return
+        self.error = self._wrong_shape()
+        if self.error:
+            return
         self._split_sections()
+
+    # A field of the wrong shape used to fall back to an empty default, and an
+    # empty default reads as "nothing declared" — which is what disarms the
+    # write hook and leaves every check green over a step that guards nothing.
+    # The reader was hardened against this one level up; this is the same rule
+    # one level down.
+    SHAPES = {}
+
+    def _wrong_shape(self):
+        for field, (kinds, name) in self.SHAPES.items():
+            value = self.front.get(field)
+            if value is None or isinstance(value, kinds):
+                continue
+            return t("{field} has to be {kind}, and this is {actual}",
+                     field=field, kind=shape_names()[name],
+                     actual=type(value).__name__)
+        return None
 
     def _split_sections(self):
         marks = list(SECTION_RE.finditer(self.body))
@@ -688,6 +737,14 @@ def split_front_matter(text):
 
 
 class Contract(Doc):
+    # `verify` is left out on purpose: check 6 already names a wrong shape
+    # there, with the value in the message, and that is a promise about a
+    # command rather than about the document's own structure.
+    SHAPES = {
+        "module": ((str,), "name"),
+        "exports": ((list,), "list"),
+    }
+
     @property
     def module(self):
         value = self.front.get("module")
@@ -716,6 +773,12 @@ class Contract(Doc):
 
 
 class Step(Doc):
+    SHAPES = {
+        "depends_on": ((list,), "list"),
+        "scenarios": ((dict,), "map"),
+        "transforms": ((dict,), "map"),
+    }
+
     @property
     def depends_on(self):
         value = self.front.get("depends_on")
@@ -1338,11 +1401,16 @@ def check_refs(project):
             if target.startswith(("http://", "https://")):
                 continue
             resolved = os.path.normpath(os.path.join(os.path.dirname(doc.path), target))
-            inside = os.path.relpath(resolved, project.keel).startswith("..")
-            if inside or os.path.exists(resolved):
+            if os.path.exists(resolved):
                 continue
+            # A link out of keel/ used to be skipped here, by a condition whose
+            # name said the opposite of its value. A broken link leads nowhere
+            # wherever it points, and this check is called exactly that.
+            outside = os.path.relpath(resolved, project.root).startswith("..")
             problems.append(Problem(
-                1, t("this link leads nowhere: {target}", target=target),
+                1, t("this link leaves the repository: {target}", target=target)
+                   if outside else
+                   t("this link leads nowhere: {target}", target=target),
                 doc.rel, doc.line_of(target)))
     return problems
 
@@ -2209,7 +2277,18 @@ def write_config(root, settings, done, manifest=None):
             # and regenerate the skills with the wrong trigger language.
             print("  " + t("{file}: does not parse as JSON, leaving it alone", file=CONFIG_FILE))
             return
-    stored = dict(settings)
+    # Merge rather than replace: this file lives in somebody's repository, and
+    # dropping a key we do not recognise is destroying their data during an
+    # operation whose whole design elsewhere is to refuse rather than destroy.
+    stored = {}
+    if os.path.exists(path):
+        try:
+            found = json.loads(read_text(path))
+        except ValueError:
+            found = None
+        if isinstance(found, dict):
+            stored.update(found)
+    stored.update(settings)
     if manifest is not None:
         stored["generated"] = manifest
     text = json.dumps(stored, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
@@ -2885,8 +2964,16 @@ def write_verdict(project, payload):
             or project.is_plan_branch(branch)):
         return None
     step = project.step_for_branch(branch)
-    if step is None or step.error or not step.transforms:
+    if step is None:
         return None
+    if step.error:
+        # Unreadable is not the same as unrestricted. Waving the write through
+        # in silence is how a broken header turns the guard off without a word.
+        return ("note", t("keel: {file} does not parse, so scope is not being "
+                          "checked: {reason}", file=step.rel, reason=step.error))
+    if not step.transforms:
+        return ("note", t("keel: step {step} declares no transforms, so nothing "
+                          "says which files belong to this work.", step=step.slug))
 
     declared = set()
     for slug in step.transforms:
@@ -3695,12 +3782,14 @@ def main(argv=None):
     if not os.path.isdir(start):
         fail(t("no such directory: {path}", path=start))
     root = find_root(start)
-    project = Project(root)
     # The tool speaks the project's language: the same `lang` that decides what
     # the agent writes and which phrases the skills catch, because one person
-    # reads all three.
+    # reads all three. Set before the documents are read, not after: a document
+    # composes its own error message as it is parsed, and doing this afterwards
+    # left half of a broken-file report in the other language.
     global OUTPUT_LANG
-    OUTPUT_LANG = project.settings["lang"]
+    OUTPUT_LANG = read_config(root)["lang"]
+    project = Project(root)
     project.branch_override = getattr(args, "branch", None)
 
     if args.command not in ("new", "init") and not project.ready:

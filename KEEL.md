@@ -149,7 +149,8 @@ No status is written by hand.
 
 ## Six checks
 
-1. References lead somewhere: every slug in a header has its file or its section.
+1. References lead somewhere: every slug in a header has its file or its section,
+   and every link in the text has its file, outside `keel/` as well.
 2. `depends_on` without cycles.
 3. Contract revisions match the current text.
 4. The files a branch changed match those declared in the transforms — both ways.
@@ -159,6 +160,12 @@ No status is written by hand.
 
 A seventh, minor one: the set of names in the header matches the set of headings
 in the body.
+
+Before any of them comes reading the documents themselves. A header that does not
+parse, and a field of the wrong shape — `transforms` written as a list where
+named entries belong — is an error in the document, not an empty default: empty
+reads as "nothing is declared", and that is what would switch the guard off while
+the checks stayed green.
 
 None of them parses prose: they all read the header, git and compiled modules.
 Which are fast, what each one does and how they run is in [README.md](README.md).

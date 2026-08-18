@@ -2,7 +2,9 @@
 """Reading steps and contracts; the checks that only read text."""
 
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -167,6 +169,110 @@ class TestRefChecks(ProjectCase):
 # ─────────────────────────────────────────────────────────────────────────────
 # Check 4: scope
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestHeaderShape(unittest.TestCase):
+    """A field of the wrong shape is an error, not an empty default.
+
+    An empty default reads as "nothing declared", and nothing declared is what
+    switches the write hook off while every check stays green.
+    """
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-shape-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        for folder in ("keel/steps", "keel/contracts"):
+            os.makedirs(os.path.join(self.root, folder))
+
+    def doc(self, kind, text):
+        name = "0001-a.md" if kind == "step" else "a.md"
+        path = os.path.join(self.root, "keel", kind + "s", name)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        cls = keel.Step if kind == "step" else keel.Contract
+        return cls(path, self.root)
+
+    def test_transforms_as_a_list_is_named(self):
+        doc = self.doc("step", "---\ntransforms:\n  - do-it\n---\n\n## Why\n\nх.\n")
+        self.assertIn("transforms has to be", doc.error)
+        self.assertIn("list", doc.error)
+
+    def test_scenarios_as_a_list_is_named(self):
+        doc = self.doc("step", "---\nscenarios:\n  - one\n---\n\n## Why\n\nх.\n")
+        self.assertIn("scenarios has to be", doc.error)
+
+    def test_depends_on_as_a_map_is_named(self):
+        doc = self.doc("step", "---\ndepends_on:\n  a: b\n---\n\n## Why\n\nх.\n")
+        self.assertIn("depends_on has to be", doc.error)
+
+    def test_exports_as_a_string_is_named(self):
+        doc = self.doc("contract", '---\nmodule: Demo\nexports: "run/3"\n---\n\nх.\n')
+        self.assertIn("exports has to be", doc.error)
+
+    def test_module_as_a_list_is_named(self):
+        doc = self.doc("contract", "---\nmodule: [Demo]\n---\n\nх.\n")
+        self.assertIn("module has to be", doc.error)
+
+    def test_a_missing_field_is_not_a_wrong_shape(self):
+        doc = self.doc("step", "---\ndepends_on: []\n---\n\n## Why\n\nх.\n")
+        self.assertIsNone(doc.error)
+
+    def test_an_empty_field_is_not_a_wrong_shape(self):
+        """`transforms:` без нічого під ним — ще не написано, а не зламано."""
+        doc = self.doc("step", "---\ntransforms:\n---\n\n## Why\n\nх.\n")
+        self.assertIsNone(doc.error)
+
+    def test_verify_is_left_to_check_six(self):
+        """Там уже є повідомлення з типом і значенням — дублювати не треба."""
+        doc = self.doc("contract", '---\nverify: ["curl", "x"]\n---\n\nх.\n')
+        self.assertIsNone(doc.error)
+
+    def test_a_file_that_cannot_be_read_is_named(self):
+        path = os.path.join(self.root, "keel/steps/0002-gone.md")
+        os.symlink("/немає/такого", path)
+        doc = keel.Step(path, self.root)
+        self.assertIn("cannot be read", doc.error)
+
+
+class TestLinksLeadSomewhere(unittest.TestCase):
+    """Check 1 is named that, and a broken link leads nowhere wherever it points."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-links-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        for folder in ("keel/steps", "keel/contracts", "docs"):
+            os.makedirs(os.path.join(self.root, folder))
+
+    def step(self, body):
+        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("---\ndepends_on: []\n---\n\n## Why\n\n" + body + "\n")
+        return keel.check_refs(keel.Project(self.root))
+
+    def test_a_broken_link_inside_keel(self):
+        problems = self.step("Див. [сусід](../contracts/nope.md).")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("nope.md", problems[0].message)
+
+    def test_a_broken_link_outside_keel_is_caught_too(self):
+        """Раніше все, що виходило за keel/, не перевірялось узагалі."""
+        problems = self.step("Див. [задум](../../docs/design.md).")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("design.md", problems[0].message)
+
+    def test_a_link_that_resolves_outside_keel_is_clean(self):
+        with open(os.path.join(self.root, "docs/design.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("задум\n")
+        self.assertEqual(self.step("Див. [задум](../../docs/design.md)."), [])
+
+    def test_a_link_beyond_the_repository_is_named_differently(self):
+        problems = self.step("Див. [чуже](../../../elsewhere/x.md).")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("leaves the repository", problems[0].message)
+
+    def test_an_http_link_is_left_alone(self):
+        self.assertEqual(self.step("Див. [доки](https://example.com/x.md)."), [])
 
 
 if __name__ == "__main__":

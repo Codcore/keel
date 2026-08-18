@@ -101,6 +101,21 @@ class TestInit(unittest.TestCase):
         return subprocess.run(["git", "-C", self.root, "log", "--format=%s"],
                               capture_output=True, text=True).stdout
 
+    def test_a_key_we_do_not_know_survives_a_rewrite(self):
+        """keel.json лежить у чужому репозиторії — губити з нього ключі не наше."""
+        self.init()
+        path = os.path.join(self.root, keel.CONFIG_FILE)
+        with open(path, encoding="utf-8") as handle:
+            stored = json.load(handle)
+        stored["team-note"] = "наше"
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(stored, handle)
+        self.init(mode="soft")
+        with open(path, encoding="utf-8") as handle:
+            after = json.load(handle)
+        self.assertEqual(after["team-note"], "наше")
+        self.assertEqual(after["mode"], "soft")
+
     def test_a_lookalike_file_is_not_swept_into_our_commit(self):
         """AGENTS.mdx лише починається так само — він чужий."""
         self.write("AGENTS.mdx", "чиєсь своє, ще не закомічене\n")

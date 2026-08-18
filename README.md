@@ -92,9 +92,11 @@ model, and it is always English. So is what neither of them reads: the CI
 workflow and the git hook scripts, down to the message somebody meets on a
 failing push.
 
-Those two and the mode are the whole of what Keel keeps in a settings file.
-Neither language can be guessed: the language of a project's prose is a team's
-decision, not a property of the code.
+Those two and the mode are the whole of what Keel keeps in that settings file,
+but not the whole of what may live there: the file is yours, it sits in your
+repository, and keys Keel does not know survive a rewrite. Neither language can
+be guessed: the language of a project's prose is a team's decision, not a
+property of the code.
 
 `lang` also decides what this tool says, and what language `keel new` writes a
 step or contract skeleton in. The header fields are the same either way — they

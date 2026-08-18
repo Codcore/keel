@@ -226,6 +226,16 @@ class TestSpokenLanguage(unittest.TestCase):
         self.assertEqual(english.count("✓"), ukrainian.count("✓"))
         self.assertEqual(english.count("✗"), ukrainian.count("✗"))
 
+    def test_a_broken_document_speaks_it_too(self):
+        """Помилка складається при читанні файла — тобто до того, як мова відома."""
+        with open(os.path.join(self.root, "keel", "steps", "0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("---\na: b: c\n---\n\nтекст\n")
+        self.assertIn("header does not parse", self.speak("en", "check", "--fast"))
+        ukrainian = self.speak("uk", "check", "--fast")
+        self.assertIn("шапка не читається", ukrainian)
+        self.assertNotIn("header does not parse", ukrainian)
+
     def test_errors_speak_it_too(self):
         self.assertIn("no such step", self.speak("en", "show", "0009-nope"))
         self.assertIn("кроку немає", self.speak("uk", "show", "0009-nope"))

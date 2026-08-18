@@ -316,5 +316,51 @@ class TestHookCommand(ProjectCase):
             "tool_input": {"file_path": "lib/session.ex"}}))
 
 
+class TestTheHookSpeaksWhenItCannotJudge(unittest.TestCase):
+    """Unreadable is not the same as unrestricted."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-mute-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        for folder in ("keel/steps", "keel/contracts"):
+            os.makedirs(os.path.join(self.root, folder))
+        subprocess.run(["git", "init", "-b", "main", "-q", self.root], check=True)
+        for name, value in (("user.email", "t@e.com"), ("user.name", "t")):
+            subprocess.run(["git", "-C", self.root, "config", name, value], check=True)
+        subprocess.run(["git", "-C", self.root, "commit", "-q", "--allow-empty",
+                        "-m", "base"], check=True)
+        subprocess.run(["git", "-C", self.root, "checkout", "-q", "-b",
+                        "0001-a"], check=True)
+
+    def step(self, text):
+        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write(text)
+
+    def verdict(self):
+        return keel.write_verdict(keel.Project(self.root),
+                                  {"tool_input": {"file_path": "lib/anything.ex"}})
+
+    def test_a_step_that_does_not_parse_is_said_out_loud(self):
+        """Раніше зламана шапка вимикала охорону без жодного слова."""
+        self.step("---\ntransforms:\n  - do-it\n---\n\n## Why\n\nх.\n")
+        kind, message = self.verdict()
+        self.assertEqual(kind, "note")
+        self.assertIn("scope is not being checked", message)
+
+    def test_a_step_with_no_transforms_is_said_too(self):
+        self.step("---\ndepends_on: []\n---\n\n## Why\n\nх.\n")
+        kind, message = self.verdict()
+        self.assertEqual(kind, "note")
+        self.assertIn("declares no transforms", message)
+
+    def test_a_readable_step_still_denies_an_undeclared_file(self):
+        self.step("---\ntransforms:\n  do-it:\n    files: [lib/a.ex]\n---\n\n"
+                  "## Why\n\nх.\n\n## transform: do-it\n\nЩось.\n")
+        kind, message = self.verdict()
+        self.assertEqual(kind, "deny")
+        self.assertIn("lib/anything.ex", message)
+
+
 if __name__ == "__main__":
     unittest.main()
