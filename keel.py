@@ -1439,8 +1439,234 @@ jobs:
 """
 
 
+# Skills: one source, two renderings
+#
+# The judgement in Keel is planning; work and review only need pointing at the
+# tool. Three texts written by hand would drift apart within a month — that
+# already happened to the old method — so both agents are rendered from here.
+
+CLAUDE_SKILLS = ".claude/skills"
+CURSOR_RULES = ".cursor/rules"
+DESCRIPTION_CAP = 1536      # Claude truncates the skill listing at this
+
+PLAN_BODY = """\
+## Коли
+
+Пишеться новий крок: гілка `plan/<крок>`, файл у `keel/steps/`, коду ще немає.
+Каркас дає `keel new step <slug>`.
+
+## Порядок
+
+**Навіщо** — одне-два речення про те, чого без цього кроку бракує. Не переказ
+того, що робитимеш; причина.
+
+**Сценарії** — що обіцяємо. Кожен стає тестом, тож формулюй так, щоб було видно,
+коли він упаде: **Given** стан, **When** дія, **Then** видимий наслідок. Слаг —
+іменем, не номером. Сценарій, який не можна перевірити, — це побажання; або
+переформулюй, або визнай межею.
+
+**Трансформи** — чим це робиться. Кожна стане одним коммітом. Перелічуй файли
+поіменно, до роботи. Глобів не буває.
+
+## Розрізи якості
+
+Перед тим, як вважати список сценаріїв повним, пройди `keel/QUALITY.md` — сорок
+питань під девʼятьма заголовками. Один прохід на крок, тут і зараз.
+
+На кожен розріз одна відповідь із трьох:
+
+- **не стосується** — з причиною. Розріз про людину за інтерфейсом не стосується
+  файла збірки;
+- **відповіли** — назви сценарій. Сценарій, що доводить вужче, ніж питає розріз,
+  не є відповіддю: це наступний випадок;
+- **промовчали** — розріз доречний, ніщо його не закриває. Скажи, що конкретно
+  може піти не так саме тут, і напиши сценарій.
+
+Розріз, доречний, а відповідь на нього свідомо «ні», — це рішення, і його
+називають вголос. Мовчання є тим, що цей список припиняє; відмова — ні.
+
+Перевір, що прийшло з бібліотекою, перш ніж казати, що чогось бракує.
+
+## Де проходить межа
+
+**Сценарій чи межа.** Якщо це можна довести тестом — сценарій. Якщо це «ми
+свідомо цього не робимо» — абзац «Межі» в трансформі. Межа без сценарію чесна;
+сценарій без тесту — ні.
+
+**Трансформа ще не атомарна**, якщо не знаєш файлів наперед. Це не привід писати
+глоб, це привід різати далі. Друга ознака: повідомлення комміта хочеться писати
+через «і».
+
+**Рішення окремим файлом** — тільки коли на нього спираються два кроки й більше.
+Важливе для одного кроку живе в його тілі.
+
+**Контракт** заводиться, коли обіцянка переживе крок, що її створив. Модуль,
+експортовані функції, сенс.
+
+## Перед тим, як віддавати план
+
+`keel plan` скаже, чого бракує механічно: слаги без секцій, трансформи без
+файлів, сценарії без `proves`. Якщо спираєшся на контракт, редакцію дає
+`keel rev`.
+
+План їде в PR окремо від роботи. Схвалення нікуди не пишеться: воно в тому, що
+файл кроку опинився в головній гілці.
+"""
+
+WORK_BODY = """\
+## Коли
+
+План уже в головній гілці. Гілка названа іменем кроку, код пишеться.
+
+## Хід
+
+    python3 keel/keel.py next
+
+Віддає одну трансформу: що робить, які файли, де межі, які сценарії наближає,
+тіла контрактів, на які спирається. Це повний зріз для одного ходу — довкола
+нічого відкривати не треба.
+
+Далі: зроби рівно те, потім
+
+    python3 keel/keel.py check
+
+і комміт, у повідомленні якого стоїть слаг трансформи. Слаг — єдиний звʼязок
+роботи з планом; без нього трансформа лишиться відкритою.
+
+Повтори, доки `next` не скаже, що відкритих не лишилось.
+
+## Межі
+
+Файли зі списку — і тільки вони. Знадобився файл поза списком: допиши його в
+трансформу в файлі кроку. Дрейф не заборонений, він названий, і його видно в
+diff. Мовчки вийти за список — заборонено.
+
+Кожен сценарій, який трансформа наближає, потребує тесту зі своїм імʼям і
+редакцією в тезі. Редакцію друкує `next`, а `keel rev --write` вписує її, коли
+текст сценарію змінився — після того, як ти його перечитав.
+"""
+
+REVIEW_BODY = """\
+## Коли
+
+Усі трансформи кроку закриті коммітами, і робота йде в PR.
+
+## Що робиться
+
+    python3 keel/keel.py check
+
+Повний гейт: посилання, цикли, редакції, межі, сценарії з зеленими тестами,
+експорти модулів. Червоне лагодиться, а не пояснюється.
+
+Далі — те, чого перевірка не бачить. Перечитай крок і спитай не «що ще має бути
+правдою», а **про що ми промовчали**. Найчастіше промовчали про відмови: що
+станеться, коли залежність не відповість, коли даних більше, ніж думали, коли
+викликали двічі. Знайдене закривається до PR, як і будь-що інше.
+
+Звір текст сценаріїв із тим, що насправді доводять тести. Тест, який зеленіє,
+не перевіряючи обіцянки, гірший за відсутній: він мовчить.
+"""
+
+SKILLS = (
+    {
+        "name": "keel-plan",
+        "description": ("Як писати крок Keel: навіщо, сценарії через розрізи якості, "
+                        "трансформи з точними файлами. Бери, коли починається новий "
+                        "крок, заповнюється keel/steps/*.md або питають, як "
+                        "розбити роботу на трансформи."),
+        "globs": "keel/steps/*.md",
+        "body": PLAN_BODY,
+    },
+    {
+        "name": "keel-work",
+        "description": ("Як робити крок Keel: keel next, робота рівно у названих "
+                        "файлах, keel check, комміт зі слагом трансформи. Бери, коли "
+                        "план уже влитий і пишеться код."),
+        "globs": None,
+        "body": WORK_BODY,
+    },
+    {
+        "name": "keel-review",
+        "description": ("Що перевірити перед pull request у Keel: повний keel check "
+                        "і питання, про що промовчали. Бери, коли крок дороблений і "
+                        "готується PR."),
+        "globs": None,
+        "body": REVIEW_BODY,
+    },
+)
+
+GENERATED_NOTE = ("Породжено `keel skills` з методики. Правити тут не варто — "
+                  "затре наступне оновлення; правити треба джерело.")
+
+CLAUDE_SKILL_FILE = """---
+name: {name}
+description: {description}
+---
+
+# {name}
+
+{note}
+
+{body}"""
+
+CURSOR_RULE_FILE = """---
+description: {description}
+alwaysApply: false
+{globs}---
+
+# {name}
+
+{note}
+
+{body}"""
+
+
+def yaml_string(text):
+    """Quote a scalar. Descriptions carry colons, and bare colons break YAML."""
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 def home():
     return os.path.dirname(os.path.abspath(__file__))
+
+
+def render_skill(skill, agent):
+    """One skill, in the dialect of one agent."""
+    fields = {
+        "name": skill["name"],
+        "description": yaml_string(" ".join(skill["description"].split())),
+        "note": GENERATED_NOTE,
+        "body": skill["body"].strip(),
+    }
+    if agent == "claude":
+        return CLAUDE_SKILL_FILE.format(**fields)
+    globs = f"globs: {skill['globs']}\n" if skill["globs"] else ""
+    return CURSOR_RULE_FILE.format(globs=globs, **fields)
+
+
+def skill_targets(skill):
+    """Where this skill lands, per agent."""
+    return (
+        ("claude", f"{CLAUDE_SKILLS}/{skill['name']}/SKILL.md"),
+        ("cursor", f"{CURSOR_RULES}/{skill['name']}.mdc"),
+    )
+
+
+def cmd_skills(project, args=None):
+    done = []
+    write_skills(project.root, done)
+    for line in done:
+        print(f"  {line}")
+    if not done:
+        print("  скіли не змінились")
+    return 0
+
+
+def write_skills(root, done):
+    for skill in SKILLS:
+        for agent, relative in skill_targets(skill):
+            write_if_changed(os.path.join(root, relative),
+                             render_skill(skill, agent), done, relative)
 
 
 def principles_lines():
@@ -1471,6 +1697,8 @@ def cmd_init(project, args):
     for name, path in sources.items():
         write_if_changed(os.path.join(project.root, "keel", name),
                          read_text(path), done, f"keel/{name}")
+
+    write_skills(project.root, done)
 
     block = AGENTS_BLOCK.format(
         start=AGENTS_START, end=AGENTS_END, tool=VENDORED,
@@ -1718,6 +1946,8 @@ def build_parser():
     init.add_argument("--force", action="store_true", help="перезаписати чужий хук")
     init.set_defaults(install=True)
 
+    sub.add_parser("skills", help="перепородити скіли з методики")
+
     return parser
 
 
@@ -1735,7 +1965,7 @@ def main(argv=None):
 
     handlers = {"new": cmd_new, "plan": cmd_plan, "check": cmd_check,
                 "next": cmd_next, "rev": cmd_rev, "hooks": cmd_hooks,
-                "init": cmd_init}
+                "init": cmd_init, "skills": cmd_skills}
     return handlers[args.command](project, args)
 
 

@@ -15,6 +15,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import keel  # noqa: E402
 
+try:                                 # only to check what we generate, never to run
+    import yaml                      # noqa: F401
+    HAS_PYYAML = True
+except ImportError:
+    HAS_PYYAML = False
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # YAML
@@ -972,6 +978,147 @@ class TestInit(unittest.TestCase):
         _, out = self.init()
         self.assertNotIn("AGENTS.md", out)
         self.assertNotIn(keel.CI_FILE, out)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# keel skills
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSkills(ProjectCase):
+    def generate(self):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_skills(self.project, Args())
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def head(self, text):
+        front, _, _ = keel.split_front_matter(text)
+        self.assertIsNotNone(front, "у породженого немає шапки")
+        return keel.parse_yaml(front)
+
+    def test_writes_both_sets(self):
+        self.generate()
+        for skill in keel.SKILLS:
+            for _, relative in keel.skill_targets(skill):
+                self.assertTrue(os.path.exists(self.fixture.path(relative)), relative)
+
+    def test_claude_frontmatter(self):
+        self.generate()
+        for skill in keel.SKILLS:
+            head = self.head(self.fixture.read(
+                f".claude/skills/{skill['name']}/SKILL.md"))
+            self.assertEqual(head["name"], skill["name"])
+            self.assertTrue(head["description"])
+
+    def test_cursor_frontmatter(self):
+        self.generate()
+        for skill in keel.SKILLS:
+            head = self.head(self.fixture.read(f".cursor/rules/{skill['name']}.mdc"))
+            self.assertEqual(head["alwaysApply"], "false")
+            self.assertTrue(head["description"])
+            self.assertNotIn("name", head)
+
+    def test_cursor_uses_mdc_because_md_is_ignored(self):
+        self.generate()
+        for name in os.listdir(self.fixture.path(".cursor/rules")):
+            self.assertTrue(name.endswith(".mdc"), name)
+
+    def test_description_fits_the_listing_cap(self):
+        for skill in keel.SKILLS:
+            self.assertLessEqual(len(skill["description"]), keel.DESCRIPTION_CAP,
+                                 skill["name"])
+
+    def test_description_is_quoted_because_it_carries_a_colon(self):
+        self.generate()
+        for skill in keel.SKILLS:
+            for _, relative in keel.skill_targets(skill):
+                front, _, _ = keel.split_front_matter(self.fixture.read(relative))
+                line = next(row for row in front.splitlines()
+                            if row.startswith("description:"))
+                self.assertTrue(line.startswith('description: "'), line)
+                self.assertTrue(line.endswith('"'), line)
+
+    def test_description_survives_the_round_trip(self):
+        self.generate()
+        for skill in keel.SKILLS:
+            wanted = " ".join(skill["description"].split())
+            for _, relative in keel.skill_targets(skill):
+                head = self.head(self.fixture.read(relative))
+                self.assertEqual(head["description"], wanted, relative)
+
+    def test_description_is_one_line(self):
+        self.generate()
+        for skill in keel.SKILLS:
+            for _, relative in keel.skill_targets(skill):
+                front, _, _ = keel.split_front_matter(self.fixture.read(relative))
+                line = [row for row in front.splitlines()
+                        if row.startswith("description:")]
+                self.assertEqual(len(line), 1, relative)
+
+    def test_only_the_planning_skill_is_glob_scoped(self):
+        self.generate()
+        planning = self.head(self.fixture.read(".cursor/rules/keel-plan.mdc"))
+        self.assertEqual(planning["globs"], "keel/steps/*.md")
+        self.assertNotIn("globs", self.head(
+            self.fixture.read(".cursor/rules/keel-work.mdc")))
+
+    def test_body_is_the_same_in_both_dialects(self):
+        self.generate()
+        for skill in keel.SKILLS:
+            bodies = []
+            for _, relative in keel.skill_targets(skill):
+                _, body, _ = keel.split_front_matter(self.fixture.read(relative))
+                bodies.append(body)
+            self.assertEqual(bodies[0], bodies[1], skill["name"])
+
+    def test_generated_files_say_so(self):
+        self.generate()
+        for skill in keel.SKILLS:
+            for _, relative in keel.skill_targets(skill):
+                self.assertIn("Породжено", self.fixture.read(relative))
+
+    def test_planning_skill_sends_you_to_quality(self):
+        self.generate()
+        body = self.fixture.read(".claude/skills/keel-plan/SKILL.md")
+        self.assertIn("keel/QUALITY.md", body)
+        for answer in ("не стосується", "відповіли", "промовчали"):
+            self.assertIn(answer, body)
+
+    def test_thin_skills_name_the_commands(self):
+        self.generate()
+        self.assertIn("keel.py next", self.fixture.read(
+            ".claude/skills/keel-work/SKILL.md"))
+        self.assertIn("keel.py check", self.fixture.read(
+            ".claude/skills/keel-review/SKILL.md"))
+
+    @unittest.skipUnless(HAS_PYYAML, "PyYAML не встановлений")
+    def test_a_real_yaml_parser_reads_the_frontmatter(self):
+        """Свій читач поблажливий; шапку читатимуть Claude і Cursor, не він."""
+        import yaml
+        self.generate()
+        for skill in keel.SKILLS:
+            for _, relative in keel.skill_targets(skill):
+                front, _, _ = keel.split_front_matter(self.fixture.read(relative))
+                head = yaml.safe_load(front)
+                self.assertEqual(head["description"],
+                                 " ".join(skill["description"].split()), relative)
+                self.assertIs(head.get("alwaysApply", False), False, relative)
+
+    def test_second_run_changes_nothing(self):
+        self.generate()
+        _, out = self.generate()
+        self.assertIn("не змінились", out)
+
+    def test_hand_edit_is_restored(self):
+        self.generate()
+        self.fixture.write(".cursor/rules/keel-work.mdc", "правлено руками\n")
+        _, out = self.generate()
+        self.assertIn("keel-work.mdc", out)
+        self.assertIn("Породжено", self.fixture.read(".cursor/rules/keel-work.mdc"))
 
 
 class TestBranchOverride(ProjectCase):
