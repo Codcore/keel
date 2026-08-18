@@ -1,6 +1,6 @@
 ---
 translates: README.md
-source-rev: d40c4d
+source-rev: c3831c
 ---
 
 # keel
@@ -96,20 +96,7 @@ from a translation quietly falling behind.
 ## Language adapters
 
 Two of the six checks depend on the language: what runs the tests (5) and where a
-module's exports come from (6). A contract with `verify` needs no adapter — it
-carries a command. It has to be a string, or the check turns red rather than
-passing it over in silence, and it is bounded at 30 seconds: a promise is a
-probe, not a build, and a hung probe would hold `pre-push` and CI for as long
-as they are allowed to run. Its stdin is closed, so a command that prompts fails
-at once instead of waiting, and `--no-tests` does not run it.
-
-**`verify` executes a command out of a file in the repository, and that is worth
-knowing.** `keel check` runs it through a shell, and `pre-push` runs `keel check`.
-So cloning somebody's project, or checking out a branch from a pull request and
-running `git push`, means executing whatever its contracts say. Until now every
-subprocess Keel launched was a fixed adapter command; this is the first one set
-by whoever wrote the contract. The practical conclusion is simple: read a
-contract in somebody else's PR as carefully as you read code. The adapter is chosen by a marker in the project
+module's exports come from (6). The adapter is chosen by a marker in the project
 root.
 
 | | Elixir | Python |
@@ -131,6 +118,23 @@ it was run on and writes down what it found.
 A language without an adapter does not break the whole of `check`, only checks 5
 and 6, and it says so plainly. A new adapter is a class with a marker, a test
 command, a tag pattern and a way to get the exports.
+
+### A contract with `verify`
+
+It needs no adapter — it carries a command. That command has to be a string, or
+the check turns red rather than passing it over in silence, and it is bounded at
+30 seconds: a promise is a probe, not a build, and a hung probe would hold
+`pre-push` and CI for as long as they are allowed to run. Its stdin is closed, so
+a command that prompts fails at once instead of waiting, and `--no-tests` does
+not run it.
+
+**This executes a command out of a file in the repository, and that is worth
+knowing.** `keel check` runs it through a shell, and `pre-push` runs `keel check`.
+So cloning somebody's project, or checking out a branch from a pull request and
+running `git push`, means executing whatever its contracts say. Until now every
+subprocess Keel launched was a fixed adapter command; this is the first one set
+by whoever wrote the contract. The practical conclusion is simple: read a
+contract in somebody else's PR as carefully as you read code.
 
 ## How Keel gets into a project
 
