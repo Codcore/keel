@@ -37,7 +37,7 @@ class TestScenarios(ProjectCase):
     def test_missing_test_is_a_problem(self):
         problems = keel.check_scenarios(self.project, run_tests=False)
         self.assertEqual(len(problems), 1)
-        self.assertIn("не має тесту", problems[0].message)
+        self.assertIn("has no test", problems[0].message)
 
     def test_tag_with_right_revision_is_clean(self):
         self.tag(self.fixture.scenario_rev())
@@ -47,7 +47,7 @@ class TestScenarios(ProjectCase):
         self.tag("deadbe")
         problems = keel.check_scenarios(self.project, run_tests=False)
         self.assertEqual(len(problems), 1)
-        self.assertIn("тримає редакцію", problems[0].message)
+        self.assertIn("the test holds", problems[0].message)
         self.assertEqual(problems[0].where, "test/session_test.exs")
 
     def test_tag_without_revision(self):
@@ -58,7 +58,7 @@ class TestScenarios(ProjectCase):
             '  test "x", do: assert true\n'
             'end\n')
         problems = keel.check_scenarios(self.project, run_tests=False)
-        self.assertIn("без редакції", problems[0].message)
+        self.assertIn("carries no revision", problems[0].message)
 
     def test_scenario_text_edited_makes_the_tag_stale(self):
         self.tag(self.fixture.scenario_rev())
@@ -67,7 +67,7 @@ class TestScenarios(ProjectCase):
                            text.replace("розмова завершується", "розмова завершується сама"))
         problems = keel.check_scenarios(self.project, run_tests=False)
         self.assertEqual(len(problems), 1)
-        self.assertIn("тримає редакцію", problems[0].message)
+        self.assertIn("the test holds", problems[0].message)
 
     def test_slug_dashes_match_atom_underscores(self):
         self.assertEqual(keel.normalise_slug("finishes_when_no_tool_called"),
@@ -114,7 +114,7 @@ class TestExports(unittest.TestCase):
         self.contract("[halt/1]")
         problems = keel.check_exports(keel.Project(self.root))
         self.assertEqual(len(problems), 1)
-        self.assertIn("не експортує обіцяне: halt/1", problems[0].message)
+        self.assertIn("does not export what was promised: halt/1", problems[0].message)
 
     def test_wrong_arity_is_missing(self):
         self.contract("[run/2]")
@@ -132,7 +132,7 @@ class TestExports(unittest.TestCase):
                    "---\nverify: \"echo нема така служба >&2; exit 1\"\n---\n\nСлужба.\n")
         problems = keel.check_exports(keel.Project(self.root))
         self.assertEqual(len(problems), 1)
-        self.assertIn("не підтвердився", problems[0].message)
+        self.assertIn("was not confirmed", problems[0].message)
         self.assertIn("нема така служба", problems[0].message)
 
     def test_a_contract_may_carry_both_a_module_and_a_command(self):
@@ -150,7 +150,7 @@ class TestExports(unittest.TestCase):
         with unittest.mock.patch.object(keel, "VERIFY_TIMEOUT", 1):
             problems = keel.check_exports(keel.Project(self.root))
         self.assertEqual(len(problems), 1)
-        self.assertIn("не відповів за 1 с", problems[0].message)
+        self.assertIn("did not answer within 1s", problems[0].message)
 
     def test_a_verify_that_is_not_a_command_is_named_not_skipped(self):
         """Список замість рядка не має давати зеленої перевірки."""
@@ -158,7 +158,7 @@ class TestExports(unittest.TestCase):
                    '---\nverify: ["curl", "-sf", "x"]\n---\n\nСписком.\n')
         problems = keel.check_exports(keel.Project(self.root))
         self.assertEqual(len(problems), 1)
-        self.assertIn("має бути командою рядком", problems[0].message)
+        self.assertIn("has to be a command as a string", problems[0].message)
         self.assertIn("list", problems[0].message)
 
     def test_an_empty_verify_is_named_too(self):
@@ -166,7 +166,7 @@ class TestExports(unittest.TestCase):
                    '---\nverify: ""\n---\n\nПорожня.\n')
         problems = keel.check_exports(keel.Project(self.root))
         self.assertEqual(len(problems), 1)
-        self.assertIn("має бути командою рядком", problems[0].message)
+        self.assertIn("has to be a command as a string", problems[0].message)
 
     def test_a_contract_without_verify_at_all_is_left_alone(self):
         self.write("keel/contracts/prose.md", "---\nmodule: demo\n---\n\nСама проза.\n")
@@ -186,13 +186,13 @@ class TestExports(unittest.TestCase):
                    '---\nverify: "read x"\n---\n\nПитає.\n')
         problems = keel.check_exports(keel.Project(self.root))
         self.assertEqual(len(problems), 1)
-        self.assertIn("не підтвердився", problems[0].message)
+        self.assertIn("was not confirmed", problems[0].message)
 
     def test_module_absent(self):
         self.write("keel/contracts/demo.md",
                    "---\nmodule: nosuchmodule\nexports: [run/1]\n---\n\nТекст.\n")
         problems = keel.check_exports(keel.Project(self.root))
-        self.assertIn("не зібрався", problems[0].message)
+        self.assertIn("did not build", problems[0].message)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

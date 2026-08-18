@@ -113,13 +113,13 @@ class TestRefChecks(ProjectCase):
                            "---\ndepends_on: [0001-session-loop]\n---\n\n## Навіщо\n\nЦикл.\n")
         problems = keel.check_cycles(self.project)
         self.assertEqual(len(problems), 1)
-        self.assertIn("цикл", problems[0].message)
+        self.assertIn("cycle in depends_on", problems[0].message)
 
     def test_stale_contract_revision(self):
         self.fixture.write("keel/contracts/session-run.md", CONTRACT + "\nІ ще речення.\n")
         problems = keel.check_revisions(self.project)
         self.assertEqual(len(problems), 2)  # the scenario and the transform
-        self.assertTrue(all("тримає редакцію" in p.message for p in problems))
+        self.assertTrue(all("holds" in p.message for p in problems))
 
     def test_reference_without_revision(self):
         self.fixture.write(
@@ -128,7 +128,7 @@ class TestRefChecks(ProjectCase):
                 f"session-run@{self.fixture.contract_rev}", "session-run"))
         problems = keel.check_revisions(self.project)
         self.assertEqual(len(problems), 2)
-        self.assertTrue(all("без редакції" in p.message for p in problems))
+        self.assertTrue(all("without a revision" in p.message for p in problems))
 
     def test_a_repeated_heading_is_reported(self):
         """Читають перший, а редакція рахується з останнього."""
@@ -138,13 +138,13 @@ class TestRefChecks(ProjectCase):
                              "**Then** зовсім інше.\n")
         problems = keel.check_headings(self.project)
         self.assertEqual(len(problems), 1)
-        self.assertIn("трапляється двічі", problems[0].message)
+        self.assertIn("appears twice", problems[0].message)
 
     def test_a_repeated_transform_heading_too(self):
         step = "keel/steps/0001-session-loop.md"
         self.fixture.write(step, self.fixture.read(step)
                            + "\n## transform: drive-turns\n\nІнше тіло.\n")
-        self.assertTrue(any("трапляється двічі" in p.message
+        self.assertTrue(any("appears twice" in p.message
                             for p in keel.check_headings(self.project)))
 
     def test_heading_without_header_entry(self):

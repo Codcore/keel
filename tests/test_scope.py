@@ -33,13 +33,13 @@ class TestScope(ProjectCase):
         problems = keel.check_scope(self.project)
         self.assertEqual(len(problems), 1)
         self.assertIn("lib/extra.ex", problems[0].message)
-        self.assertIn("не оголошено", problems[0].message)
+        self.assertIn("not declared", problems[0].message)
 
     def test_declared_but_untouched(self):
         self.fixture.branch("0001-session-loop")
         problems = keel.check_scope(self.project)
         self.assertEqual(len(problems), 1)
-        self.assertIn("оголошено, але не змінено", problems[0].message)
+        self.assertIn("declared but not changed", problems[0].message)
 
     def test_committed_change_counts(self):
         self.fixture.branch("0001-session-loop")
@@ -67,7 +67,7 @@ class TestScope(ProjectCase):
         self.fixture.write("lib/session.ex", "код у гілці плану\n")
         problems = keel.check_scope(self.project)
         self.assertEqual(len(problems), 1)
-        self.assertIn("гілка плану чіпає код", problems[0].message)
+        self.assertIn("a plan branch is touching code", problems[0].message)
 
     def test_a_missing_merge_base_is_red_not_silently_green(self):
         """Без бази diff бачить лише незакомічене — і все закомічене проходить."""
@@ -79,7 +79,7 @@ class TestScope(ProjectCase):
         self.fixture.git("commit", "-m", "drive-turns: хід")
         problems = keel.check_scope(self.project)
         self.assertTrue(problems)
-        self.assertIn("не знайшов, від чого відійшла гілка", problems[0].message)
+        self.assertIn("cannot tell where this branch left from", problems[0].message)
 
     def test_origin_head_pointing_at_the_work_branch_is_not_trusted(self):
         """Одногілковий клон робив гілку власною базою — і все проходило."""
@@ -98,7 +98,7 @@ class TestScope(ProjectCase):
     def test_branch_that_is_not_a_step(self):
         self.fixture.branch("random-branch")
         problems = keel.check_scope(self.project)
-        self.assertIn("не називається кроком", problems[0].message)
+        self.assertIn("is not named after a step", problems[0].message)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -115,7 +115,7 @@ class TestBranchOverride(ProjectCase):
         self.fixture.git("commit", "-am", "drive-turns: хід")
         self.fixture.git("checkout", "-q", "--detach")
         project = self.project
-        self.assertIn("HEAD відчеплений", keel.check_scope(project)[0].message)
+        self.assertIn("the head is detached", keel.check_scope(project)[0].message)
         project.branch_override = "0001-session-loop"
         self.assertEqual(keel.check_scope(project), [])
 

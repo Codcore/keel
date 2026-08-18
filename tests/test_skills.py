@@ -187,7 +187,7 @@ class TestSkills(ProjectCase):
     def test_second_run_changes_nothing(self):
         self.generate()
         _, out = self.generate()
-        self.assertIn("не змінились", out)
+        self.assertIn("did not change", out)
 
     def test_hand_edit_is_restored(self):
         self.generate()

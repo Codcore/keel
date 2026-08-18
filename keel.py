@@ -24,6 +24,225 @@ import sys
 
 VERSION = "0.1.0"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# What the tool says
+#
+# English is the key, not a slug: a missing translation degrades to readable
+# English instead of to a lookup error, and the code stays legible without the
+# catalogue open beside it. The language follows `lang` from the project's
+# config — the same setting that decides what the agent writes and which phrases
+# the skills catch, because all three are read by the same person.
+#
+# The command line itself stays English: flag names, metavars and --help are the
+# interface's own vocabulary, like `--force` is.
+# ─────────────────────────────────────────────────────────────────────────────
+
+OUTPUT_LANG = "en"
+UK = {
+    # читач YAML
+    "line {line}: {message}": "рядок {line}: {message}",
+    "unclosed quote": "лапки не закриті",
+    "stray bracket": "зайва дужка",
+    "unclosed bracket": "дужка не закрита",
+    "a map inside a list is not supported: {item}":
+        "мапа в списку не підтримується: {item}",
+    "list is not closed by a bracket": "список не закритий дужкою",
+    "map is not closed by a bracket": "мапа не закрита дужкою",
+    "no colon in the map entry: {entry}": "у мапі немає двокрапки: {entry}",
+    "duplicate key {key}": "ключ {key} повторюється",
+    "indented with a tab": "відступ табуляцією",
+    "unexpected indent": "несподіваний відступ",
+    "a header has to be a set of keys, not a list":
+        "шапка має бути набором ключів, а не списком",
+    "this line is not a list item": "рядок не є елементом списку",
+    "a list where a key was expected": "список там, де очікується ключ",
+    "no key before the colon: {line}": "немає ключа перед двокрапкою: {line}",
+    "two colons on one line: {line}": "дві двокрапки в одному рядку: {line}",
+    "empty key": "порожній ключ",
+    "no header between --- markers": "немає шапки між рисками ---",
+    "header does not parse: {reason}": "шапка не читається: {reason}",
+
+    # назви перевірок
+    "references lead somewhere": "посилання ведуть кудись",
+    "depends_on without cycles": "depends_on без циклів",
+    "contract revisions match": "редакції контрактів збіглися",
+    "changed files match those declared": "змінені файли збігаються з оголошеними",
+    "every scenario has a green test": "у кожного сценарію зелений тест",
+    "contracts hold": "контракти справджуються",
+    "names in the header match the headings": "імена в шапці збігаються із заголовками",
+
+    # перевірки
+    "scenario {slug}": "сценарій {slug}",
+    "transform {slug}": "трансформа {slug}",
+    "depends_on points at a step that does not exist: {slug}":
+        "depends_on показує на крок, якого немає: {slug}",
+    "scenario {scenario} proves a contract that does not exist: {slug}":
+        "сценарій {scenario} доводить контракт, якого немає: {slug}",
+    "transform {transform} implements a scenario that does not exist: {scenario}":
+        "трансформа {transform} наближає сценарій, якого немає: {scenario}",
+    "transform {transform} implements a contract that does not exist: {slug}":
+        "трансформа {transform} реалізує контракт, якого немає: {slug}",
+    "this link leads nowhere: {target}": "посилання нікуди не веде: {target}",
+    "cycle in depends_on: {cycle}": "цикл у depends_on: {cycle}",
+    "{who} leans on {slug} without a revision; it is now {now}":
+        "{who} спирається на {slug} без редакції; зараз {now}",
+    "{who} holds {slug}@{held}, and the contract is now {now}":
+        "{who} тримає редакцію {slug}@{held}, а контракт зараз {now}",
+    "this is not a git repository — nothing to check scope against":
+        "це не git-репозиторій — межі перевірити нічим",
+    "the head is detached and git does not know the branch name — "
+    "pass it with --branch":
+        "HEAD відчеплений, імені гілки git не знає — передай його прапорцем --branch",
+    "cannot tell where this branch left from: {main} is missing or the history "
+    "is truncated. Scope was not compared, which is not the same as scope being "
+    "intact.":
+        "не знайшов, від чого відійшла гілка: {main} немає або історія обрізана. "
+        "Межі не звірено — це не означає, що вони цілі.",
+    "a plan branch is touching code: {name}": "гілка плану чіпає код: {name}",
+    "branch {branch} is not named after a step — there is nothing to compare "
+    "scope against":
+        "гілка {branch} не називається кроком — немає з чим звіряти межі",
+    "changed but not declared: {name}": "файл змінено, але не оголошено: {name}",
+    "declared but not changed: {name}": "файл оголошено, але не змінено: {name}",
+    "nothing to run the tests with: the root has none of {markers}":
+        "не знайшов, чим запускати тести: у корені немає жодного з {markers}",
+    "scenario {slug} has no test": "сценарій {slug} не має тесту",
+    "the test for {slug} carries no revision; it is now {now}":
+        "тест сценарію {slug} без редакції; зараз {now}",
+    "the test holds {slug}@{held}, and the scenario is now {now}":
+        "тест тримає редакцію {slug}@{held}, а сценарій зараз {now}",
+    "the tests are red ({command}):": "тести червоні ({command}):",
+    "verify has to be a command as a string, and this is {kind}: {value}":
+        "verify має бути командою рядком, а тут {kind}: {value}",
+    "the contract did not answer within {seconds}s: {command}":
+        "контракт не відповів за {seconds} с: {command}",
+    "the contract was not confirmed: {command}": "контракт не підтвердився: {command}",
+    "no language adapter found — nothing to check exports with":
+        "не знайшов адаптера мови — експорти перевірити нічим",
+    "the modules did not build:": "модулі не зібралися:",
+    "the module is missing or did not build: {module}":
+        "модуля немає або він не зібрався: {module}",
+    "{module} does not export what was promised: {promised}":
+        "{module} не експортує обіцяне: {promised}",
+    "the heading ## {title} appears twice — the first is read and the last is "
+    "counted":
+        "заголовок ## {title} трапляється двічі — читають перший, а рахується останній",
+    "the header has {kind} {slug} and the body has no section for it":
+        "у шапці є {kind} {slug}, у тілі секції немає",
+    "the header has {kind} {slug} and the body has no "
+    "section for it": "у шапці є {kind} {slug}, у тілі секції немає",
+    "the body has ## {kind}: {slug} and the header does not":
+        "у тілі є ## {kind}: {slug}, у шапці його немає",
+    "the translation names no source revision; it is now {now}":
+        "переклад не називає редакції джерела; зараз {now}",
+    "the translation holds {held}, and {name} is now {now}":
+        "переклад тримає {held}, а {name} зараз {now}",
+
+    # вивід команд
+    '<what was done>': '<що зроблено>',
+    'Step {id} · {file}': 'Крок {id} · {file}',
+    'Closed: {names}': 'Закрито: {names}',
+    'After this one: {names}': 'Після цієї: {names}',
+    'Why the step': 'Навіщо крок',
+    'This transform': 'Ця трансформа',
+    'The files, and only these': 'Файли, і тільки вони',
+    '(none declared — the plan is incomplete)': '(не оголошено — план неповний)',
+    'Scenarios it brings closer': 'Сценарії, які вона наближає',
+    '(no body)': '(тіла немає)',
+    'Contracts it leans on': 'Контракти, на які вона спирається',
+    'Exports: {names}': 'Експортує: {names}',
+    '(no such contract)': '(контракту немає)',
+    'The commit': 'Комміт',
+    'Depends on:': 'Залежить від:',
+    'Scenarios': 'Сценарії',
+    'Transforms': 'Трансформи',
+    'no body': 'тіла немає',
+    'closed {sha}': 'закрита {sha}',
+    'open': 'відкрита',
+    'Brings closer: {names}': 'Наближає: {names}',
+    'not there yet': 'ще немає',
+    '(new)': '(нове)',
+    'ours': 'наш',
+    "another tool's": 'чужий',
+    'missing': 'немає',
+    'none': 'жодного',
+    '(block between the markers)': '(блок між маркерами)',
+    'step {slug}': 'крок {slug}',
+    'there is no step file for {branch} yet': 'файла кроку для {branch} ще немає',
+    "(not run)": "(не запускалась)",
+    "documents do not parse": "документи не читаються",
+    "clean": "чисто",
+    "problems: {count}": "проблем: {count}",
+    "bad slug: {slug}": "поганий слаг: {slug}",
+    "already there: {path}": "вже є: {path}",
+    "no such step: {step}": "кроку немає: {step}",
+    "branch {branch}": "гілка {branch}",
+    "the Why section is empty": "секція «Навіщо» порожня",
+    "no scenarios at all": "жодного сценарію",
+    "no transforms at all": "жодної трансформи",
+    "transform {slug} declared no files": "трансформа {slug} не оголосила файлів",
+    "transform {slug} implements no scenario":
+        "трансформа {slug} не наближає жодного сценарію",
+    "transform {slug} has no body: what it does and where its edges are":
+        "трансформа {slug} без тіла: що робить і де межі",
+    "scenario {slug} has no proves": "сценарій {slug} не має proves",
+    "no transform implements scenario {slug}":
+        "сценарій {slug} не наближає жодна трансформа",
+    "scenario {slug} has no body: given/when/then":
+        "сценарій {slug} без тіла: given/when/then",
+    "the plan is complete: {names}": "план повний: {names}",
+    "the plan is missing things ({names}):": "плану бракує ({names}):",
+    "in total: {count}": "всього: {count}",
+    "{file}: does not parse as JSON, leaving it alone":
+        "{file}: не читається як JSON, не чіпаю",
+    "{file}: not an object, leaving it alone": "{file}: не обʼєкт, не чіпаю",
+    "the skills did not change": "скіли не змінились",
+    "{root} is not a git repository, and Keel reads all of its state from\n"
+    "git — transform closure, scope, the approval of a plan.\nFirst:\n  git init":
+        "у {root} немає git-репозиторію, а Keel увесь свій стан читає з git —\n"
+        "закриття трансформ, межі, схвалення плану.\nСпершу:\n  git init",
+    "there are no references in {lang}: {missing}. Run init from the "
+    "methodology repository.":
+        "довідників мовою {lang} немає: {missing}. init запускають із "
+        "репозиторію методики.",
+    "committed separately: {count} files": "закомічено окремо: {count} файлів",
+    "this is not a git repository — there is nowhere to put the hooks":
+        "це не git-репозиторій — хуки нема куди класти",
+    "{name}: another tool owns this hook, leaving it alone (--force to overwrite)":
+        "{name}: чужий хук, не чіпаю (--force щоб перезаписати)",
+    "keel hooks --install puts them in place": "keel hooks --install щоб поставити",
+    "both are in place": "стоять обидва",
+    "update compares the project against the methodology home, and there are no "
+    "sources beside this copy. Run it from the keel repository:\n"
+    "  python3 <keel>/keel.py -C {root} update":
+        "update звіряє проєкт із домом методики, а поруч із цією копією джерел "
+        "немає. Запусти з репозиторію keel:\n"
+        "  python3 <keel>/keel.py -C {root} update",
+    "translations have fallen behind the source:": "переклади відстали від джерела:",
+    "no difference": "різниці немає",
+    "updated: {what}": "оновлено: {what}",
+    "edited by hand, leaving it alone: {what}": "правлено руками, не чіпаю: {what}",
+    "everything is in place": "усе на місці",
+    "keel update --diff shows the difference, --force overwrites":
+        "keel update --diff покаже різницю, --force перепише",
+    "every revision matches": "усі редакції збігаються",
+    "drifted apart: {count}. keel rev --write records the new ones, once you "
+    "have reread the text you lean on.":
+        "розійшлося: {count}. keel rev --write впише нові — після того, як "
+        "перечитаєш текст, на який спираєшся.",
+    "recorded: {count}": "вписано: {count}",
+    "no such directory: {path}": "теки немає: {path}",
+    "nothing": "нічого",
+    "test {slug}": "тест {slug}",
+    "{root} has no keel/ directory — Keel is not installed here":
+        "у {root} немає теки keel/ — тут Keel не поставлений",
+}
+
+
+def t(text, **fields):
+    template = UK.get(text, text) if OUTPUT_LANG == "uk" else text
+    return template.format(**fields) if fields else template
+
 REV_LEN = 6          # how many hex digits keel rev writes
 REV_MIN = 4          # a shorter revision in a reference is not accepted
 VERIFY_TIMEOUT = 30  # a contract's proof is a probe, not a build
@@ -39,7 +258,7 @@ VERIFY_TIMEOUT = 30  # a contract's proof is a probe, not a build
 
 class YamlError(Exception):
     def __init__(self, line, message):
-        super().__init__(f"рядок {line}: {message}")
+        super().__init__(t("line {line}: {message}", line=line, message=message))
         self.line = line
         self.message = message
 
@@ -76,7 +295,7 @@ def _scalar(text, line):
                         .replace("\\\\", "\\"))
         return body.replace("''", "'")
     if text.startswith(("\"", "'")):
-        raise YamlError(line, "лапки не закриті")
+        raise YamlError(line, t("unclosed quote"))
     return text
 
 
@@ -96,16 +315,16 @@ def _split_flow(text, line):
         elif ch in "]}":
             depth -= 1
             if depth < 0:
-                raise YamlError(line, "зайва дужка")
+                raise YamlError(line, t("stray bracket"))
         elif ch == "," and depth == 0:
             parts.append("".join(cur))
             cur = []
             continue
         cur.append(ch)
     if quote:
-        raise YamlError(line, "лапки не закриті")
+        raise YamlError(line, t("unclosed quote"))
     if depth:
-        raise YamlError(line, "дужка не закрита")
+        raise YamlError(line, t("unclosed bracket"))
     tail = "".join(cur).strip()
     if tail:
         parts.append(tail)
@@ -118,7 +337,7 @@ MAP_ITEM = re.compile(r"^[^\s\"'\[{][^:]*:(\s|$)")
 def _list_item(text, line):
     """One element of a list. A map here is valid YAML we do not read."""
     if MAP_ITEM.match(text.strip()):
-        raise YamlError(line, f"мапа в списку не підтримується: {text.strip()!r}")
+        raise YamlError(line, t("a map inside a list is not supported: {item}", item=repr(text.strip())))
     return _flow(text, line)
 
 
@@ -126,19 +345,19 @@ def _flow(text, line):
     text = text.strip()
     if text.startswith("["):
         if not text.endswith("]"):
-            raise YamlError(line, "список не закритий дужкою")
+            raise YamlError(line, t("list is not closed by a bracket"))
         return [_list_item(p, line) for p in _split_flow(text[1:-1], line)]
     if text.startswith("{"):
         if not text.endswith("}"):
-            raise YamlError(line, "мапа не закрита дужкою")
+            raise YamlError(line, t("map is not closed by a bracket"))
         out = {}
         for part in _split_flow(text[1:-1], line):
             if ":" not in part:
-                raise YamlError(line, f"у мапі немає двокрапки: {part!r}")
+                raise YamlError(line, t("no colon in the map entry: {entry}", entry=repr(part)))
             key, _, value = part.partition(":")
             key = _scalar(key, line)
             if key in out:
-                raise YamlError(line, f"ключ {key!r} повторюється")
+                raise YamlError(line, t("duplicate key {key}", key=repr(key)))
             out[key] = _flow(value, line)
         return out
     return _scalar(text, line)
@@ -149,7 +368,7 @@ def parse_yaml(text):
     lines = []
     for number, raw in enumerate(text.splitlines(), 1):
         if "\t" in raw[: len(raw) - len(raw.lstrip())]:
-            raise YamlError(number, "відступ табуляцією")
+            raise YamlError(number, t("indented with a tab"))
         body = _strip_comment(raw)
         if not body.strip():
             continue
@@ -157,12 +376,12 @@ def parse_yaml(text):
 
     value, index = _parse_block(lines, 0, 0)
     if index != len(lines):
-        raise YamlError(lines[index][0], "несподіваний відступ")
+        raise YamlError(lines[index][0], t("unexpected indent"))
     if not isinstance(value, dict):
         # Returning {} here would turn a malformed header into a step with no
         # transforms — which reads as "nothing declared" and switches the write
         # hook off without a word.
-        raise YamlError(1, "шапка має бути набором ключів, а не списком")
+        raise YamlError(1, t("a header has to be a set of keys, not a list"))
     return value
 
 
@@ -181,7 +400,7 @@ def _parse_list(lines, index, indent):
         if own < indent:
             break
         if own > indent or not text.startswith("- "):
-            raise YamlError(number, "рядок не є елементом списку")
+            raise YamlError(number, t("this line is not a list item"))
         items.append(_list_item(text[2:], number))
         index += 1
     return items, index
@@ -194,20 +413,20 @@ def _parse_map(lines, index, indent):
         if own < indent:
             break
         if own > indent:
-            raise YamlError(number, "несподіваний відступ")
+            raise YamlError(number, t("unexpected indent"))
         if text.startswith("- "):
-            raise YamlError(number, "список там, де очікується ключ")
+            raise YamlError(number, t("a list where a key was expected"))
         match = re.match(r"^([^:]+):(\s|$)", text)
         if not match:
-            raise YamlError(number, f"немає ключа перед двокрапкою: {text!r}")
+            raise YamlError(number, t("no key before the colon: {line}", line=repr(text)))
         key, rest = match.group(1), text[match.end(1) + 1:]
         if re.match(r"^\s*[^\s\"'\[{][^:]*:(\s|$)", rest):
-            raise YamlError(number, f"дві двокрапки в одному рядку: {text!r}")
+            raise YamlError(number, t("two colons on one line: {line}", line=repr(text)))
         key = _scalar(key, number)
         if not key:
-            raise YamlError(number, "порожній ключ")
+            raise YamlError(number, t("empty key"))
         if key in out:
-            raise YamlError(number, f"ключ {key!r} повторюється")
+            raise YamlError(number, t("duplicate key {key}", key=repr(key)))
         index += 1
         rest = rest.strip()
         if rest:
@@ -277,12 +496,12 @@ class Doc:
         self.text = text
         front_text, self.body, self.body_offset = split_front_matter(text)
         if front_text is None:
-            self.error = "немає шапки між рисками ---"
+            self.error = t("no header between --- markers")
             return
         try:
             self.front = parse_yaml(front_text) or {}
         except YamlError as exc:
-            self.error = f"шапка не читається: {exc}"
+            self.error = t("header does not parse: {reason}", reason=exc)
             return
         self._split_sections()
 
@@ -853,13 +1072,13 @@ def find_root(start):
 # ─────────────────────────────────────────────────────────────────────────────
 
 CHECK_NAMES = {
-    1: "посилання ведуть кудись",
-    2: "depends_on без циклів",
-    3: "редакції контрактів збіглися",
-    4: "змінені файли збігаються з оголошеними",
-    5: "у кожного сценарію зелений тест",
-    6: "контракти справджуються",
-    7: "імена в шапці збігаються із заголовками",
+    1: "references lead somewhere",
+    2: "depends_on without cycles",
+    3: "contract revisions match",
+    4: "changed files match those declared",
+    5: "every scenario has a green test",
+    6: "contracts hold",
+    7: "names in the header match the headings",
 }
 
 FAST_CHECKS = (1, 2, 3, 4, 7)
@@ -889,24 +1108,24 @@ def check_refs(project):
         for ref in step.depends_on:
             if ref.slug not in project.steps:
                 problems.append(Problem(
-                    1, f"depends_on показує на крок, якого немає: {ref.slug}",
+                    1, t("depends_on points at a step that does not exist: {slug}", slug=ref.slug),
                     step.rel, step.line_of(ref.slug)))
         for slug in step.scenarios:
             for ref in step.proves(slug):
                 if ref.slug not in project.contracts:
                     problems.append(Problem(
-                        1, f"сценарій {slug} доводить контракт, якого немає: {ref.slug}",
+                        1, t("scenario {scenario} proves a contract that does not exist: {slug}", scenario=slug, slug=ref.slug),
                         step.rel, step.line_of(ref.raw)))
         for slug in step.transforms:
             for name in step.transform_implements(slug):
                 if name not in step.scenarios:
                     problems.append(Problem(
-                        1, f"трансформа {slug} наближає сценарій, якого немає: {name}",
+                        1, t("transform {transform} implements a scenario that does not exist: {scenario}", transform=slug, scenario=name),
                         step.rel, step.line_of(name)))
             for ref in step.transform_contracts(slug):
                 if ref.slug not in project.contracts:
                     problems.append(Problem(
-                        1, f"трансформа {slug} реалізує контракт, якого немає: {ref.slug}",
+                        1, t("transform {transform} implements a contract that does not exist: {slug}", transform=slug, slug=ref.slug),
                         step.rel, step.line_of(ref.raw)))
 
     for doc in list(project.steps.values()) + list(project.contracts.values()):
@@ -919,7 +1138,7 @@ def check_refs(project):
             if inside or os.path.exists(resolved):
                 continue
             problems.append(Problem(
-                1, f"посилання нікуди не веде: {target}",
+                1, t("this link leads nowhere: {target}", target=target),
                 doc.rel, doc.line_of(target)))
     return problems
 
@@ -932,7 +1151,7 @@ def check_cycles(project):
             return
         if state.get(slug) == "open":
             cycle = " → ".join(trail[trail.index(slug):] + [slug])
-            problems.append(Problem(2, f"цикл у depends_on: {cycle}",
+            problems.append(Problem(2, t("cycle in depends_on: {cycle}", cycle=cycle),
                                     project.steps[slug].rel))
             return
         state[slug] = "open"
@@ -953,10 +1172,10 @@ def contract_refs(step):
     """Everything in a step that leans on a contract: (who leans, reference)."""
     for slug in step.scenarios:
         for ref in step.proves(slug):
-            yield f"сценарій {slug}", ref
+            yield t("scenario {slug}", slug=slug), ref
     for slug in step.transforms:
         for ref in step.transform_contracts(slug):
-            yield f"трансформа {slug}", ref
+            yield t("transform {slug}", slug=slug), ref
 
 
 def scenario_tags(project):
@@ -983,35 +1202,35 @@ def check_revisions(project):
                 continue
             if not ref.rev:
                 problems.append(Problem(
-                    3, f"{who} спирається на {ref.slug} без редакції; "
-                       f"зараз {contract.revision}",
+                    3, t("{who} leans on {slug} without a revision; it is now {now}",
+                      who=who, slug=ref.slug, now=contract.revision),
                     step.rel, step.line_of(ref.raw)))
             elif not contract.rev_ok(ref.rev):
                 problems.append(Problem(
-                    3, f"{who} тримає редакцію {ref.slug}@{ref.rev}, "
-                       f"а контракт зараз {contract.revision}",
+                    3, t("{who} holds {slug}@{held}, and the contract is now {now}",
+                      who=who, slug=ref.slug, held=ref.rev, now=contract.revision),
                     step.rel, step.line_of(ref.raw)))
     return problems
 
 
 def check_scope(project):
     if not project.git.available:
-        return [Problem(4, "це не git-репозиторій — межі перевірити нічим")]
+        return [Problem(4, t("this is not a git repository — nothing to check scope against"))]
     branch = project.branch
     if branch == project.git.main_short:
         return []
     if not branch or branch == "HEAD":
         # Passing silently would be a green check where none ever ran.
-        return [Problem(4, "HEAD відчеплений, імені гілки git не знає — "
-                           "передай його прапорцем --branch")]
+        return [Problem(4, t("the head is detached and git does not know the branch name — "
+                        "pass it with --branch"))]
     main = project.git.main_branch
     base = project.git.merge_base(main)
     if not base:
         # Without a base the diff covers nothing but uncommitted work, so every
         # committed file would pass unseen. Green here would be a lie.
-        return [Problem(4, f"не знайшов, від чого відійшла гілка: {main} немає "
-                           f"або історія обрізана. Межі не звірено — це не "
-                           f"означає, що вони цілі.")]
+        return [Problem(4, t("cannot tell where this branch left from: {main} is missing or "
+                        "the history is truncated. Scope was not compared, which "
+                        "is not the same as scope being intact.", main=main))]
     changed = {
         name for name in project.git.changed_files(base)
         if not name.startswith(KEEL_DIR_PREFIX)
@@ -1019,12 +1238,12 @@ def check_scope(project):
 
     if project.is_plan_branch(branch):
         stray = sorted(name for name in changed if not keel_owns(name))
-        return [Problem(4, f"гілка плану чіпає код: {name}") for name in stray]
+        return [Problem(4, t("a plan branch is touching code: {name}", name=name)) for name in stray]
 
     step = project.step_for_branch(branch)
     if step is None:
-        return [Problem(4, f"гілка {branch} не називається кроком — "
-                           f"немає з чим звіряти межі")]
+        return [Problem(4, t("branch {branch} is not named after a step — there is nothing "
+                        "to compare scope against", branch=branch))]
     if step.error:
         return []
 
@@ -1034,9 +1253,9 @@ def check_scope(project):
 
     problems = []
     for name in sorted(changed - declared):
-        problems.append(Problem(4, f"файл змінено, але не оголошено: {name}", step.rel))
+        problems.append(Problem(4, t("changed but not declared: {name}", name=name), step.rel))
     for name in sorted(declared - changed):
-        problems.append(Problem(4, f"файл оголошено, але не змінено: {name}",
+        problems.append(Problem(4, t("declared but not changed: {name}", name=name),
                                 step.rel, step.line_of(name)))
     return problems
 
@@ -1046,26 +1265,26 @@ def check_scenarios(project, run_tests=True):
     if not steps:
         return []
     if project.adapter is None:
-        return [Problem(5, "не знайшов, чим запускати тести: у корені немає "
-                           "жодного з " + ", ".join(
-                               item for cls in ADAPTERS for item in cls.marker))]
+        return [Problem(5, t("nothing to run the tests with: the root has none of {markers}",
+                        markers=", ".join(item for cls in ADAPTERS
+                                          for item in cls.marker)))]
 
     problems = []
     for step, slug, body, found in scenario_tags(project):
         if not found:
             problems.append(Problem(
-                5, f"сценарій {slug} не має тесту", step.rel,
+                5, t("scenario {slug} has no test", slug=slug), step.rel,
                 step.section_lines.get(f"scenario: {slug}")))
             continue
         for path, line, rev in found:
             if not rev:
                 problems.append(Problem(
-                    5, f"тест сценарію {slug} без редакції; "
-                       f"зараз {revision(body)}", path, line))
+                    5, t("the test for {slug} carries no revision; it is now {now}",
+                     slug=slug, now=revision(body)), path, line))
             elif not rev_matches(rev, body):
                 problems.append(Problem(
-                    5, f"тест тримає редакцію {slug}@{rev}, "
-                       f"а сценарій зараз {revision(body)}", path, line))
+                    5, t("the test holds {slug}@{held}, and the scenario is now {now}",
+                     slug=slug, held=rev, now=revision(body)), path, line))
 
     if run_tests:
         command = project.adapter.test_command()
@@ -1073,8 +1292,8 @@ def check_scenarios(project, run_tests=True):
         if proc.returncode != 0:
             tail = (proc.stdout or proc.stderr).strip().splitlines()[-12:]
             problems.append(Problem(
-                5, "тести червоні (" + " ".join(command) + "):\n"
-                + "\n".join("      " + line for line in tail)))
+                5, t("the tests are red ({command}):", command=" ".join(command))
+                + "\n" + "\n".join("      " + line for line in tail)))
     return problems
 
 
@@ -1093,9 +1312,9 @@ def check_exports(project, run_tests=True):
             # empty string. Skipping it would print a green check over a promise
             # nobody proved, and that is worse than having no verify at all.
             problems.append(Problem(
-                6, f"verify має бути командою рядком, а тут "
-                   f"{type(contract.front['verify']).__name__}: "
-                   f"{contract.front['verify']!r}",
+                6, t("verify has to be a command as a string, and this is {kind}: {value}",
+                     kind=type(contract.front["verify"]).__name__,
+                     value=repr(contract.front["verify"])),
                 contract.rel, contract.line_of("verify")))
             continue
         if not contract.verify:
@@ -1109,13 +1328,13 @@ def check_exports(project, run_tests=True):
             # Unbounded, a hung command holds pre-push and CI for as long as
             # they are allowed to run, and says nothing while it does.
             problems.append(Problem(
-                6, f"контракт не відповів за {VERIFY_TIMEOUT} с: {contract.verify}",
+                6, t("the contract did not answer within {seconds}s: {command}", seconds=VERIFY_TIMEOUT, command=contract.verify),
                 contract.rel, contract.line_of("verify")))
             continue
         if proc.returncode != 0:
             tail = (proc.stderr or proc.stdout).strip().splitlines()[-3:]
             problems.append(Problem(
-                6, f"контракт не підтвердився: {contract.verify}"
+                6, t("the contract was not confirmed: {command}", command=contract.verify)
                    + ("\n" + "\n".join("      " + line for line in tail) if tail else ""),
                 contract.rel, contract.line_of("verify")))
 
@@ -1125,23 +1344,23 @@ def check_exports(project, run_tests=True):
         return problems
     if project.adapter is None:
         return problems + [
-            Problem(6, "не знайшов адаптера мови — експорти перевірити нічим")]
+            Problem(6, t("no language adapter found — nothing to check exports with"))]
 
     modules = sorted({c.module for c in contracts})
     actual = project.adapter.exports(project.root, modules)
     if actual.get("__error__"):
-        problems.append(Problem(6, "модулі не зібралися:\n      " + actual["__error__"]))
+        problems.append(Problem(6, t("the modules did not build:") + "\n      " + actual["__error__"]))
     for contract in contracts:
         have = actual.get(contract.module)
         if have is None:
             problems.append(Problem(
-                6, f"модуля немає або він не зібрався: {contract.module}",
+                6, t("the module is missing or did not build: {module}", module=contract.module),
                 contract.rel, contract.line_of("module")))
             continue
         for promised in contract.exports:
             if promised not in have:
                 problems.append(Problem(
-                    6, f"{contract.module} не експортує обіцяне: {promised}",
+                    6, t("{module} does not export what was promised: {promised}", module=contract.module, promised=promised),
                     contract.rel, contract.line_of(promised)))
     return problems
 
@@ -1151,8 +1370,8 @@ def check_headings(project):
     for doc in list(project.steps.values()) + list(project.contracts.values()):
         for title in sorted(set(doc.repeated)):
             problems.append(Problem(
-                7, f"заголовок ## {title} трапляється двічі — читають перший, "
-                   f"а рахується останній",
+                7, t("the heading ## {title} appears twice — the first is read and the "
+                     "last is counted", title=title),
                 doc.rel, doc.section_lines.get(title)))
     for step in project.steps.values():
         if step.error:
@@ -1162,11 +1381,13 @@ def check_headings(project):
             in_head = set(declared)
             for slug in sorted(in_head - in_body):
                 problems.append(Problem(
-                    7, f"у шапці є {kind} {slug}, у тілі секції немає",
+                    7, t("the header has {kind} {slug} and the body has no "
+                         "section for it", kind=kind, slug=slug),
                     step.rel, step.line_of(slug)))
             for slug in sorted(in_body - in_head):
                 problems.append(Problem(
-                    7, f"у тілі є ## {kind}: {slug}, у шапці його немає",
+                    7, t("the body has ## {kind}: {slug} and the header does not",
+                         kind=kind, slug=slug),
                     step.rel, step.section_lines.get(f"{kind}: {slug}")))
     return problems
 
@@ -1239,7 +1460,7 @@ def cmd_new(project, args):
     kind, slug = args.kind, args.slug
     clean = normalise_slug(slug)
     if not clean:
-        fail(f"поганий слаг: {slug!r}")
+        fail(t("bad slug: {slug}", slug=repr(slug)))
 
     if kind == "step":
         folder = os.path.join(project.keel, "steps")
@@ -1255,7 +1476,7 @@ def cmd_new(project, args):
 
     path = os.path.join(folder, name)
     if os.path.exists(path):
-        fail(f"вже є: {os.path.relpath(path, project.root)}")
+        fail(t("already there: {path}", path=os.path.relpath(path, project.root)))
     os.makedirs(folder, exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(text)
@@ -1268,7 +1489,7 @@ def cmd_gaps(project, args):
              else [project.step_for_branch()] if not args.step and project.step_for_branch()
              else list(project.steps.values()))
     if args.step and args.step not in project.steps:
-        fail(f"кроку немає: {args.step}")
+        fail(t("no such step: {step}", step=args.step))
     steps = [step for step in steps if step]
 
     problems = []
@@ -1277,50 +1498,50 @@ def cmd_gaps(project, args):
             problems.append(Problem(0, step.error, step.rel))
             continue
         if not step.why.strip() or step.why.strip().startswith(f"{step.slug}: навіщо"):
-            problems.append(Problem(0, "секція «Навіщо» порожня", step.rel))
+            problems.append(Problem(0, t("the Why section is empty"), step.rel))
         if not step.scenarios:
-            problems.append(Problem(0, "жодного сценарію", step.rel))
+            problems.append(Problem(0, t("no scenarios at all"), step.rel))
         if not step.transforms:
-            problems.append(Problem(0, "жодної трансформи", step.rel))
+            problems.append(Problem(0, t("no transforms at all"), step.rel))
 
         implemented = set()
         for slug in step.transforms:
             implemented.update(step.transform_implements(slug))
             if not step.transform_files(slug):
                 problems.append(Problem(
-                    0, f"трансформа {slug} не оголосила файлів", step.rel,
+                    0, t("transform {slug} declared no files", slug=slug), step.rel,
                     step.line_of(slug)))
             if not step.transform_implements(slug):
                 problems.append(Problem(
-                    0, f"трансформа {slug} не наближає жодного сценарію", step.rel,
+                    0, t("transform {slug} implements no scenario", slug=slug), step.rel,
                     step.line_of(slug)))
             if not (step.transform_body(slug) or "").strip():
                 problems.append(Problem(
-                    0, f"трансформа {slug} без тіла: що робить і де межі", step.rel))
+                    0, t("transform {slug} has no body: what it does and where its edges are", slug=slug), step.rel))
         for slug in step.scenarios:
             if not step.proves(slug):
                 problems.append(Problem(
-                    0, f"сценарій {slug} не має proves", step.rel, step.line_of(slug)))
+                    0, t("scenario {slug} has no proves", slug=slug), step.rel, step.line_of(slug)))
             if slug not in implemented:
                 problems.append(Problem(
-                    0, f"сценарій {slug} не наближає жодна трансформа", step.rel,
+                    0, t("no transform implements scenario {slug}", slug=slug), step.rel,
                     step.line_of(slug)))
             if not (step.scenario_body(slug) or "").strip():
                 problems.append(Problem(
-                    0, f"сценарій {slug} без тіла: given/when/then", step.rel))
+                    0, t("scenario {slug} has no body: given/when/then", slug=slug), step.rel))
 
     mine = {step.rel for step in steps}
     problems += [p for p in check_headings(project) if p.where in mine]
     problems += [p for p in check_refs(project) if p.where in mine]
 
-    names = ", ".join(step.slug for step in steps) or "нічого"
+    names = ", ".join(step.slug for step in steps) or t("nothing")
     if not problems:
-        print(f"план повний: {names}")
+        print(t("the plan is complete: {names}", names=names))
         return 0
-    print(f"плану бракує ({names}):\n")
+    print(t("the plan is missing things ({names}):", names=names) + "\n")
     for problem in problems:
         print(problem.render())
-    print(f"\nвсього: {len(problems)}")
+    print("\n" + t("in total: {count}", count=len(problems)))
     return 1
 
 
@@ -1334,7 +1555,7 @@ def cmd_check(project, args):
             "structure": [p.as_dict() for p in structural],
             "checks": {
                 str(number): {
-                    "name": CHECK_NAMES[number],
+                    "name": t(CHECK_NAMES[number]),
                     "run": results[number] is not None,
                     "problems": [p.as_dict() for p in (results[number] or [])],
                 }
@@ -1346,7 +1567,7 @@ def cmd_check(project, args):
 
     total = len(structural)
     if structural:
-        print("✗ документи не читаються")
+        print("✗ " + t("documents do not parse"))
         for problem in structural:
             print(problem.render())
         print()
@@ -1354,17 +1575,17 @@ def cmd_check(project, args):
     for number in sorted(results):
         problems = results[number]
         if problems is None:
-            print(f"– {number}. {CHECK_NAMES[number]} (не запускалась)")
+            print(f"– {number}. " + t(CHECK_NAMES[number]) + " " + t("(not run)"))
             continue
         total += len(problems)
         if not problems:
-            print(f"✓ {number}. {CHECK_NAMES[number]}")
+            print(f"✓ {number}. " + t(CHECK_NAMES[number]))
             continue
-        print(f"✗ {number}. {CHECK_NAMES[number]}")
+        print(f"✗ {number}. " + t(CHECK_NAMES[number]))
         for problem in problems:
             print(problem.render())
     print()
-    print("чисто" if total == 0 else f"проблем: {total}")
+    print(t("clean") if total == 0 else t("problems: {count}", count=total))
     return 0 if total == 0 else 1
 
 
@@ -1380,23 +1601,26 @@ def cmd_next(project, args):
     step = project.step_for_branch()
     branch = project.branch
     if step is None:
-        message = (f"гілка {branch} не називається кроком. "
-                   f"Робота йде в гілці з іменем кроку, план — у plan/<крок>.")
+        message = t("branch {branch} is not named after a step. Work happens on "
+                    "a branch named after the step, planning on plan/<step>.",
+                    branch=branch)
         return emit_next_error(args, message)
     if project.is_plan_branch(branch):
-        return emit_next_error(args, "це гілка плану: тут пишеться крок, а не код. "
-                                     "keel gaps скаже, чого бракує.")
+        return emit_next_error(args, t("this is a plan branch: the step is written "
+                                       "here, not code. keel gaps says what is "
+                                       "missing."))
     if not project.git.file_in_branch(project.git.main_branch, step.rel):
         return emit_next_error(
-            args, f"крок {step.slug} ще не в гілці {project.git.main_branch}: "
-                  f"план не схвалений, роботи немає.")
+            args, t("step {step} is not on {main} yet: the plan is not approved "
+                    "and there is no work.", step=step.slug,
+                    main=project.git.main_branch))
     if step.error:
         return emit_next_error(args, f"{step.rel}: {step.error}")
 
     slug, state = next_transform(project, step)
     if slug is None:
-        message = (f"усі трансформи кроку {step.slug} закриті коммітами. "
-                   f"Далі: keel check, потім PR.")
+        message = t("every transform of step {step} is closed by a commit. "
+                    "Next: keel check, then the PR.", step=step.slug)
         return emit_next_error(args, message, code=0)
 
     package = next_package(project, step, slug, state)
@@ -1444,7 +1668,7 @@ def next_package(project, step, slug, state):
         "done": [name for name, (sha, _) in state.items() if sha],
         "left": [name for name in step.transforms
                  if state[name][0] is None and name != slug],
-        "commit": f"{slug}: <що зроблено>",
+        "commit": f"{slug}: " + t("<what was done>"),
         "tag_hint": [
             {"scenario": item["slug"], "rev": item["rev"]} for item in scenarios
         ],
@@ -1462,33 +1686,33 @@ def emit_next_error(args, message, code=1):
 def render_next(package):
     step, transform = package["step"], package["transform"]
     out = [f"# {transform['slug']}", ""]
-    out.append(f"Крок {step['id']} · {step['file']}")
+    out.append(t("Step {id} · {file}", id=step["id"], file=step["file"]))
     if package["done"]:
-        out.append(f"Закрито: {', '.join(package['done'])}")
+        out.append(t("Closed: {names}", names=", ".join(package["done"])))
     if package["left"]:
-        out.append(f"Після цієї: {', '.join(package['left'])}")
+        out.append(t("After this one: {names}", names=", ".join(package["left"])))
     out.append("")
     if step["why"]:
-        out += ["## Навіщо крок", "", step["why"], ""]
+        out += ["## " + t("Why the step"), "", step["why"], ""]
     if transform["body"]:
-        out += ["## Ця трансформа", "", transform["body"], ""]
-    out += ["## Файли, і тільки вони", ""]
-    out += [f"- {name}" for name in transform["files"]] or ["- (не оголошено — план неповний)"]
+        out += ["## " + t("This transform"), "", transform["body"], ""]
+    out += ["## " + t("The files, and only these"), ""]
+    out += [f"- {name}" for name in transform["files"]] or ["- " + t("(none declared — the plan is incomplete)")]
     out.append("")
 
     if package["scenarios"]:
-        out += ["## Сценарії, які вона наближає", ""]
+        out += ["## " + t("Scenarios it brings closer"), ""]
         for item in package["scenarios"]:
             out.append(f"### {item['slug']}")
             out.append("")
-            out.append(item["body"] or "(тіла немає)")
+            out.append(item["body"] or t("(no body)"))
             out.append("")
-            out.append(f"Тег тесту: `proves: :{item['slug'].replace('-', '_')}, "
-                       f"rev: \"{item['rev']}\"`")
+            out.append(t('Test tag: `proves: :{atom}, rev: "{rev}"`',
+                         atom=item["slug"].replace("-", "_"), rev=item["rev"]))
             out.append("")
 
     if package["contracts"]:
-        out += ["## Контракти, на які вона спирається", ""]
+        out += ["## " + t("Contracts it leans on"), ""]
         for item in package["contracts"]:
             head = f"### {item['slug']}"
             if item["module"]:
@@ -1496,17 +1720,19 @@ def render_next(package):
             out.append(head)
             out.append("")
             if item["exports"]:
-                out.append(f"Експортує: {', '.join(item['exports'])}")
+                out.append(t("Exports: {names}", names=", ".join(item["exports"])))
                 out.append("")
-            out.append(item["body"] or "(контракту немає)")
+            out.append(item["body"] or t("(no such contract)"))
             out.append("")
             if not item["rev_ok"]:
-                out.append(f"⚠ редакція в кроці {item['rev']}, "
-                           f"а контракт зараз {item['rev_now']} — спершу keel rev")
+                out.append(t("⚠ the step holds {held}, the contract is now "
+                             "{now} — keel rev first",
+                             held=item["rev"], now=item["rev_now"]))
                 out.append("")
 
-    out += ["## Комміт", "", f"    {package['commit']}", ""]
-    out.append("Слаг трансформи в повідомленні — єдиний звʼязок роботи з планом.")
+    out += ["## " + t("The commit"), "", f"    {package['commit']}", ""]
+    out.append(t("The transform slug in the message is the only link between "
+                 "the work and the plan."))
     return "\n".join(out)
 
 
@@ -1582,7 +1808,7 @@ def write_config(root, settings, done, manifest=None):
         except ValueError:
             # Overwriting would silently reset docs and lang to the defaults,
             # and regenerate the skills with the wrong trigger language.
-            print(f"  {CONFIG_FILE}: не читається як JSON, не чіпаю")
+            print("  " + t("{file}: does not parse as JSON, leaving it alone", file=CONFIG_FILE))
             return
     stored = dict(settings)
     if manifest is not None:
@@ -1685,11 +1911,13 @@ def check_translations(project):
         where = os.path.relpath(doc_source(name, lang), home()) + f" ({REVISIONS})"
         if not recorded:
             problems.append(Problem(
-                8, f"переклад не називає редакції джерела; зараз {revision(text)}",
+                8, t("the translation names no source revision; it is now {now}",
+                     now=revision(text)),
                 where))
         elif not rev_matches(recorded, text):
             problems.append(Problem(
-                8, f"переклад тримає {recorded}, а {name} зараз {revision(text)}",
+                8, t("the translation holds {held}, and {name} is now {now}",
+                     held=recorded, name=name, now=revision(text)),
                 where))
     return problems
 
@@ -2150,30 +2378,35 @@ def session_context(project):
     branch = project.branch or "?"
     if project.is_plan_branch(branch):
         step = project.step_for_branch(branch)
-        where = f"крок {step.slug}" if step else f"файла кроку для {branch} ще немає"
-        return (f"Keel: гілка плану {branch}, {where}. Тут пишеться план, не код.\n"
-                f"Візьми скіл keel-plan. Чого бракує — скаже "
-                f"`python3 {VENDORED} gaps`.")
+        where = (t("step {slug}", slug=step.slug) if step
+                 else t("there is no step file for {branch} yet", branch=branch))
+        return t("Keel: plan branch {branch}, {where}. The plan is written here, "
+                 "not code.\nTake the keel-plan skill. What is missing is what "
+                 "`python3 {tool} gaps` says.",
+                 branch=branch, where=where, tool=VENDORED)
 
     step = project.step_for_branch(branch)
     if step is None:
         # Order matters and is easy to get backwards: the number only exists
         # after `new step`, and a branch named before it never links to the step.
-        return (f"Keel: гілка {branch} не називається кроком, тож роботи за планом "
-                f"тут немає.\nНовий крок: спершу `python3 {VENDORED} new step "
-                f"<слаг>` — він надрукує імʼя файла разом із номером, — і аж тоді "
-                f"гілка `plan/<те саме імʼя>`. Візьми скіл keel-plan.")
+        return t("Keel: branch {branch} is not named after a step, so there is no "
+                 "planned work here.\nA new step: first `python3 {tool} new step "
+                 "<slug>` — it prints the file name with its number — and only then "
+                 "the branch `plan/<that same name>`. Take the keel-plan skill.",
+                 branch=branch, tool=VENDORED)
     if step.error:
-        return f"Keel: {step.rel} не читається: {step.error}"
+        return t("Keel: {file} does not parse: {reason}",
+                 file=step.rel, reason=step.error)
 
     slug, state = next_transform(project, step)
     if slug is None:
-        return (f"Keel: усі трансформи кроку {step.slug} закриті коммітами.\n"
-                f"Візьми скіл keel-review. Далі — `python3 {VENDORED} check` і PR.")
+        return t("Keel: every transform of step {slug} is closed by a commit.\n"
+                 "Take the keel-review skill. Then `python3 {tool} check` and the PR.",
+                 slug=step.slug, tool=VENDORED)
 
     package = next_package(project, step, slug, state)
-    return ("Keel: візьми скіл keel-work. Ось пакет наступної дії — "
-            "працюй за ним, довкола нічого відкривати не треба.\n\n"
+    return (t("Keel: take the keel-work skill. Here is the package for the next "
+              "move — work from it, nothing around it needs opening.") + "\n\n"
             + render_next(package))
 
 
@@ -2239,9 +2472,9 @@ def write_verdict(project, payload):
 
     target = find_path(payload)
     if target is None:
-        return ("note", "keel: у вхідних даних хука не знайшлося шляху файлу, тож "
-                        "межі не перевірено. Оголошені кроком файли: "
-                        + (", ".join(sorted(declared)) or "жодного"))
+        return ("note", t("keel: the hook payload carried no file path, so scope "
+                          "was not checked. Files the step declares: {declared}",
+                          declared=", ".join(sorted(declared)) or t("none")))
 
     # realpath on both sides: on macOS /tmp is a symlink to /private/tmp, and the
     # agent hands over the path the user sees. Comparing the two unresolved turns
@@ -2251,18 +2484,21 @@ def write_verdict(project, payload):
                                os.path.realpath(project.root))
     relative = relative.replace(os.sep, "/")
     if relative == ".." or relative.startswith("../"):
-        return ("note", f"keel: {target} лежить поза репозиторієм, тож межі "
-                        f"кроку до нього не застосовні. Перевір сам, чи туди "
-                        f"треба писати.")
+        return ("note", t("keel: {target} is outside the repository, so the "
+                          "step's scope does not apply to it. Judge for yourself "
+                          "whether it should be written to.", target=target))
     if relative.startswith(KEEL_DIR_PREFIX):
         return None      # документи плану під scope не підпадають
     if relative in declared:
         return None
 
-    return ("deny", f"{relative} не оголошений у кроці {step.slug}. Оголошені: "
-                    f"{', '.join(sorted(declared)) or 'жодного'}. Якщо потрібен саме "
-                    f"цей файл — допиши його в трансформу у {step.rel}: дрейф не "
-                    f"заборонений, він має лишитися рядком у diff.")
+    return ("deny", t("{name} is not declared in step {step}. Declared: "
+                      "{declared}. If this file is the one you need, add it to the "
+                      "transform in {file}: drift is not forbidden, it has to stay "
+                      "a line in the diff.",
+                      name=relative, step=step.slug,
+                      declared=", ".join(sorted(declared)) or t("none"),
+                      file=step.rel))
 
 
 def write_hook_configs(root, done, manifest=None):
@@ -2277,10 +2513,10 @@ def merge_claude_settings(path, done):
     try:
         data = json.loads(read_text(path)) if os.path.exists(path) else {}
     except ValueError:
-        print(f"  {CLAUDE_SETTINGS}: не читається як JSON, не чіпаю")
+        print("  " + t("{file}: does not parse as JSON, leaving it alone", file=CLAUDE_SETTINGS))
         return
     if not isinstance(data, dict):
-        print(f"  {CLAUDE_SETTINGS}: не обʼєкт, не чіпаю")
+        print("  " + t("{file}: not an object, leaving it alone", file=CLAUDE_SETTINGS))
         return
 
     before = json.dumps(data, ensure_ascii=False, sort_keys=True)
@@ -2354,7 +2590,7 @@ def cmd_skills(project, args=None):
     for line in done:
         print(f"  {line}")
     if not done:
-        print("  скіли не змінились")
+        print("  " + t("the skills did not change"))
     return 0
 
 
@@ -2380,9 +2616,9 @@ def cmd_init(project, args):
     # comparison, the approval of a plan. Without a repository almost nothing
     # works, and creating one is a bigger decision than installing a method.
     if not project.git.available:
-        fail(f"у {project.root} немає git-репозиторію, а Keel увесь свій стан\n"
-             f"читає з git — закриття трансформ, межі, схвалення плану.\n"
-             f"Спершу:\n  git init")
+        fail(t("{root} is not a git repository, and Keel reads all of its state from\n"
+               "git — transform closure, scope, the approval of a plan.\n"
+               "First:\n  git init", root=project.root))
     settings = dict(project.settings)
     for key in DEFAULTS:
         chosen = getattr(args, key, None)
@@ -2393,9 +2629,9 @@ def cmd_init(project, args):
     sources = {name: doc_source(name, settings["docs"]) for name in REFERENCES}
     missing = [name for name, path in sources.items() if not os.path.exists(path)]
     if principles is None or missing:
-        fail(f"довідників мовою {settings['docs']} немає: "
-             + ", ".join(missing + ([] if principles else ["PRINCIPLES.md"]))
-             + ". init запускають із репозиторію методики")
+        fail(t("there are no references in {lang}: {missing}. Run init from the "
+               "methodology repository.", lang=settings["docs"],
+               missing=", ".join(missing + ([] if principles else ["PRINCIPLES.md"]))))
 
     done, manifest = [], {}
     for folder in INIT_DIRS:
@@ -2417,7 +2653,7 @@ def cmd_init(project, args):
 
     block = agents_block(settings["docs"], principles)
     if update_agents(os.path.join(project.root, "AGENTS.md"), block):
-        done.append("AGENTS.md (блок між маркерами)")
+        done.append("AGENTS.md " + t("(block between the markers)"))
 
     setup = project.adapter.ci_steps(project.root) if project.adapter else []
     write_if_changed(
@@ -2433,7 +2669,7 @@ def cmd_init(project, args):
     if not getattr(args, "no_commit", False):
         committed = commit_own(project)
         if committed:
-            print(f"  закомічено окремо: {committed} файлів")
+            print("  " + t("committed separately: {count} files", count=committed))
     for line in closing_hint(project, restart=True):
         print(line)
     return code
@@ -2482,17 +2718,20 @@ def closing_hint(project, restart=False):
         pending = [row[3:] for row in stdout.splitlines()
                    if code == 0 and keel_owns(row[3:])]
         if pending:
-            lines.append(f"\n{len(pending)} файлів Keel ще не в git. Закоміть їх "
-                         f"окремо від роботи:\n  git add " +
-                         " ".join(sorted({name.split('/')[0] for name in pending})) +
-                         '\n  git commit -m "Keel у проєкті"')
+            lines.append("\n" + t("{count} Keel files are not in git yet. Commit "
+                                  "them separately from the work:\n  git add {paths}"
+                                  "\n  git commit -m \"Keel in the project\"",
+                                  count=len(pending),
+                                  paths=" ".join(sorted(
+                                      {name.split("/")[0] for name in pending}))))
     if restart:
-        lines.append(
-            f"\nЗʼявились скіли /keel-plan, /keel-work і /keel-review. Агента "
-            f"запускають у самій теці проєкту:\n  cd {project.root} && <агент>\n"
-            f"Якщо він каже «Unknown skill» — вони ще не підхопились: "
-            f"/reload-skills або просто повтори виклик. Сесію, відкриту до "
-            f"установки, треба перезапустити; /clear теку на облік не бере.")
+        lines.append("\n" + t(
+            "The skills /keel-plan, /keel-work and /keel-review are in place. Start "
+            "the agent in the project directory itself:\n  cd {root} && <agent>\n"
+            "If it answers \"Unknown skill\" they have not been picked up yet: "
+            "/reload-skills, or simply call again. A session opened before the "
+            "install has to be restarted; /clear does not register the directory.",
+            root=project.root))
     return lines
 
 
@@ -2578,7 +2817,7 @@ def hook_script(name, baked):
 def cmd_hooks(project, args):
     git_dir = project.git.out("rev-parse", "--absolute-git-dir")
     if not git_dir:
-        fail("це не git-репозиторій — хуки нема куди класти")
+        fail(t("this is not a git repository — there is nowhere to put the hooks"))
     folder = os.path.join(git_dir, "hooks")
     baked = os.path.abspath(__file__)
 
@@ -2589,12 +2828,14 @@ def cmd_hooks(project, args):
         mine = present and HOOK_MARK in read_text(path)
 
         if not args.install:
-            state = "наш" if mine else ("чужий" if present else "немає")
+            state = (t("ours") if mine
+                     else (t("another tool's") if present else t("missing")))
             missing += 0 if mine else 1
             print(f"  {name}: {state}")
             continue
         if present and not mine and not args.force:
-            print(f"  {name}: чужий хук, не чіпаю (--force щоб перезаписати)")
+            print("  " + t("{name}: another tool owns this hook, leaving it alone "
+                     "(--force to overwrite)", name=name))
             problems += 1
             continue
         os.makedirs(folder, exist_ok=True)
@@ -2604,7 +2845,8 @@ def cmd_hooks(project, args):
         print(f"  {name}: {' '.join(('keel',) + HOOKS[name])}")
 
     if not args.install:
-        print("\nkeel hooks --install щоб поставити" if missing else "\nстоять обидва")
+        print("\n" + (t("keel hooks --install puts them in place") if missing
+                  else t("both are in place")))
         return 0
     return 1 if problems else 0
 
@@ -2618,7 +2860,8 @@ def cmd_show(project, args):
     """
     step = project.steps.get(args.step) if args.step else project.step_for_branch()
     if step is None:
-        fail("не знайшов кроку: " + (args.step or f"гілка {project.branch}"))
+        fail(t("no such step: {step}",
+               step=args.step or t("branch {branch}", branch=project.branch)))
     if step.error:
         fail(f"{step.rel}: {step.error}")
 
@@ -2632,9 +2875,9 @@ def cmd_show(project, args):
 
     depends = [f"[{ref.slug}](../steps/{ref.slug}.md)" for ref in step.depends_on]
     if depends:
-        out += ["**Залежить від:** " + ", ".join(depends), ""]
+        out += ["**" + t("Depends on:") + "** " + ", ".join(depends), ""]
 
-    out += ["## Сценарії", ""]
+    out += ["## " + t("Scenarios"), ""]
     for slug in step.scenarios:
         proves = []
         for ref in step.proves(slug):
@@ -2644,28 +2887,32 @@ def cmd_show(project, args):
                           f"@{ref.rev or '—'} {'✓' if ok else '✗'}")
         out.append(f"### {slug}")
         out.append("")
-        out.append(f"Доводить: {', '.join(proves) or '—'} · редакція "
-                   f"`{step.scenario_revision(slug) or '—'}`")
+        out.append(t("Proves: {proves} · revision `{rev}`",
+                     proves=", ".join(proves) or "—",
+                     rev=step.scenario_revision(slug) or "—"))
         out.append("")
-        out.append((step.scenario_body(slug) or "_тіла немає_").strip())
+        out.append((step.scenario_body(slug) or "_" + t("no body") + "_").strip())
         out.append("")
 
-    out += ["## Трансформи", ""]
+    out += ["## " + t("Transforms"), ""]
     for slug in step.transforms:
         sha = state.get(slug, (None, set()))[0]
-        out.append(f"### {slug} — {'закрита ' + sha[:7] if sha else 'відкрита'}")
+        out.append(f"### {slug} — " + (t("closed {sha}", sha=sha[:7]) if sha
+                                       else t("open")))
         out.append("")
         near = ", ".join(f"[{name}](#{name})"
                          for name in step.transform_implements(slug))
-        out.append(f"Наближає: {near or '—'}")
+        out.append(t("Brings closer: {names}", names=near or "—"))
         for ref in step.transform_contracts(slug):
-            out.append(f"Реалізує: [{ref.slug}](../contracts/{ref.slug}.md)@{ref.rev or '—'}")
+            out.append(t("Implements: [{slug}](../contracts/{slug}.md)@{rev}",
+                         slug=ref.slug, rev=ref.rev or "—"))
         out.append("")
         for name in step.transform_files(slug):
             here = os.path.exists(os.path.join(project.root, name))
-            out.append(f"- [{name}](../../{name}){'' if here else ' — ще немає'}")
+            out.append(f"- [{name}](../../{name})"
+                       + ("" if here else " — " + t("not there yet")))
         out.append("")
-        out.append((step.transform_body(slug) or "_тіла немає_").strip())
+        out.append((step.transform_body(slug) or "_" + t("no body") + "_").strip())
         out.append("")
 
     print("\n".join(out).rstrip() + "\n")
@@ -2684,13 +2931,13 @@ def cmd_update(project, args):
     # itself and the answer would always be "nothing to do" — a no-op wearing the
     # face of a clean result.
     if not os.path.exists(os.path.join(home(), "PRINCIPLES.md")):
-        fail("update звіряє проєкт із домом методики, а поруч із цією копією "
-             "джерел немає. Запусти з репозиторію keel:\n"
-             "  python3 <keel>/keel.py -C " + project.root + " update")
+        fail(t("update compares the project against the methodology home, and there "
+               "are no sources beside this copy. Run it from the keel repository:\n"
+               "  python3 <keel>/keel.py -C {root} update", root=project.root))
 
     problems = check_translations(project)
     if problems:
-        print("переклади відстали від джерела:")
+        print(t("translations have fallen behind the source:"))
         for problem in problems:
             print(problem.render())
         print()
@@ -2702,7 +2949,7 @@ def cmd_update(project, args):
         for relative in stale + touched:
             print_diff(project.root, relative, wanted[relative])
         if not stale and not touched:
-            print("різниці немає")
+            print(t("no difference"))
         return 0
 
     done, manifest = [], read_manifest(project.root)
@@ -2716,21 +2963,21 @@ def cmd_update(project, args):
     if principles:
         block = agents_block(project.settings["docs"], principles)
         if update_agents(os.path.join(project.root, "AGENTS.md"), block):
-            done.append("AGENTS.md (блок між маркерами)")
+            done.append("AGENTS.md " + t("(block between the markers)"))
     merge_claude_settings(os.path.join(project.root, CLAUDE_SETTINGS), done)
     write_config(project.root, project.settings, done, manifest)
 
     for line in done:
-        print(f"  оновлено: {line}")
+        print("  " + t("updated: {what}", what=line))
     for relative in touched:
         if not args.force:
-            print(f"  правлено руками, не чіпаю: {relative}")
+            print("  " + t("edited by hand, leaving it alone: {what}", what=relative))
     if not done and not touched:
-        print("усе на місці")
+        print(t("everything is in place"))
     for line in closing_hint(project):
         print(line)
     if touched and not args.force:
-        print("\nkeel update --diff покаже різницю, --force перепише")
+        print("\n" + t("keel update --diff shows the difference, --force overwrites"))
         return 1
     return 0 if not problems else 1
 
@@ -2739,7 +2986,8 @@ def print_diff(root, relative, wanted):
     import difflib
     now = read_text(os.path.join(root, relative)).splitlines(keepends=True)
     for line in difflib.unified_diff(now, wanted.splitlines(keepends=True),
-                                     fromfile=relative, tofile=f"{relative} (нове)"):
+                                     fromfile=relative,
+                                     tofile=relative + " " + t("(new)")):
         print(line, end="" if line.endswith("\n") else "\n")
 
 
@@ -2775,20 +3023,22 @@ def cmd_rev(project, args):
         for path, line, rev in found:
             if rev and rev_matches(rev, body):
                 continue
-            report.append((f"{path}:{line}", f"тест {slug}", rev or "—", fresh))
+            report.append((f"{path}:{line}", t("test {slug}", slug=slug),
+                           rev or "—", fresh))
             edits.setdefault(os.path.join(project.root, path), []).append(
                 (("TAG", slug), fresh))
 
     if not report:
-        print("усі редакції збігаються")
+        print(t("every revision matches"))
         return 0
 
     for where, who, was, now in report:
         print(f"  {where}  {who}: {was} → {now}")
 
     if not args.write:
-        print(f"\nрозійшлося: {len(report)}. keel rev --write впише нові — "
-              f"після того, як перечитаєш текст, на який спираєшся.")
+        print("\n" + t("drifted apart: {count}. keel rev --write records the new ones, "
+                       "once you have reread the text you lean on.",
+                       count=len(report)))
         return 1
 
     for path, changes in edits.items():
@@ -2801,7 +3051,7 @@ def cmd_rev(project, args):
                 text = rewrite_ref(text, old, new)
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
-    print(f"\nвписано: {len(report)}")
+    print("\n" + t("recorded: {count}", count=len(report)))
     return 0
 
 
@@ -2847,57 +3097,62 @@ def fail(message, code=2):
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        prog="keel", description="Keel: два типи документів, шість перевірок.")
+        prog="keel", description="Keel: two kinds of document, six checks.")
     parser.add_argument("--version", action="version", version=VERSION)
-    parser.add_argument("-C", dest="chdir", metavar="ТЕКА",
-                        help="працювати в цій теці")
+    parser.add_argument("-C", dest="chdir", metavar="DIR",
+                        help="work in this directory")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    new = sub.add_parser("new", help="каркас кроку або контракту")
+    new = sub.add_parser("new", help="skeleton of a step or a contract")
     new.add_argument("kind", choices=("step", "contract"))
     new.add_argument("slug")
 
-    gaps = sub.add_parser("gaps", help="чого бракує в описі кроку")
-    gaps.add_argument("step", nargs="?", help="крок; без нього — крок гілки")
+    gaps = sub.add_parser("gaps", help="what is missing from a step")
+    gaps.add_argument("step", nargs="?", help="a step; without it, the branch's step")
 
-    check = sub.add_parser("check", help="шість перевірок")
+    check = sub.add_parser("check", help="the six checks")
     check.add_argument("--fast", action="store_true",
-                       help="лише 1, 2, 3, 4, 7 — те, що вішається на pre-commit")
-    check.add_argument("--no-tests", action="store_true", help="не запускати тести")
-    check.add_argument("--branch", metavar="ІМʼЯ",
-                       help="імʼя гілки, коли git його не знає — на CI")
+                       help="only the ones that run nothing, as on pre-commit")
+    check.add_argument("--no-tests", action="store_true", help="do not run anything")
+    check.add_argument("--branch", metavar="NAME",
+                       help="the branch name where git does not know it, as on CI")
     check.add_argument("--json", action="store_true")
 
-    nxt = sub.add_parser("next", help="пакет наступної дії")
+    nxt = sub.add_parser("next", help="the package for the next move")
     nxt.add_argument("--json", action="store_true")
 
-    rev = sub.add_parser("rev", help="редакції, які розійшлися")
-    rev.add_argument("--write", action="store_true", help="вписати нові редакції")
+    rev = sub.add_parser("rev", help="revisions that have drifted apart")
+    rev.add_argument("--write", action="store_true", help="record the new revisions")
 
-    hooks = sub.add_parser("hooks", help="хуки git: pre-commit і pre-push")
+    hooks = sub.add_parser("hooks", help="the git hooks: pre-commit and pre-push")
     hooks.add_argument("--install", action="store_true")
-    hooks.add_argument("--force", action="store_true", help="перезаписати чужий хук")
+    hooks.add_argument("--force", action="store_true",
+                       help="overwrite a hook another tool owns")
 
-    init = sub.add_parser("init", help="поставити Keel у проєкт")
-    init.add_argument("--force", action="store_true", help="перезаписати чужий хук")
+    init = sub.add_parser("init", help="install Keel into a project")
+    init.add_argument("--force", action="store_true",
+                      help="overwrite a hook another tool owns")
     init.add_argument("--no-commit", action="store_true",
-                      help="не комітити покладене — зробиш сам")
-    init.add_argument("--docs", choices=LANGS, help="мова довідників у проєкті")
+                      help="do not commit what was written")
+    init.add_argument("--docs", choices=LANGS,
+                      help="language of the references placed in the project")
     init.add_argument("--lang", choices=LANGS,
-                      help="мова, якою агент пише кроки й яку ловлять скіли")
+                      help="language the agent writes in, the skills catch, "
+                           "and this tool speaks")
     init.set_defaults(install=True)
 
-    sub.add_parser("skills", help="перепородити скіли з методики")
+    sub.add_parser("skills", help="regenerate the skills from the methodology")
 
-    show = sub.add_parser("show", help="крок так, як його читає людина")
-    show.add_argument("step", nargs="?", help="крок; без нього — крок гілки")
+    show = sub.add_parser("show", help="a step as a person reads it")
+    show.add_argument("step", nargs="?", help="a step; without it, the branch's step")
 
-    update = sub.add_parser("update", help="оновити копії методики в проєкті")
-    update.add_argument("--diff", action="store_true", help="показати різницю")
+    update = sub.add_parser("update", help="update the copies in a project")
+    update.add_argument("--diff", action="store_true", help="show the difference")
     update.add_argument("--force", action="store_true",
-                        help="перезаписати й те, що правили руками")
+                        help="overwrite hand-edited files too")
 
-    hook = sub.add_parser("hook", help="відповісти хукові агента (кличеться конфігом)")
+    hook = sub.add_parser("hook",
+                          help="answer an agent hook; called by a config")
     hook.add_argument("event", choices=("session", "write"))
     hook.add_argument("--agent", choices=("claude", "cursor"), required=True)
 
@@ -2908,13 +3163,18 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     start = args.chdir or os.getcwd()
     if not os.path.isdir(start):
-        fail(f"теки немає: {start}")
+        fail(t("no such directory: {path}", path=start))
     root = find_root(start)
     project = Project(root)
+    # The tool speaks the project's language: the same `lang` that decides what
+    # the agent writes and which phrases the skills catch, because one person
+    # reads all three.
+    global OUTPUT_LANG
+    OUTPUT_LANG = project.settings["lang"]
     project.branch_override = getattr(args, "branch", None)
 
     if args.command not in ("new", "init") and not project.ready:
-        fail(f"у {root} немає теки keel/ — тут Keel не поставлений")
+        fail(t("{root} has no keel/ directory — Keel is not installed here", root=root))
 
     handlers = {"new": cmd_new, "gaps": cmd_gaps, "check": cmd_check,
                 "next": cmd_next, "rev": cmd_rev, "hooks": cmd_hooks,

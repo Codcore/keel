@@ -130,7 +130,7 @@ class TestYaml(unittest.TestCase):
     def test_missing_colon_is_an_error(self):
         with self.assertRaises(keel.YamlError) as caught:
             keel.parse_yaml("module Foo\n")
-        self.assertIn("рядок 1", str(caught.exception))
+        self.assertIn("line 1", str(caught.exception))
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -2,10 +2,6 @@
 
 A method for developing with an agent: **two kinds of document, six checks**.
 
-**Status: draft. Not applied in this repository.** Keel is being tried on
-`keel-agent`, an agent for local models written in Elixir. The tool is written,
-the checks run, the hooks are installed.
-
 This file is **what has to be true, and why**. What runs it, how it is installed
 into a project, which commands, hooks and skills exist — that is [README.md](README.md).
 The two may point at each other freely; mixing them in one file, no.

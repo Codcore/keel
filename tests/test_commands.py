@@ -28,13 +28,13 @@ class TestNext(ProjectCase):
     def test_refuses_on_main(self):
         code, out = self.run_next()
         self.assertEqual(code, 1)
-        self.assertIn("не називається кроком", out)
+        self.assertIn("is not named after a step", out)
 
     def test_refuses_on_plan_branch(self):
         self.fixture.branch("plan/0001-session-loop")
         code, out = self.run_next()
         self.assertEqual(code, 1)
-        self.assertIn("гілка плану", out)
+        self.assertIn("this is a plan branch", out)
 
     def test_refuses_while_plan_is_not_in_main(self):
         self.fixture.branch("plan/0002-later")
@@ -44,7 +44,7 @@ class TestNext(ProjectCase):
         self.fixture.git("checkout", "-b", "0002-later")
         code, out = self.run_next()
         self.assertEqual(code, 1)
-        self.assertIn("не в гілці main", out)
+        self.assertIn("is not on main yet", out)
 
     def test_package_has_files_scenario_and_contract(self):
         self.fixture.branch("0001-session-loop")
@@ -55,7 +55,7 @@ class TestNext(ProjectCase):
         self.assertIn("**Then** розмова завершується.", out)
         self.assertIn("Одна розмова з однією моделлю.", out)
         self.assertIn("Demo.Session", out)
-        self.assertIn("drive-turns: <що зроблено>", out)
+        self.assertIn("drive-turns: <what was done>", out)
 
     def test_package_names_the_tag_to_write(self):
         self.fixture.branch("0001-session-loop")
@@ -86,7 +86,7 @@ class TestNext(ProjectCase):
         self.fixture.git("commit", "-am", "drive-turns: перший хід")
         code, out = self.run_next()
         self.assertEqual(code, 0)
-        self.assertIn("усі трансформи", out)
+        self.assertIn("every transform", out)
 
     def test_json_package(self):
         import json as jsonlib
@@ -130,7 +130,7 @@ class TestRev(ProjectCase):
     def test_nothing_to_do(self):
         code, out = self.run_rev()
         self.assertEqual(code, 0)
-        self.assertIn("збігаються", out)
+        self.assertIn("every revision matches", out)
 
     def test_reports_without_writing(self):
         self.fixture.write("keel/contracts/session-run.md", CONTRACT + "\nІ ще речення.\n")
@@ -165,7 +165,7 @@ class TestRev(ProjectCase):
             '  test "x", do: assert true\n'
             'end\n')
         problems = keel.check_scenarios(self.project, run_tests=False)
-        self.assertIn("тримає редакцію", problems[0].message)
+        self.assertIn("the test holds", problems[0].message)
         self.run_rev(write=True)
         text = self.fixture.read("test/session_test.exs")
         self.assertEqual(text.count("rev:"), 1)
@@ -246,7 +246,7 @@ class TestNewAndPlan(ProjectCase):
     def test_plan_is_complete(self):
         code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
         self.assertEqual(code, 0)
-        self.assertIn("план повний", out)
+        self.assertIn("the plan is complete", out)
 
     def test_gaps_without_an_argument_names_only_its_own_step(self):
         """Заголовок казав один крок, а список — інший."""
@@ -264,7 +264,7 @@ class TestNewAndPlan(ProjectCase):
                 "    files:      [lib/session.ex]\n", ""))
         code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
         self.assertEqual(code, 1)
-        self.assertIn("не оголосила файлів", out)
+        self.assertIn("declared no files", out)
 
     def test_plan_finds_a_scenario_nobody_implements(self):
         text = self.fixture.read("keel/steps/0001-session-loop.md")
@@ -276,13 +276,13 @@ class TestNewAndPlan(ProjectCase):
         self.fixture.write("keel/steps/0001-session-loop.md", text)
         code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
         self.assertEqual(code, 1)
-        self.assertIn("не наближає жодна трансформа", out)
+        self.assertIn("no transform implements scenario", out)
 
     def test_new_skeleton_is_not_a_complete_plan(self):
         self.capture(keel.cmd_new, self.project, Args(kind="step", slug="tool-calls"))
         code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0002-tool-calls"))
         self.assertEqual(code, 1)
-        self.assertIn("жодного сценарію", out)
+        self.assertIn("no scenarios at all", out)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -335,16 +335,16 @@ class TestShow(ProjectCase):
     def test_transform_state_is_derived_not_written(self):
         self.fixture.branch("0001-session-loop")
         _, out = self.show()
-        self.assertIn("drive-turns — відкрита", out)
+        self.assertIn("drive-turns — open", out)
         self.fixture.write("lib/session.ex", "змінено\n")
         self.fixture.git("commit", "-am", "drive-turns: хід")
         _, out = self.show()
-        self.assertIn("закрита", out)
+        self.assertIn("closed", out)
 
     def test_an_existing_file_is_not_marked_as_missing(self):
         _, out = self.show("0001-session-loop")
         self.assertIn("[lib/session.ex]", out)
-        self.assertNotIn("ще немає", out)
+        self.assertNotIn("not there yet", out)
 
     def test_a_file_that_does_not_exist_yet_says_so(self):
         """Видно, що з оголошеного вже лежить, а чого ще нема."""
@@ -353,7 +353,7 @@ class TestShow(ProjectCase):
             "files:      [lib/session.ex]",
             "files:      [lib/session.ex, lib/поки_немає.ex]"))
         _, out = self.show("0001-session-loop")
-        self.assertIn("ще немає", out)
+        self.assertIn("not there yet", out)
         self.assertIn("lib/поки_немає.ex", out)
 
     def test_an_unknown_step_refuses(self):
@@ -374,21 +374,21 @@ class TestCheck(ProjectCase):
 
     def test_fast_runs_only_five(self):
         code, out = self.capture(Args(fast=True, no_tests=True, json=False))
-        self.assertIn("5. у кожного сценарію зелений тест (не запускалась)", out)
+        self.assertIn("5. every scenario has a green test (not run)", out)
         self.assertIn("✓ 1.", out)
         self.assertEqual(code, 0)
 
     def test_full_check_wants_a_test(self):
         code, out = self.capture(Args(fast=False, no_tests=True, json=False))
         self.assertEqual(code, 1)
-        self.assertIn("не має тесту", out)
+        self.assertIn("has no test", out)
 
     def test_json_shape(self):
         import json as jsonlib
         code, out = self.capture(Args(fast=True, no_tests=True, json=True))
         payload = jsonlib.loads(out)
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["checks"]["1"]["name"], "посилання ведуть кудись")
+        self.assertEqual(payload["checks"]["1"]["name"], "references lead somewhere")
         self.assertFalse(payload["checks"]["5"]["run"])
         self.assertEqual(code, 0)
 

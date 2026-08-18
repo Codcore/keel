@@ -94,6 +94,11 @@ This is the only thing Keel keeps in a settings file. Neither value can be
 guessed: the language of a project's prose is a team's decision, not a property
 of the code.
 
+`lang` also decides what this tool says. Its messages are keyed by their English
+text, so a missing translation degrades to readable English rather than to an
+error. The command line itself stays English in both: flag names, metavars and
+`--help` are the interface's own vocabulary, like `--force` is.
+
 **Ukrainian is the source, English leans on it.** The source lives in `docs/uk/`,
 and the English translation sits at the root of the repository, because that is
 what a first-time visitor opens. Which one is the source and which one is on

@@ -36,8 +36,8 @@ class TestHooks(ProjectCase):
     def test_status_before_install(self):
         code, out = self.capture()
         self.assertEqual(code, 0)
-        self.assertIn("pre-commit: немає", out)
-        self.assertIn("pre-push: немає", out)
+        self.assertIn("pre-commit: missing", out)
+        self.assertIn("pre-push: missing", out)
 
     def test_install_writes_both_hooks(self):
         code, _ = self.capture(install=True)
@@ -52,7 +52,7 @@ class TestHooks(ProjectCase):
         self.capture(install=True)
         code, out = self.capture()
         self.assertEqual(code, 0)
-        self.assertIn("стоять обидва", out)
+        self.assertIn("both are in place", out)
 
     def test_install_is_idempotent(self):
         self.capture(install=True)
@@ -64,7 +64,7 @@ class TestHooks(ProjectCase):
         self.fixture.write(".git/hooks/pre-commit", "#!/bin/sh\necho чуже\n")
         code, out = self.capture(install=True)
         self.assertEqual(code, 1)
-        self.assertIn("чужий хук", out)
+        self.assertIn("another tool owns this hook", out)
         self.assertIn("чуже", self.fixture.read(".git/hooks/pre-commit"))
 
     def test_force_overwrites_foreign_hook(self):

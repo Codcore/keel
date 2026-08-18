@@ -101,7 +101,7 @@ class TestWriteVerdict(ProjectCase):
         self.fixture.branch("0001-session-loop")
         kind, message = keel.write_verdict(self.project, self.payload("/etc/hosts"))
         self.assertEqual(kind, "note")
-        self.assertIn("поза репозиторієм", message)
+        self.assertIn("is outside the repository", message)
 
     def test_a_symlinked_path_still_resolves_to_the_project(self):
         """На macOS /tmp — симлінк; без realpath хук мовчав би геть завжди."""
@@ -129,7 +129,7 @@ class TestWriteVerdict(ProjectCase):
         self.fixture.branch("0001-session-loop")
         kind, message = keel.write_verdict(self.project, {"tool_input": {"nope": 1}})
         self.assertEqual(kind, "note")
-        self.assertIn("не знайшлося шляху", message)
+        self.assertIn("carried no file path", message)
         self.assertIn("lib/session.ex", message)
 
 

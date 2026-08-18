@@ -79,21 +79,21 @@ class TestInit(unittest.TestCase):
     def test_init_says_where_the_agent_must_be_started(self):
         """Скіли беруться з теки старту; запуск вище — і їх немає."""
         _, out = self.init()
-        self.assertIn("у самій теці проєкту", out)
+        self.assertIn("in the project directory itself", out)
         self.assertIn(self.root, out)
         self.assertIn("/reload-skills", out)
         self.assertIn("Unknown skill", out)
 
     def test_init_commits_what_it_wrote(self):
         _, out = self.init()
-        self.assertIn("закомічено окремо", out)
+        self.assertIn("committed separately", out)
         self.assertIn("Keel in the project", self.log())
         self.assertNotIn("AGENTS.md", self.porcelain())
 
     def test_no_commit_leaves_it_and_says_so(self):
         _, out = self.init(no_commit=True)
-        self.assertNotIn("закомічено", out)
-        self.assertIn("не в git", out)
+        self.assertNotIn("committed", out)
+        self.assertIn("are not in git yet", out)
         self.assertIn("git add", out)
         self.assertIn("AGENTS.md", self.porcelain())
 
@@ -118,8 +118,8 @@ class TestInit(unittest.TestCase):
         subprocess.run(["git", "-C", self.root, "config", "user.email", ""], check=True)
         subprocess.run(["git", "-C", self.root, "config", "user.name", ""], check=True)
         _, out = self.init()
-        if "закомічено" not in out:
-            self.assertIn("не в git", out)
+        if "committed" not in out:
+            self.assertIn("are not in git yet", out)
 
     def test_creates_the_three_folders(self):
         self.init()
@@ -136,7 +136,7 @@ class TestInit(unittest.TestCase):
         done = subprocess.run(
             [sys.executable, os.path.join(self.root, keel.VENDORED), "check", "--fast"],
             cwd=self.root, capture_output=True, text=True)
-        self.assertIn("посилання ведуть кудись", done.stdout)
+        self.assertIn("references lead somewhere", done.stdout)
 
     def test_copies_every_reference(self):
         self.init()
@@ -321,7 +321,7 @@ class TestLanguageSettings(unittest.TestCase):
             keel.write_config(self.root, keel.DEFAULTS, [], {})
         finally:
             sys.stdout = saved
-        self.assertIn("не чіпаю", stream.getvalue())
+        self.assertIn("leaving it alone", stream.getvalue())
         with open(os.path.join(self.root, keel.CONFIG_FILE)) as handle:
             self.assertEqual(handle.read(), "{ побите")
 
@@ -374,7 +374,7 @@ class TestUpdate(unittest.TestCase):
     def test_right_after_init_there_is_nothing_to_do(self):
         code, out = self.update()
         self.assertEqual(code, 0)
-        self.assertIn("усе на місці", out)
+        self.assertIn("everything is in place", out)
 
     def test_a_missing_file_is_restored(self):
         os.remove(self.path(self.SKILL))
@@ -387,7 +387,7 @@ class TestUpdate(unittest.TestCase):
         self.write(self.SKILL, "правлено руками\n")
         code, out = self.update()
         self.assertEqual(code, 1)
-        self.assertIn("правлено руками, не чіпаю", out)
+        self.assertIn("edited by hand, leaving it alone", out)
         self.assertEqual(self.read(self.SKILL), "правлено руками\n")
 
     def test_force_overwrites_a_hand_edit(self):
@@ -415,7 +415,7 @@ class TestUpdate(unittest.TestCase):
         keel.write_config(self.root, settings, [], {})
         code, out = self.update()
         self.assertEqual(code, 1)
-        self.assertIn("не чіпаю", out)
+        self.assertIn("leaving it alone", out)
         self.assertEqual(self.read(self.SKILL), "правлено руками\n")
 
     def test_the_manifest_heals_itself(self):
@@ -524,7 +524,7 @@ class TestTranslationCheck(unittest.TestCase):
         with unittest.mock.patch.object(keel, "translations", lambda lang: found):
             problems = keel.check_translations(project)
         self.assertEqual(len(problems), len(keel.REFERENCES))
-        self.assertIn("тримає deadbe", problems[0].message)
+        self.assertIn("holds deadbe", problems[0].message)
 
     def test_translation_without_a_recorded_revision(self):
         root = tempfile.mkdtemp(prefix="keel-tr-")
@@ -535,7 +535,7 @@ class TestTranslationCheck(unittest.TestCase):
         with unittest.mock.patch.object(keel, "translations",
                                         lambda lang: {"KEEL.md": ""}):
             problems = keel.check_translations(project)
-        self.assertIn("не називає редакції", problems[0].message)
+        self.assertIn("names no source revision", problems[0].message)
 
 
 if __name__ == "__main__":
