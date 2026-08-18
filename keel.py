@@ -1396,6 +1396,9 @@ AGENTS_START = "<!-- keel:start -->"
 AGENTS_END = "<!-- keel:end -->"
 VENDORED = "keel/keel.py"
 CI_FILE = ".github/workflows/keel.yml"
+# Довідники їдуть копіями: AGENTS.md показує на них, а показувати можна лише
+# на те, що лежить у цьому ж репозиторії.
+REFERENCES = ("KEEL.md", "QUALITY.md")
 
 AGENTS_BLOCK = """{start}
 ## Keel
@@ -1405,13 +1408,18 @@ AGENTS_BLOCK = """{start}
 
 {principles}
 
-Три команди:
+Дві команди:
 
 - `python3 {tool} next` — що робити далі: трансформа, її файли й межі,
   сценарії, які вона наближає, тіла контрактів, на які спирається.
 - `python3 {tool} check` — що не так зараз. Перед коммітом і перед PR.
-- `keel/QUALITY.md` — розрізи якості. Проходяться раз на крок, там, де
-  пишуться сценарії.
+
+Два довідники — відкривай, коли не ясно:
+
+- `keel/KEEL.md` — формат: що йде в шапку кроку, як влаштовані редакції,
+  що саме перевіряє кожна з шести перевірок.
+- `keel/QUALITY.md` — сорок розрізів якості. Проходяться раз на крок, там,
+  де пишуться сценарії.
 
 Цей блок породжений; правки між маркерами затре наступне оновлення.
 {end}"""
@@ -1446,9 +1454,9 @@ def principles_lines():
 
 def cmd_init(project, args):
     principles = principles_lines()
-    quality = os.path.join(home(), "QUALITY.md")
-    if principles is None or not os.path.exists(quality):
-        fail("PRINCIPLES.md і QUALITY.md поруч не знайшлись: "
+    sources = {name: os.path.join(home(), name) for name in REFERENCES}
+    if principles is None or not all(map(os.path.exists, sources.values())):
+        fail("PRINCIPLES.md, KEEL.md і QUALITY.md поруч не знайшлись: "
              "init запускають із репозиторію методики")
 
     done = []
@@ -1460,8 +1468,9 @@ def cmd_init(project, args):
     target = os.path.join(project.root, VENDORED)
     if os.path.abspath(target) != source:
         write_if_changed(target, read_text(source), done, VENDORED)
-    write_if_changed(os.path.join(project.root, "keel/QUALITY.md"),
-                     read_text(quality), done, "keel/QUALITY.md")
+    for name, path in sources.items():
+        write_if_changed(os.path.join(project.root, "keel", name),
+                         read_text(path), done, f"keel/{name}")
 
     block = AGENTS_BLOCK.format(
         start=AGENTS_START, end=AGENTS_END, tool=VENDORED,

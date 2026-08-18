@@ -915,9 +915,16 @@ class TestInit(unittest.TestCase):
             cwd=self.root, capture_output=True, text=True)
         self.assertIn("посилання ведуть кудись", done.stdout)
 
-    def test_copies_quality(self):
+    def test_copies_both_references(self):
         self.init()
         self.assertIn("ISO/IEC 25010", self.read("keel/QUALITY.md"))
+        self.assertIn("шість перевірок", self.read("keel/KEEL.md"))
+
+    def test_agents_block_points_at_both_references(self):
+        self.init()
+        block = self.read("AGENTS.md")
+        for name in keel.REFERENCES:
+            self.assertIn(f"keel/{name}", block)
 
     def test_agents_block_holds_seven_principles(self):
         self.init()
