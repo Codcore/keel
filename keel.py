@@ -62,6 +62,10 @@ UK = {
     "two colons on one line: {line}": "дві двокрапки в одному рядку: {line}",
     "empty key": "порожній ключ",
     "no header between --- markers": "немає шапки між рисками ---",
+    "the root matches {count} languages ({names}), and {picked} was taken "
+    "because it comes first. Say which in keel/keel.json: \"adapter\": \"{picked}\"":
+        "корінь підходить під {count} мови ({names}), а взято {picked}, бо він "
+        "перший у списку. Скажіть яку в keel/keel.json: \"adapter\": \"{picked}\"",
     "cannot be read: {reason}": "не читається: {reason}",
     "this link leaves the repository: {target}":
         "це посилання виходить за межі репозиторію: {target}",
@@ -1215,11 +1219,40 @@ def parse_export_output(proc, modules):
 ADAPTERS = (ElixirAdapter, PythonAdapter)
 
 
-def detect_adapter(root):
-    for adapter in ADAPTERS:
-        if adapter.detect(root):
-            return adapter()
-    return None
+def matching_adapters(root):
+    return [adapter for adapter in ADAPTERS if adapter.detect(root)]
+
+
+def detect_adapter(root, chosen=""):
+    """The language adapter, chosen by name or by the markers in the root.
+
+    A polyglot repository has more than one marker, and picking the first in a
+    hard-coded order is a decision made in silence about which language's tests
+    count. Naming it in the settings settles it; leaving it unset is reported
+    rather than guessed.
+    """
+    if chosen:
+        for adapter in ADAPTERS:
+            if adapter.name == chosen:
+                return adapter()
+        return None
+    found = matching_adapters(root)
+    return found[0]() if found else None
+
+
+def adapter_problem(project, check):
+    """One line when the root says two languages and nobody said which."""
+    if project.settings.get("adapter"):
+        return []
+    found = matching_adapters(project.root)
+    if len(found) < 2:
+        return []
+    return [Problem(check, t(
+        "the root matches {count} languages ({names}), and {picked} was taken "
+        "because it comes first. Say which in keel/keel.json: "
+        "\"adapter\": \"{picked}\"",
+        count=len(found), names=", ".join(one.name for one in found),
+        picked=found[0].name))]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1249,14 +1282,14 @@ class Project:
         self.root = root
         self.keel = os.path.join(root, "keel")
         self.git = Git(root)
-        self.adapter = detect_adapter(root)
+        self.settings = read_config(root)
+        self.adapter = detect_adapter(root, self.settings["adapter"])
         self.steps = {}
         self.contracts = {}
         self.broken = []
         # On CI the head is detached and git cannot name the branch — there the
         # name arrives in a flag.
         self.branch_override = None
-        self.settings = read_config(root)
         self._load()
 
     @property
@@ -1539,12 +1572,13 @@ def check_scenarios(project, run_tests=True):
     steps = [step for step in project.steps.values() if not step.error and step.scenarios]
     if not steps:
         return []
+    problems = adapter_problem(project, 5)
     if project.adapter is None:
-        return [Problem(5, t("nothing to run the tests with: the root has none of {markers}",
-                        markers=", ".join(item for cls in ADAPTERS
-                                          for item in cls.marker)))]
+        return problems + [Problem(
+            5, t("nothing to run the tests with: the root has none of {markers}",
+                 markers=", ".join(item for cls in ADAPTERS
+                                   for item in cls.marker)))]
 
-    problems = []
     for step, slug, body, found in scenario_tags(project):
         if not found:
             problems.append(Problem(
@@ -1718,6 +1752,7 @@ def check_exports(project, run_tests=True):
                  if not c.error and c.module and c.exports]
     if not contracts:
         return problems
+    problems += adapter_problem(project, 6)
     if project.adapter is None:
         return problems + [
             Problem(6, t("no language adapter found — nothing to check exports with"))]
@@ -2208,8 +2243,13 @@ LANGS = ("uk", "en")
 # independent bits: let the method drive, let it advise, or let it wait to be
 # called. `strict` is the default because a method nobody starts is not a method.
 MODES = ("strict", "soft", "manual")
-DEFAULTS = {"docs": PUBLISHED_LANG, "lang": PUBLISHED_LANG, "mode": "strict"}
-ALLOWED = {"docs": LANGS, "lang": LANGS, "mode": MODES}
+# "" means: work it out from the markers in the root, and say so when the root
+# is ambiguous.
+ADAPTER_NAMES = ("", "elixir", "python")
+DEFAULTS = {"docs": PUBLISHED_LANG, "lang": PUBLISHED_LANG, "mode": "strict",
+            "adapter": ""}
+ALLOWED = {"docs": LANGS, "lang": LANGS, "mode": MODES,
+           "adapter": ADAPTER_NAMES}
 REVISIONS = "docs/revisions.json"
 
 
@@ -2230,7 +2270,7 @@ def generated_files(root, settings):
         for agent, relative in skill_targets(skill):
             out[relative] = render_skill(skill, agent, settings["lang"],
                                          settings["mode"])
-    adapter = detect_adapter(root)
+    adapter = detect_adapter(root, settings["adapter"])
     out[CI_FILE] = CI_TEMPLATE.format(
         tool=VENDORED,
         setup="".join(line + "\n" for line in (adapter.ci_steps(root) if adapter else [])))
@@ -2363,10 +2403,19 @@ def translations(lang):
             if isinstance(stored, dict) and os.path.exists(doc_source(name, lang))}
 
 
+LOGO_RE = re.compile(r'^<p align="center">.*?</p>\s*', re.S)
+
+
 def strip_front_matter(text):
-    """A translation carries bookkeeping at home; the project gets the prose."""
+    """A reference carries its dressing at home; the project gets the prose.
+
+    Front matter is bookkeeping, and the logo block points at an image that does
+    not travel — a vendored copy carrying that pointer would render a broken
+    image over the first line of every project's reference.
+    """
     front, body, _ = split_front_matter(text)
-    return body.lstrip("\n") if front is not None else text
+    text = body.lstrip("\n") if front is not None else text
+    return LOGO_RE.sub("", text, count=1)
 
 
 def check_translations(project):
@@ -3744,6 +3793,9 @@ def build_parser():
     init.add_argument("--lang", choices=LANGS,
                       help="language the agent writes in, the skills catch, "
                            "and this tool speaks")
+    init.add_argument("--adapter", choices=[name for name in ADAPTER_NAMES if name],
+                      help="which language this project is, when the root says "
+                           "more than one")
     init.add_argument("--mode", choices=MODES,
                       help="how much of itself Keel installs: strict (the agent "
                            "starts the procedures and the hooks watch the "

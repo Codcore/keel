@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Keel" width="340">
+</p>
+
 # keel
 
 The tool behind the Keel method. It knows the state and writes no prose.
@@ -142,6 +146,19 @@ the same thing.
 
 CI versions are not guessed: `keel init` asks `elixir --version` on the machine
 it was run on and writes down what it found.
+
+**When more than one marker sits in the root, Keel does not guess.** A project
+holding both `mix.exs` and `pyproject.toml` is a question, not a first line of a
+list: the answer decides whose tests are run and who is asked for exports. Checks
+5 and 6 name both languages and the one that was taken, and say how to settle it:
+
+```json
+{ "adapter": "elixir" }
+```
+
+`keel init --adapter elixir` does the same. The choice is written into
+`keel/keel.json`, and the CI generator reads it too — otherwise a project would
+settle on one language while its workflow installed another.
 
 A language without an adapter does not break the whole of `check`, only checks 5
 and 6, and it says so plainly. A new adapter is a class inheriting from

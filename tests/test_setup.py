@@ -101,6 +101,13 @@ class TestInit(unittest.TestCase):
         return subprocess.run(["git", "-C", self.root, "log", "--format=%s"],
                               capture_output=True, text=True).stdout
 
+    def test_the_vendored_reference_carries_no_logo(self):
+        """Лого вдома, картинка з ним не їде — биті вказівники не возимо."""
+        self.init()
+        text = self.read("keel/README.md")
+        self.assertNotIn("logo.png", text)
+        self.assertTrue(text.startswith("# keel"))
+
     def test_a_key_we_do_not_know_survives_a_rewrite(self):
         """keel.json лежить у чужому репозиторії — губити з нього ключі не наше."""
         self.init()

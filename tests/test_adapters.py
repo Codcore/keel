@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Checks 5 and 6: tests and exports, through the language adapters."""
 
+import json
 import os
 import shutil
 import subprocess
@@ -187,6 +188,88 @@ class TestExports(unittest.TestCase):
                    "---\nmodule: nosuchmodule\nexports: [run/1]\n---\n\nТекст.\n")
         problems = keel.check_exports(keel.Project(self.root))
         self.assertIn("did not build", problems[0].message)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Which language, when the root says more than one
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestAdapterChoice(unittest.TestCase):
+    """A polyglot root is a question, not a silent first-in-the-list."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-poly-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        for folder in ("keel/steps", "keel/contracts"):
+            os.makedirs(os.path.join(self.root, folder))
+        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("---\nscenarios:\n  does-a: {}\n---\n\n## Why\n\nх.\n\n"
+                         "## scenario: does-a\n\n**Given** щось.\n")
+
+    def mark(self, *names):
+        for name in names:
+            with open(os.path.join(self.root, name), "w", encoding="utf-8") as handle:
+                handle.write("x\n")
+
+    def settle(self, name):
+        with open(os.path.join(self.root, keel.CONFIG_FILE), "w",
+                  encoding="utf-8") as handle:
+            json.dump({"adapter": name}, handle)
+
+    def test_one_marker_needs_no_saying(self):
+        self.mark("mix.exs")
+        project = keel.Project(self.root)
+        self.assertEqual(project.adapter.name, "elixir")
+        self.assertEqual(keel.adapter_problem(project, 5), [])
+
+    def test_check_six_stays_quiet_when_it_needs_no_adapter(self):
+        """Без контрактів шоста мови не питає — і не має про неї говорити."""
+        self.mark("mix.exs", "pyproject.toml")
+        problems = keel.check_exports(keel.Project(self.root), run_tests=False)
+        self.assertEqual(problems, [])
+
+    def test_two_markers_are_named_not_guessed(self):
+        self.mark("mix.exs", "pyproject.toml")
+        problems = keel.adapter_problem(keel.Project(self.root), 5)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("elixir, python", problems[0].message)
+        self.assertIn("adapter", problems[0].message)
+
+    def test_the_ambiguity_reaches_both_checks_that_depend_on_it(self):
+        self.mark("mix.exs", "pyproject.toml")
+        with open(os.path.join(self.root, "keel/contracts/a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("---\nmodule: Demo\nexports: [run/1]\n---\n\nх.\n")
+        project = keel.Project(self.root)
+        for check, run in ((5, keel.check_scenarios), (6, keel.check_exports)):
+            problems = run(project, run_tests=False)
+            self.assertTrue(any("matches 2 languages" in p.message for p in problems),
+                            f"перевірка {check} мовчить")
+
+    def test_saying_which_settles_it(self):
+        self.mark("mix.exs", "pyproject.toml")
+        self.settle("python")
+        project = keel.Project(self.root)
+        self.assertEqual(project.adapter.name, "python")
+        self.assertEqual(keel.adapter_problem(project, 5), [])
+
+    def test_a_name_we_do_not_know_falls_back_to_the_markers(self):
+        """Сміття в налаштуваннях не має лишати проєкт зовсім без адаптера."""
+        self.mark("mix.exs")
+        self.settle("cobol")
+        self.assertEqual(keel.Project(self.root).adapter.name, "elixir")
+
+    def test_the_ci_file_follows_the_settled_choice(self):
+        """Інакше проєкт домовився про мову, а CI ставив би іншу."""
+        self.mark("mix.exs", "pyproject.toml")
+        self.settle("python")
+        wanted = keel.generated_files(self.root, keel.read_config(self.root))
+        self.assertIn("setup-python", wanted[keel.CI_FILE])
+        self.assertNotIn("setup-beam", wanted[keel.CI_FILE])
+
+    def test_no_marker_at_all_is_still_no_adapter(self):
+        self.assertIsNone(keel.Project(self.root).adapter)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
