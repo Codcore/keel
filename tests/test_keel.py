@@ -922,10 +922,20 @@ class TestInit(unittest.TestCase):
             cwd=self.root, capture_output=True, text=True)
         self.assertIn("посилання ведуть кудись", done.stdout)
 
-    def test_copies_both_references(self):
+    def test_copies_every_reference(self):
         self.init()
         self.assertIn("ISO/IEC 25010", self.read("keel/QUALITY.md"))
         self.assertIn("шість перевірок", self.read("keel/KEEL.md"))
+        self.assertIn("keel new step", self.read("keel/README.md"))
+
+    def test_methodology_and_tool_stay_apart(self):
+        """Розділено навмисно: KEEL.md — що і чому, README.md — чим запускати."""
+        self.init()
+        method, tool = self.read("keel/KEEL.md"), self.read("keel/README.md")
+        self.assertNotIn("| `keel new step", method)
+        self.assertNotIn("mix.exs", method)
+        self.assertIn("README.md", method)
+        self.assertIn("KEEL.md", tool)
 
     def test_agents_block_points_at_both_references(self):
         self.init()

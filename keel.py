@@ -1400,9 +1400,9 @@ AGENTS_START = "<!-- keel:start -->"
 AGENTS_END = "<!-- keel:end -->"
 VENDORED = "keel/keel.py"
 CI_FILE = ".github/workflows/keel.yml"
-# Довідники їдуть копіями: AGENTS.md показує на них, а показувати можна лише
-# на те, що лежить у цьому ж репозиторії.
-REFERENCES = ("KEEL.md", "QUALITY.md")
+# References travel as copies: AGENTS.md points at them, and you can only point
+# at what sits in the same repository. Methodology, tool, quality cuts.
+REFERENCES = ("KEEL.md", "README.md", "QUALITY.md")
 
 AGENTS_BLOCK = """{start}
 ## Keel
@@ -1418,10 +1418,12 @@ AGENTS_BLOCK = """{start}
   сценарії, які вона наближає, тіла контрактів, на які спирається.
 - `python3 {tool} check` — що не так зараз. Перед коммітом і перед PR.
 
-Два довідники — відкривай, коли не ясно:
+Три довідники — відкривай, коли не ясно:
 
-- `keel/KEEL.md` — формат: що йде в шапку кроку, як влаштовані редакції,
+- `keel/KEEL.md` — методика: що йде в шапку кроку, як влаштовані редакції,
   що саме перевіряє кожна з шести перевірок.
+- `keel/README.md` — інструмент: усі команди з прапорцями, адаптери мов,
+  хуки, скіли.
 - `keel/QUALITY.md` — сорок розрізів якості. Проходяться раз на крок, там,
   де пишуться сценарії.
 
@@ -1916,8 +1918,8 @@ def cmd_init(project, args):
     principles = principles_lines()
     sources = {name: os.path.join(home(), name) for name in REFERENCES}
     if principles is None or not all(map(os.path.exists, sources.values())):
-        fail("PRINCIPLES.md, KEEL.md і QUALITY.md поруч не знайшлись: "
-             "init запускають із репозиторію методики")
+        fail("PRINCIPLES.md і довідники (" + ", ".join(REFERENCES) + ") поруч не "
+             "знайшлись: init запускають із репозиторію методики")
 
     done = []
     for folder in INIT_DIRS:
