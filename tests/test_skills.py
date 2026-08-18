@@ -244,7 +244,7 @@ class TestSkillQuality(ProjectCase):
         """Заголовок методики — її обличчя; розійтись йому ніде не можна."""
         import re
         home = keel.home()
-        for name in ("KEEL.md", "docs/en/KEEL.md"):
+        for name in ("KEEL.md", "docs/uk/KEEL.md"):
             text = keel.read_text(os.path.join(home, name))
             self.assertRegex(text, r"(два типи документів|two kinds of document)")
             self.assertNotRegex(text, r"(три типи документів|three kinds of document)")

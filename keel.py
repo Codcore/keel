@@ -1528,10 +1528,10 @@ REFERENCES = ("KEEL.md", "README.md", "QUALITY.md")
 # Neither can be guessed, so they are the one thing Keel keeps in a config file.
 CONFIG_FILE = "keel/keel.json"
 SOURCE_LANG = "uk"          # the language the methodology is written in
+PUBLISHED_LANG = "en"       # the one at the root: the face of the repository
 LANGS = ("uk", "en")
-# The default is the source language because it is the only complete set today.
-# Once docs/en/ is filled in, this is the line that moves.
-DEFAULTS = {"docs": SOURCE_LANG, "lang": SOURCE_LANG}
+DEFAULTS = {"docs": PUBLISHED_LANG, "lang": PUBLISHED_LANG}
+REVISIONS = "docs/revisions.json"
 
 
 def generated_files(root, settings):
@@ -1631,28 +1631,32 @@ def survey(project):
 
 
 def doc_source(name, lang):
-    """Where a reference lives at home: the source language sits at the root."""
-    if lang == SOURCE_LANG:
+    """Where a reference lives at home.
+
+    English sits at the root because that is what a visitor to the repository
+    opens first; Ukrainian is the source and lives under docs/. Which one is the
+    source and which one is on the front page are separate questions.
+    """
+    if lang == PUBLISHED_LANG:
         return os.path.join(home(), name)
     return os.path.join(home(), "docs", lang, name)
 
 
 def translations(lang):
-    """Translated references, with the source revision each one claims to follow."""
+    """Translated references, with the source revision each one claims to follow.
+
+    The bookkeeping lives in one file rather than in each document's header:
+    the translated README is the repository's front page, and a YAML header
+    would render as a table above the first line of it.
+    """
     if lang == SOURCE_LANG:
         return {}
-    out = {}
-    for name in REFERENCES + ("PRINCIPLES.md",):
-        path = doc_source(name, lang)
-        if not os.path.exists(path):
-            continue
-        front, _, _ = split_front_matter(read_text(path))
-        try:
-            head = parse_yaml(front) if front else {}
-        except YamlError:
-            head = {}
-        out[name] = str(head.get("source-rev") or "")
-    return out
+    try:
+        stored = json.loads(read_text(os.path.join(home(), REVISIONS)))
+    except (ValueError, OSError):
+        return {}
+    return {name: str(rev) for name, rev in stored.items()
+            if isinstance(stored, dict) and os.path.exists(doc_source(name, lang))}
 
 
 def strip_front_matter(text):
@@ -1674,11 +1678,11 @@ def check_translations(project):
         return []
     problems = []
     for name, recorded in translations(lang).items():
-        source = os.path.join(home(), name)
+        source = doc_source(name, SOURCE_LANG)
         if not os.path.exists(source):
             continue
         text = read_text(source)
-        where = os.path.relpath(doc_source(name, lang), home())
+        where = os.path.relpath(doc_source(name, lang), home()) + f" ({REVISIONS})"
         if not recorded:
             problems.append(Problem(
                 8, f"переклад не називає редакції джерела; зараз {revision(text)}",

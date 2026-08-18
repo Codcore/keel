@@ -1,51 +1,54 @@
 # Quality model
 
-Сорок розрізів під девʼятьма заголовками, якими проходить кожен крок, і файл,
-на який Keel показує, коли каже «пройди розрізи».
+Forty cuts under nine headings, which every step is walked through, and the file
+Keel points at when it says "walk the cuts".
 
-Це характеристики якості продукту з **ISO/IEC 25010:2023**, у порядку самого
-стандарту, а підхарактеристики — питання. Тут нічого не вигадано: цінність
-стандартного списку в тому, що його писали люди, які вже щось забували, і сенс —
-перестати залежати від того, що саме спало на думку конкретному агентові.
+These are the product quality characteristics of **ISO/IEC 25010:2023**, in the
+standard's own order, with the sub-characteristics as questions. Nothing here is
+invented: the value of a standard list is that it was written by people who had
+already forgotten something, and the point is to stop depending on whatever
+happened to occur to one particular agent.
 
-## Коли це читається
+## When this is read
 
-**Один прохід на крок** — там, де пишуться сценарії. Кожен розріз питається про
-те, що планується, і те, що він виявляє, стає сценарієм або рішенням. Не на
-кожному рівні й не до збіжності: рівнів у Keel немає, є крок.
+**One pass per step** — where the scenarios are written. Every cut asks about
+what is being planned, and whatever it turns up becomes a scenario or a decision.
+Not at every level and not until it converges: Keel has no levels, it has steps.
 
-Перед pull request список **не проходять удруге**. Там питання вужче й без
-переліку: не «що ще має бути правдою», а «про що ми промовчали». Знайдене
-закривається до PR, як і будь-що інше.
+Before the pull request the list is **not walked a second time**. The question
+there is narrower and needs no list: not "what else should be true" but "what did
+we stay silent about". Whatever that finds gets closed before the PR, like
+anything else.
 
-Два повні проходи на той самий крок дають майже ті самі відповіді за подвійну
-ціну, і саме так списки перестають читати.
+Two full passes over the same step produce almost the same answers at twice the
+price, and that is exactly how lists stop being read.
 
-## Як відповідати на розріз
+## How to answer a cut
 
-Одна з трьох відповідей, і тільки одна:
+One of three answers, and only one:
 
-- **не стосується** — з реченням, чому. Розріз про людину за інтерфейсом не
-  стосується файла збірки;
-- **відповіли** — назвавши сценарій, який відповідає. Сценарій, що доводить
-  вужче, ніж питає розріз, — це не відповідь, це наступний випадок;
-- **промовчали** — розріз доречний, ніщо його не закриває, і жодне рішення від
-  нього не відмовляється. Скажи, що конкретно може піти не так на цьому проєкті,
-  і напиши сценарій, який це закриє.
+- **does not apply** — with a sentence saying why. A cut about the person at the
+  interface does not apply to a build file;
+- **answered** — naming the scenario that answers it. A scenario that proves
+  something narrower than the cut asks is not an answer; it is the next case;
+- **silent** — the cut is relevant, nothing closes it, and no decision turns it
+  down. Say what specifically can go wrong on this project, and write the
+  scenario that closes it.
 
-**Розріз, який доречний, а відповідь на нього свідомо «ні», — це рішення.**
-«Резервні копії не в цьому кроці» — це відновлюваність, названа вголос. Мовчання
-є тим, що цей список припиняє; відмова — ні.
+**A cut that is relevant, and deliberately answered "no", is a decision.**
+"Backups are not in this step" is recoverability, said out loud. Silence is what
+this list ends; refusal is not.
 
-**Перевір, що прийшло з бібліотекою, перш ніж казати, що чогось бракує.** Три
-агенти підряд повідомили, що в рушія синхронізації немає перевірки живості; усі
-троє читали файл проєкту, і жоден не заглянув в образ, де вона була вбудована.
+**Check what came with the library before claiming something is missing.** Three
+agents in a row reported that the sync engine had no liveness check; all three
+read the project's file, and none of them looked inside the image, where it was
+built in.
 
-## Сорок
+## Forty
 
-Сорок питань під девʼятьма заголовками — увесь ISO/IEC 25010:2023. Написано
-списком, бо його проходять, а не читають: розріз, проминутий не глянувши, — це
-те, проти чого файл існує.
+Forty questions under nine headings — the whole of ISO/IEC 25010:2023. Written
+as a list because it is walked, not read: a cut passed over without a glance is
+the thing this file exists against.
 
 ### 1. Functional suitability
 
@@ -114,8 +117,7 @@
 - **hazard warning** — does it say so before harm
 - **safe integration** — what does adding it to a running system risk
 
-**Не кожен розріз стосується кожного кроку, і вдавати протилежне — найкоротший
-шлях до того, що список перестануть читати.** Розріз, якому нема чого сказати,
-не лишає по собі нічого: ні сценарію, ні рядка, ні нотатки. Ціна списку — один
-прохід; купує він те, що розріз, якого ніхто не придумав, тепер не можна
-проминути мовчки.
+**Not every cut applies to every step, and pretending otherwise is the shortest
+road to the list no longer being read.** A cut with nothing to say leaves nothing
+behind: no scenario, no line, no note. The list costs one pass; what it buys is
+that the case nobody thought of can no longer be passed over in silence.

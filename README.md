@@ -1,363 +1,394 @@
 # keel
 
-Інструмент методики Keel. Він знає стан і не пише прози.
+The tool behind the Keel method. It knows the state and writes no prose.
 
-Сама методика — навіщо кроки, контракти й редакції — у [KEEL.md](KEEL.md).
-Тут те, чим це запускається. Один посилається на інше вільно: KEEL.md каже,
-що має бути правдою, README — якою командою це перевіряється.
+The method itself — why steps, contracts and revisions exist — is in
+[KEEL.md](KEEL.md). This file is what runs it. Either may point at the other
+freely: KEEL.md says what has to be true, README says which command checks it.
 
-## Запуск
+## Running it
 
 ```bash
 python3 keel.py check
 ```
 
-Потрібен Python 3. Більше нічого.
+Python 3 is needed. Nothing else.
 
-**Лише стандартна бібліотека, і це не аскеза.** Методика від мови проєкту не
-залежить, тож інструмент теж не має; Python є на кожній машині й у кожному CI.
-YAML тут — вузька підмножина (ключі, списки, дві вкладеності), і власний читач
-на сотню рядків дешевший, ніж `pip install` на початку кожного проєкту.
-Інструмент, який тримає методику, не має сам бути залежністю.
+**Standard library only, and this is not asceticism.** The method does not depend
+on the project's language, so the tool should not either; Python is on every
+machine and in every CI. The YAML here is a narrow subset — keys, lists, two
+levels of nesting — and a hundred-line reader of one's own is cheaper than a
+`pip install` at the start of every project. A tool that holds a method together
+should not itself be a dependency.
 
-Тести:
+Tests:
 
 ```bash
 python3 -m unittest discover -s tests -t .
 ```
 
-Розкладені за тим, що перевіряють: `test_yamlish`, `test_documents`,
+They are laid out by what they check: `test_yamlish`, `test_documents`,
 `test_scope`, `test_adapters`, `test_commands`, `test_git_hooks`,
-`test_agent_hooks`, `test_skills`, `test_setup`. Кожен запускається окремо
-(`python3 -m unittest tests.test_scope`), спільна фікстура — в `tests/support.py`.
-Тести нікуди не копіюються, тож ділити їх нічого не коштує — на відміну від
-самого інструмента.
+`test_agent_hooks`, `test_skills`, `test_setup`. Each runs on its own
+(`python3 -m unittest tests.test_scope`); the shared fixture is in
+`tests/support.py`. Tests are copied nowhere, so splitting them costs nothing —
+unlike the tool itself.
 
-Один тест необовʼязковий: якщо в системі є PyYAML, він читає породжені шапки
-скілів справжнім парсером. Свій читач поблажливий, а шапку читатимуть Claude і
-Cursor — не він.
+One test is optional: if PyYAML is installed, it reads the generated skill
+headers with a real parser. Our own reader is forgiving, and the headers will be
+read by Claude and Cursor, not by it.
 
-## Команди
+## Commands
 
-| Команда | Що робить |
+| Command | What it does |
 |---|---|
-| `keel new step <slug>` | каркас файлу: шапка з порожніми полями й секції-заготовки |
-| `keel new contract <slug>` | те саме для контракту: `module` з `exports` або `verify` |
-| `keel gaps [крок]` | чого бракує в описі кроку: слаги без секцій, трансформи без файлів, сценарії без `proves` |
-| `keel next` | **пакет** наступної дії: трансформа, її файли й межі, сценарії, які вона наближає, тіла контрактів, на які спирається — і нічого зайвого. Markdown; `--json` для скриптів |
-| `keel check` | шість перевірок — повний гейт. `--fast` лишає ті, що не запускають нічого, `--no-tests` пропускає прогін, `--branch` називає гілку там, де git її не знає, `--json` для скриптів |
-| `keel rev` | показує редакції, які розійшлися; `--write` вписує нові |
-| `keel hooks` | показує стан `pre-commit` і `pre-push`; `--install` ставить, `--force` перезаписує чужий |
-| `keel skills` | перепороджує скіли з методики |
-| `keel init` | ставить Keel у проєкт: теки, копію інструмента, довідники, `AGENTS.md`, CI, хуки. `--docs` і `--lang` задають мови, `--force` перезаписує чужий хук |
-| `keel hook <подія> --agent` | відповідає хукові агента; кличеться конфігом, не руками |
-| `keel update` | оновлює копії методики в проєкті. `--diff` показує різницю, `--force` перезаписує й правлене руками |
+| `keel new step <slug>` | the file skeleton: a header with empty fields and stub sections |
+| `keel new contract <slug>` | the same for a contract: `module` with `exports`, or `verify` |
+| `keel gaps [step]` | what is missing from a step's description: slugs without sections, transforms without files, scenarios without `proves` |
+| `keel next` | the **package** for the next move: the transform, its files and boundaries, the scenarios it brings closer, the bodies of the contracts it leans on — and nothing beyond. Markdown; `--json` for scripts |
+| `keel check` | the six checks — the full gate. `--fast` leaves those that run nothing, `--no-tests` skips the run, `--branch` names the branch where git does not know it, `--json` for scripts |
+| `keel rev` | shows revisions that have drifted apart; `--write` records the new ones |
+| `keel hooks` | shows the state of `pre-commit` and `pre-push`; `--install` installs them, `--force` overwrites somebody else's |
+| `keel skills` | regenerates the skills from the method |
+| `keel init` | installs Keel into a project: directories, a copy of the tool, the references, `AGENTS.md`, CI, hooks. `--docs` and `--lang` set the languages, `--force` overwrites somebody else's hook |
+| `keel hook <event> --agent` | answers an agent hook; called by a config, not by hand |
+| `keel update` | brings the project's copies up to date. `--diff` shows the difference, `--force` overwrites even hand-edited files |
 
-`gaps` і `check` різні саме тому, що сценарій без тесту на етапі планування
-нормальний, а перед PR — ні. Одна команда з двома режимами плутала б обидва.
-І жодна з них не планує: `gaps` каже, чого бракує, `check` — що не так.
+`gaps` and `check` are separate precisely because a scenario without a test is
+fine while planning and not fine before a PR. One command with two modes would
+confuse both. And neither of them plans: `gaps` says what is missing, `check`
+says what is wrong.
 
-Прапорець `-C ТЕКА` каже, де працювати. Корінь проєкту шукається вгору по теках:
-перша, що має `keel/steps/`, або перша з `.git`.
+The `-C ТЕКА` flag says where to work — the tool's own output is Ukrainian, so
+is its metavar. The project root is searched upwards: the first directory with
+`keel/steps/`, or the first with `.git`.
 
-## Дві мови, і вони незалежні
+## Two languages, and they are independent
 
-`keel init` записує в `keel/keel.json` два значення, і плутати їх не варто:
+`keel init` records two values in `keel/keel.json`, and they should not be
+conflated:
 
-| Ключ | Що визначає | Прапорець |
+| Key | What it decides | Flag |
 |---|---|---|
-| `docs` | якою мовою довідники лягають у проєкт | `--docs uk\|en` |
-| `lang` | чим агент пише кроки й комміти, і які фрази ловлять скіли | `--lang uk\|en` |
+| `docs` | which language the references arrive in | `--docs uk\|en` |
+| `lang` | what the agent writes steps and commits in, and which phrases the skills catch | `--lang uk\|en` |
 
-Розділені вони тому, що хотіти англійський довідник з українськими тригерами —
-нормально. Тіло скіла не залежить від жодного з них: його читає модель, і воно
-завжди англійською.
+They are separate because wanting an English reference with Ukrainian triggers is
+a reasonable thing to want. A skill's body depends on neither: it is read by the
+model, and it is always English.
 
-Це єдине, що Keel тримає у файлі налаштувань. Обидва значення не вгадуються:
-мова прози проєкту — рішення команди, а не властивість коду.
+This is the only thing Keel keeps in a settings file. Neither value can be
+guessed: the language of a project's prose is a team's decision, not a property
+of the code.
 
-**Українська — джерело, англійська на нього спирається.** Переклад лежить у
-`docs/en/` і несе в шапці `source-rev` — редакцію того файла, з якого його
-робили. Перевірка 8 червоніє, коли джерело змінилось, а переклад ні. Це те саме
-правило, що тримає тести й контракти: хто спирається, той тримає редакцію.
-Двомовні документи гинуть саме від того, що переклад тихо застаріває.
+**Ukrainian is the source, English leans on it.** The source lives in `docs/uk/`,
+and the English translation sits at the root of the repository, because that is
+what a first-time visitor opens. Which one is the source and which one is on
+display are separate questions.
 
-## Адаптери мов
+The revision each translation leans on is recorded in `docs/revisions.json`
+rather than in the file's own header: the root `README.md` is the repository's
+front page, and a bookkeeping header would render as a table above its first
+line. `keel update` turns red when the source has changed and the translation has
+not. It is the same rule that holds tests and contracts together: whoever leans
+on a text holds its revision. Bilingual documents die precisely from a
+translation quietly falling behind.
 
-Дві перевірки з шести залежать від мови: чим запускати тести (5) і звідки брати
-експорти модуля (6). Адаптер вибирається за маркером у корені проєкту.
+## Language adapters
+
+Two of the six checks depend on the language: what runs the tests (5) and where a
+module's exports come from (6). The adapter is chosen by a marker in the project
+root.
 
 | | Elixir | Python |
 |---|---|---|
-| маркер | `mix.exs` | `pyproject.toml`, `setup.py`, `setup.cfg` |
-| тести | `mix test` | `python3 -m unittest discover -s tests -t .` |
-| де тести | `test/**/*_test.exs` | `tests/**/test_*.py`, `*_test.py` |
-| тег сценарію | `@tag proves: :slug, rev: "a3f1c0"` | `# proves: slug, rev: "a3f1c0"` |
-| експорти | `mix run --no-start` питає `__info__(:functions)` | імпорт модуля, `__all__` або публічні імена |
-| кроки CI | `erlef/setup-beam` плюс `mix deps.get` | `actions/setup-python` |
+| marker | `mix.exs` | `pyproject.toml`, `setup.py`, `setup.cfg` |
+| tests | `mix test` | `python3 -m unittest discover -s tests -t .` |
+| where tests live | `test/**/*_test.exs` | `tests/**/test_*.py`, `*_test.py` |
+| scenario tag | `@tag proves: :slug, rev: "a3f1c0"` | `# proves: slug, rev: "a3f1c0"` |
+| exports | `mix run --no-start` asks `__info__(:functions)` | import the module, `__all__` or the public names |
+| CI steps | `erlef/setup-beam` plus `mix deps.get` | `actions/setup-python` |
 
-Слаг сценарію й імʼя в тезі звіряються нормалізовано, тож `finishes-when-no-tool`
-у кроці й `:finishes_when_no_tool` у тесті — те саме.
+A scenario's slug and the name in the tag are compared after normalising, so
+`finishes-when-no-tool` in the step and `:finishes_when_no_tool` in the test are
+the same thing.
 
-Версії для CI не вгадуються: `keel init` питає `elixir --version` на машині, де
-його запустили, і вписує те, що знайшов.
+CI versions are not guessed: `keel init` asks `elixir --version` on the machine
+it was run on and writes down what it found.
 
-Мови без адаптера ламають не весь `check`, а рівно перевірки 5 і 6, і кажуть про
-це прямо. Новий адаптер — це клас із маркером, командою тестів, регуляркою тега
-й способом дістати експорти.
+A language without an adapter does not break the whole of `check`, only checks 5
+and 6, and it says so plainly. A new adapter is a class with a marker, a test
+command, a tag pattern and a way to get the exports.
 
-### Контракт із `verify`
+### A contract with `verify`
 
-Адаптера він не потребує — там команда. Вона має бути рядком, інакше перевірка
-червоніє замість мовчки її проминути, і на неї є межа в 30 секунд: обіцянка — це
-проба, а не збірка, і зависла проба тримала б `pre-push` і CI скільки їм
-дозволено працювати. Стандартний ввід їй закритий, щоб команда з підказкою падала
-одразу, а не марно чекала. `--no-tests` її не запускає.
+It needs no adapter — it carries a command. That command has to be a string, or
+the check turns red rather than passing it over in silence, and it is bounded at
+30 seconds: a promise is a probe, not a build, and a hung probe would hold
+`pre-push` and CI for as long as they are allowed to run. Its stdin is closed, so
+a command that prompts fails at once instead of waiting, and `--no-tests` does
+not run it.
 
-**Це виконання команди з файла в репозиторії, і це варто знати.** `keel check`
-запускає її через оболонку, а `pre-push` запускає `keel check`. Отже клонувати
-чужий проєкт або взяти гілку з PR і зробити `git push` означає виконати те, що
-написано в його контрактах. Досі кожен підпроцес Keel був фіксованою командою
-адаптера; ця — перша, яку задає той, хто писав контракт. Практичний висновок
-один: контракт у чужому PR читають так само уважно, як код.
+**This executes a command out of a file in the repository, and that is worth
+knowing.** `keel check` runs it through a shell, and `pre-push` runs `keel check`.
+So cloning somebody's project, or checking out a branch from a pull request and
+running `git push`, means executing whatever its contracts say. Until now every
+subprocess Keel launched was a fixed adapter command; this is the first one set
+by whoever wrote the contract. The practical conclusion is simple: read a
+contract in somebody else's PR as carefully as you read code.
 
-## Як Keel потрапляє в проєкт
+## How Keel gets into a project
 
-Репозиторій `keel` — дім методики, а не те, що читає агент. Агент читає файли
-**в проєкті, над яким працює**, і `keel init` їх туди кладе:
+The `keel` repository is the method's home, not what an agent reads. The agent
+reads files **in the project it works on**, and `keel init` puts them there:
 
 ```
-keel/steps/                     порожні теки
+keel/steps/                     empty directories
 keel/contracts/
-keel/keel.json                  дві мови: довідників і проєкту
-keel/keel.py                    сам інструмент, копією
-keel/KEEL.md                    методика, копією
-keel/README.md                  цей файл, копією
-keel/QUALITY.md                 розрізи якості — їх проходять пунктами
-AGENTS.md                       блок між маркерами: принципи й вказівники
-.github/workflows/keel.yml      CI, породжений
-.claude/skills/keel-*/SKILL.md  породжені
-.cursor/skills/keel-*/SKILL.md  породжені — той самий формат
-.claude/settings.json           хуки агента, породжені; чуже в файлі лишається
-.cursor/hooks.json              те саме для Cursor
-.codex/hooks.json               те саме для Codex — ще не породжується
-.git/hooks/                     pre-commit і pre-push, що кличуть keel
+keel/keel.json                  the two languages: references and project
+keel/keel.py                    the tool itself, as a copy
+keel/KEEL.md                    the method, as a copy
+keel/README.md                  this file, as a copy
+keel/QUALITY.md                 the quality cuts — walked point by point
+AGENTS.md                       a block between markers: principles and pointers
+.github/workflows/keel.yml      CI, generated
+.claude/skills/keel-*/SKILL.md  generated
+.cursor/skills/keel-*/SKILL.md  generated — the same format
+.claude/settings.json           agent hooks, generated; anything else stays
+.cursor/hooks.json              the same for Cursor
+.codex/hooks.json               the same for Codex — not generated yet
+.git/hooks/                     pre-commit and pre-push, which call keel
 ```
 
-**Інструмент їде копією**, і саме заради цього він один файл. CI піднімає чисту
-машину на кожен пуш; викачує вона тільки репозиторій проєкту, тож `keel.py` має
-бути в ньому, інакше перевіряти буде нічим. Заразом це знімає питання «а чи стоїть
-keel у того, хто клонував».
+**The tool travels as a copy**, and that is exactly why it is one file. CI raises
+a clean machine on every push; it fetches only the project's repository, so
+`keel.py` has to be in it or there is nothing to check with. It also settles the
+question of whether whoever cloned the repo has keel installed.
 
-Хук шукає інструмент по черзі: змінна `KEEL`, потім `keel` на PATH, потім копія
-в проєкті. Копія — остання, і вона ж єдина, яка завжди на місці.
+A hook looks for the tool in order: the `KEEL` variable, then `keel` on PATH,
+then the copy in the project. The copy is last, and it is the only one always
+there.
 
-**Довідники їдуть копіями, і на кожен показує `AGENTS.md`.** Файл сам собою нічого
-не змушує читати: змушують чотири речі — `AGENTS.md`, який читається завжди, хук
-старту сесії, хук перед записом файлу і скіл, що вантажиться при плануванні.
-Показати можна тільки на те, що лежить у цьому ж репозиторії. Файл, на який ніщо
-не показує, — мертвий.
+**The references travel as copies, and `AGENTS.md` points at each.** A file makes
+nobody read it: four things do — `AGENTS.md`, which is always read, the
+session-start hook, the hook before a file write, and the skill loaded while
+planning. You can only point at what sits in the same repository. A file nothing
+points at is dead.
 
-Читаються вони рідко, і це нормально: при роботі агентові потрібен пакет від
-`keel next`, при плануванні — скіл. Але «рідко» не є «ніколи». Коли не ясно, що
-йде в шапку трансформи або як рахується редакція, дивитись треба кудись.
+They are read rarely, and that is fine: at work the agent needs the package from
+`keel next`, while planning it needs the skill. But "rarely" is not "never". When
+it is unclear what goes in a transform's header or how a revision is computed,
+there has to be somewhere to look.
 
-**Принципи не окремий файл.** Сім тверджень — це десять рядків, і вони йдуть
-у `AGENTS.md`, який агент читає завжди. Береться текст із `PRINCIPLES.md`, тож
-розійтися їм нема як.
+**The principles are not a separate file.** Seven statements are ten lines, and
+they go into `AGENTS.md`, which the agent always reads. The text is taken from
+`PRINCIPLES.md`, so there is no way for them to drift apart.
 
-`AGENTS.md` **не створюється, а дописується**: блок між `<!-- keel:start -->` і
-`<!-- keel:end -->`, решта файлу — проєктова, і оновлення її не чіпає. Проєкт
-має власний `AGENTS.md` майже завжди, і перезаписувати його означало б відбирати.
+`AGENTS.md` is **appended to, not created**: a block between `<!-- keel:start -->`
+and `<!-- keel:end -->`, the rest of the file belongs to the project, and updates
+do not touch it. A project has its own `AGENTS.md` almost always, and overwriting
+it would mean taking something away.
 
-`.claude/settings.json` так само зливається: чужі налаштування лишаються, наш
-запис не дублюється при повторному `init`, а якщо файл побитий — інструмент його
-не чіпає й каже про це.
+`.claude/settings.json` is merged the same way: other settings stay, our entry is
+not duplicated on a repeated `init`, and if the file is broken the tool leaves it
+alone and says so.
 
-Скіли кладуться **обидва набори одразу**: вони дешеві, а яким агентом працюватимуть
-завтра — невідомо.
+The skills are installed **as both sets at once**: they are cheap, and which
+agent you will be working with tomorrow is unknown.
 
-**`init` комітить те, що поклав** — окремим коммітом і додаючи в індекс лише
-власні файли, тож ваші незакомічені зміни поруч лишаються вашими. `--no-commit`,
-якщо волієте самі. Без git він взагалі відмовляється: Keel увесь стан читає з
-git, і заводити комусь репозиторій — більше рішення, ніж поставити методику.
+**`init` commits what it wrote** — as its own commit, staging only its own
+files, so anything of yours sitting uncommitted next to it stays yours.
+`--no-commit` if you would rather do it. Without git it refuses outright: Keel
+reads all of its state from git, and creating somebody's repository is a bigger
+decision than installing a method.
 
-**Агента запускають у самій теці проєкту.** Скіли беруться з теки старту й
-батьківських; ті, що лежать нижче, підхоплюються аж тоді, коли агент прочитає
-там якийсь файл.
+**The agent is started in the project directory itself.** Skills are taken from
+the starting directory and its parents; ones that sit below it are only picked up
+once the agent reads a file there.
 
-Одразу після установки перший виклик може відповісти «Unknown skill» — скіли ще
-не підхопились. Лікується `/reload-skills` або просто повторним викликом; сесію,
-відкриту до установки, треба перезапустити, бо `/clear` теку на облік не бере.
+Right after the install the first call may answer "Unknown skill" — the skills
+have not been picked up yet. `/reload-skills` fixes it, and so does simply
+calling again; a session opened before the install has to be restarted, because
+`/clear` does not register the directory.
 
-**Гілка плану може нести файли самого Keel.** Правило «план не чіпає код»
-стосується коду проєкту, а не того, що поклав `init`: інакше воно замуровувало б
-перший крок щоразу, коли `init` чи `update` щось освіжили.
+**A plan branch may carry Keel's own files.** The rule "a plan touches no code"
+is about the project's code, not about what `init` put there: otherwise it would
+wall off the first step every time `init` or `update` refreshed something.
 
-**Оновлення не затирає роботу.** `keel init` записує в `keel/keel.json` хеш
-кожного породженого файла, і саме це дає `keel update` змогу відрізнити «методика
-поїхала вперед» від «цей файл правили руками». Перше оновлюється мовчки, друге —
-ні: `update` називає такий файл, лишає його як є і виходить із ненульовим кодом.
+**Updating does not clobber work.** `keel init` records the digest of every
+generated file in `keel/keel.json`, and that is what lets `keel update` tell "the
+method has moved on" apart from "this file was edited by hand". The first is
+updated silently, the second is not: `update` names such a file, leaves it as it
+is, and exits with a non-zero code.
 
-Питати він не питає навмисно. Питання спиняє автономний прогін, мовчазний
-перезапис нищить роботу; відмова по одному файлу не робить ні того, ні того.
-`--diff` показує різницю, `--force` перезаписує.
+It deliberately does not ask. A question stops an autonomous run, a silent
+overwrite destroys work; refusing one file at a time does neither. `--diff` shows
+the difference, `--force` overwrites.
 
-`AGENTS.md` і `.claude/settings.json` у цьому обліку не беруть участі: Keel
-володіє в них блоком, а не файлом, тож вони зливаються, а не заміняються.
+`AGENTS.md` and `.claude/settings.json` take no part in that bookkeeping: Keel
+owns a block inside them, not the file, so they are merged rather than replaced.
 
-Тут же живе перевірка перекладів: `update` червоніє, коли англійський довідник
-відстав від українського джерела. У `check` її немає навмисно — шість перевірок
-про граф кроків у проєкті, а ця про копії самої методики.
+The translation check lives here too: `update` turns red when the English
+reference has fallen behind the Ukrainian source. It is deliberately not in
+`check` — the six checks are about the graph of steps in a project, and this one
+is about the method's copies of itself.
 
-## Хуки git
+## Git hooks
 
-Те, на чому все тримається. Працюють незалежно від агента й від того, чи він
-щось прочитав.
+What everything rests on. They work independently of the agent and of whether it
+read anything.
 
-| Хук | Що робить |
+| Hook | What it does |
 |---|---|
-| `pre-commit` | швидкі перевірки: посилання, цикли, редакції, scope, заголовки |
-| `pre-push` | повний `keel check` разом із тестами й експортами |
-| CI | те саме, що `pre-push` — на випадок, якщо хук обійшли |
+| `pre-commit` | the fast checks: references, cycles, revisions, scope, headings |
+| `pre-push` | the full `keel check`, tests and exports included |
+| CI | the same as `pre-push` — in case the hook was bypassed |
 
-Швидке — на комміт, повільне — на пуш: агент комітить часто й не має чекати
-хвилинами, а червоне все одно не доїде до головної гілки.
+Fast on commit, slow on push: the agent commits often and must not wait minutes,
+and red will not reach the main branch either way.
 
-Чужий хук не затирається без `--force`.
+Somebody else's hook is not overwritten without `--force`.
 
-CI відрізняється двома дрібницями, і без них він тихо зелений. Голова там
-відчеплена, тож імʼя гілки передається як `--branch`; головної гілки локально
-немає, вона є як `origin/main`. Історію треба качати всю — межі звіряються з
-місцем, де гілка відійшла.
+CI differs in two small ways, and without them it is quietly green. The head
+there is detached, so the branch name is passed as `--branch`; the main branch is
+not local, it exists as `origin/main`. The whole history has to be fetched —
+scope is compared against the point where the branch left.
 
-## Хуки агента
+## Agent hooks
 
-Швидший зворотний звʼязок. Вони не заміна git-хукам: агентський хук робить
-помилку дешевшою, `pre-commit` робить її неможливою.
+Faster feedback. They do not replace the git hooks: an agent hook makes a mistake
+cheaper, `pre-commit` makes it impossible.
 
-| Подія | Що робить | Claude | Cursor | Codex |
+| Event | What it does | Claude | Cursor | Codex |
 |---|---|---|---|---|
-| старт сесії | вкидає стан і називає скіл | `SessionStart` | `sessionStart` | `SessionStart` |
-| перед записом файлу | відмовляє, якщо файл не оголошений | `PreToolUse` | `preToolUse` | `PreToolUse` |
+| session start | injects the state and names the skill | `SessionStart` | `sessionStart` | `SessionStart` |
+| before a file write | refuses if the file is not declared | `PreToolUse` | `preToolUse` | `PreToolUse` |
 
-Друга подія найцінніша: дрейф ловиться в мить, коли агент збирається писати не
-туди, а не через комміт.
+The second event is the valuable one: drift is caught the moment the agent is
+about to write in the wrong place, rather than at the commit.
 
-Імена подій збігаються, конфіги всі проєктові й усі комітяться. Розходиться те,
-чим хук відповідає:
+The event names match, the configs are all project-level and all committed. What
+differs is what a hook answers with:
 
-| Що | Claude | Cursor | Codex |
+| What | Claude | Cursor | Codex |
 |---|---|---|---|
-| відмова | `hookSpecificOutput.permissionDecision: "deny"` | `permission: "deny"` | `decision: "block"` |
-| текст у контекст | `additionalContext` | `additional_context` | `additionalContext` |
-| обгортка | `matcher` і вкладений список `hooks` | плаский список, `"version": 1` | плаский список |
+| refusal | `hookSpecificOutput.permissionDecision: "deny"` | `permission: "deny"` | `decision: "block"` |
+| text into context | `additionalContext` | `additional_context` | `additionalContext` |
+| wrapper | `matcher` and a nested `hooks` list | a flat list, `"version": 1` | a flat list |
 
-Вихід із кодом 2 блокує дію в усіх трьох — це єдине спільне.
+Exiting with code 2 blocks the action in all three — that is the only thing they
+share.
 
-Звідси форма породженого: **один скрипт, кілька конфігів**. Конфіги кличуть той
-самий `keel hook` із прапорцем, який каже, чиїм діалектом відповідати. Інакше
-скрипти розійшлися б: те, що пишуть окремо, окремо ж і застаріває.
+Hence the shape of what is generated: **one script, several configs**. The
+configs call the same `keel hook` with a flag saying whose dialect to answer in.
+Otherwise the scripts would drift apart: what is written separately also ages
+separately.
 
-### Хук старту показує на скіл
+### The session hook points at a skill
 
-Скіл — це файл з інструкціями, який агент бере сам, коли вирішить, що доречно.
-Хук — програма, яку запускає сам Claude чи Cursor, і агент на це не впливає.
+A skill is a file of instructions the agent picks up itself when it decides that
+it fits. A hook is a program Claude or Cursor runs, and the agent has no say in
+it.
 
-Хук не може завантажити скіл: він може лише **вкинути в контекст текст**. Тому
-`keel hook session` дивиться в git і друкує речення, яке називає потрібний скіл:
+A hook cannot load a skill: all it can do is **put text into the context**. So
+`keel hook session` looks into git and prints a sentence naming the skill to take:
 
-| Стан | Що каже |
+| State | What it says |
 |---|---|
-| гілка `plan/*` | візьми `keel-plan` |
-| є відкрита трансформа | візьми `keel-work`, ось пакет `next` |
-| усі трансформи закриті | візьми `keel-review` |
-| гілка не є кроком | візьми `keel-plan`, ось як почати |
+| a `plan/*` branch | take `keel-plan` |
+| an open transform | take `keel-work`, here is the `next` package |
+| every transform closed | take `keel-review` |
+| the branch is not a step | take `keel-plan`, here is how to start |
 
-Сенс у тому, що етап знає git, а не агент. Без цього агент мав би здогадуватись.
+The point is that git knows the stage, not the agent. Without this the agent
+would have to guess.
 
-### Хук перед записом
+### The hook before a write
 
-Порівнює файл із оголошеними у кроці — навмисно з тими самими, що звіряє
-перевірка 4, щоб хук не був суворішим за гейт.
+It compares the file against those declared in the step — deliberately the same
+ones check 4 compares, so that the hook is not stricter than the gate.
 
-Шлях у вхідному JSON лежить по-різному, і документація нерівна. У Claude це
-`tool_input.file_path` для Write, Edit і NotebookEdit — документовано. У Cursor
-документації на інструменти запису немає; `file_path` стоїть у сусідніх
-`beforeReadFile` та `afterFileEdit`, і звіт про ваду каже, що для Write
-застосовується воно ж. Тому шлях шукається серед кількох імен, а `tool_input`
-розбирається і як обʼєкт, і як рядок із JSON усередині — для частини інструментів
-Cursor віддає його саме так.
+The path sits in different places in the incoming JSON, and the documentation is
+uneven. In Claude it is `tool_input.file_path` for Write, Edit and NotebookEdit,
+and that is documented. Cursor documents nothing for its write tools; `file_path`
+is there in the neighbouring `beforeReadFile` and `afterFileEdit`, and a bug
+report says the same key applies to Write. So the path is looked for under
+several names, and `tool_input` is parsed both as an object and as a string with
+JSON inside — for some tools Cursor hands it over exactly that way.
 
-**Коли шлях не знайшовся, хук каже це вголос і перелічує оголошені файли.**
-Мовчазний пропуск виглядав би як перевірка, якої не було.
+**When no path is found, the hook says so out loud and lists the declared files.**
+Passing in silence would look like a check that never happened.
 
-Codex поки без хуків: запис іде через `apply_patch`, і шлях лежить усередині
-тексту патча, а не полем. Його хуки ще й вмикаються в `config.toml` через
-`[features] hooks = true` і не працюють на Windows.
+Codex has no hooks yet: writes go through `apply_patch`, and the path sits inside
+the patch text rather than in a field. Its hooks also have to be switched on in
+`config.toml` with `[features] hooks = true`, and they do not work on Windows.
 
-## Скіли
+## Skills
 
-Скіл потрібен там, де є судження. Судження в Keel одне — **планування**: як пройти
-розрізи якості, як відрізнити сценарій від межі, як зрозуміти, що трансформа ще
-не атомарна. Це не виражається командою.
+A skill is needed where there is judgement. In Keel there is one such place —
+**planning**: how to walk the quality cuts, how to tell a scenario from a
+boundary, how to see that a transform is not atomic yet. None of that fits in a
+command.
 
-Робота веде себе сама: `next` каже дію, `check` каже проблему. Там скіл був би
-переказом того, що інструмент і так друкує. Отже один змістовний скіл —
-`keel-plan`, і два тонкі — `keel-work` та `keel-review`.
+The work drives itself: `next` says the action, `check` says the problem. A skill
+there would be a retelling of what the tool already prints. So: one substantial
+skill, `keel-plan`, and two thin ones, `keel-work` and `keel-review`.
 
-| Інструмент | Куди кладеться |
+| Agent | Where it goes |
 |---|---|
 | Claude Code | `.claude/skills/<name>/SKILL.md` |
 | Cursor | `.cursor/skills/<name>/SKILL.md` |
-| Codex і решта | `AGENTS.md`, десять рядків із вказівниками |
+| Codex and the rest | `AGENTS.md`, ten lines of pointers |
 
-Формат один і той самий: `name`, `description`, необовʼязковий `paths`. Cursor
-має ще й правила `.cursor/rules/*.mdc`, але вони для коротких постійних
-обмежень, а тут багатокрокові процедури — це скіли.
+The format is the same for both: `name`, `description`, an optional `paths`.
+Cursor also has rules in `.cursor/rules/*.mdc`, but those are for short standing
+constraints, and multi-step procedures are skills.
 
-**Скіл бере не лише модель.** Імʼя теки і є командою, тож оператор запускає крок
-циклу сам:
+**A skill is not only for the model to pick up.** The directory name is the
+command, so the operator starts a stage of the cycle directly:
 
-| Команда | Коли |
+| Command | When |
 |---|---|
-| `/keel-plan <слаг>` | почати новий крок: гілка `plan/`, каркас, сценарії |
-| `/keel-work` | зробити наступну трансформу; один виклик — одна |
-| `/keel-review` | перевірити перед PR |
+| `/keel-plan <slug>` | start a new step: the `plan/` branch, the skeleton, the scenarios |
+| `/keel-work` | do the next transform; one invocation, one transform |
+| `/keel-review` | check before the PR |
 
-Опис — це головний механізм спрацювання, тож у ньому лежить **уся інформація про
-те, коли скіл брати**, а в тілі — лише що робити. Написаний він навмисно
-наполегливо: моделі схильні *недо*спрацьовувати й не брати скіл там, де він
-доречний. Опис береться в лапки, бо містить двокрапку, і обрізається на 1536
-знаках у переліку Claude.
+The description is the main triggering mechanism, so **all the information about
+when to take a skill** lives there, and the body holds only what to do. It is
+written deliberately insistently: models tend to *under*-trigger and skip a skill
+where it would have helped. The description is quoted because it contains a
+colon, and it is truncated at 1536 characters in Claude's skill listing.
 
-`keel-plan` ще й привʼязаний до `keel/steps/*.md` через `paths`, тож підхоплюється
-сам, коли редагується файл кроку.
+`keel-plan` is also bound to `keel/steps/*.md` through `paths`, so it is picked up
+on its own when a step file is being edited.
 
-**Ці файли породжуються командою `keel skills`, а не ведуться руками.** Тіло в
-обох однакове, різняться лише поля, яких другий не знає, і тест це стереже.
+**These files are generated by `keel skills`, not maintained by hand.** The body
+is identical in both; only the fields the other one does not know differ, and a
+test guards that.
 
-## Стан
+## State
 
-Зроблено: шість перевірок, `new`, `gaps`, `next`, `rev`, `check`, `hooks`,
-`skills`, `init`, `update`, `hook`; git-хуки й CI; три скіли у двох діалектах;
-хуки агента для Claude і Cursor; довідники двома мовами із замком на редакції.
+Done: the six checks, `new`, `gaps`, `next`, `rev`, `check`, `hooks`, `skills`,
+`init`, `update`, `hook`; the git hooks and CI; three skills in two dialects;
+agent hooks for Claude and Cursor; references in two languages with the revision
+lock on them.
 
-Лишилось:
+Left:
 
-1. **Хуки для Codex** — відкладені: запис іде через `apply_patch`, і шлях лежить
-   усередині тексту патча, а не полем.
-2. **Перший справжній крок на `keel-agent`** — доти методика перевірена
-   інструментом і тестами, але не роботою.
+1. **Hooks for Codex** — postponed: writes go through `apply_patch`, and the path
+   sits inside the patch text rather than in a field.
+2. **The first real step on `keel-agent`** — until then the method is verified by
+   the tool and the tests, but not by work.
 
-## Відкрите
+## Open
 
-- **Чи справді Cursor зве це поле `file_path`.** У Claude воно документоване, у
-  Cursor — ні: доказ непрямий, зі звіту про ваду й із сусідніх подій. Хук шукає
-  серед кількох імен і мовчки не пропускає, тож перший запуск у Cursor скаже
-  правду; тоді список можна звузити.
-- **Чи приходить `tool_input` рядком і для вбудованих інструментів.** Для MCP це
-  видно в захоплених прикладах; читач розбирає обидві форми.
-- **Скільки насправді коштує крок.** Сорок розрізів на маленьку трансформу
-  можуть виявитись задорогими, а хук перед записом — заважати більше, ніж
-  допомагати. Це видно тільки з першого справжнього кроку.
+- **Whether Cursor really calls that field `file_path`.** In Claude it is
+  documented; in Cursor it is not — the evidence is indirect, from a bug report
+  and from the neighbouring events. The hook looks under several names and never
+  passes in silence, so the first run in Cursor will tell the truth; the list can
+  be narrowed then.
+- **Whether `tool_input` arrives as a string for the built-in tools too.** For MCP
+  that is visible in captured examples; the reader parses both shapes.
+- **What a step actually costs.** Forty cuts on a small transform may turn out to
+  be too dear, and the write hook may get in the way more than it helps. That is
+  visible only from the first real step.

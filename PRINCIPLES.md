@@ -1,38 +1,38 @@
-# Keel — принципи
+# Keel — principles
 
-Одна сторінка. Читається завжди, перед будь-якою роботою.
-Повний опис — у `KEEL.md`, він довідник і читається за потреби.
+One page. Read always, before any work.
+The full account is in `KEEL.md`; that one is a reference, read when needed.
 
-## 1. Обіцянка перевіряється, або її немає
+## 1. A promise is checked, or there is no promise
 
-Сценарій — це тест. Немає тесту — немає обіцянки, є побажання.
+A scenario is a test. No test, no promise — only a wish.
 
-## 2. Стан виводиться, не пишеться
+## 2. State is derived, not written
 
-Що закрито, що відкрито, коли й ким — рахується з git і тестів.
-Жоден статус не ставиться руками. Журналу немає: git точніший.
+What is closed, what is open, when and by whom — counted from git and the tests.
+No status is set by hand. There is no log: git is more accurate.
 
-## 3. Один крок — одна гілка — один PR
+## 3. One step — one branch — one pull request
 
-Крок є переходом: новий стан проєкту = крок(старий стан).
-Усередині нього трансформи — окремі комміти, кожен атомарний.
+A step is a transition: the project's new state = step(old state).
+Inside it, transforms are separate commits, each one atomic.
 
-## 4. Трансформа оголошує файли, яких торкнеться
+## 4. A transform declares the files it will touch
 
-Поіменно, до роботи. Вихід за межі видно в diff — не заборонено, але названо.
-Не знаєш файлів наперед — трансформа ще не атомарна.
+By name, before the work. Going beyond shows in the diff — not forbidden, but named.
+If you cannot name the files in advance, the transform is not atomic yet.
 
-## 5. Хто спирається — той тримає редакцію
+## 5. Whoever leans on a text holds its revision
 
-Тест несе редакцію сценарію, трансформа — редакцію контракту.
-Текст змінився після того, як на нього сперлись, — перевірка червоніє.
+A test carries the scenario's revision, a transform the contract's.
+The text changed after something leaned on it — the check turns red.
 
-## 6. Контракт — це те, що код обіцяє коду
+## 6. A contract is what code promises code
 
-Модуль, експортовані функції, сенс. Живе довше за крок.
-Те, що модуль справді експортує, звіряється з тим, що обіцяно.
+Module, exported functions, meaning. It outlives the step.
+What the module actually exports is compared against what was promised.
 
-## 7. Не заводь сутність, поки без неї не боляче
+## 7. Do not add an entity until its absence hurts
 
-Три типи документів. Тегів немає, вимог немає, питання не осідають.
-Кожне нове поле має спершу заболіти своєю відсутністю.
+Three kinds of document. No tags, no requirements, no questions settling in.
+Every new field has to hurt by being missing first.

@@ -87,7 +87,7 @@ class TestInit(unittest.TestCase):
     def test_init_commits_what_it_wrote(self):
         _, out = self.init()
         self.assertIn("закомічено окремо", out)
-        self.assertIn("Keel у проєкті", self.log())
+        self.assertIn("Keel in the project", self.log())
         self.assertNotIn("AGENTS.md", self.porcelain())
 
     def test_no_commit_leaves_it_and_says_so(self):
@@ -98,8 +98,8 @@ class TestInit(unittest.TestCase):
         self.assertIn("AGENTS.md", self.porcelain())
 
     def test_the_commit_message_follows_the_project_language(self):
-        self.init(docs=None, lang="en")
-        self.assertIn("Keel in the project", self.log())
+        self.init(docs=None, lang="uk")
+        self.assertIn("Keel у проєкті", self.log())
 
     def test_a_second_init_adds_no_empty_commit(self):
         self.init()
@@ -141,7 +141,7 @@ class TestInit(unittest.TestCase):
     def test_copies_every_reference(self):
         self.init()
         self.assertIn("ISO/IEC 25010", self.read("keel/QUALITY.md"))
-        self.assertIn("шість перевірок", self.read("keel/KEEL.md"))
+        self.assertIn("six checks", self.read("keel/KEEL.md"))
         self.assertIn("keel new step", self.read("keel/README.md"))
 
     def test_methodology_and_tool_stay_apart(self):
@@ -164,8 +164,14 @@ class TestInit(unittest.TestCase):
         block = self.read("AGENTS.md")
         self.assertIn(keel.AGENTS_START, block)
         self.assertIn(keel.AGENTS_END, block)
+        self.assertIn("7. Do not add an entity", block)
+        self.assertIn("1. A promise is checked", block)
+
+    def test_agents_block_follows_the_reference_language(self):
+        self.init(docs="uk", lang="uk")
+        block = self.read("AGENTS.md")
         self.assertIn("7. Не заводь сутність", block)
-        self.assertIn("1. Обіцянка перевіряється", block)
+        self.assertIn("два типи документів", block)
 
     def test_existing_agents_file_is_kept(self):
         self.write("AGENTS.md", "# Проєкт\n\nСвоє, написане руками.\n")
@@ -251,9 +257,9 @@ class TestLanguageSettings(unittest.TestCase):
 
     def test_settings_are_independent(self):
         """Довідники однією мовою, тригери іншою — саме той випадок."""
-        self.init(lang="en")
-        self.assertEqual(self.config()["lang"], "en")
-        self.assertEqual(self.config()["docs"], keel.SOURCE_LANG)
+        self.init(lang="uk")
+        self.assertEqual(self.config()["lang"], "uk")
+        self.assertEqual(self.config()["docs"], keel.PUBLISHED_LANG)
 
     def test_language_changes_the_trigger_phrases(self):
         self.init(lang="uk")
@@ -278,6 +284,11 @@ class TestLanguageSettings(unittest.TestCase):
         self.init(lang="en")
         self.init()
         self.assertEqual(self.config()["lang"], "en")
+
+    def test_ukrainian_docs_arrive_in_ukrainian(self):
+        self.init(docs="uk")
+        self.assertIn("два типи документів", self.read("keel/KEEL.md"))
+        self.assertIn("Обіцянка перевіряється", self.read("AGENTS.md"))
 
     def test_english_docs_arrive_in_english(self):
         self.init(docs="en")
@@ -451,21 +462,29 @@ class TestTranslationsKeepUp(unittest.TestCase):
     def test_every_reference_has_a_translation(self):
         found = keel.translations("en")
         for name in self.sources():
-            self.assertIn(name, found, f"немає docs/en/{name}")
+            self.assertIn(name, found, f"немає перекладу {name}")
 
     def test_no_translation_has_fallen_behind(self):
         for name, recorded in sorted(keel.translations("en").items()):
-            text = keel.read_text(os.path.join(keel.home(), name))
+            text = keel.read_text(keel.doc_source(name, "uk"))
             self.assertTrue(
                 keel.rev_matches(recorded, text),
-                f"docs/en/{name} тримає {recorded}, а {name} зараз "
-                f"{keel.revision(text)}. Перечитай переклад і онови source-rev.")
+                f"{name} тримає {recorded}, а docs/uk/{name} зараз "
+                f"{keel.revision(text)}. Перечитай переклад і онови "
+                f"{keel.REVISIONS}.")
 
-    def test_translation_carries_the_name_of_its_source(self):
+    def test_the_published_text_carries_no_bookkeeping(self):
+        """README у корені — обличчя репозиторію; шапка стала б таблицею над ним."""
         for name in self.sources():
-            path = keel.doc_source(name, "en")
-            front, _, _ = keel.split_front_matter(keel.read_text(path))
-            self.assertEqual(keel.parse_yaml(front).get("translates"), name)
+            text = keel.read_text(keel.doc_source(name, "en"))
+            front, _, _ = keel.split_front_matter(text)
+            self.assertIsNone(front, name)
+
+    def test_the_source_lives_under_docs(self):
+        for name in self.sources():
+            self.assertTrue(keel.doc_source(name, "uk").endswith(f"docs/uk/{name}"))
+            self.assertTrue(keel.doc_source(name, "en").endswith(f"/{name}"))
+            self.assertNotIn("docs/", keel.doc_source(name, "en"))
 
     def test_the_translated_principles_still_number_seven(self):
         self.assertEqual(len(keel.principles_lines("en")), 7)
@@ -477,13 +496,11 @@ class TestTranslationsKeepUp(unittest.TestCase):
         for name in self.sources():
             text = keel.read_text(keel.doc_source(name, "en"))
             left = re.findall(r"[а-яіїєґА-ЯІЇЄҐ][а-яіїєґ'’ -]{3,}", text)
-            self.assertEqual(left, [], f"docs/en/{name}: {left[:3]}")
+            self.assertEqual(left, [], f"{name}: {left[:3]}")
 
-    def test_the_project_gets_prose_without_the_bookkeeping(self):
-        """`source-rev` — облік удома; у проєкт має доїхати сам текст."""
-        text = keel.read_text(keel.doc_source("KEEL.md", "en"))
-        self.assertIn("source-rev", text)
-        self.assertNotIn("source-rev", keel.strip_front_matter(text))
+    def test_the_bookkeeping_is_one_file_not_a_header_in_each(self):
+        found = keel.translations("en")
+        self.assertEqual(sorted(found), sorted(self.sources()))
 
 
 class TestTranslationCheck(unittest.TestCase):

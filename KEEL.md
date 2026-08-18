@@ -1,166 +1,178 @@
 # Keel
 
-Методика розробки з агентом: **два типи документів, шість перевірок**.
+A method for developing with an agent: **two kinds of document, six checks**.
 
-**Статус: чернетка. У цьому репозиторії не застосована.** Keel пробується на
-`keel-agent` — агенті для локальних моделей на Elixir. Інструмент написаний,
-перевірки бігають, хуки стоять.
+**Status: draft. Not applied in this repository.** Keel is being tried on
+`keel-agent`, an agent for local models written in Elixir. The tool is written,
+the checks run, the hooks are installed.
 
-Тут — **що має бути правдою і чому**. Чим це запускається, як ставиться в проєкт,
-які команди, хуки й скіли — у [README.md](README.md). Посилатися одне на одне
-можна вільно; змішувати в одному файлі — ні.
+This file is **what has to be true, and why**. What runs it, how it is installed
+into a project, which commands, hooks and skills exist — that is [README.md](README.md).
+The two may point at each other freely; mixing them in one file, no.
 
-Принципи — одна сторінка, `PRINCIPLES.md`, читається завжди. Цей файл —
-довідник, читається за потреби.
+The principles are one page, `PRINCIPLES.md`, read always. This file is a
+reference, read when needed.
 
-## Мова й формат
+## Language and format
 
-Шапка документа — англійською: її поля йдуть у код, теги тестів та імена файлів.
-Проза — мовою проєкту: її читає і схвалює людина.
+A document's header is English: its fields become code, test tags and file names.
+The prose is the project's own language, because a person reads and approves it.
 
-Шапка — YAML між трьома рисками. Тіло — звичайний Markdown.
+The header is YAML between three dashes. The body is ordinary Markdown.
 
-## Де що лежить
+## Where things live
 
 ```
-keel/steps/              кроки — один файл на гілку
-keel/contracts/          контракти — один файл на контракт
-keel/QUALITY.md          розрізи якості — чекліст при написанні кроку
-keel/KEEL.md             цей файл, копією
-keel/README.md           довідник інструмента, копією
-AGENTS.md                сім принципів і вказівники, блоком між маркерами
+keel/steps/              steps — one file per branch
+keel/contracts/          contracts — one file per contract
+keel/QUALITY.md          the quality cuts — the checklist used while writing a step
+keel/KEEL.md             this file, as a copy
+keel/README.md           the tool reference, as a copy
+AGENTS.md                seven principles and the pointers, as a block between markers
 ```
 
-Так виглядає **проєкт, який живе за Keel**. У домі самої методики — репозиторії
-`keel` — ці файли лежать у корені, бо вони тут джерело, а не копія. Що саме туди
-кладеться і чому саме копіями — у [README.md](README.md).
+That is what **a project living by Keel** looks like. In the method's own home —
+the `keel` repository — these files sit at the root, because there they are the
+source rather than a copy. What exactly is placed into a project, and why as
+copies, is in [README.md](README.md).
 
-Ідентифікатор — це імʼя файлу без розширення. Якорів усередині документів немає,
-тож перевірка «посилання веде кудись» — це наявність файлу, а не парсер.
+An identifier is a file name without its extension. There are no anchors inside
+documents, so the check "the reference leads somewhere" is the existence of a
+file, not a parser.
 
-## Дві сутності
+## Two entities
 
-### Крок
+### Step
 
-Один файл, одна гілка, один PR. Усередині:
+One file, one branch, one pull request. Inside it:
 
-- **сценарії** — що обіцяємо. Кожен стає тестом;
-- **трансформи** — чим це робиться. Кожна стає коммітом.
+- **scenarios** — what we promise. Each becomes a test;
+- **transforms** — what does the work. Each becomes a commit.
 
-Обидва живуть як секції в тілі; їхні імена й звʼязки — у шапці.
+Both live as sections in the body; their names and links are in the header.
 
-### Контракт
+### Contract
 
-Обіцянка, на яку спирається код, і спосіб її перевірити. Окремий файл, бо живе
-довше за крок, який її створив.
+A promise the code leans on, and the way to check it. Its own file, because it
+outlives the step that created it.
 
-Своя обіцянка — це модуль, його експортовані функції й сенс; перевірка піднімає
-модуль і звіряє. Чужа — ліба, служба, бінарник — влаштована так само, тільки
-несе `verify`: команду, успіх якої і є доказом. Хто дає обіцянку, не має значення;
-значення має те, що її можна перевірити.
+Our own promise is a module, its exported functions and their meaning; the check
+loads the module and compares. Somebody else's — a library, a service, a binary —
+works the same way, only it carries `verify`: a command whose success is the
+proof. Who makes the promise does not matter; that it can be checked does.
 
-Обіцянка, якої ніщо не перевіряє, — не контракт, а межа, і живе абзацом у
-трансформі.
+A promise nothing can check is not a contract but a boundary, and it lives as a
+paragraph inside a transform.
 
-## Звʼязки
+## Links
 
-| Ребро | Звідки куди | Навіщо |
+| Edge | From, to | What for |
 |---|---|---|
-| `depends_on` | крок → крок | порядок роботи |
-| `proves` | сценарій → контракт | у контракту є доказ |
-| `contracts` | трансформа → контракт | що реалізує, плюс редакція |
-| `implements` | трансформа → сценарій | який комміт наближає яку обіцянку |
-| тег у тесті | тест → сценарій | обіцянку доведено, і саме цю її редакцію |
+| `depends_on` | step → step | the order of work |
+| `proves` | scenario → contract | the contract has proof |
+| `contracts` | transform → contract | what it implements, plus the revision |
+| `implements` | transform → scenario | which commit brings which promise closer |
+| tag in a test | test → scenario | the promise is proved, and this exact revision of it |
 
-Ребро живе в шапці, а не в прозі. Записане прозою — жирний код плюс якір плюс
-відносний шлях — це три речі, які розходяться окремо, і жодна перевірка їх не
-дожене.
+An edge lives in the header, not in the prose. Written as prose — bold code plus
+an anchor plus a relative path — it is three things that drift apart separately,
+and no check will catch up with them.
 
-## Scope: точні файли
+## Scope: exact files
 
-Трансформа перелічує файли поіменно, до роботи. Глоби не використовуються:
-під глобом агент наплодить десять файлів там, де треба один, і ніщо не писне.
+A transform lists its files by name, before the work. Globs are not used: under a
+glob an agent will produce ten files where one was meant, and nothing will make a
+sound.
 
-- крок власного scope не має — він сума трансформ;
-- перевірка йде **в обидва боки**: чіпнув поза списком видно, оголосив і не чіпнув теж;
-- перевіряється **вся гілка**, не окремий комміт;
-- розширення списку дозволене й лишається рядком у diff. Дрейф не заборонений — названий.
+- a step has no scope of its own — it is the sum of its transforms;
+- the check runs **both ways**: touching outside the list shows, and so does
+  declaring something and never touching it;
+- **the whole branch** is checked, not a single commit;
+- extending the list is allowed and stays as a line in the diff. Drift is not
+  forbidden — it is named.
 
-Документи в `keel/` під scope не підпадають: вони план, а не робота. Гілка
-`plan/*` навпаки — не має чіпати нічого, крім `keel/`, і перевірка це каже.
+Documents under `keel/` are not subject to scope: they are the plan, not the
+work. A `plan/*` branch is the mirror image — it should touch nothing but
+`keel/`, and the check says so.
 
-Межі звіряються з гілкою: її імʼя і є імʼям кроку. Там, де git імені не знає —
-на CI голова відчеплена, — його передають прапорцем `--branch`. Мовчки
-пропустити перевірку означало б зелене там, де ніхто нічого не звіряв.
+Scope is compared against the branch: its name is the step's name. Where git does
+not know that name — on CI the head is detached — it arrives through the
+`--branch` flag. Skipping the check in silence would mean green where nobody
+compared anything.
 
-## Редакції
+## Revisions
 
-Посилання може нести редакцію того, на що показує, — короткий хеш тексту.
-Перевірка звіряє її з тим, що написано зараз.
+A reference may carry the revision of what it points at — a short hash of the
+text. The check compares it with what is written now.
 
 ```
-@tag proves: :finishes_when_no_tool_called, rev: "a3f1c0"  тест → сценарій
-contracts: [session-run@7c40de]                            трансформа → контракт
+@tag proves: :finishes_when_no_tool_called, rev: "a3f1c0"  test → scenario
+contracts: [session-run@7c40de]                            transform → contract
 ```
 
-Перше ловить «сценарій переписали, тест лишився старим і зеленим».
-Друге — дзеркальне: «контракт переписали, код лишили».
+The first catches "the scenario was rewritten, the test stayed old and green".
+The second is its mirror: "the contract was rewritten, the code was left alone".
 
-**Редакція — шість шістнадцяткових знаків**, і звіряється префіксом: коротший
-запис від чотирьох знаків проходить, якщо збігається з початком поточного хеша. Контракт хешується
-весь, разом із шапкою, бо зміна `exports` є зміною обіцянки; сценарій — тілом
-своєї секції.
+**A revision is six hexadecimal digits**, compared by prefix: a record of four
+digits or more passes if it matches the start of the current hash. A contract is
+hashed whole, header included, because changing `exports` changes the promise; a scenario is
+hashed by the body of its section.
 
-**Редакція міняється від будь-якої зміни слова.** Перед хешуванням згортаються
-тільки повторні пробіли й переноси рядка; кома, регістр і перефразування дають
-нову редакцію, і тест доводиться перечитати.
+**A revision changes on any change of a word.** Before hashing, only repeated
+spaces and line breaks are collapsed; a comma, a change of case or a rephrasing
+all give a new revision, and the test has to be reread.
 
-У шапці кроку редакцій сценаріїв немає: текст лежить у тілі, хеш рахується з нього
-на льоту. Редакцію вписує лише той, хто спирається.
+A step's header holds no scenario revisions: the text lives in the body and the
+hash is computed from it on the fly. Only whoever leans on a text records its
+revision.
 
-## Закриття виводиться
+## Closure is derived
 
-Жоден статус не пишеться руками.
+No status is written by hand.
 
-| Що | Закрите, коли | Звідки видно |
+| What | Closed when | Where it shows |
 |---|---|---|
-| Трансформа | у гілці є комміт, чиє повідомлення починається її слагом | git log |
-| Сценарій | є тест із його імʼям, він зелений, редакція збігається | прогін тестів, текст кроку |
-| Контракт | редакція збігається з записаною, і обіцянка підтверджена — експортами або командою | файл, зібраний модуль, `verify` |
-| Крок | усі трансформи закриті, усі сценарії доведені, шість перевірок зелені | усе вище разом |
+| Transform | the branch has a commit whose message begins with its slug | git log |
+| Scenario | a test with its name exists, is green, and the revision matches | the test run, the step's text |
+| Contract | the revision matches the one recorded, and the promise is confirmed — by exports or by a command | the file, the compiled module, `verify` |
+| Step | every transform closed, every scenario proved, six checks green | all of the above together |
 
-## Шість перевірок
+## Six checks
 
-1. Посилання ведуть кудись: кожен слаг у шапці має свій файл або свою секцію.
-2. `depends_on` без циклів.
-3. Редакції контрактів збіглися з поточним текстом.
-4. Файли, змінені гілкою, збігаються з оголошеними в трансформах — в обидва боки.
-5. Кожен сценарій має тест зі своїм імʼям, тести зелені, редакція в тезі збігається.
-6. Контракти справджуються: модуль експортує обіцяне, а команда `verify` проходить.
+1. References lead somewhere: every slug in a header has its file or its section.
+2. `depends_on` without cycles.
+3. Contract revisions match the current text.
+4. The files a branch changed match those declared in the transforms — both ways.
+5. Every scenario has a test with its name, the tests are green, the revision in
+   the tag matches.
+6. Contracts hold: a module exports what was promised, and a `verify` command succeeds.
 
-Сьома, дрібна: множина імен у шапці збігається з множиною заголовків у тілі.
+A seventh, minor one: the set of names in the header matches the set of headings
+in the body.
 
-Жодна не парсить прозу: усі читають шапку, git і зібрані модулі. Які з них швидкі,
-що робить кожна й чим вони запускаються — у [README.md](README.md).
+None of them parses prose: they all read the header, git and compiled modules.
+Which are fast, what each one does and how they run is in [README.md](README.md).
 
-## Чого немає
+## What is not here
 
-Ні вимог, ні питань, ні журналу, ні статусів, ні тегів, ні номерів усередині
-кроку, ні окремих рішень. Обіцянка записується один раз — сценарієм; питання живе години в
-обговоренні PR, а не роками у графі; історію тримає git; статус рахується.
+No requirements, no questions, no log, no statuses, no tags, no numbers inside a
+step, no separate decisions. A promise is written once, as a scenario; a question lives for hours in a
+pull request discussion rather than for years in a graph; git holds the history;
+status is counted.
 
-Констрейнт теж не поле: перевіряєме — це сценарій, структурне — scope, решта —
-абзац «межі» в трансформі.
+A constraint is not a field either: what can be checked is a scenario, what is
+structural is scope, and the rest is the "boundaries" paragraph in a transform.
 
-Рішення були — і пішли. Тека для них існувала, але на неї не показувало жодне
-поле шапки й не дивилась жодна перевірка; правило «окремий файл, коли спираються
-два кроки» ніхто не рахував. Те, що обіцяє, стало контрактом; те, чого свідомо
-не робимо, — межею; межа архітектури — конфігом лінтера.
+Decisions were here, and they left. There was a directory for them, but no header
+field pointed at it and no check looked at it; the rule "its own file once two
+steps lean on it" was counted by nobody. What promises something became a
+contract; what we deliberately do not do became a boundary; a rule about
+architecture belongs to the linter's config.
 
-Кожна нова сутність має спершу заболіти своєю відсутністю, і кожна наявна —
-довести, що досі болить.
+Every new entity has to hurt by being missing first, and every one that is here
+has to prove it still hurts.
 
-## Приклад
+## Example
 
 `keel/steps/0007-session-loop.md`
 
@@ -186,25 +198,25 @@ transforms:
       - test/keel_agent/session_test.exs
 ---
 
-## Навіщо
+## Why
 
-Одна розмова з моделлю проти набору інструментів, який дали ззовні.
-Сесія не знає, які інструменти отримала — тому нею ганяються обидва шляхи,
-і різниця між прогонами є різницею в інструментах.
+One conversation with a model against a set of tools handed in from outside.
+The session does not know which tools it was given — so both paths are driven
+through it, and the difference between runs is the difference in tools.
 
 ## scenario: finishes-when-no-tool-called
 
-**Given** початковий контекст і порожній набір інструментів,
-**When** модель відповідає текстом без виклику,
-**Then** розмова завершується станом `:finished`, а в записі є хід.
+**Given** an opening context and an empty set of tools,
+**When** the model answers with text and no call,
+**Then** the conversation ends in `:finished` and the trace holds a turn.
 
 ## transform: drive-turns-on-reqllm
 
-Крутити ходи, доки модель кличе інструменти. Відповідь інструмента
-дописується в запис перед наступним ходом.
+Keep turning while the model calls tools. A tool's answer is appended to the
+trace before the next turn.
 
-Межі: лічильника спроб немає — відмова інструмента це відповідь,
-і наступний хід є повтором.
+Boundaries: there is no attempt counter — a tool's refusal is an answer, and
+the next turn is the retry.
 ```
 
 `keel/contracts/session-run.md`
@@ -215,16 +227,16 @@ module: KeelAgent.Session
 exports: [run/3]
 ---
 
-Одна розмова з однією моделлю. `opening` — перший контекст, `tools` —
-інструменти, які модель може викликати, `config` — той, чий `model` каже
-яка модель, а `step_budget_ms` обмежує весь виклик.
+One conversation with one model. `opening` is the first context, `tools` are the
+tools the model may call, `config` is the one whose `model` says which model, and
+`step_budget_ms` bounds the whole call.
 ```
 
 `test/keel_agent/session_test.exs`
 
 ```elixir
 @tag proves: :finishes_when_no_tool_called, rev: "a3f1c0"
-test "розмова завершується, коли модель не кличе інструментів" do
+test "the conversation ends when the model calls no tools" do
   outcome = Session.run(opening(), [], config())
 
   assert outcome.stop == :finished
@@ -232,85 +244,88 @@ test "розмова завершується, коли модель не кли
 end
 ```
 
-## Імена
+## Names
 
-**Комміт називає трансформу слагом** у своєму повідомленні. Це єдиний звʼязок
-між роботою і планом, і завдяки йому хеш нікуди не вписується: трансформа
-закрита тим, що комміт із її слагом у гілці є. Поля `commit` у шапці немає — воно
-було б статусом, написаним руками.
+**A commit names its transform by slug** in its message. That is the only link
+between the work and the plan, and because of it no hash is recorded anywhere: a
+transform is closed by the fact that a commit carrying its slug is on the branch.
+There is no `commit` field in the header — it would be a status written by hand.
 
-**Номер у назві кроку** (`0007-`) — унікальний префікс, а не порядок. Порядок
-виводиться з `depends_on`. Інакше зʼявляється спокуса перенумеровувати, і
-посилання ламаються — та сама пастка, з якої вийшли, відмовившись від кодів.
+**The number in a step's name** (`0007-`) is a unique prefix, not an order. The
+order is derived from `depends_on`. Otherwise the temptation to renumber appears,
+and references break — the same trap that was left behind by giving up codes.
 
-## Розрізи якості
+## Quality cuts
 
-`keel/QUALITY.md` — сорок питань під девʼятьма характеристиками ISO/IEC 25010.
-Він **чекліст, а не структура**: жоден крок не мусить мати сценарій на кожен
-розріз. Агент проходить список і дає одну з трьох відповідей — не стосується,
-відповіли ось цим сценарієм, промовчали. Промовчали означає: розріз доречний,
-нічого його не закриває, і треба або сценарій, або рішення сказати «ні» вголос.
+`keel/QUALITY.md` — forty questions under the nine characteristics of ISO/IEC
+25010. It is **a checklist, not a structure**: no step has to have a scenario for
+every cut. The agent walks the list and gives one of three answers — does not
+apply, answered by this scenario, stayed silent. Silent means: the cut is
+relevant, nothing closes it, and it needs either a scenario or a decision saying
+"no" out loud.
 
-**Один прохід на крок**, там, де пишуться сценарії. Не на кожному рівні й не
-до збіжності: рівнів більше немає, є крок.
+**One pass per step**, where the scenarios are written. Not at every level and
+not until it converges: there are no levels any more, there are steps.
 
-Сенс не в повноті, а в тому, що випадок, якого ніхто не придумав, тепер не
-можна проминути мовчки. Агент за замовчуванням пише щасливий шлях.
+The point is not completeness. The point is that the case nobody thought of can
+no longer be passed over in silence. Left alone, an agent writes the happy path.
 
-## Хто що робить
+## Who does what
 
-Правила не тримаються на тому, що агент їх прочитав: один читає, інший ні, і це
-не лікується кращими інструкціями. Розподіл такий:
+Rules do not hold up because an agent read them: one agent reads, another does
+not, and better instructions do not cure it. The division is this:
 
-| Хто | За що відповідає |
+| Who | Responsible for |
 |---|---|
-| Інструмент | стан, каркаси, перевірки, «одна наступна дія» |
-| Агент | текст: навіщо, сценарії, розбиття на трансформи, код |
-| Хук | не дає пройти повз |
-| Скіл | як думати там, де є судження — тобто при плануванні |
+| The tool | state, skeletons, checks, "the one next action" |
+| The agent | the text: why, scenarios, the split into transforms, the code |
+| The hook | not letting anyone walk past |
+| The skill | how to think where there is judgement — that is, while planning |
 
-Коротко: **інструмент знає стан, агент має судження**. Інструмент не пише прозу —
-у нього немає моделі. Агент не памʼятає правил — він питає інструмент.
+Short version: **the tool knows the state, the agent has the judgement.** The
+tool writes no prose — it has no model. The agent remembers no rules — it asks
+the tool.
 
-## Цикл
+## The cycle
 
-Два PR на крок: окремо планом, окремо роботою. Кожен етап оператор запускає
-однією командою; далі веде інструмент.
+Two pull requests per step: the plan separately, the work separately. The
+operator starts each stage with a single command; the tool drives the rest.
 
 ```
-ПЛАН                                гілка plan/0007-session-loop
+PLAN                                branch plan/0007-session-loop
 
-  /keel-plan session-loop           оператор кличе
-      keel new step                   каркас файлу
-      агент пише                      навіщо → сценарії → трансформи з файлами
-      агент питає                     нез'ясоване — питанням, а не здогадкою
-      keel gaps                       чого бракує
-  PR → людина читає → merge         схвалення = план у головній гілці
+  /keel-plan session-loop           the operator calls it
+      keel new step                   the file skeleton
+      the agent writes                why → scenarios → transforms with files
+      the agent asks                  what is unsettled — as a question, not a guess
+      keel gaps                       what is missing
+  PR → a person reads → merge       approval = the plan is on the main branch
 
-РОБОТА                              гілка 0007-session-loop
+WORK                                branch 0007-session-loop
 
-  /keel-work                        один виклик — одна трансформа
-      keel next                       трансформа, файли, межі, сценарії, контракти
-      агент робить                    рівно у названих файлах
-      keel check                      що не так зараз
-      git commit                      слаг трансформи в повідомленні
-  ⟳ поки keel next дає наступну
+  /keel-work                        one invocation, one transform
+      keel next                       transform, files, boundaries, scenarios, contracts
+      the agent works                 strictly inside the named files
+      keel check                      what is wrong right now
+      git commit                      the transform slug in the message
+  ⟳ while keel next hands out another
 
-  /keel-review                      повний check і питання «про що промовчали»
+  /keel-review                      the full check and the "what did we stay silent about" question
   PR
 ```
 
-`keel next` віддає **пакет**: усе, що потрібно для одного ходу, і нічого понад те.
-Агент не відкриває документів навколо — він отримує зріз і працює з ним.
+`keel next` hands over a **package**: everything needed for one move and nothing
+beyond it. The agent opens no documents around it — it gets a slice and works
+with that.
 
-Етап не треба памʼятати. Хук старту сесії питає інструмент, у якому стані крок, і
-вкидає відповідь у контекст разом з іменем потрібного скіла.
+The stage does not have to be remembered. The session-start hook asks the tool
+which state the step is in, and puts the answer into the context along with the
+name of the skill to take.
 
-**Схвалення плану нікуди не пишеться — воно виводиться.** Файл кроку в головній
-гілці означає, що людина його прочитала й пустила; `keel next` не віддає трансформ
-із кроку, якого там ще немає. Ніяких полів і ніяких рядків журналу.
+**Approval of a plan is written nowhere — it is derived.** The step file being on
+the main branch means a person read it and let it through; `keel next` hands out
+no transforms from a step that is not there yet. No fields and no log lines.
 
-Агент не памʼятає нічого між ходами, і це навмисно: в автономному прогоні
-контекст однаково обнуляється. Етапи не зникли — вони стали станом, який
-виводиться, замість сторінки, яку треба тримати в голові.
-
+The agent remembers nothing between moves, and that is deliberate: in an
+autonomous run the context is cleared anyway. The stages did not disappear — they
+became state that is derived, instead of a page somebody has to hold in mind.
