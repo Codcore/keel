@@ -681,7 +681,7 @@ class TestRev(ProjectCase):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# keel new and keel plan
+# keel new and keel gaps
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestNewAndPlan(ProjectCase):
@@ -718,7 +718,7 @@ class TestNewAndPlan(ProjectCase):
             self.capture(keel.cmd_new, self.project, Args(kind="contract", slug="session-run"))
 
     def test_plan_is_complete(self):
-        code, out = self.capture(keel.cmd_plan, self.project, Args(step="0001-session-loop"))
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
         self.assertEqual(code, 0)
         self.assertIn("план повний", out)
 
@@ -727,7 +727,7 @@ class TestNewAndPlan(ProjectCase):
             "keel/steps/0001-session-loop.md",
             self.fixture.read("keel/steps/0001-session-loop.md").replace(
                 "    files:      [lib/session.ex]\n", ""))
-        code, out = self.capture(keel.cmd_plan, self.project, Args(step="0001-session-loop"))
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
         self.assertEqual(code, 1)
         self.assertIn("не оголосила файлів", out)
 
@@ -739,13 +739,13 @@ class TestNewAndPlan(ProjectCase):
             % self.fixture.contract_rev)
         text += "\n## scenario: only-handed-tools-are-callable\n\n**Then** інших немає.\n"
         self.fixture.write("keel/steps/0001-session-loop.md", text)
-        code, out = self.capture(keel.cmd_plan, self.project, Args(step="0001-session-loop"))
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
         self.assertEqual(code, 1)
         self.assertIn("не наближає жодна трансформа", out)
 
     def test_new_skeleton_is_not_a_complete_plan(self):
         self.capture(keel.cmd_new, self.project, Args(kind="step", slug="tool-calls"))
-        code, out = self.capture(keel.cmd_plan, self.project, Args(step="0002-tool-calls"))
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0002-tool-calls"))
         self.assertEqual(code, 1)
         self.assertIn("жодного сценарію", out)
 
@@ -1028,15 +1028,31 @@ class TestSkills(ProjectCase):
     def test_cursor_frontmatter(self):
         self.generate()
         for skill in keel.SKILLS:
-            head = self.head(self.fixture.read(f".cursor/rules/{skill['name']}.mdc"))
-            self.assertEqual(head["alwaysApply"], "false")
+            head = self.head(self.fixture.read(
+                f".cursor/skills/{skill['name']}/SKILL.md"))
+            self.assertEqual(head["name"], skill["name"])
             self.assertTrue(head["description"])
-            self.assertNotIn("name", head)
 
-    def test_cursor_uses_mdc_because_md_is_ignored(self):
+    def test_both_agents_get_the_same_file_name(self):
+        """Скіл кличеться /<name> в обох — імʼя дає тека, тож теки однакові."""
         self.generate()
-        for name in os.listdir(self.fixture.path(".cursor/rules")):
-            self.assertTrue(name.endswith(".mdc"), name)
+        for skill in keel.SKILLS:
+            paths = [relative for _, relative in keel.skill_targets(skill)]
+            self.assertTrue(all(p.endswith(f"/{skill['name']}/SKILL.md")
+                                for p in paths), paths)
+
+    def test_argument_hint_only_where_the_field_is_known(self):
+        self.generate()
+        claude = self.fixture.read(".claude/skills/keel-plan/SKILL.md")
+        cursor = self.fixture.read(".cursor/skills/keel-plan/SKILL.md")
+        self.assertIn("argument-hint:", claude)
+        self.assertNotIn("argument-hint:", cursor)
+
+    def test_when_to_take_it_lives_in_the_description(self):
+        """Рекомендація Anthropic: тригери в описі, тіло — про роботу."""
+        for skill in keel.SKILLS:
+            self.assertIn("бери", skill["description"].lower(), skill["name"])
+            self.assertIn("keel/", skill["description"], skill["name"])
 
     def test_description_fits_the_listing_cap(self):
         for skill in keel.SKILLS:
@@ -1070,12 +1086,13 @@ class TestSkills(ProjectCase):
                         if row.startswith("description:")]
                 self.assertEqual(len(line), 1, relative)
 
-    def test_only_the_planning_skill_is_glob_scoped(self):
+    def test_only_the_planning_skill_is_path_scoped(self):
         self.generate()
-        planning = self.head(self.fixture.read(".cursor/rules/keel-plan.mdc"))
-        self.assertEqual(planning["globs"], "keel/steps/*.md")
-        self.assertNotIn("globs", self.head(
-            self.fixture.read(".cursor/rules/keel-work.mdc")))
+        for _, relative in keel.skill_targets(keel.SKILLS[0]):
+            self.assertEqual(self.head(self.fixture.read(relative))["paths"],
+                             ["keel/steps/*.md"], relative)
+        for _, relative in keel.skill_targets(keel.SKILLS[1]):
+            self.assertNotIn("paths", self.head(self.fixture.read(relative)))
 
     def test_body_is_the_same_in_both_dialects(self):
         self.generate()
@@ -1099,12 +1116,34 @@ class TestSkills(ProjectCase):
         for answer in ("не стосується", "відповіли", "промовчали"):
             self.assertIn(answer, body)
 
+    def test_planning_skill_asks_instead_of_guessing(self):
+        self.generate()
+        for _, relative in keel.skill_targets(keel.SKILLS[0]):
+            body = self.fixture.read(relative)
+            self.assertIn("AskUserQuestion", body, relative)
+            self.assertIn("Питай, а не вгадуй", body, relative)
+
     def test_thin_skills_name_the_commands(self):
         self.generate()
         self.assertIn("keel.py next", self.fixture.read(
             ".claude/skills/keel-work/SKILL.md"))
         self.assertIn("keel.py check", self.fixture.read(
             ".claude/skills/keel-review/SKILL.md"))
+
+    def test_each_skill_hands_over_to_the_next_stage(self):
+        """Цикл не має обриватись: скіл каже, куди йти, коли етап скінчився."""
+        self.generate()
+        plan = self.fixture.read(".claude/skills/keel-plan/SKILL.md")
+        work = self.fixture.read(".claude/skills/keel-work/SKILL.md")
+        review = self.fixture.read(".claude/skills/keel-review/SKILL.md")
+        self.assertIn("PR", plan)
+        self.assertIn("/keel-review", work)
+        self.assertIn("PR", review)
+
+    def test_planning_skill_points_at_the_format_reference(self):
+        self.generate()
+        self.assertIn("keel/KEEL.md",
+                      self.fixture.read(".claude/skills/keel-plan/SKILL.md"))
 
     @unittest.skipUnless(HAS_PYYAML, "PyYAML не встановлений")
     def test_a_real_yaml_parser_reads_the_frontmatter(self):
@@ -1126,10 +1165,11 @@ class TestSkills(ProjectCase):
 
     def test_hand_edit_is_restored(self):
         self.generate()
-        self.fixture.write(".cursor/rules/keel-work.mdc", "правлено руками\n")
+        target = ".cursor/skills/keel-work/SKILL.md"
+        self.fixture.write(target, "правлено руками\n")
         _, out = self.generate()
-        self.assertIn("keel-work.mdc", out)
-        self.assertIn("Породжено", self.fixture.read(".cursor/rules/keel-work.mdc"))
+        self.assertIn(target, out)
+        self.assertIn("Породжено", self.fixture.read(target))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1390,6 +1430,74 @@ class TestHookCommand(ProjectCase):
         self.assertIsNone(self.run_hook("write", "cursor", {
             "tool_name": "Write",
             "tool_input": {"file_path": "lib/session.ex"}}))
+
+
+class TestSkillQuality(ProjectCase):
+    """Механічне з рекомендацій Anthropic, плюс те, чого жодна ліба не знає."""
+
+    # Поля специфікації Agent Skills плюс розширення, які знає Claude.
+    KNOWN_FIELDS = {"name", "description", "paths", "argument-hint", "when_to_use",
+                    "allowed-tools", "license", "compatibility", "metadata"}
+    SHOUTY = ("ЗАВЖДИ", "НІКОЛИ", "ALWAYS", "NEVER", "MUST", "ОБОВ")
+
+    def setUp(self):
+        super().setUp()
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            keel.cmd_skills(self.project, Args())
+        finally:
+            sys.stdout = saved
+
+    def files(self):
+        for skill in keel.SKILLS:
+            for _, relative in keel.skill_targets(skill):
+                yield relative, self.fixture.read(relative)
+
+    def test_every_command_named_in_a_skill_exists(self):
+        """Найцінніше: перейменували команду — скіл каже неправду, і тест червоніє."""
+        import argparse
+        import re
+        parser = keel.build_parser()
+        action = next(a for a in parser._actions
+                      if isinstance(a, argparse._SubParsersAction))
+        known = set(action.choices)
+        for relative, text in self.files():
+            for named in set(re.findall(r"keel\.py ([a-z-]+)", text)):
+                self.assertIn(named, known, f"{relative}: команди {named} немає")
+
+    def test_body_fits_the_recommended_budget(self):
+        for relative, text in self.files():
+            self.assertLess(len(text.splitlines()), 500, relative)
+
+    def test_frontmatter_has_no_unknown_fields(self):
+        for relative, text in self.files():
+            front, _, _ = keel.split_front_matter(text)
+            unknown = set(keel.parse_yaml(front)) - self.KNOWN_FIELDS
+            self.assertFalse(unknown, f"{relative}: {unknown}")
+
+    def test_no_shouting(self):
+        """Рекомендація: пояснюй чому, замість капслочних наказів."""
+        for relative, text in self.files():
+            _, body, _ = keel.split_front_matter(text)
+            for word in self.SHOUTY:
+                self.assertNotIn(word, body, f"{relative}: {word}")
+
+    def test_description_says_what_and_when(self):
+        for skill in keel.SKILLS:
+            description = skill["description"]
+            self.assertRegex(description, r"^[А-ЯІЇЄҐ]\w+", skill["name"])
+            self.assertNotIn("Цей скіл", description, skill["name"])
+            self.assertIn("бери", description.lower(), skill["name"])
+
+    def test_description_names_concrete_trigger_phrases(self):
+        """Проти недоспрацювання: опис має ловити те, як людина каже насправді."""
+        import re
+        for skill in keel.SKILLS:
+            quoted = re.findall(r"«[^»]+»", skill["description"])
+            self.assertGreaterEqual(len(quoted), 2,
+                                    f"{skill['name']}: {quoted}")
 
 
 class TestBranchOverride(ProjectCase):

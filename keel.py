@@ -6,7 +6,7 @@ Messages printed to the human stay in Ukrainian: they are prose, not code.
 
     keel new step <slug>       skeleton of a step
     keel new contract <slug>   skeleton of a contract
-    keel plan                  completeness of a plan
+    keel gaps                  what the step description is missing
     keel next                  package for the next move
     keel check                 the six checks
     keel rev                   revisions that have drifted apart
@@ -1148,7 +1148,7 @@ def cmd_new(project, args):
     return 0
 
 
-def cmd_plan(project, args):
+def cmd_gaps(project, args):
     steps = ([project.steps[args.step]] if args.step and args.step in project.steps
              else [project.step_for_branch()] if not args.step and project.step_for_branch()
              else list(project.steps.values()))
@@ -1270,7 +1270,7 @@ def cmd_next(project, args):
         return emit_next_error(args, message)
     if project.is_plan_branch(branch):
         return emit_next_error(args, "це гілка плану: тут пишеться крок, а не код. "
-                                     "keel plan скаже, чого бракує.")
+                                     "keel gaps скаже, чого бракує.")
     if not project.git.file_in_branch(project.git.main_branch, step.rel):
         return emit_next_error(
             args, f"крок {step.slug} ще не в гілці {project.git.main_branch}: "
@@ -1451,15 +1451,25 @@ jobs:
 # tool. Three texts written by hand would drift apart within a month — that
 # already happened to the old method — so both agents are rendered from here.
 
-CLAUDE_SKILLS = ".claude/skills"
-CURSOR_RULES = ".cursor/rules"
+# Both agents read SKILL.md with the same required fields, and both let the
+# operator run one by typing /<name>. Cursor rules stay what they are meant for —
+# short standing constraints — and Keel's texts are procedures, so: skills.
+SKILL_DIRS = {"claude": ".claude/skills", "cursor": ".cursor/skills"}
 DESCRIPTION_CAP = 1536      # Claude truncates the skill listing at this
 
 PLAN_BODY = """\
-## Коли
+## Почни звідси
 
-Пишеться новий крок: гілка `plan/<крок>`, файл у `keel/steps/`, коду ще немає.
-Каркас дає `keel new step <slug>`.
+План і робота розділені навмисно: тут пишеться крок, коду не пишеться жодного
+рядка. Крок читає й пускає людина, і саме тому він окремий PR.
+
+Заведи гілку й каркас:
+
+    git checkout -b plan/<слаг>
+    python3 keel/keel.py new step <слаг>
+
+Слаг міг прийти аргументом до `/keel-plan`. Якщо його немає — спитай одним
+реченням, який крок пишемо, і не вигадуй за людину.
 
 ## Порядок
 
@@ -1473,6 +1483,34 @@ PLAN_BODY = """\
 
 **Трансформи** — чим це робиться. Кожна стане одним коммітом. Перелічуй файли
 поіменно, до роботи. Глобів не буває.
+
+Точну форму шапки — які поля, як пишеться `proves`, `implements`, `contracts`,
+звідки береться редакція — дивись у `keel/KEEL.md`. Каркас від `keel new step`
+показує кістяк, довідник пояснює поля.
+
+## Питай, а не вгадуй
+
+Крок читатиме й схвалюватиме людина, тож здогадка, вписана в план, обходиться
+дорожче за питання. Коли трапляється розвилка — став питання **інструментом
+опитування**, якщо він є (у Claude Code це `AskUserQuestion`), і давай готові
+варіанти з наслідками кожного. Немає такого інструмента — спитай у чаті й
+зупинись, доки не відповіли.
+
+Питай про:
+
+- **вибір підходу**, коли їх кілька й вони ведуть до різної роботи;
+- **межі кроку** — чи входить сюди сусіднє, чи це наступний крок;
+- **розріз, на якому промовчали** — чи пишемо сценарій, чи кажемо «ні» вголос;
+- **рішення**, яке переживе цей крок: чи заводити окремий файл у `keel/decisions/`;
+- **імена контрактів**, коли крок створює нову межу між модулями.
+
+Кожне питання пиши самодостатньо, ніби людина щойно прийшла й контексту не має.
+
+Не питай про те, що можна прочитати: структуру коду, наявність файлів, те, на що
+відповідає `keel gaps`. Питання — для суджень, не для фактів.
+
+Нез'ясоване, яке не блокує решту, не спиняє роботу: напиши все, що не залежить від
+відповіді, і винеси питання туди, де воно доречне.
 
 ## Розрізи якості
 
@@ -1511,20 +1549,26 @@ PLAN_BODY = """\
 
 ## Перед тим, як віддавати план
 
-`keel plan` скаже, чого бракує механічно: слаги без секцій, трансформи без
-файлів, сценарії без `proves`. Якщо спираєшся на контракт, редакцію дає
-`keel rev`.
+Крути, доки не стане чисто:
 
-План їде в PR окремо від роботи. Схвалення нікуди не пишеться: воно в тому, що
-файл кроку опинився в головній гілці.
+    python3 keel/keel.py gaps
+
+Він скаже, чого бракує механічно: слаги без секцій, трансформи без файлів,
+сценарії без `proves`. Якщо спираєшся на контракт, свіжу редакцію впише
+`python3 keel/keel.py rev --write`.
+
+Далі комміт у гілці `plan/<крок>` і PR. **Коду в цьому PR немає** — гілка плану
+чіпає лише `keel/`, і перевірка меж це стереже.
+
+Схвалення нікуди не пишеться: воно в тому, що файл кроку опинився в головній
+гілці. Доти `keel next` роботи не видасть, і це навмисно.
 """
 
 WORK_BODY = """\
-## Коли
-
-План уже в головній гілці. Гілка названа іменем кроку, код пишеться.
-
 ## Хід
+
+Один виклик — одна трансформа. Не бери дві: комміт має відповідати одній,
+інакше слаг у повідомленні перестає щось означати.
 
     python3 keel/keel.py next
 
@@ -1532,14 +1576,23 @@ WORK_BODY = """\
 тіла контрактів, на які спирається. Це повний зріз для одного ходу — довкола
 нічого відкривати не треба.
 
-Далі: зроби рівно те, потім
+Якщо `next` відмовляє, він каже чому: гілка не названа іменем кроку, або план ще
+не в головній гілці. Це не привід починати руками — це привід повернутись до
+`/keel-plan`.
+
+Далі зроби рівно те, потім
 
     python3 keel/keel.py check
 
-і комміт, у повідомленні якого стоїть слаг трансформи. Слаг — єдиний звʼязок
-роботи з планом; без нього трансформа лишиться відкритою.
+і комміт, у повідомленні якого **першим словом стоїть слаг трансформи**:
 
-Повтори, доки `next` не скаже, що відкритих не лишилось.
+    drive-turns-on-reqllm: крутити ходи, доки модель кличе інструменти
+
+Слаг — єдиний звʼязок роботи з планом; без нього трансформа лишиться відкритою,
+хоч би що було в коді.
+
+Повтори, доки `next` не скаже, що відкритих не лишилось. Тоді крок готовий до
+ревʼю — далі `/keel-review`.
 
 ## Межі
 
@@ -1553,10 +1606,6 @@ diff. Мовчки вийти за список — заборонено.
 """
 
 REVIEW_BODY = """\
-## Коли
-
-Усі трансформи кроку закриті коммітами, і робота йде в PR.
-
 ## Що робиться
 
     python3 keel/keel.py check
@@ -1571,32 +1620,57 @@ REVIEW_BODY = """\
 
 Звір текст сценаріїв із тим, що насправді доводять тести. Тест, який зеленіє,
 не перевіряючи обіцянки, гірший за відсутній: він мовчить.
+
+Окремо глянь на межі в обидва боки. Перевірка каже не лише «чіпнув неоголошене»,
+а й «оголосив і не чіпнув» — а це зазвичай означає, що трансформа описана не так,
+як зроблена, або що частину роботи забули.
+
+## Далі
+
+Коли чисто — пуш і PR. Крок цілий: усі трансформи закриті коммітами, усі
+сценарії доведені тестами, шість перевірок зелені. Більше нічого проставляти не
+треба, статуси рахуються самі.
 """
 
 SKILLS = (
     {
         "name": "keel-plan",
-        "description": ("Як писати крок Keel: навіщо, сценарії через розрізи якості, "
-                        "трансформи з точними файлами. Бери, коли починається новий "
-                        "крок, заповнюється keel/steps/*.md або питають, як "
-                        "розбити роботу на трансформи."),
-        "globs": "keel/steps/*.md",
+        "description": ("Написати крок Keel: навіщо, сценарії через розрізи якості, "
+                        "трансформи з точними файлами. У проєкті, де є тека keel/, "
+                        "бери цей скіл щоразу, коли починається будь-яка нова "
+                        "робота — навіть якщо слово «крок» не звучало, а сказали "
+                        "«додай», «зроби», «реалізуй», «давай спланую» чи просто "
+                        "описали, чого бракує. Так само бери, коли редагується "
+                        "keel/steps/*.md, коли питають, як розбити роботу на "
+                        "трансформи, чим сценарій відрізняється від межі, або коли "
+                        "keel gaps каже, що в кроці прогалини."),
+        "paths": ["keel/steps/*.md"],
+        "argument_hint": "[слаг нового кроку]",
         "body": PLAN_BODY,
     },
     {
         "name": "keel-work",
-        "description": ("Як робити крок Keel: keel next, робота рівно у названих "
-                        "файлах, keel check, комміт зі слагом трансформи. Бери, коли "
-                        "план уже влитий і пишеться код."),
-        "globs": None,
+        "description": ("Зробити наступну трансформу кроку Keel: keel next, робота "
+                        "рівно у названих файлах, keel check, комміт зі слагом. "
+                        "У проєкті з текою keel/ бери цей скіл щоразу, коли просять "
+                        "писати код, продовжити роботу, «зроби наступне», «що далі» "
+                        "— і коли гілка названа іменем кроку, навіть якщо про Keel "
+                        "не згадали. Бери його й тоді, коли треба закоммітити "
+                        "зроблене: повідомлення комміта має нести слаг трансформи."),
+        "paths": None,
+        "argument_hint": None,
         "body": WORK_BODY,
     },
     {
         "name": "keel-review",
-        "description": ("Що перевірити перед pull request у Keel: повний keel check "
-                        "і питання, про що промовчали. Бери, коли крок дороблений і "
-                        "готується PR."),
-        "globs": None,
+        "description": ("Перевірити крок Keel перед pull request: повний keel check "
+                        "і питання, про що промовчали. У проєкті з текою keel/ бери "
+                        "цей скіл, коли просять зробити PR, злити гілку, питають "
+                        "«готово?», «все на місці?» чи «можна мержити» — і коли всі "
+                        "трансформи кроку вже закриті коммітами. Бери його перед "
+                        "тим, як казати, що робота завершена."),
+        "paths": None,
+        "argument_hint": None,
         "body": REVIEW_BODY,
     },
 )
@@ -1604,21 +1678,10 @@ SKILLS = (
 GENERATED_NOTE = ("Породжено `keel skills` з методики. Правити тут не варто — "
                   "затре наступне оновлення; правити треба джерело.")
 
-CLAUDE_SKILL_FILE = """---
+SKILL_FILE = """---
 name: {name}
 description: {description}
----
-
-# {name}
-
-{note}
-
-{body}"""
-
-CURSOR_RULE_FILE = """---
-description: {description}
-alwaysApply: false
-{globs}---
+{extra}---
 
 # {name}
 
@@ -1867,25 +1930,25 @@ def home():
 
 
 def render_skill(skill, agent):
-    """One skill, in the dialect of one agent."""
-    fields = {
-        "name": skill["name"],
-        "description": yaml_string(" ".join(skill["description"].split())),
-        "note": GENERATED_NOTE,
-        "body": skill["body"].strip(),
-    }
-    if agent == "claude":
-        return CLAUDE_SKILL_FILE.format(**fields)
-    globs = f"globs: {skill['globs']}\n" if skill["globs"] else ""
-    return CURSOR_RULE_FILE.format(globs=globs, **fields)
+    """One skill. Both agents take the same fields; only extras differ."""
+    extra = ""
+    if skill.get("paths"):
+        extra += "paths:\n" + "".join(
+            f"  - {yaml_string(item)}\n" for item in skill["paths"])
+    if agent == "claude" and skill.get("argument_hint"):
+        extra += f"argument-hint: {yaml_string(skill['argument_hint'])}\n"
+    return SKILL_FILE.format(
+        name=skill["name"],
+        description=yaml_string(" ".join(skill["description"].split())),
+        extra=extra,
+        note=GENERATED_NOTE,
+        body=skill["body"].strip())
 
 
 def skill_targets(skill):
-    """Where this skill lands, per agent."""
-    return (
-        ("claude", f"{CLAUDE_SKILLS}/{skill['name']}/SKILL.md"),
-        ("cursor", f"{CURSOR_RULES}/{skill['name']}.mdc"),
-    )
+    """Where this skill lands, per agent. Both accept /<name> from the operator."""
+    return tuple((agent, f"{folder}/{skill['name']}/SKILL.md")
+                 for agent, folder in sorted(SKILL_DIRS.items()))
 
 
 def cmd_skills(project, args=None):
@@ -2158,8 +2221,8 @@ def build_parser():
     new.add_argument("kind", choices=("step", "contract"))
     new.add_argument("slug")
 
-    plan = sub.add_parser("plan", help="повнота плану")
-    plan.add_argument("step", nargs="?", help="крок; без нього — крок гілки")
+    gaps = sub.add_parser("gaps", help="чого бракує в описі кроку")
+    gaps.add_argument("step", nargs="?", help="крок; без нього — крок гілки")
 
     check = sub.add_parser("check", help="шість перевірок")
     check.add_argument("--fast", action="store_true",
@@ -2204,7 +2267,7 @@ def main(argv=None):
     if args.command not in ("new", "init") and not project.ready:
         fail(f"у {root} немає теки keel/ — тут Keel не поставлений")
 
-    handlers = {"new": cmd_new, "plan": cmd_plan, "check": cmd_check,
+    handlers = {"new": cmd_new, "gaps": cmd_gaps, "check": cmd_check,
                 "next": cmd_next, "rev": cmd_rev, "hooks": cmd_hooks,
                 "init": cmd_init, "skills": cmd_skills, "hook": cmd_hook}
     return handlers[args.command](project, args)
