@@ -281,13 +281,13 @@ class TestLanguageSettings(unittest.TestCase):
 
     def test_english_docs_arrive_in_english(self):
         self.init(docs="en")
-        self.assertIn("three kinds of document", self.read("keel/KEEL.md"))
+        self.assertIn("two kinds of document", self.read("keel/KEEL.md"))
         self.assertIn("A promise is checked", self.read("AGENTS.md"))
 
     def test_docs_and_lang_really_are_independent(self):
         """Англійський довідник із українськими тригерами — той самий випадок."""
         self.init(docs="en", lang="uk")
-        self.assertIn("three kinds of document", self.read("keel/KEEL.md"))
+        self.assertIn("two kinds of document", self.read("keel/KEEL.md"))
         self.assertIn("«зроби наступне»",
                       self.read(".claude/skills/keel-work/SKILL.md"))
 

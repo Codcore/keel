@@ -50,7 +50,7 @@ class TestScope(ProjectCase):
     def test_keel_documents_are_outside_scope(self):
         self.fixture.branch("0001-session-loop")
         self.fixture.write("lib/session.ex", "змінено\n")
-        self.fixture.write("keel/decisions/no-retry.md", "Повторів немає.\n")
+        self.fixture.write("keel/contracts/no-retry.md", "---\nverify: \"true\"\n---\n\nх\n")
         self.assertEqual(keel.check_scope(self.project), [])
 
     def test_a_plan_branch_may_carry_keels_own_files(self):

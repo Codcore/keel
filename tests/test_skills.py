@@ -240,6 +240,18 @@ class TestSkillQuality(ProjectCase):
             for named in set(re.findall(r"keel\.py ([a-z-]+)", text)):
                 self.assertIn(named, known, f"{relative}: команди {named} немає")
 
+    def test_the_number_of_document_kinds_is_stated_the_same_everywhere(self):
+        """Заголовок методики — її обличчя; розійтись йому ніде не можна."""
+        import re
+        home = keel.home()
+        for name in ("KEEL.md", "docs/en/KEEL.md"):
+            text = keel.read_text(os.path.join(home, name))
+            self.assertRegex(text, r"(два типи документів|two kinds of document)")
+            self.assertNotRegex(text, r"(три типи документів|three kinds of document)")
+        source = keel.read_text(os.path.join(home, "keel.py"))
+        self.assertNotIn("three kinds of document", source)
+        self.assertNotIn("три типи документів", source)
+
     def test_body_fits_the_recommended_budget(self):
         for relative, text in self.files():
             self.assertLess(len(text.splitlines()), 500, relative)

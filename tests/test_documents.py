@@ -93,15 +93,16 @@ class TestRefChecks(ProjectCase):
     def test_broken_markdown_link_in_body(self):
         text = self.fixture.read("keel/steps/0001-session-loop.md")
         self.fixture.write("keel/steps/0001-session-loop.md",
-                           text + "\nДив. [рішення](../decisions/none.md).\n")
+                           text + "\nДив. [контракт](../contracts/none.md).\n")
         problems = keel.check_refs(self.project)
         self.assertTrue(any("none.md" in p.message for p in problems))
 
     def test_existing_link_to_decision_is_fine(self):
-        self.fixture.write("keel/decisions/no-retry.md", "Повторів немає.\n")
+        self.fixture.write("keel/contracts/no-retry.md",
+                           "---\nverify: \"true\"\n---\n\nПовторів немає.\n")
         text = self.fixture.read("keel/steps/0001-session-loop.md")
         self.fixture.write("keel/steps/0001-session-loop.md",
-                           text + "\nДив. [рішення](../decisions/no-retry.md).\n")
+                           text + "\nДив. [контракт](../contracts/no-retry.md).\n")
         self.assertEqual(keel.check_refs(self.project), [])
 
     def test_cycle_is_found(self):

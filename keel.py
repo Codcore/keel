@@ -322,6 +322,12 @@ class Contract(Doc):
         return []
 
     @property
+    def verify(self):
+        """A command whose success is the proof, for a promise that is not a module."""
+        value = self.front.get("verify")
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
+    @property
     def revision(self):
         """A contract's revision covers the whole file, header along with body."""
         return revision(self.text)
@@ -748,7 +754,6 @@ class Project:
         self.adapter = detect_adapter(root)
         self.steps = {}
         self.contracts = {}
-        self.decisions = {}
         self.broken = []
         # On CI the head is detached and git cannot name the branch — there the
         # name arrives in a flag.
@@ -764,7 +769,6 @@ class Project:
         for kind, folder, cls in (
             ("steps", "steps", Step),
             ("contracts", "contracts", Contract),
-            ("decisions", "decisions", Doc),
         ):
             target = getattr(self, kind if kind != "steps" else "steps")
             base = os.path.join(self.keel, folder)
@@ -775,7 +779,7 @@ class Project:
                     continue
                 path = os.path.join(base, name)
                 doc = cls(path, self.root)
-                if doc.error and kind != "decisions":
+                if doc.error:
                     self.broken.append(doc)
                 target[doc.slug] = doc
 
@@ -831,7 +835,7 @@ CHECK_NAMES = {
     3: "редакції контрактів збіглися",
     4: "змінені файли збігаються з оголошеними",
     5: "у кожного сценарію зелений тест",
-    6: "модулі експортують обіцяне",
+    6: "контракти справджуються",
     7: "імена в шапці збігаються із заголовками",
 }
 
@@ -882,8 +886,7 @@ def check_refs(project):
                         1, f"трансформа {slug} реалізує контракт, якого немає: {ref.slug}",
                         step.rel, step.line_of(ref.raw)))
 
-    for doc in list(project.steps.values()) + list(project.contracts.values()) + \
-            list(project.decisions.values()):
+    for doc in list(project.steps.values()) + list(project.contracts.values()):
         for match in LINK_RE.finditer(doc.body):
             target = match.group(1)
             if target.startswith(("http://", "https://")):
@@ -1053,16 +1056,32 @@ def check_scenarios(project, run_tests=True):
 
 
 def check_exports(project):
+    problems = []
+    # A promise that is not a module carries the command that proves it: a
+    # service answering, a binary on PATH, a dependency of the right version.
+    # Whoever makes the promise does not have to be our code for it to be checkable.
+    for contract in project.contracts.values():
+        if contract.error or not contract.verify:
+            continue
+        proc = subprocess.run(contract.verify, shell=True, cwd=project.root,
+                              capture_output=True, text=True)
+        if proc.returncode != 0:
+            tail = (proc.stderr or proc.stdout).strip().splitlines()[-3:]
+            problems.append(Problem(
+                6, f"контракт не підтвердився: {contract.verify}"
+                   + ("\n" + "\n".join("      " + line for line in tail) if tail else ""),
+                contract.rel, contract.line_of("verify")))
+
     contracts = [c for c in project.contracts.values()
                  if not c.error and c.module and c.exports]
     if not contracts:
-        return []
+        return problems
     if project.adapter is None:
-        return [Problem(6, "не знайшов адаптера мови — експорти перевірити нічим")]
+        return problems + [
+            Problem(6, "не знайшов адаптера мови — експорти перевірити нічим")]
 
     modules = sorted({c.module for c in contracts})
     actual = project.adapter.exports(project.root, modules)
-    problems = []
     if actual.get("__error__"):
         problems.append(Problem(6, "модулі не зібралися:\n      " + actual["__error__"]))
     for contract in contracts:
@@ -1152,11 +1171,14 @@ transforms:
 """
 
 CONTRACT_SKELETON = """---
+# Модуль, який щось обіцяє:
 module: <Module.Name>
 exports: []
+# Або обіцянка, що не є модулем — команда, успіх якої і є доказом:
+# verify: curl -sf http://localhost:11434/api/tags
 ---
 
-Що цей модуль обіцяє іншому коду.
+Що саме обіцяно й кому.
 """
 
 
@@ -1435,7 +1457,7 @@ def render_next(package):
     return "\n".join(out)
 
 
-INIT_DIRS = ("keel/steps", "keel/contracts", "keel/decisions")
+INIT_DIRS = ("keel/steps", "keel/contracts")
 AGENTS_START = "<!-- keel:start -->"
 AGENTS_END = "<!-- keel:end -->"
 VENDORED = "keel/keel.py"
@@ -1609,8 +1631,8 @@ def check_translations(project):
 AGENTS_BLOCK_EN = """{start}
 ## Keel
 
-This project's method: three kinds of document — step, contract, decision — and
-six checks. Steps live in `keel/steps/`, contracts in `keel/contracts/`.
+This project's method: two kinds of document — step and contract — and six
+checks. Steps live in `keel/steps/`, contracts in `keel/contracts/`.
 
 {principles}
 
@@ -1635,7 +1657,7 @@ This block is generated; edits between the markers are overwritten on the next u
 AGENTS_BLOCK = """{start}
 ## Keel
 
-Методика цього проєкту: три типи документів — крок, контракт, рішення — і шість
+Методика цього проєкту: два типи документів — крок і контракт — і шість
 перевірок. Кроки лежать у `keel/steps/`, контракти в `keel/contracts/`.
 
 {principles}
@@ -1747,8 +1769,8 @@ Ask about:
   next step;
 - **a quality cut you were silent on** — do we write a scenario, or say "no" out
   loud;
-- **a decision that outlives this step** — does it earn its own file in
-  `keel/decisions/`;
+- **a promise something makes to us** — a library, a service, a binary: does it
+  earn a contract of its own;
 - **contract names**, when the step draws a new boundary between modules.
 
 Write every question so it stands on its own, as if the person had just walked in
@@ -1790,11 +1812,14 @@ boundary without a scenario is honest; a scenario without a test is not.
 is not a reason to write a glob, it is a reason to cut further. The other tell:
 you want to write the commit message with an "and" in it.
 
-**A decision earns its own file** only when two steps or more lean on it.
-Anything that matters to one step lives inside that step.
+**A contract appears** when a promise outlives the step that created it. Ours:
+module, exported functions, meaning. Somebody else's — a library, a service, a
+binary — is the same thing, and it carries `verify`, a command whose success is
+the proof. A promise nothing can check is not a contract; it is a boundary.
 
-**A contract appears** when a promise outlives the step that created it: module,
-exported functions, meaning.
+**There are no decision files.** What outlives a step and promises something is a
+contract; "we deliberately do not do this" is the `Межі` paragraph; a rule about
+architecture belongs to the linter's config.
 
 ## Before handing the plan over
 
@@ -2310,7 +2335,7 @@ def cmd_init(project, args):
     done, manifest = [], {}
     for folder in INIT_DIRS:
         os.makedirs(os.path.join(project.root, folder), exist_ok=True)
-    done.append("keel/steps, keel/contracts, keel/decisions")
+    done.append("keel/steps, keel/contracts")
     project.settings = settings
 
     source = os.path.abspath(__file__)
@@ -2757,7 +2782,7 @@ def fail(message, code=2):
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        prog="keel", description="Keel: три типи документів, шість перевірок.")
+        prog="keel", description="Keel: два типи документів, шість перевірок.")
     parser.add_argument("--version", action="version", version=VERSION)
     parser.add_argument("-C", dest="chdir", metavar="ТЕКА",
                         help="працювати в цій теці")

@@ -62,7 +62,7 @@ class Fixture:
 
     def __init__(self):
         self.root = tempfile.mkdtemp(prefix="keel-test-")
-        for folder in ("keel/steps", "keel/contracts", "keel/decisions", "lib", "test"):
+        for folder in ("keel/steps", "keel/contracts", "lib", "test"):
             os.makedirs(os.path.join(self.root, folder), exist_ok=True)
         self.write("mix.exs", "defmodule Demo.MixProject do\nend\n")
         self.write("keel/contracts/session-run.md", CONTRACT)

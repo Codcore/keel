@@ -120,6 +120,28 @@ class TestExports(unittest.TestCase):
         problems = keel.check_exports(keel.Project(self.root))
         self.assertIn("run/2", problems[0].message)
 
+    def test_a_promise_that_is_not_a_module_is_proved_by_a_command(self):
+        """Ollama на порту, бінарник на PATH, ліба потрібної версії."""
+        self.write("keel/contracts/runtime.md",
+                   "---\nverify: \"true\"\n---\n\nЩось, що має працювати.\n")
+        self.assertEqual(keel.check_exports(keel.Project(self.root)), [])
+
+    def test_a_command_that_fails_is_a_broken_contract(self):
+        self.write("keel/contracts/runtime.md",
+                   "---\nverify: \"echo нема така служба >&2; exit 1\"\n---\n\nСлужба.\n")
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("не підтвердився", problems[0].message)
+        self.assertIn("нема така служба", problems[0].message)
+
+    def test_a_contract_may_carry_both_a_module_and_a_command(self):
+        self.contract("[run/3]")
+        self.write("keel/contracts/runtime.md",
+                   "---\nverify: \"false\"\n---\n\nСлужба.\n")
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("runtime.md", problems[0].where)
+
     def test_module_absent(self):
         self.write("keel/contracts/demo.md",
                    "---\nmodule: nosuchmodule\nexports: [run/1]\n---\n\nТекст.\n")

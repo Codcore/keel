@@ -1,11 +1,11 @@
 ---
 translates: KEEL.md
-source-rev: 988490
+source-rev: 94140d
 ---
 
 # Keel
 
-A method for developing with an agent: **three kinds of document, six checks**.
+A method for developing with an agent: **two kinds of document, six checks**.
 
 **Status: draft. Not applied in this repository.** Keel is being tried on
 `keel-agent`, an agent for local models written in Elixir. The tool is written,
@@ -30,7 +30,6 @@ The header is YAML between three dashes. The body is ordinary Markdown.
 ```
 keel/steps/              steps — one file per branch
 keel/contracts/          contracts — one file per contract
-keel/decisions/          decisions two steps or more lean on
 keel/QUALITY.md          the quality cuts — the checklist used while writing a step
 keel/KEEL.md             this file, as a copy
 keel/README.md           the tool reference, as a copy
@@ -46,7 +45,7 @@ An identifier is a file name without its extension. There are no anchors inside
 documents, so the check "the reference leads somewhere" is the existence of a
 file, not a parser.
 
-## Three entities
+## Two entities
 
 ### Step
 
@@ -59,14 +58,16 @@ Both live as sections in the body; their names and links are in the header.
 
 ### Contract
 
-What code promises other code: module, exported functions, meaning. Its own file,
-because it outlives the step that created it.
+A promise the code leans on, and the way to check it. Its own file, because it
+outlives the step that created it.
 
-### Decision
+Our own promise is a module, its exported functions and their meaning; the check
+loads the module and compares. Somebody else's — a library, a service, a binary —
+works the same way, only it carries `verify`: a command whose success is the
+proof. Who makes the promise does not matter; that it can be checked does.
 
-Its own file only when **two steps or more** lean on it. Anything that matters to
-a single step lives inside that step. The rule is mechanical: you count the
-references.
+A promise nothing can check is not a contract but a boundary, and it lives as a
+paragraph inside a transform.
 
 ## Links
 
@@ -138,7 +139,7 @@ No status is written by hand.
 |---|---|---|
 | Transform | the branch has a commit whose message begins with its slug | git log |
 | Scenario | a test with its name exists, is green, and the revision matches | the test run, the step's text |
-| Contract | the revision matches the one recorded and the module exports what was promised | the file, the compiled module |
+| Contract | the revision matches the one recorded, and the promise is confirmed — by exports or by a command | the file, the compiled module, `verify` |
 | Step | every transform closed, every scenario proved, six checks green | all of the above together |
 
 ## Six checks
@@ -149,7 +150,7 @@ No status is written by hand.
 4. The files a branch changed match those declared in the transforms — both ways.
 5. Every scenario has a test with its name, the tests are green, the revision in
    the tag matches.
-6. Modules export what the contracts promise.
+6. Contracts hold: a module exports what was promised, and a `verify` command succeeds.
 
 A seventh, minor one: the set of names in the header matches the set of headings
 in the body.
@@ -160,14 +161,21 @@ Which are fast, what each one does and how they run is in [README.md](README.md)
 ## What is not here
 
 No requirements, no questions, no log, no statuses, no tags, no numbers inside a
-step. A promise is written once, as a scenario; a question lives for hours in a
+step, no separate decisions. A promise is written once, as a scenario; a question lives for hours in a
 pull request discussion rather than for years in a graph; git holds the history;
 status is counted.
 
 A constraint is not a field either: what can be checked is a scenario, what is
 structural is scope, and the rest is the "boundaries" paragraph in a transform.
 
-Every new entity has to hurt by being missing first.
+Decisions were here, and they left. There was a directory for them, but no header
+field pointed at it and no check looked at it; the rule "its own file once two
+steps lean on it" was counted by nobody. What promises something became a
+contract; what we deliberately do not do became a boundary; a rule about
+architecture belongs to the linter's config.
+
+Every new entity has to hurt by being missing first, and every one that is here
+has to prove it still hurts.
 
 ## Example
 

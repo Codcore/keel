@@ -1,6 +1,6 @@
 ---
 translates: README.md
-source-rev: 489aca
+source-rev: 9b7336
 ---
 
 # keel
@@ -48,7 +48,7 @@ read by Claude and Cursor, not by it.
 | Command | What it does |
 |---|---|
 | `keel new step <slug>` | the file skeleton: a header with empty fields and stub sections |
-| `keel new contract <slug>` | the same for a contract |
+| `keel new contract <slug>` | the same for a contract: `module` with `exports`, or `verify` |
 | `keel gaps [step]` | what is missing from a step's description: slugs without sections, transforms without files, scenarios without `proves` |
 | `keel next` | the **package** for the next move: the transform, its files and boundaries, the scenarios it brings closer, the bodies of the contracts it leans on — and nothing beyond. Markdown; `--json` for scripts |
 | `keel check` | the six checks — the full gate. `--fast` leaves those that run nothing, `--no-tests` skips the run, `--branch` names the branch where git does not know it, `--json` for scripts |
@@ -96,7 +96,8 @@ from a translation quietly falling behind.
 ## Language adapters
 
 Two of the six checks depend on the language: what runs the tests (5) and where a
-module's exports come from (6). The adapter is chosen by a marker in the project
+module's exports come from (6). A contract with `verify` needs no adapter — it
+carries a command. The adapter is chosen by a marker in the project
 root.
 
 | | Elixir | Python |
@@ -127,7 +128,6 @@ reads files **in the project it works on**, and `keel init` puts them there:
 ```
 keel/steps/                     empty directories
 keel/contracts/
-keel/decisions/
 keel/keel.json                  the two languages: references and project
 keel/keel.py                    the tool itself, as a copy
 keel/KEEL.md                    the method, as a copy
