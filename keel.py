@@ -62,6 +62,12 @@ UK = {
     "two colons on one line: {line}": "дві двокрапки в одному рядку: {line}",
     "empty key": "порожній ключ",
     "no header between --- markers": "немає шапки між рисками ---",
+    "{kind} {slug} has to be a set of named fields, and this is {actual}":
+        "{kind} {slug} має бути набором іменованих полів, а це {actual}",
+    "{field} of transform {slug} has to be a list, and this is {actual}":
+        "{field} трансформи {slug} має бути списком, а це {actual}",
+    "proves of scenario {slug} has to be a list, and this is {actual}":
+        "proves сценарію {slug} має бути списком, а це {actual}",
     "the root matches {count} languages ({names}), and {picked} was taken "
     "because it comes first. Say which in keel/keel.json: \"adapter\": \"{picked}\"":
         "корінь підходить під {count} мови ({names}), а взято {picked}, бо він "
@@ -775,6 +781,35 @@ class Contract(Doc):
 
 class Step(Doc):
     SHAPES = {"depends_on": list, "scenarios": dict, "transforms": dict}
+
+    def _wrong_shape(self):
+        problem = super()._wrong_shape()
+        if problem:
+            return problem
+        # One level down: the top-level table proves scenarios and transforms
+        # are maps, but each entry has fields of its own, and a wrong shape
+        # there used to fall back to an empty list — which reads as "declared
+        # no files" over a transform whose files are right there, mis-shaped.
+        for kind, entries in (("scenario", self.scenarios),
+                              ("transform", self.transforms)):
+            for slug, spec in entries.items():
+                if spec is not None and not isinstance(spec, dict):
+                    return t("{kind} {slug} has to be a set of named fields, "
+                             "and this is {actual}", kind=kind, slug=slug,
+                             actual=type(spec).__name__)
+        for slug, spec in self.transforms.items():
+            for field in ("files", "implements", "contracts"):
+                value = (spec or {}).get(field)
+                if value is not None and not isinstance(value, (list, str)):
+                    return t("{field} of transform {slug} has to be a list, "
+                             "and this is {actual}", field=field, slug=slug,
+                             actual=type(value).__name__)
+        for slug, spec in self.scenarios.items():
+            value = (spec or {}).get("proves")
+            if value is not None and not isinstance(value, (list, str)):
+                return t("proves of scenario {slug} has to be a list, and this "
+                         "is {actual}", slug=slug, actual=type(value).__name__)
+        return None
 
     @property
     def depends_on(self):

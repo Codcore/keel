@@ -162,10 +162,10 @@ A seventh, minor one: the set of names in the header matches the set of headings
 in the body.
 
 Before any of them comes reading the documents themselves. A header that does not
-parse, and a field of the wrong shape — `transforms` written as a list where
-named entries belong — is an error in the document, not an empty default: empty
-reads as "nothing is declared", and that is what would switch the guard off while
-the checks stayed green.
+parse, and a field of the wrong shape — at any level: `transforms` as a list,
+`files` as a map — is an error in the document, not an empty default: empty reads
+as "nothing is declared", and that is what would switch the guard off, or accuse
+a transform of declaring no files while its files sit right there, mis-shaped.
 
 None of them parses prose: they all read the header, git and compiled modules.
 Which are fast, what each one does and how they run is in [README.md](README.md).

@@ -227,6 +227,46 @@ class TestHeaderShape(unittest.TestCase):
         doc = self.doc("contract", '---\nverify: ["curl", "x"]\n---\n\nх.\n')
         self.assertIsNone(doc.error)
 
+    def test_a_transform_entry_that_is_a_string_is_named(self):
+        """Раніше всі читачі віддавали [], і gaps казав «не оголосила файлів»."""
+        doc = self.doc("step", "---\ntransforms:\n  do-it: щось\n---\n\n"
+                               "## Why\n\nх.\n")
+        self.assertIn("transform do-it has to be a set of named fields", doc.error)
+
+    def test_a_scenario_entry_that_is_a_string_is_named(self):
+        doc = self.doc("step", "---\nscenarios:\n  does-a: текст\n---\n\n"
+                               "## Why\n\nх.\n")
+        self.assertIn("scenario does-a has to be a set of named fields", doc.error)
+
+    def test_files_as_a_map_is_named(self):
+        doc = self.doc("step", "---\ntransforms:\n  do-it:\n    files: {a: b}\n"
+                               "---\n\n## Why\n\nх.\n")
+        self.assertIn("files of transform do-it has to be a list", doc.error)
+
+    def test_implements_and_contracts_too(self):
+        for field in ("implements", "contracts"):
+            doc = self.doc("step", f"---\ntransforms:\n  do-it:\n    {field}: "
+                                   "{a: b}\n---\n\n## Why\n\nх.\n")
+            self.assertIn(f"{field} of transform do-it", doc.error)
+
+    def test_proves_as_a_map_is_named(self):
+        doc = self.doc("step", "---\nscenarios:\n  does-a:\n    proves: {a: b}\n"
+                               "---\n\n## Why\n\nх.\n")
+        self.assertIn("proves of scenario does-a has to be a list", doc.error)
+
+    def test_the_string_shorthand_still_stands(self):
+        """files: один-файл і proves: один-контракт — дозволена коротка форма."""
+        doc = self.doc("step", "---\nscenarios:\n  does-a: {proves: c@abcd}\n"
+                               "transforms:\n  do-it:\n    files: lib/a.ex\n"
+                               "    implements: does-a\n---\n\n## Why\n\nх.\n")
+        self.assertIsNone(doc.error)
+        self.assertEqual(doc.transform_files("do-it"), ["lib/a.ex"])
+
+    def test_an_empty_transform_is_still_a_skeleton_not_an_error(self):
+        doc = self.doc("step", "---\ntransforms:\n  do-it:\n---\n\n"
+                               "## Why\n\nх.\n")
+        self.assertIsNone(doc.error)
+
     def test_a_file_that_cannot_be_read_is_named(self):
         path = os.path.join(self.root, "keel/steps/0002-gone.md")
         os.symlink("/немає/такого", path)
