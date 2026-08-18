@@ -1,0 +1,294 @@
+#!/usr/bin/env python3
+"""new, gaps, next, rev, check — the commands a person runs."""
+
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import keel  # noqa: E402
+from tests.support import Args, CONTRACT, ProjectCase, STEP  # noqa: E402
+
+
+
+
+class TestNext(ProjectCase):
+    def run_next(self, **kwargs):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_next(self.project, Args(json=False, **kwargs))
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def test_refuses_on_main(self):
+        code, out = self.run_next()
+        self.assertEqual(code, 1)
+        self.assertIn("не називається кроком", out)
+
+    def test_refuses_on_plan_branch(self):
+        self.fixture.branch("plan/0001-session-loop")
+        code, out = self.run_next()
+        self.assertEqual(code, 1)
+        self.assertIn("гілка плану", out)
+
+    def test_refuses_while_plan_is_not_in_main(self):
+        self.fixture.branch("plan/0002-later")
+        self.fixture.write("keel/steps/0002-later.md", STEP.format(rev=self.fixture.contract_rev))
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "план кроку 2")
+        self.fixture.git("checkout", "-b", "0002-later")
+        code, out = self.run_next()
+        self.assertEqual(code, 1)
+        self.assertIn("не в гілці main", out)
+
+    def test_package_has_files_scenario_and_contract(self):
+        self.fixture.branch("0001-session-loop")
+        code, out = self.run_next()
+        self.assertEqual(code, 0)
+        self.assertIn("# drive-turns", out)
+        self.assertIn("lib/session.ex", out)
+        self.assertIn("**Then** розмова завершується.", out)
+        self.assertIn("Одна розмова з однією моделлю.", out)
+        self.assertIn("Demo.Session", out)
+        self.assertIn("drive-turns: <що зроблено>", out)
+
+    def test_package_names_the_tag_to_write(self):
+        self.fixture.branch("0001-session-loop")
+        _, out = self.run_next()
+        self.assertIn(f'proves: :finishes_when_no_tool_called, rev: "{self.fixture.scenario_rev()}"',
+                      out)
+
+    def test_closed_transform_is_not_handed_out_again(self):
+        self.fixture.branch("0001-session-loop")
+        self.fixture.write("lib/session.ex", "змінено\n")
+        self.fixture.git("commit", "-am", "drive-turns: перший хід")
+        code, out = self.run_next()
+        self.assertEqual(code, 0)
+        self.assertIn("усі трансформи", out)
+
+    def test_json_package(self):
+        import json as jsonlib
+        from io import StringIO
+        self.fixture.branch("0001-session-loop")
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            keel.cmd_next(self.project, Args(json=True))
+        finally:
+            sys.stdout = saved
+        package = jsonlib.loads(stream.getvalue())
+        self.assertEqual(package["transform"]["slug"], "drive-turns")
+        self.assertEqual(package["transform"]["files"], ["lib/session.ex"])
+        self.assertEqual(package["contracts"][0]["module"], "Demo.Session")
+        self.assertTrue(package["contracts"][0]["rev_ok"])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# keel rev
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# keel rev
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestRev(ProjectCase):
+    def run_rev(self, write=False):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_rev(self.project, Args(write=write))
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def test_nothing_to_do(self):
+        code, out = self.run_rev()
+        self.assertEqual(code, 0)
+        self.assertIn("збігаються", out)
+
+    def test_reports_without_writing(self):
+        self.fixture.write("keel/contracts/session-run.md", CONTRACT + "\nІ ще речення.\n")
+        code, out = self.run_rev()
+        self.assertEqual(code, 1)
+        self.assertIn("→", out)
+        self.assertIn(self.fixture.contract_rev, self.fixture.read("keel/steps/0001-session-loop.md"))
+
+    def test_writes_fresh_contract_revision(self):
+        self.fixture.write("keel/contracts/session-run.md", CONTRACT + "\nІ ще речення.\n")
+        code, _ = self.run_rev(write=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(keel.check_revisions(self.project), [])
+
+    def test_writes_fresh_tag_revision(self):
+        self.fixture.write(
+            "test/session_test.exs",
+            'defmodule Demo.SessionTest do\n'
+            '  @tag proves: :finishes_when_no_tool_called, rev: "deadbe"\n'
+            '  test "x", do: assert true\n'
+            'end\n')
+        self.run_rev(write=True)
+        self.assertIn(f'rev: "{self.fixture.scenario_rev()}"',
+                      self.fixture.read("test/session_test.exs"))
+        self.assertEqual(keel.check_scenarios(self.project, run_tests=False), [])
+
+    def test_replaces_nonsense_revision_instead_of_doubling_it(self):
+        self.fixture.write(
+            "test/session_test.exs",
+            'defmodule Demo.SessionTest do\n'
+            '  @tag proves: :finishes_when_no_tool_called, rev: "старий"\n'
+            '  test "x", do: assert true\n'
+            'end\n')
+        problems = keel.check_scenarios(self.project, run_tests=False)
+        self.assertIn("тримає редакцію", problems[0].message)
+        self.run_rev(write=True)
+        text = self.fixture.read("test/session_test.exs")
+        self.assertEqual(text.count("rev:"), 1)
+        self.assertNotIn("старий", text)
+        self.assertEqual(keel.check_scenarios(self.project, run_tests=False), [])
+
+    def test_adds_missing_tag_revision(self):
+        self.fixture.write(
+            "test/session_test.exs",
+            'defmodule Demo.SessionTest do\n'
+            '  @tag proves: :finishes_when_no_tool_called\n'
+            '  test "x", do: assert true\n'
+            'end\n')
+        self.run_rev(write=True)
+        self.assertEqual(keel.check_scenarios(self.project, run_tests=False), [])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# keel new and keel gaps
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# keel new and keel gaps
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestNewAndPlan(ProjectCase):
+    def capture(self, function, *args):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = function(*args)
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def test_new_step_takes_the_next_number(self):
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="step", slug="Tool Calls"))
+        self.assertEqual(code, 0)
+        self.assertIn("0002-tool-calls.md", out)
+        self.assertTrue(os.path.exists(self.fixture.path("keel/steps/0002-tool-calls.md")))
+
+    def test_new_step_skeleton_parses(self):
+        self.capture(keel.cmd_new, self.project, Args(kind="step", slug="tool-calls"))
+        step = self.project.steps["0002-tool-calls"]
+        self.assertIsNone(step.error)
+
+    def test_new_contract(self):
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="contract", slug="tool-registry"))
+        self.assertEqual(code, 0)
+        self.assertIn("keel/contracts/tool-registry.md", out)
+
+    def test_new_refuses_to_overwrite(self):
+        with self.assertRaises(SystemExit):
+            self.capture(keel.cmd_new, self.project, Args(kind="contract", slug="session-run"))
+
+    def test_plan_is_complete(self):
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
+        self.assertEqual(code, 0)
+        self.assertIn("план повний", out)
+
+    def test_plan_finds_a_transform_without_files(self):
+        self.fixture.write(
+            "keel/steps/0001-session-loop.md",
+            self.fixture.read("keel/steps/0001-session-loop.md").replace(
+                "    files:      [lib/session.ex]\n", ""))
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
+        self.assertEqual(code, 1)
+        self.assertIn("не оголосила файлів", out)
+
+    def test_plan_finds_a_scenario_nobody_implements(self):
+        text = self.fixture.read("keel/steps/0001-session-loop.md")
+        text = text.replace(
+            "  finishes-when-no-tool-called: ",
+            "  only-handed-tools-are-callable: {proves: session-run@%s}\n  finishes-when-no-tool-called: "
+            % self.fixture.contract_rev)
+        text += "\n## scenario: only-handed-tools-are-callable\n\n**Then** інших немає.\n"
+        self.fixture.write("keel/steps/0001-session-loop.md", text)
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
+        self.assertEqual(code, 1)
+        self.assertIn("не наближає жодна трансформа", out)
+
+    def test_new_skeleton_is_not_a_complete_plan(self):
+        self.capture(keel.cmd_new, self.project, Args(kind="step", slug="tool-calls"))
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0002-tool-calls"))
+        self.assertEqual(code, 1)
+        self.assertIn("жодного сценарію", out)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# keel check
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# keel check
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestCheck(ProjectCase):
+    def capture(self, args):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_check(self.project, args)
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def test_fast_runs_only_five(self):
+        code, out = self.capture(Args(fast=True, no_tests=True, json=False))
+        self.assertIn("5. у кожного сценарію зелений тест (не запускалась)", out)
+        self.assertIn("✓ 1.", out)
+        self.assertEqual(code, 0)
+
+    def test_full_check_wants_a_test(self):
+        code, out = self.capture(Args(fast=False, no_tests=True, json=False))
+        self.assertEqual(code, 1)
+        self.assertIn("не має тесту", out)
+
+    def test_json_shape(self):
+        import json as jsonlib
+        code, out = self.capture(Args(fast=True, no_tests=True, json=True))
+        payload = jsonlib.loads(out)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["checks"]["1"]["name"], "посилання ведуть кудись")
+        self.assertFalse(payload["checks"]["5"]["run"])
+        self.assertEqual(code, 0)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# keel hooks
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -26,7 +26,14 @@ YAML тут — вузька підмножина (ключі, списки, д�
 python3 -m unittest discover -s tests -t .
 ```
 
-Один із них необовʼязковий: якщо в системі є PyYAML, він читає породжені шапки
+Розкладені за тим, що перевіряють: `test_yamlish`, `test_documents`,
+`test_scope`, `test_adapters`, `test_commands`, `test_git_hooks`,
+`test_agent_hooks`, `test_skills`, `test_setup`. Кожен запускається окремо
+(`python3 -m unittest tests.test_scope`), спільна фікстура — в `tests/support.py`.
+Тести нікуди не копіюються, тож ділити їх нічого не коштує — на відміну від
+самого інструмента.
+
+Один тест необовʼязковий: якщо в системі є PyYAML, він читає породжені шапки
 скілів справжнім парсером. Свій читач поблажливий, а шапку читатимуть Claude і
 Cursor — не він.
 
