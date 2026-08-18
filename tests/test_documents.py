@@ -315,5 +315,76 @@ class TestLinksLeadSomewhere(unittest.TestCase):
         self.assertEqual(self.step("Див. [доки](https://example.com/x.md)."), [])
 
 
+
+
+class TestSectionSplitting(unittest.TestCase):
+    """A heading is a section; a heading inside a fence is text."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-sec-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        os.makedirs(os.path.join(self.root, "keel", "steps"))
+
+    def step(self, body):
+        path = os.path.join(self.root, "keel/steps/0001-a.md")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(body)
+        return keel.Step(path, self.root)
+
+    def test_a_heading_in_a_fence_is_not_a_section(self):
+        doc = self.step("---\ntransforms:\n  do-it: {files: [a.ex]}\n---\n\n"
+                        "## transform: do-it\n\nтіло\n```\n## scenario: fake\n```\nхвіст\n")
+        self.assertEqual(list(doc.sections), ["transform: do-it"])
+        self.assertIn("## scenario: fake", doc.transform_body("do-it"))
+        self.assertIn("хвіст", doc.transform_body("do-it"))
+
+    def test_a_case_variant_duplicate_is_flagged(self):
+        """`## scenario: s` і `## Scenario:  s` — той самий сценарій для читача."""
+        doc = self.step("---\nscenarios:\n  s: {}\n---\n\n## scenario: s\n\n"
+                        "ПЕРШЕ.\n\n## Scenario:  s\n\nДРУГЕ.\n")
+        self.assertTrue(doc.repeated)
+
+    def test_a_true_distinct_heading_is_not_flagged(self):
+        doc = self.step("---\nscenarios:\n  a: {}\n  b: {}\n---\n\n"
+                        "## scenario: a\n\nх.\n\n## scenario: b\n\nх.\n")
+        self.assertEqual(doc.repeated, [])
+
+    def test_the_line_number_points_at_the_heading(self):
+        doc = self.step("---\nscenarios:\n  s: {}\n---\n\n## scenario: s\n\nтіло\n")
+        self.assertEqual(doc.section_lines["scenario: s"], 6)
+
+
+class TestRewriteRef(unittest.TestCase):
+    """rev --write restamps a reference, and nothing that merely shares its name."""
+
+    def test_a_scenario_named_like_the_contract_is_untouched(self):
+        text = ("---\nscenarios:\n  parser: {proves: parser@aaaa}\n"
+                "transforms:\n  parser:\n    implements: [parser]\n"
+                "    contracts: [parser@aaaa]\n    files: [lib/parser.ex]\n---\n\n"
+                "тіло про parser.\n")
+        out = keel.rewrite_ref(text, "parser@aaaa", "parser@ffff")
+        self.assertIn("proves: parser@ffff", out)
+        self.assertIn("contracts: [parser@ffff]", out)
+        self.assertIn("implements: [parser]", out)          # scenario ref, untouched
+        self.assertIn("files: [lib/parser.ex]", out)
+        self.assertRegex(out, r"\n  parser:")               # the mapping key stays
+
+    def test_a_block_list_item_is_restamped(self):
+        text = ("---\ntransforms:\n  do:\n    contracts:\n      - parser@aaaa\n"
+                "      - other@bbbb\n---\nтіло\n")
+        out = keel.rewrite_ref(text, "parser@aaaa", "parser@ffff")
+        self.assertIn("- parser@ffff", out)
+        self.assertIn("- other@bbbb", out)
+
+    def test_a_revision_is_added_where_there_was_none(self):
+        text = "---\nscenarios:\n  s: {proves: parser}\n---\nтіло\n"
+        self.assertIn("proves: parser@ffff",
+                      keel.rewrite_ref(text, "parser", "parser@ffff"))
+
+    def test_the_trailing_newline_is_kept(self):
+        text = "---\nscenarios:\n  s: {proves: c@aaaa}\n---\n\nтіло\n"
+        self.assertTrue(keel.rewrite_ref(text, "c@aaaa", "c@ffff").endswith("тіло\n"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -197,6 +197,14 @@ class TestQuotedRoundTrip(unittest.TestCase):
         for original in ('з "лапками"', "зі \\\\ слешем", 'край\\', '"'):
             self.assertEqual(self.back(original), original, repr(original))
 
+    def test_an_escaped_quote_before_a_hash_survives(self):
+        """`\\\"` не закриває рядок, тож решітка після нього — не коментар."""
+        self.assertEqual(self.back('a" # b'), 'a" # b')
+
+    def test_an_escaped_quote_before_a_comma_in_a_flow_list(self):
+        parsed = keel.parse_yaml("files: [" + keel.yaml_string('a",b') + ", x]")
+        self.assertEqual(parsed["files"], ['a",b', "x"])
+
     def test_a_newline_is_escaped_not_written_through(self):
         """Справжній перенос у лапках наш же читач зустрів би як два рядки."""
         quoted = keel.yaml_string("перенос\nрядка")

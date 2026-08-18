@@ -409,10 +409,19 @@ class YamlError(Exception):
 def _strip_comment(text):
     out = []
     quote = None
+    escaped = False
     for ch in text:
         if quote:
             out.append(ch)
-            if ch == quote:
+            if escaped:
+                escaped = False
+            elif quote == '"' and ch == "\\":
+                # A double-quoted string escapes with a backslash, so `\"` is a
+                # quote inside the value, not its end. Missing this closed the
+                # string early and stripped the rest as a comment — breaking the
+                # round trip of a value yaml_string itself wrote.
+                escaped = True
+            elif ch == quote:
                 quote = None
         elif ch in "\"'" and (not out or out[-1] in " \t:[{,"):
             # A quote opens a scalar at the start of a value, not mid-word:
@@ -465,11 +474,15 @@ def unescape(body, line):
 
 def _split_flow(text, line):
     """Split the inside of [..] or {..} on top-level commas."""
-    parts, depth, quote, cur = [], 0, None, []
+    parts, depth, quote, cur, escaped = [], 0, None, [], False
     for ch in text:
         if quote:
             cur.append(ch)
-            if ch == quote:
+            if escaped:
+                escaped = False
+            elif quote == '"' and ch == "\\":
+                escaped = True      # `\"` is a quote in the value, not its end
+            elif ch == quote:
                 quote = None
             continue
         if ch in "\"'" and (not cur or cur[-1] in " \t:[{,"):
@@ -705,18 +718,36 @@ class Doc:
         return None
 
     def _split_sections(self):
-        marks = list(SECTION_RE.finditer(self.body))
+        # Only real headings: a `## ` line shown inside a ``` example is content,
+        # not a section. Counting it would truncate the section it sits in and
+        # invent a phantom one — and the methodology's own docs quote example
+        # headings.
+        marks = [mark for mark in SECTION_RE.finditer(self.body)
+                 if not self._in_fence(mark.start())]
+        seen = {}
         for order, mark in enumerate(marks):
             end = marks[order + 1].start() if order + 1 < len(marks) else len(self.body)
             title = mark.group(1).strip()
-            if title in self.sections:
-                # Silently keeping the last one hashes text nobody approved:
-                # the reader sees the first section, the revision comes from
-                # the second, and check 7 stays quiet because the name sets
-                # still match.
+            # The reader resolves a heading by (kind lower-cased, slug as written),
+            # so the duplicate check has to collapse the same way: otherwise
+            # `## scenario: s` and `## Scenario:  s` look distinct here while the
+            # reader keeps only the second — the revision comes from text nobody
+            # approved, and check 7 stays quiet because the name sets still match.
+            key = self._section_key(title)
+            if key in seen:
                 self.repeated.append(title)
+            seen[key] = True
             self.sections[title] = self.body[mark.end():end].strip()
-            self.section_lines[title] = self.body[: mark.start()].count("\n") + self.body_offset + 1
+            self.section_lines[title] = self.body[: mark.start()].count("\n") + self.body_offset
+
+    def _in_fence(self, pos):
+        return sum(line.lstrip().startswith(("```", "~~~"))
+                   for line in self.body[:pos].split("\n")) % 2 == 1
+
+    @staticmethod
+    def _section_key(title):
+        head, sep, slug = title.partition(":")
+        return head.strip().lower() + ":" + slug.strip() if sep else title.strip().lower()
 
     def named_sections(self, kind):
         """Sections of the form `## scenario: slug` -> {slug: text}."""
@@ -912,11 +943,16 @@ class Git:
     def branch(self):
         return self.out("rev-parse", "--abbrev-ref", "HEAD")
 
+    ORIGIN = "refs/remotes/origin/"
+
     @property
     def main_branch(self):
         """The main branch. On CI it is not local — there it is origin/main."""
         head = self.out("symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
-        short = head.rsplit("/", 1)[-1] if head else ""
+        # Strip the ref prefix, do not take the last path segment: a default
+        # branch named release/2024 would otherwise become "2024", a ref that
+        # does not exist, and the scope check would find no baseline.
+        short = head[len(self.ORIGIN):] if head.startswith(self.ORIGIN) else ""
         # In a single-branch clone origin/HEAD names the branch under test.
         # Believing it makes a branch its own baseline: the diff covers nothing
         # and the scope check reports green having compared nothing.
@@ -931,7 +967,10 @@ class Git:
 
     @property
     def main_short(self):
-        return self.main_branch.rsplit("/", 1)[-1]
+        # The local name of the main branch: origin/main → main, but
+        # release/2024 stays release/2024 (only the remote prefix comes off).
+        name = self.main_branch
+        return name[len("origin/"):] if name.startswith("origin/") else name
 
     def merge_base(self, other):
         return self.out("merge-base", other, "HEAD")
@@ -951,7 +990,11 @@ class Git:
                 entry = fields[index]
                 status, name = entry[:2], entry[3:]
                 index += 1
-                if status[0] in "RC" and index < len(fields):
+                # R/C carries a second path (the origin), and it sits in either
+                # column: staged renames put it in X, worktree renames in Y. A
+                # one-column test left the origin field to be misread as its own
+                # entry, injecting a phantom path into scope.
+                if ("R" in status or "C" in status) and index < len(fields):
                     files.add(fields[index])
                     index += 1
                 if name:
@@ -990,6 +1033,9 @@ class Git:
 
 EXPORT_MARK = "keel-exports|"
 SPEC_MARK = "keel-spec|"
+# A module reference is letters, digits, dots and underscores — nothing that can
+# escape a string literal or open an interpolation in a generated probe script.
+MODULE_NAME = re.compile(r"[A-Za-z0-9_.]+\Z")   # \Z, not $: $ allows a trailing newline
 
 
 class Probe:
@@ -1113,6 +1159,12 @@ class ElixirAdapter(Adapter):
     supports_specs = True
 
     def exports(self, root, modules):
+        # The name is interpolated into a generated Elixir script, so anything
+        # that is not a plain module reference is kept out of it: a quote would
+        # break the string and take the whole probe down, and #{...} would run
+        # as code from a data file. A rejected name reads as missing, which is
+        # what check 6 then reports.
+        modules = [name for name in modules if MODULE_NAME.match(name)]
         if not modules:
             return {}
         listing = ", ".join(f'"{name}"' for name in modules)
@@ -2856,7 +2908,11 @@ def yaml_string(text):
 
 CLAUDE_SETTINGS = ".claude/settings.json"
 CURSOR_HOOKS = ".cursor/hooks.json"
-HOOK_TAG = "keel.py hook"
+# What marks a hook entry as ours in a shared config. The vendored path, not
+# "keel.py hook": quoting the command put a " between the script and the
+# subcommand, and a space-joined tag would no longer match — so is_ours would
+# fail to recognise our own entries and merge would duplicate them every run.
+HOOK_TAG = VENDORED
 
 # Claude documents file_path for Write, Edit and NotebookEdit. Cursor documents
 # it for beforeReadFile and afterFileEdit, and its Write tool takes the same key.
@@ -2868,9 +2924,12 @@ PATH_KEYS = ("file_path", "notebook_path", "filePath", "path", "target_file",
 
 def hook_command(event, agent):
     # Claude documents a variable for the project root; Cursor's own examples
-    # use a relative path, so that is the best available there.
+    # use a relative path, so that is the best available there. The path is
+    # quoted: ${CLAUDE_PROJECT_DIR} expands to a real directory, and a space in
+    # it would otherwise split the command and run python3 on half a path — the
+    # hook failing silently, which is the one thing it must not do.
     root = "${CLAUDE_PROJECT_DIR}/" if agent == "claude" else "./"
-    return f"python3 {root}{VENDORED} hook {event} --agent {agent}"
+    return f'python3 "{root}{VENDORED}" hook {event} --agent {agent}'
 
 
 def claude_hook_config():
@@ -3739,20 +3798,46 @@ def cmd_rev(project, args):
     return 0
 
 
-def rewrite_ref(text, raw, new):
-    """Restamp one contract reference — in the header, and nowhere else.
+REF_VALUE = re.compile(r"\b(?:proves|contracts)\s*:\s*(\[[^\]]*\]|[^\n,}]*)")
 
-    A bare slug is an ordinary word: replacing it across the file also hits the
-    prose, the file names and the transform's own name, and a second run cannot
-    undo any of it. So the rewrite is bounded to the front matter and to a whole
-    reference, revision included if one is already there.
+
+def rewrite_ref(text, raw, new):
+    """Restamp one contract reference — only where a reference can appear.
+
+    A contract reference is the value of `proves:` or `contracts:`, inline or as
+    a block list under one of them. It is never a mapping key and never an
+    `implements` item, so restamping the bare slug across the whole header would
+    rename a scenario or transform that happens to share the contract's name —
+    and a second run could not undo it. The body, the file's final newline
+    included, is left byte for byte.
     """
-    front, body, _ = split_front_matter(text)
-    if front is None:
+    match = re.match(r"(---[ \t]*\n)(.*?\n)(---[ \t]*(?:\n|$))", text, re.S)
+    if not match:
         return text
     slug = Ref(raw).slug
-    pattern = re.compile(rf"(?<![\w@./-]){re.escape(slug)}(@[0-9a-fA-F]*)?(?![\w@./-])")
-    return "---\n" + pattern.sub(new, front) + "\n---\n" + body
+    token = re.compile(
+        rf"(?<![\w@./-]){re.escape(slug)}(@[0-9a-fA-F]*)?(?![\w@./-])")
+
+    def in_value(line_match):
+        value = line_match.group(1)
+        head = line_match.group(0)[:line_match.start(1) - line_match.start()]
+        return head + token.sub(new, value)
+
+    out, in_block, block_indent = [], False, 0
+    for line in match.group(2).split("\n"):
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        if in_block and stripped.startswith("- ") and indent > block_indent:
+            out.append(token.sub(new, line))
+            continue
+        in_block = False
+        if re.match(r"(proves|contracts)\s*:\s*$", stripped):
+            in_block, block_indent = True, indent
+            out.append(line)
+            continue
+        out.append(REF_VALUE.sub(in_value, line))
+    front = "\n".join(out)
+    return text[:match.start(2)] + front + text[match.end(2):]
 
 
 def rewrite_tag(text, slug, fresh):

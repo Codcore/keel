@@ -4,6 +4,7 @@
 import os
 import json
 import shutil
+import shlex
 import subprocess
 import tempfile
 import sys
@@ -282,11 +283,28 @@ class TestHookConfigs(unittest.TestCase):
 
 
 
+class TestHookCommandQuoting(unittest.TestCase):
+    """The command is one word to the shell even when the path has a space."""
+
+    def test_the_path_is_quoted(self):
+        command = keel.hook_command("session", "claude")
+        self.assertIn('"${CLAUDE_PROJECT_DIR}/keel/keel.py"', command)
+        parts = shlex.split(command)
+        self.assertEqual(parts[1], "${CLAUDE_PROJECT_DIR}/keel/keel.py")
+        self.assertEqual(parts[2:], ["hook", "session", "--agent", "claude"])
+
+    def test_our_entries_are_still_recognised_as_ours(self):
+        """Лапка розірвала «keel.py hook»; мітка мусить це пережити."""
+        for agent in ("claude", "cursor"):
+            for event in ("session", "write"):
+                self.assertIn(keel.HOOK_TAG, keel.hook_command(event, agent))
+
+
 class TestHookCommand(ProjectCase):
     """Наскрізь: конфіг кличе саме те, що працює."""
 
     def run_hook(self, event, agent, payload):
-        command = keel.hook_command(event, agent).split()
+        command = shlex.split(keel.hook_command(event, agent))
         self.assertTrue(command[1].endswith(keel.VENDORED), command[1])
         command[1] = os.path.abspath(keel.__file__)
         done = subprocess.run(command, cwd=self.fixture.root, input=json.dumps(payload),

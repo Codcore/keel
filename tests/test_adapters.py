@@ -361,6 +361,22 @@ class TestNothingHangsForever(unittest.TestCase):
 # Check 6: exports written as whole signatures
 # ─────────────────────────────────────────────────────────────────────────────
 
+class TestModuleNameIsGuarded(unittest.TestCase):
+    """The name is interpolated into a probe script, so it must not carry code."""
+
+    def test_a_plain_module_reference_is_accepted(self):
+        self.assertTrue(keel.MODULE_NAME.match("KeelAgent.Session"))
+        self.assertTrue(keel.MODULE_NAME.match("Demo"))
+
+    def test_a_quote_or_interpolation_is_rejected(self):
+        for name in ('Foo"bar', "Foo#{:os.cmd(~c'id')}", "Foo bar", "Foo\n"):
+            self.assertIsNone(keel.MODULE_NAME.match(name), name)
+
+    def test_the_adapter_drops_an_unsafe_name_rather_than_run_it(self):
+        out = keel.ElixirAdapter().exports(".", ['Foo"; System.halt(0)'])
+        self.assertIsNone(out.get('Foo"; System.halt(0)'))
+
+
 class TestPromisedSignature(unittest.TestCase):
     """`run/3` and `run(a, b, c) :: t` name the same function; both are read."""
 
@@ -656,6 +672,57 @@ class TestSpecsAgainstARealMixProject(unittest.TestCase):
         problems = keel.check_exports(keel.Project(self.root))
         self.assertEqual(len(problems), 1)
         self.assertIn("declares no @spec", problems[0].message)
+
+
+class TestGitEdges(unittest.TestCase):
+    """Two git surfaces the scope check leans on: the baseline and the diff."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-git-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def git(self, *args, cwd=None):
+        return subprocess.run(["git", "-C", cwd or self.root, *args],
+                              capture_output=True, text=True, check=True)
+
+    def repo(self, branch="main"):
+        subprocess.run(["git", "init", "-q", "-b", branch, self.root], check=True)
+        for name, value in (("user.email", "t@e"), ("user.name", "t")):
+            self.git("config", name, value)
+
+    def test_a_default_branch_with_a_slash_resolves(self):
+        """release/2024 не має ставати неіснуючим origin/2024."""
+        self.repo("release/2024")
+        with open(os.path.join(self.root, "f.txt"), "w") as handle:
+            handle.write("вміст\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
+        self.git("update-ref", "refs/remotes/origin/release/2024", "HEAD")
+        self.git("symbolic-ref", "refs/remotes/origin/HEAD",
+                 "refs/remotes/origin/release/2024")
+        self.git("checkout", "-q", "-b", "feature")
+        g = keel.Git(self.root)
+        self.assertEqual(g.main_branch, "release/2024")
+        self.assertEqual(g.main_short, "release/2024")
+        self.assertTrue(g.merge_base(g.main_branch))
+
+    def test_an_origin_prefix_comes_off_for_main_short(self):
+        self.repo()
+        with open(os.path.join(self.root, "f.txt"), "w") as handle:
+            handle.write("x\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
+        self.assertEqual(keel.Git(self.root).main_short, "main")
+
+    def test_a_worktree_rename_does_not_inject_a_phantom_path(self):
+        self.repo()
+        with open(os.path.join(self.root, "old.txt"), "w") as handle:
+            handle.write("достатньо вмісту щоб rename було видно\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
+        os.rename(os.path.join(self.root, "old.txt"),
+                  os.path.join(self.root, "renamed.txt"))
+        self.git("add", "-N", "renamed.txt")
+        changed = keel.Git(self.root).changed_files("")
+        self.assertEqual(changed, {"old.txt", "renamed.txt"})
+        self.assertNotIn(".txt", changed)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
