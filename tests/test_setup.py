@@ -207,9 +207,23 @@ class TestLanguageSettings(unittest.TestCase):
         self.init()
         self.assertEqual(self.config()["lang"], "en")
 
-    def test_missing_translation_refuses_instead_of_falling_back(self):
-        with self.assertRaises(SystemExit):
-            self.init(docs="en")
+    def test_english_docs_arrive_in_english(self):
+        self.init(docs="en")
+        self.assertIn("three kinds of document", self.read("keel/KEEL.md"))
+        self.assertIn("A promise is checked", self.read("AGENTS.md"))
+
+    def test_docs_and_lang_really_are_independent(self):
+        """Англійський довідник із українськими тригерами — той самий випадок."""
+        self.init(docs="en", lang="uk")
+        self.assertIn("three kinds of document", self.read("keel/KEEL.md"))
+        self.assertIn("«зроби наступне»",
+                      self.read(".claude/skills/keel-work/SKILL.md"))
+
+    def test_a_language_without_translations_refuses(self):
+        with unittest.mock.patch.object(keel, "doc_source",
+                                        lambda name, lang: "/no/such/" + name):
+            with self.assertRaises(SystemExit):
+                self.init(docs="en")
 
     def test_broken_config_falls_back_to_defaults(self):
         os.makedirs(os.path.join(self.root, "keel"), exist_ok=True)
@@ -310,6 +324,55 @@ class TestUpdate(unittest.TestCase):
         self.assertIn("what's next", self.read(self.SKILL))
 
 
+
+
+class TestTranslationsKeepUp(unittest.TestCase):
+    """Справжня охорона двомовності.
+
+    `keel update` звіряє переклади лише коли його запустили з дому методики —
+    вендорена копія в проєкті джерел поруч не має. Тобто покладатись на неї
+    означало б покладатись на те, що хтось згадає. Цей тест біжить щоразу.
+    """
+
+    def sources(self):
+        return keel.REFERENCES + ("PRINCIPLES.md",)
+
+    def test_every_reference_has_a_translation(self):
+        found = keel.translations("en")
+        for name in self.sources():
+            self.assertIn(name, found, f"немає docs/en/{name}")
+
+    def test_no_translation_has_fallen_behind(self):
+        for name, recorded in sorted(keel.translations("en").items()):
+            text = keel.read_text(os.path.join(keel.home(), name))
+            self.assertTrue(
+                keel.rev_matches(recorded, text),
+                f"docs/en/{name} тримає {recorded}, а {name} зараз "
+                f"{keel.revision(text)}. Перечитай переклад і онови source-rev.")
+
+    def test_translation_carries_the_name_of_its_source(self):
+        for name in self.sources():
+            path = keel.doc_source(name, "en")
+            front, _, _ = keel.split_front_matter(keel.read_text(path))
+            self.assertEqual(keel.parse_yaml(front).get("translates"), name)
+
+    def test_the_translated_principles_still_number_seven(self):
+        self.assertEqual(len(keel.principles_lines("en")), 7)
+        self.assertEqual(len(keel.principles_lines("uk")), 7)
+
+    def test_nothing_ukrainian_was_left_behind(self):
+        """Кирилиця в перекладі — це шматок, який забули перекласти."""
+        import re
+        for name in self.sources():
+            text = keel.read_text(keel.doc_source(name, "en"))
+            left = re.findall(r"[а-яіїєґА-ЯІЇЄҐ][а-яіїєґ'’ -]{3,}", text)
+            self.assertEqual(left, [], f"docs/en/{name}: {left[:3]}")
+
+    def test_the_project_gets_prose_without_the_bookkeeping(self):
+        """`source-rev` — облік удома; у проєкт має доїхати сам текст."""
+        text = keel.read_text(keel.doc_source("KEEL.md", "en"))
+        self.assertIn("source-rev", text)
+        self.assertNotIn("source-rev", keel.strip_front_matter(text))
 
 
 class TestTranslationCheck(unittest.TestCase):
