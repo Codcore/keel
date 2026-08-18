@@ -40,23 +40,85 @@ class TestInit(unittest.TestCase):
         with open(os.path.join(self.root, name), "w", encoding="utf-8") as handle:
             handle.write(text)
 
-    def init(self):
+    def init(self, **kwargs):
         from io import StringIO
         stream, saved = StringIO(), sys.stdout
         sys.stdout = stream
         try:
-            code = keel.cmd_init(keel.Project(self.root), Args(install=True, force=False))
+            code = keel.cmd_init(keel.Project(self.root), Args(
+                **{"install": True, "force": False, **kwargs}))
         finally:
             sys.stdout = saved
         return code, stream.getvalue()
 
-    def test_init_says_to_commit_and_restart(self):
-        """Дві речі, які інакше зʼїдають годину: незакомічене й нестартована сесія."""
+    def porcelain(self):
+        return subprocess.run(
+            ["git", "-C", self.root, "status", "--porcelain", "--untracked-files=all"],
+            capture_output=True, text=True).stdout
+
+    def log(self):
+        return subprocess.run(["git", "-C", self.root, "log", "--format=%s"],
+                              capture_output=True, text=True).stdout
+
+    def test_init_commits_only_its_own_files(self):
+        """Чуже незакомічене поруч лишається чужим."""
+        self.write("mine.txt", "моє, ще не закомічене\n")
+        self.init()
+        done = subprocess.run(["git", "-C", self.root, "status", "--porcelain",
+                               "--untracked-files=all"], capture_output=True, text=True)
+        self.assertIn("mine.txt", done.stdout)
+        self.assertNotIn("AGENTS.md", done.stdout)
+
+    def test_init_refuses_without_git(self):
+        root = tempfile.mkdtemp(prefix="keel-nogit-")
+        self.addCleanup(shutil.rmtree, root, True)
+        with self.assertRaises(SystemExit):
+            keel.cmd_init(keel.Project(root), Args(
+                install=True, force=False, docs=None, lang=None, no_commit=False))
+
+    def test_init_says_where_the_agent_must_be_started(self):
+        """Скіли беруться з теки старту; запуск вище — і їх немає."""
         _, out = self.init()
+        self.assertIn("в самій теці проєкту", out)
+        self.assertIn(self.root, out)
+        self.assertIn("/clear тут не допомагає", out)
+
+    def test_init_commits_what_it_wrote(self):
+        _, out = self.init()
+        self.assertIn("закомічено окремо", out)
+        self.assertIn("Keel у проєкті", self.log())
+        self.assertNotIn("AGENTS.md", self.porcelain())
+
+    def test_no_commit_leaves_it_and_says_so(self):
+        _, out = self.init(no_commit=True)
+        self.assertNotIn("закомічено", out)
         self.assertIn("не в git", out)
         self.assertIn("git add", out)
-        self.assertIn("Перезапусти сесію", out)
-        self.assertIn("не /clear", out)
+        self.assertIn("AGENTS.md", self.porcelain())
+
+    def test_the_commit_message_follows_the_project_language(self):
+        self.init(docs=None, lang="en")
+        self.assertIn("Keel in the project", self.log())
+
+    def test_a_second_init_adds_no_empty_commit(self):
+        self.init()
+        before = self.log()
+        self.init()
+        self.assertEqual(before, self.log())
+
+    def test_the_commit_goes_through_even_with_a_red_hook(self):
+        """pre-commit ставиться цим же init; порожній крок його б не пустив."""
+        self.write("keel-unrelated.txt", "x")
+        code, _ = self.init()
+        self.assertEqual(code, 0)
+        self.assertIn("Keel", self.log())
+
+    def test_a_repository_without_an_identity_falls_back_to_the_hint(self):
+        subprocess.run(["git", "-C", self.root, "config", "user.email", ""], check=True)
+        subprocess.run(["git", "-C", self.root, "config", "user.name", ""], check=True)
+        _, out = self.init()
+        if "закомічено" not in out:
+            self.assertIn("не в git", out)
 
     def test_creates_the_three_folders(self):
         self.init()

@@ -1,6 +1,6 @@
 ---
 translates: README.md
-source-rev: 88b989
+source-rev: 8c5719
 ---
 
 # keel
@@ -179,11 +179,17 @@ alone and says so.
 The skills are installed **as both sets at once**: they are cheap, and which
 agent you will be working with tomorrow is unknown.
 
-**After `init` there are two things to do, and it says so.** Commit what it put
-there — otherwise the first plan commit runs into the uncommitted setup. And
-**restart the agent's session**: an agent registers its skills directory at
-startup, so it will not see one that has just appeared, and `/clear` does not
-help — the process has to restart.
+**`init` commits what it wrote** — as its own commit, staging only its own
+files, so anything of yours sitting uncommitted next to it stays yours.
+`--no-commit` if you would rather do it. Without git it refuses outright: Keel
+reads all of its state from git, and creating somebody's repository is a bigger
+decision than installing a method.
+
+**The agent has to be started in the project directory itself.** Skills are taken
+from the starting directory and its parents; ones that sit below it are only
+picked up once the agent reads a file there — until then `/keel-plan` answers
+"Unknown skill". If the session is already open it has to be restarted: `/clear`
+does not register the directory, and there is no `reload-skills` command.
 
 **A plan branch may carry Keel's own files.** The rule "a plan touches no code"
 is about the project's code, not about what `init` put there: otherwise it would

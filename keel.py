@@ -2286,6 +2286,13 @@ def principles_lines(lang=SOURCE_LANG):
 
 
 def cmd_init(project, args):
+    # Keel reads every bit of its state from git: closure, scope, branch
+    # comparison, the approval of a plan. Without a repository almost nothing
+    # works, and creating one is a bigger decision than installing a method.
+    if not project.git.available:
+        fail(f"у {project.root} немає git-репозиторію, а Keel увесь свій стан\n"
+             f"читає з git — закриття трансформ, межі, схвалення плану.\n"
+             f"Спершу:\n  git init")
     settings = dict(project.settings)
     for key in DEFAULTS:
         chosen = getattr(args, key, None)
@@ -2333,6 +2340,10 @@ def cmd_init(project, args):
     for line in done:
         print(f"  {line}")
     code = cmd_hooks(project, args)
+    if not getattr(args, "no_commit", False):
+        committed = commit_own(project)
+        if committed:
+            print(f"  закомічено окремо: {committed} файлів")
     for line in closing_hint(project, restart=True):
         print(line)
     return code
@@ -2340,6 +2351,31 @@ def cmd_init(project, args):
 
 def digest(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+COMMIT_MESSAGE = {"uk": "Keel у проєкті", "en": "Keel in the project"}
+
+
+def commit_own(project):
+    """Commit what init just wrote — and nothing else.
+
+    Staging only Keel's own paths is what makes this safe: whatever the person
+    had uncommitted next to it stays theirs, and the commit stays a separate,
+    revertable thing. Coming into somebody's existing repository, that is the
+    most a tool should take.
+    """
+    code, stdout, _ = project.git.run("status", "--porcelain", "--untracked-files=all")
+    if code != 0:
+        return None
+    mine = sorted({row[3:] for row in stdout.splitlines() if keel_owns(row[3:])})
+    if not mine:
+        return None
+    if project.git.run("add", "--", *mine)[0] != 0:
+        return None
+    message = COMMIT_MESSAGE.get(project.settings["lang"], COMMIT_MESSAGE["en"])
+    if project.git.run("commit", "--no-verify", "-m", message)[0] != 0:
+        return None      # no identity configured, mid-merge — the hint still stands
+    return len(mine)
 
 
 def closing_hint(project, restart=False):
@@ -2361,9 +2397,12 @@ def closing_hint(project, restart=False):
                          " ".join(sorted({name.split('/')[0] for name in pending})) +
                          '\n  git commit -m "Keel у проєкті"')
     if restart:
-        lines.append("\nПерезапусти сесію агента — не /clear, а справжній "
-                     "перезапуск. Теку скілів агент бере на облік при старті, "
-                     "і щойно створену не побачить.")
+        lines.append(
+            f"\nЩоб зʼявились /keel-plan, /keel-work і /keel-review, агента треба "
+            f"запустити в самій теці проєкту:\n  cd {project.root} && <агент>\n"
+            f"Скіли беруться з теки старту й батьківських; ті, що нижче, "
+            f"підхоплюються аж коли агент прочитає там якийсь файл. Якщо сесія "
+            f"вже відкрита — перезапусти її, /clear тут не допомагає.")
     return lines
 
 
@@ -2751,6 +2790,8 @@ def build_parser():
 
     init = sub.add_parser("init", help="поставити Keel у проєкт")
     init.add_argument("--force", action="store_true", help="перезаписати чужий хук")
+    init.add_argument("--no-commit", action="store_true",
+                      help="не комітити покладене — зробиш сам")
     init.add_argument("--docs", choices=LANGS, help="мова довідників у проєкті")
     init.add_argument("--lang", choices=LANGS,
                       help="мова, якою агент пише кроки й яку ловлять скіли")
