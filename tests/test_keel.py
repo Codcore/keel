@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -1064,12 +1065,14 @@ class TestSkills(ProjectCase):
         """Рекомендація Anthropic: тригери в описі, тіло — про роботу."""
         for skill in keel.SKILLS:
             self.assertIn("use this skill", skill["description"].lower(), skill["name"])
+            self.assertIn("{triggers}", skill["description"], skill["name"])
             self.assertIn("keel/", skill["description"], skill["name"])
 
     def test_description_fits_the_listing_cap(self):
         for skill in keel.SKILLS:
-            self.assertLessEqual(len(skill["description"]), keel.DESCRIPTION_CAP,
-                                 skill["name"])
+            for lang in keel.LANGS:
+                self.assertLessEqual(len(keel.skill_description(skill, lang)),
+                                     keel.DESCRIPTION_CAP, skill["name"])
 
     def test_description_is_quoted_because_it_carries_a_colon(self):
         self.generate()
@@ -1084,7 +1087,7 @@ class TestSkills(ProjectCase):
     def test_description_survives_the_round_trip(self):
         self.generate()
         for skill in keel.SKILLS:
-            wanted = " ".join(skill["description"].split())
+            wanted = keel.skill_description(skill, self.project.settings["lang"])
             for _, relative in keel.skill_targets(skill):
                 head = self.head(self.fixture.read(relative))
                 self.assertEqual(head["description"], wanted, relative)
@@ -1166,8 +1169,10 @@ class TestSkills(ProjectCase):
             for _, relative in keel.skill_targets(skill):
                 front, _, _ = keel.split_front_matter(self.fixture.read(relative))
                 head = yaml.safe_load(front)
-                self.assertEqual(head["description"],
-                                 " ".join(skill["description"].split()), relative)
+                self.assertEqual(
+                    head["description"],
+                    keel.skill_description(skill, self.project.settings["lang"]),
+                    relative)
                 self.assertIs(head.get("alwaysApply", False), False, relative)
 
     def test_second_run_changes_nothing(self):
@@ -1498,7 +1503,7 @@ class TestSkillQuality(ProjectCase):
 
     def test_description_says_what_and_when(self):
         for skill in keel.SKILLS:
-            description = skill["description"]
+            description = keel.skill_description(skill)
             self.assertRegex(description, r"^[A-Z]\w+", skill["name"])
             self.assertNotIn("This skill", description, skill["name"])
             self.assertIn("use this skill", description.lower(), skill["name"])
@@ -1507,9 +1512,119 @@ class TestSkillQuality(ProjectCase):
         """Проти недоспрацювання: опис має ловити те, як людина каже насправді."""
         import re
         for skill in keel.SKILLS:
-            quoted = re.findall(r"«[^»]+»", skill["description"])
-            self.assertGreaterEqual(len(quoted), 2,
-                                    f"{skill['name']}: {quoted}")
+            for lang in keel.LANGS:
+                text = keel.skill_description(skill, lang)
+                quoted = re.findall(r"«[^»]+»|\"[^\"]+\"", text)
+                self.assertGreaterEqual(len(quoted), 2,
+                                        f"{skill['name']}/{lang}: {quoted}")
+
+
+class TestLanguageSettings(unittest.TestCase):
+    """Дві мови, і вони незалежні: довідники окремо, мова проєкту окремо."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-lang-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        subprocess.run(["git", "init", "-b", "main", "-q", self.root], check=True)
+
+    def init(self, **kwargs):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            keel.cmd_init(keel.Project(self.root), Args(
+                **{"install": True, "force": False, "docs": None,
+                   "lang": None, **kwargs}))
+        finally:
+            sys.stdout = saved
+        return stream.getvalue()
+
+    def config(self):
+        with open(os.path.join(self.root, keel.CONFIG_FILE), encoding="utf-8") as h:
+            return json.load(h)
+
+    def read(self, name):
+        with open(os.path.join(self.root, name), encoding="utf-8") as handle:
+            return handle.read()
+
+    def test_defaults_are_written_down(self):
+        self.init()
+        self.assertEqual(self.config(), keel.DEFAULTS)
+
+    def test_settings_are_independent(self):
+        """Довідники однією мовою, тригери іншою — саме той випадок."""
+        self.init(lang="en")
+        self.assertEqual(self.config()["lang"], "en")
+        self.assertEqual(self.config()["docs"], keel.SOURCE_LANG)
+
+    def test_language_changes_the_trigger_phrases(self):
+        self.init(lang="uk")
+        self.assertIn("«зроби наступне»",
+                      self.read(".claude/skills/keel-work/SKILL.md"))
+        self.init(lang="en")
+        text = self.read(".claude/skills/keel-work/SKILL.md")
+        self.assertIn("what's next", text)
+        self.assertNotIn("«зроби наступне»", text)
+
+    def test_the_body_never_changes_with_language(self):
+        """Тіло — інструкція моделі, воно англійською завжди."""
+        self.init(lang="uk")
+        _, first, _ = keel.split_front_matter(
+            self.read(".claude/skills/keel-plan/SKILL.md"))
+        self.init(lang="en")
+        _, second, _ = keel.split_front_matter(
+            self.read(".claude/skills/keel-plan/SKILL.md"))
+        self.assertEqual(first, second)
+
+    def test_setting_survives_a_plain_rerun(self):
+        self.init(lang="en")
+        self.init()
+        self.assertEqual(self.config()["lang"], "en")
+
+    def test_missing_translation_refuses_instead_of_falling_back(self):
+        with self.assertRaises(SystemExit):
+            self.init(docs="en")
+
+    def test_broken_config_falls_back_to_defaults(self):
+        os.makedirs(os.path.join(self.root, "keel"), exist_ok=True)
+        with open(os.path.join(self.root, keel.CONFIG_FILE), "w") as handle:
+            handle.write("{ not json")
+        self.assertEqual(keel.read_config(self.root), keel.DEFAULTS)
+
+
+class TestTranslationCheck(unittest.TestCase):
+    """Хто спирається — той тримає редакцію. Переклад спирається на джерело."""
+
+    def test_source_language_has_nothing_to_check(self):
+        root = tempfile.mkdtemp(prefix="keel-tr-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, "keel/steps"))
+        project = keel.Project(root)
+        project.settings = {"docs": keel.SOURCE_LANG, "lang": keel.SOURCE_LANG}
+        self.assertEqual(keel.check_translations(project), [])
+
+    def test_stale_translation_is_reported(self):
+        root = tempfile.mkdtemp(prefix="keel-tr-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, "keel/steps"))
+        project = keel.Project(root)
+        project.settings = {"docs": "en", "lang": "en"}
+        found = {name: "deadbe" for name in keel.REFERENCES}
+        with unittest.mock.patch.object(keel, "translations", lambda lang: found):
+            problems = keel.check_translations(project)
+        self.assertEqual(len(problems), len(keel.REFERENCES))
+        self.assertIn("тримає deadbe", problems[0].message)
+
+    def test_translation_without_a_recorded_revision(self):
+        root = tempfile.mkdtemp(prefix="keel-tr-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, "keel/steps"))
+        project = keel.Project(root)
+        project.settings = {"docs": "en", "lang": "en"}
+        with unittest.mock.patch.object(keel, "translations",
+                                        lambda lang: {"KEEL.md": ""}):
+            problems = keel.check_translations(project)
+        self.assertIn("не називає редакції", problems[0].message)
 
 
 class TestBranchOverride(ProjectCase):

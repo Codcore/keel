@@ -743,6 +743,7 @@ class Project:
         # On CI the head is detached and git cannot name the branch — there the
         # name arrives in a flag.
         self.branch_override = None
+        self.settings = read_config(root)
         self._load()
 
     @property
@@ -818,9 +819,10 @@ CHECK_NAMES = {
     5: "у кожного сценарію зелений тест",
     6: "модулі експортують обіцяне",
     7: "імена в шапці збігаються із заголовками",
+    8: "переклади довідників не відстали від джерела",
 }
 
-FAST_CHECKS = (1, 2, 3, 4, 7)
+FAST_CHECKS = (1, 2, 3, 4, 7, 8)
 KEEL_DIR_PREFIX = "keel/"
 
 
@@ -1078,6 +1080,7 @@ def run_checks(project, only=None, run_tests=True):
         5: lambda: check_scenarios(project, run_tests=run_tests),
         6: lambda: check_exports(project),
         7: lambda: check_headings(project),
+        8: lambda: check_translations(project),
     }
     for number in sorted(runners):
         results[number] = runners[number]() if number in only else None
@@ -1411,6 +1414,99 @@ CI_FILE = ".github/workflows/keel.yml"
 # at what sits in the same repository. Methodology, tool, quality cuts.
 REFERENCES = ("KEEL.md", "README.md", "QUALITY.md")
 
+# Two settings, and they are deliberately separate: someone may well want the
+# reference in English while the agent writes and listens in their own language.
+#
+#   docs — which translation of the references lands in the project
+#   lang — what the agent writes (steps, commits) and what phrases the skills catch
+#
+# Neither can be guessed, so they are the one thing Keel keeps in a config file.
+CONFIG_FILE = "keel/keel.json"
+SOURCE_LANG = "uk"          # the language the methodology is written in
+LANGS = ("uk", "en")
+# The default is the source language because it is the only complete set today.
+# Once docs/en/ is filled in, this is the line that moves.
+DEFAULTS = {"docs": SOURCE_LANG, "lang": SOURCE_LANG}
+
+
+def read_config(root):
+    settings = dict(DEFAULTS)
+    path = os.path.join(root, CONFIG_FILE)
+    if os.path.exists(path):
+        try:
+            stored = json.loads(read_text(path))
+        except ValueError:
+            return settings
+        if isinstance(stored, dict):
+            for key in DEFAULTS:
+                if stored.get(key) in LANGS:
+                    settings[key] = stored[key]
+    return settings
+
+
+def write_config(root, settings, done):
+    write_if_changed(os.path.join(root, CONFIG_FILE),
+                     json.dumps(settings, indent=2, sort_keys=True) + "\n",
+                     done, CONFIG_FILE)
+
+
+def doc_source(name, lang):
+    """Where a reference lives at home: the source language sits at the root."""
+    if lang == SOURCE_LANG:
+        return os.path.join(home(), name)
+    return os.path.join(home(), "docs", lang, name)
+
+
+def translations(lang):
+    """Translated references, with the source revision each one claims to follow."""
+    if lang == SOURCE_LANG:
+        return {}
+    out = {}
+    for name in REFERENCES + ("PRINCIPLES.md",):
+        path = doc_source(name, lang)
+        if not os.path.exists(path):
+            continue
+        front, _, _ = split_front_matter(read_text(path))
+        try:
+            head = parse_yaml(front) if front else {}
+        except YamlError:
+            head = {}
+        out[name] = str(head.get("source-rev") or "")
+    return out
+
+
+def strip_front_matter(text):
+    """A translation carries bookkeeping at home; the project gets the prose."""
+    front, body, _ = split_front_matter(text)
+    return body.lstrip("\n") if front is not None else text
+
+
+def check_translations(project):
+    """A translation that stopped following its source is worse than none.
+
+    Same rule as everywhere else in Keel: whoever leans on a text holds its
+    revision. Here the English page leans on the Ukrainian one.
+    """
+    lang = project.settings["docs"]
+    if lang == SOURCE_LANG:
+        return []
+    problems = []
+    for name, recorded in translations(lang).items():
+        source = os.path.join(home(), name)
+        if not os.path.exists(source):
+            continue
+        text = read_text(source)
+        where = os.path.relpath(doc_source(name, lang), home())
+        if not recorded:
+            problems.append(Problem(
+                8, f"переклад не називає редакції джерела; зараз {revision(text)}",
+                where))
+        elif not rev_matches(recorded, text):
+            problems.append(Problem(
+                8, f"переклад тримає {recorded}, а {name} зараз {revision(text)}",
+                where))
+    return problems
+
 AGENTS_BLOCK = """{start}
 ## Keel
 
@@ -1666,12 +1762,15 @@ SKILLS = (
                         "the quality cuts, transforms with exact file lists. In a "
                         "project that has a keel/ directory, use this skill "
                         "whenever any new work begins — even when nobody says the "
-                        "word step and the request is «додай», «зроби», «реалізуй», "
-                        "\"add\", \"implement\", \"let's plan this\", or just a "
+                        "word step and the request is {triggers}, or just a "
                         "description of what is missing. Use it as well when "
                         "keel/steps/*.md is being edited, when asked how to split "
                         "work into transforms or how a scenario differs from a "
                         "boundary, and when keel gaps reports an incomplete step."),
+        "triggers": {
+            "uk": "«додай», «зроби це», «реалізуй», «давай спланую»",
+            "en": "\"add\", \"build\", \"implement\", \"let's plan this\"",
+        },
         "paths": ["keel/steps/*.md"],
         "argument_hint": "[слаг нового кроку]",
         "body": PLAN_BODY,
@@ -1682,11 +1781,14 @@ SKILLS = (
                         "strictly inside the named files, keel check, commit "
                         "carrying the transform slug. In a project with a keel/ "
                         "directory, use this skill whenever the request is to write "
-                        "code, continue the work, «зроби наступне», «що далі», "
-                        "\"what's next\", \"keep going\" — and whenever the branch "
-                        "is named after a step, even if Keel was never mentioned. "
-                        "Use it before committing too: the message has to carry the "
-                        "transform slug or the transform stays open."),
+                        "code, continue the work, {triggers} — and whenever the "
+                        "branch is named after a step, even if Keel was never "
+                        "mentioned. Use it before committing too: the message has "
+                        "to carry the transform slug or the transform stays open."),
+        "triggers": {
+            "uk": "«зроби наступне», «що далі», «продовжуй»",
+            "en": "\"what's next\", \"keep going\", \"carry on\"",
+        },
         "paths": None,
         "argument_hint": None,
         "body": WORK_BODY,
@@ -1697,10 +1799,13 @@ SKILLS = (
                         "check plus the question of what we stayed silent about. In "
                         "a project with a keel/ directory, use this skill when asked "
                         "to open a PR or merge a branch, and when the question is "
-                        "«готово?», «можна мержити», \"is this done\", \"ready to "
-                        "merge\" — and whenever every transform of the step is "
+                        "{triggers} — and whenever every transform of the step is "
                         "already closed by a commit. Use it before claiming the work "
                         "is finished."),
+        "triggers": {
+            "uk": "«готово?», «можна мержити», «все на місці?»",
+            "en": "\"is this done\", \"ready to merge\", \"can we ship it\"",
+        },
         "paths": None,
         "argument_hint": None,
         "body": REVIEW_BODY,
@@ -1962,7 +2067,7 @@ def home():
     return os.path.dirname(os.path.abspath(__file__))
 
 
-def render_skill(skill, agent):
+def render_skill(skill, agent, lang=DEFAULTS["lang"]):
     """One skill. Both agents take the same fields; only extras differ."""
     extra = ""
     if skill.get("paths"):
@@ -1972,10 +2077,20 @@ def render_skill(skill, agent):
         extra += f"argument-hint: {yaml_string(skill['argument_hint'])}\n"
     return SKILL_FILE.format(
         name=skill["name"],
-        description=yaml_string(" ".join(skill["description"].split())),
+        description=yaml_string(skill_description(skill, lang)),
         extra=extra,
         note=GENERATED_NOTE,
         body=skill["body"].strip())
+
+
+def skill_description(skill, lang=DEFAULTS["lang"]):
+    """The description in English, with example phrases in the project's language.
+
+    Triggering is decided from this text, so the phrases have to be the ones the
+    operator actually types — that is what `lang` is for.
+    """
+    return " ".join(
+        skill["description"].format(triggers=skill["triggers"][lang]).split())
 
 
 def skill_targets(skill):
@@ -1986,7 +2101,7 @@ def skill_targets(skill):
 
 def cmd_skills(project, args=None):
     done = []
-    write_skills(project.root, done)
+    write_skills(project.root, project.settings["lang"], done)
     for line in done:
         print(f"  {line}")
     if not done:
@@ -1994,16 +2109,16 @@ def cmd_skills(project, args=None):
     return 0
 
 
-def write_skills(root, done):
+def write_skills(root, lang, done):
     for skill in SKILLS:
         for agent, relative in skill_targets(skill):
             write_if_changed(os.path.join(root, relative),
-                             render_skill(skill, agent), done, relative)
+                             render_skill(skill, agent, lang), done, relative)
 
 
-def principles_lines():
+def principles_lines(lang=SOURCE_LANG):
     """The seven statements from PRINCIPLES.md — headings, without bodies."""
-    path = os.path.join(home(), "PRINCIPLES.md")
+    path = doc_source("PRINCIPLES.md", lang)
     if not os.path.exists(path):
         return None
     found = re.findall(r"^##\s+(\d+)\.\s+(.+?)\s*$", read_text(path), re.M)
@@ -2011,16 +2126,26 @@ def principles_lines():
 
 
 def cmd_init(project, args):
-    principles = principles_lines()
-    sources = {name: os.path.join(home(), name) for name in REFERENCES}
-    if principles is None or not all(map(os.path.exists, sources.values())):
-        fail("PRINCIPLES.md і довідники (" + ", ".join(REFERENCES) + ") поруч не "
-             "знайшлись: init запускають із репозиторію методики")
+    settings = dict(project.settings)
+    for key in DEFAULTS:
+        chosen = getattr(args, key, None)
+        if chosen:
+            settings[key] = chosen
+
+    principles = principles_lines(settings["docs"])
+    sources = {name: doc_source(name, settings["docs"]) for name in REFERENCES}
+    missing = [name for name, path in sources.items() if not os.path.exists(path)]
+    if principles is None or missing:
+        fail(f"довідників мовою {settings['docs']} немає: "
+             + ", ".join(missing + ([] if principles else ["PRINCIPLES.md"]))
+             + ". init запускають із репозиторію методики")
 
     done = []
     for folder in INIT_DIRS:
         os.makedirs(os.path.join(project.root, folder), exist_ok=True)
     done.append("keel/steps, keel/contracts, keel/decisions")
+    write_config(project.root, settings, done)
+    project.settings = settings
 
     source = os.path.abspath(__file__)
     target = os.path.join(project.root, VENDORED)
@@ -2028,9 +2153,9 @@ def cmd_init(project, args):
         write_if_changed(target, read_text(source), done, VENDORED)
     for name, path in sources.items():
         write_if_changed(os.path.join(project.root, "keel", name),
-                         read_text(path), done, f"keel/{name}")
+                         strip_front_matter(read_text(path)), done, f"keel/{name}")
 
-    write_skills(project.root, done)
+    write_skills(project.root, settings["lang"], done)
     write_hook_configs(project.root, done)
 
     block = AGENTS_BLOCK.format(
@@ -2277,6 +2402,9 @@ def build_parser():
 
     init = sub.add_parser("init", help="поставити Keel у проєкт")
     init.add_argument("--force", action="store_true", help="перезаписати чужий хук")
+    init.add_argument("--docs", choices=LANGS, help="мова довідників у проєкті")
+    init.add_argument("--lang", choices=LANGS,
+                      help="мова, якою агент пише кроки й яку ловлять скіли")
     init.set_defaults(install=True)
 
     sub.add_parser("skills", help="перепородити скіли з методики")
