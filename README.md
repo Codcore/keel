@@ -88,13 +88,19 @@ and the two should not be conflated:
 
 They are separate because wanting an English reference with Ukrainian triggers is
 a reasonable thing to want. A skill's body depends on neither: it is read by the
-model, and it is always English.
+model, and it is always English. So is what neither of them reads: the CI
+workflow and the git hook scripts, down to the message somebody meets on a
+failing push.
 
 Those two and the mode are the whole of what Keel keeps in a settings file.
 Neither language can be guessed: the language of a project's prose is a team's
 decision, not a property of the code.
 
-`lang` also decides what this tool says. Its messages are keyed by their English
+`lang` also decides what this tool says, and what language `keel new` writes a
+step or contract skeleton in. The header fields are the same either way — they
+become code — while the hints and the Why heading follow the project; the reader
+accepts both spellings, so a project may change language without its existing
+steps becoming unreadable. The tool's messages are keyed by their English
 text, so a missing translation degrades to readable English rather than to an
 error. The command line itself stays English in both: flag names, metavars and
 `--help` are the interface's own vocabulary, like `--force` is.
@@ -190,6 +196,13 @@ the check turns red rather than passing it over in silence, and it is bounded at
 `pre-push` and CI for as long as they are allowed to run. Its stdin is closed, so
 a command that prompts fails at once instead of waiting, and `--no-tests` does
 not run it.
+
+**Everything that executes the project's code is bounded**, not only `verify`.
+The test run gets ten minutes, the export probe two. A fixed command from an
+adapter is no safer than a command from a file: `mix test` and the script that
+asks a module for its exports both execute somebody else's code, and check 6 is
+what `pre-push` runs. A timeout is a red check naming the command, not silence
+and not a traceback; so is a missing interpreter.
 
 **This executes a command out of a file in the repository, and that is worth
 knowing.** `keel check` runs it through a shell, and `pre-push` runs `keel check`.
@@ -425,7 +438,8 @@ keel init --mode manual --agent-hooks
 
 The mode is written into `keel/keel.json` and read back by `keel skills` and
 `keel update`, so regenerating never quietly hands back either the procedures to
-the model or the hooks the mode did not want.
+the model or the hooks the mode did not want. Edit that mode by hand and the next
+`update` takes the hooks back rather than merely declining to add them.
 
 **Narrowing the mode also takes back what a wider one installed.** `keel init
 --mode manual` over a strict install does not merely stop writing hooks: it

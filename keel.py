@@ -42,6 +42,8 @@ UK = {
     # читач YAML
     "line {line}: {message}": "рядок {line}: {message}",
     "unclosed quote": "лапки не закриті",
+    "a backslash at the end of a value": "зворотний слеш у кінці значення",
+    "unknown escape: {escape}": "невідоме екранування: {escape}",
     "stray bracket": "зайва дужка",
     "unclosed bracket": "дужка не закрита",
     "a map inside a list is not supported: {item}":
@@ -405,15 +407,36 @@ def _scalar(text, line):
     if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
         body = text[1:-1]
         if text[0] == '"':
-            # Escapes are narrow on purpose, but they have to be undone: a value
-            # written by yaml_string must survive the round trip.
-            return (body.replace('\\"', '"')
-                        .replace("\\n", "\n")
-                        .replace("\\\\", "\\"))
+            # One pass, not three chained replaces: chaining turns an escaped
+            # backslash followed by n into a real newline, so a value written by
+            # yaml_string would not survive the round trip.
+            return unescape(body, line)
         return body.replace("''", "'")
     if text.startswith(("\"", "'")):
         raise YamlError(line, t("unclosed quote"))
     return text
+
+
+ESCAPES = {'"': '"', "\\": "\\", "n": "\n", "t": "\t"}
+
+
+def unescape(body, line):
+    out, index = [], 0
+    while index < len(body):
+        char = body[index]
+        if char != "\\":
+            out.append(char)
+            index += 1
+            continue
+        if index + 1 >= len(body):
+            raise YamlError(line, t("a backslash at the end of a value"))
+        following = body[index + 1]
+        if following not in ESCAPES:
+            raise YamlError(line, t("unknown escape: {escape}",
+                                    escape=repr("\\" + following)))
+        out.append(ESCAPES[following])
+        index += 2
+    return "".join(out)
 
 
 def _split_flow(text, line):
@@ -1510,7 +1533,9 @@ def spec_head(entry):
 
 
 def count_arguments(inside):
-    """Commas at depth zero. A comma inside a type is part of that one type."""
+    """Commas at depth zero, plus one. A comma inside a type is part of that type."""
+    if not inside.strip():
+        return 0
     depth, count = 0, 1
     for char in inside:
         if char in "([{":
@@ -1541,7 +1566,23 @@ def promised_signature(entry):
     if not match:
         return None
     name, inside = match.group(1), match.group(2).strip()
-    return (name, count_arguments(inside) if inside else 0)
+    if not balanced(inside):
+        # `run(a)(b)` matches the pattern because `.*` is greedy. Accepting it
+        # would let a garbled line count as a kept promise.
+        return None
+    return (name, count_arguments(inside))
+
+
+def balanced(text):
+    depth = 0
+    for char in text:
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+            if depth < 0:
+                return False
+    return depth == 0
 
 
 def flatten_spec(text):
@@ -1558,7 +1599,10 @@ def flatten_spec(text):
     text = re.sub(r"([(\[{]) ", r"\1", text)
     text = re.sub(r" ([)\]}])", r"\1", text)
     text = re.sub(r"\s*,\s*", ", ", text)
-    return re.sub(r"\s*\|\s*", " | ", text)
+    text = re.sub(r"\s*\|\s*", " | ", text)
+    # `::` last, and it matters: named arguments put one inside the head, where
+    # people write it tight and the compiler writes it spaced.
+    return re.sub(r"\s*::\s*", " :: ", text)
 
 
 def check_exports(project, run_tests=True):
@@ -1642,7 +1686,7 @@ def check_exports(project, run_tests=True):
             # promise nothing compared.
             if not getattr(project.adapter, "supports_specs", False):
                 problems.append(Problem(
-                    6, t("{language} cannot be asked for types, so the promised shape of {promised} goes unchecked", language=project.adapter.name, promised=named),
+                    6, t("{language} cannot be asked for types, so the promised shape of {promised} goes unchecked", language=getattr(project.adapter, "name", "?"), promised=named),
                     contract.rel, contract.line_of(promised)))
             elif named not in specs:
                 problems.append(Problem(
@@ -2637,8 +2681,15 @@ description: {description}
 
 
 def yaml_string(text):
-    """Quote a scalar. Descriptions carry colons, and bare colons break YAML."""
-    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    """Quote a scalar. Descriptions carry colons, and bare colons break YAML.
+
+    A newline is escaped rather than written through: a real line break inside
+    quotes is a scalar our own reader would meet as two lines and never put back
+    together. The reader undoes exactly these four.
+    """
+    for raw, escaped in (("\\", "\\\\"), ('"', '\\"'), ("\n", "\\n"), ("\t", "\\t")):
+        text = text.replace(raw, escaped)
+    return '"' + text + '"'
 
 
 # ─────────────────────────────────────────────────────────────────────────────

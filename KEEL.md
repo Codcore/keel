@@ -98,9 +98,12 @@ sound.
 - extending the list is allowed and stays as a line in the diff. Drift is not
   forbidden — it is named.
 
-Documents under `keel/` are not subject to scope: they are the plan, not the
-work. A `plan/*` branch is the mirror image — it should touch nothing but
-`keel/`, and the check says so.
+Keel's own furniture is not subject to scope, on a plan branch or a work branch
+alike. The documents under `keel/`, the skills, the hooks, the CI and the block
+in `AGENTS.md` are plan and scaffolding, not work, and `keel update` running mid
+work should not demand that our own generated file be declared in somebody's
+transform. A `plan/*` branch is the mirror image — it should touch nothing else,
+and the check says so.
 
 Scope is compared against the branch: its name is the step's name. Where git does
 not know that name — on CI the head is detached — it arrives through the

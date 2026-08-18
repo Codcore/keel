@@ -180,5 +180,44 @@ class TestRevision(unittest.TestCase):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+class TestQuotedRoundTrip(unittest.TestCase):
+    """What yaml_string writes, _scalar must read back byte for byte."""
+
+    def back(self, original):
+        return keel._scalar(keel.yaml_string(original), 1)
+
+    def test_a_backslash_before_an_n_is_not_a_newline(self):
+        """Ланцюжок замін робив із нього справжній перенос рядка."""
+        self.assertEqual(self.back("a\\nb"), "a\\nb")
+
+    def test_a_windows_path_survives(self):
+        self.assertEqual(self.back("C:\\new\\table"), "C:\\new\\table")
+
+    def test_quotes_and_backslashes_survive(self):
+        for original in ('з "лапками"', "зі \\\\ слешем", 'край\\', '"'):
+            self.assertEqual(self.back(original), original, repr(original))
+
+    def test_a_newline_is_escaped_not_written_through(self):
+        """Справжній перенос у лапках наш же читач зустрів би як два рядки."""
+        quoted = keel.yaml_string("перенос\nрядка")
+        self.assertNotIn("\n", quoted)
+        self.assertEqual(self.back("перенос\nрядка"), "перенос\nрядка")
+
+    def test_a_tab_too(self):
+        self.assertEqual(self.back("до\tпісля"), "до\tпісля")
+
+    def test_a_value_with_a_newline_still_parses_as_one_line(self):
+        text = "description: " + keel.yaml_string("перший\nдругий") + "\n"
+        self.assertEqual(keel.parse_yaml(text)["description"], "перший\nдругий")
+
+    def test_an_unknown_escape_is_an_error_not_a_silent_pass(self):
+        with self.assertRaises(keel.YamlError):
+            keel._scalar('"\\q"', 1)
+
+    def test_a_trailing_backslash_is_an_error(self):
+        with self.assertRaises(keel.YamlError):
+            keel._scalar('"край\\"', 1)
+
+
 if __name__ == "__main__":
     unittest.main()

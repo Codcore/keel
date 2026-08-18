@@ -283,8 +283,15 @@ class TestPromisedSignature(unittest.TestCase):
                          ("valid?", 1))
 
     def test_nonsense_is_nonsense(self):
-        for entry in ("сміття", "run/x", "run/", ":: t()", "run :: t()"):
+        for entry in ("сміття", "run/x", "run/", ":: t()", "run :: t()",
+                      "run(a)(b) :: t()", "run(a :: t()", "run/²"):
             self.assertIsNone(keel.promised_signature(entry), entry)
+
+    def test_the_empty_argument_list_is_counted_by_the_helper_itself(self):
+        """Нуль аргументів має бути в самій функції, а не на місці виклику."""
+        self.assertEqual(keel.count_arguments(""), 0)
+        self.assertEqual(keel.count_arguments("   "), 0)
+        self.assertEqual(keel.count_arguments("a, b"), 2)
 
 
 class TestFlattenSpec(unittest.TestCase):
@@ -298,6 +305,11 @@ class TestFlattenSpec(unittest.TestCase):
     def test_line_breaks_are_not_a_difference(self):
         self.assertEqual(keel.flatten_spec("run(a) ::\n  {:ok, b}"),
                          "run(a) :: {:ok, b}")
+
+    def test_spacing_around_a_named_argument_is_not_a_difference(self):
+        """Компілятор пише `text :: binary()`, людина пише `text::binary()`."""
+        self.assertEqual(keel.flatten_spec("run(text::binary()) :: :ok"),
+                         keel.flatten_spec("run(text :: binary()) :: :ok"))
 
     def test_a_real_difference_survives(self):
         self.assertNotEqual(keel.flatten_spec("run(binary()) :: :ok"),
@@ -512,8 +524,29 @@ class TestSpecsAgainstARealMixProject(unittest.TestCase):
     def test_a_named_argument_spec_survives_the_round_trip(self):
         """Те, що віддав компілятор, скопійоване в контракт, має проходити."""
         answer = keel.ElixirAdapter().exports(self.root, ["Specs"])
-        self.contract(keel.flatten_spec(answer[("specs", "Specs")]["run/2"][0]))
+        declared = answer[("specs", "Specs")]["named/1"][0]
+        self.assertIn("::", declared.split("::", 1)[1],
+                      "у фікстурі мав бути іменований аргумент")
+        self.contract(keel.flatten_spec(declared))
         self.assertEqual(keel.check_exports(keel.Project(self.root)), [])
+
+    def test_a_named_argument_spec_copied_from_the_source_passes(self):
+        """Людина копіює не наш вивід, а рядок @spec зі свого ж модуля."""
+        self.contract("named(text :: binary()) :: :ok")
+        self.assertEqual(keel.check_exports(keel.Project(self.root)), [])
+
+    def test_either_clause_of_a_two_spec_function_passes(self):
+        for promised in ("pick(integer()) :: :small", "pick(binary()) :: :big"):
+            self.contract(promised)
+            self.assertEqual(keel.check_exports(keel.Project(self.root)), [],
+                             promised)
+
+    def test_a_third_shape_is_refused_and_both_clauses_shown(self):
+        self.contract("pick(atom()) :: :other")
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn(":small", problems[0].message)
+        self.assertIn(":big", problems[0].message)
 
     def test_a_function_without_a_spec_is_named(self):
         self.contract("undeclared(term()) :: term()")
