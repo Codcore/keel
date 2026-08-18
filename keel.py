@@ -64,7 +64,14 @@ def _strip_comment(text):
 def _scalar(text, line):
     text = text.strip()
     if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
-        return text[1:-1]
+        body = text[1:-1]
+        if text[0] == '"':
+            # Escapes are narrow on purpose, but they have to be undone: a value
+            # written by yaml_string must survive the round trip.
+            return (body.replace('\\"', '"')
+                        .replace("\\n", "\n")
+                        .replace("\\\\", "\\"))
+        return body.replace("''", "'")
     if text.startswith(("\"", "'")):
         raise YamlError(line, "лапки не закриті")
     return text
@@ -1458,225 +1465,251 @@ SKILL_DIRS = {"claude": ".claude/skills", "cursor": ".cursor/skills"}
 DESCRIPTION_CAP = 1536      # Claude truncates the skill listing at this
 
 PLAN_BODY = """\
-## Почни звідси
+## Start here
 
-План і робота розділені навмисно: тут пишеться крок, коду не пишеться жодного
-рядка. Крок читає й пускає людина, і саме тому він окремий PR.
+Planning and work are separate on purpose: this branch writes the step and not a
+line of code. A person reads the step and lets it through, which is why it is its
+own pull request.
 
-Заведи гілку й каркас:
+Create the branch and the skeleton:
 
-    git checkout -b plan/<слаг>
-    python3 keel/keel.py new step <слаг>
+    git checkout -b plan/<slug>
+    python3 keel/keel.py new step <slug>
 
-Слаг міг прийти аргументом до `/keel-plan`. Якщо його немає — спитай одним
-реченням, який крок пишемо, і не вигадуй за людину.
+The slug may arrive as an argument to `/keel-plan`. If it did not, ask in one
+sentence which step we are writing rather than inventing it for the person.
 
-## Порядок
+**Header fields are English; the prose is the project's own language.** The
+fields become code, test tags and file names, so they stay English everywhere.
+The prose is read and approved by a person, so it follows whatever language the
+existing steps in `keel/steps/` are written in. If there are none yet, ask which
+language this project writes in — and write commit messages the same way.
 
-**Навіщо** — одне-два речення про те, чого без цього кроку бракує. Не переказ
-того, що робитимеш; причина.
+## Order
 
-**Сценарії** — що обіцяємо. Кожен стає тестом, тож формулюй так, щоб було видно,
-коли він упаде: **Given** стан, **When** дія, **Then** видимий наслідок. Слаг —
-іменем, не номером. Сценарій, який не можна перевірити, — це побажання; або
-переформулюй, або визнай межею.
+**`## Навіщо`** — one or two sentences on what is missing without this step. Not
+a retelling of what you will do: the reason it is worth doing.
 
-**Трансформи** — чим це робиться. Кожна стане одним коммітом. Перелічуй файли
-поіменно, до роботи. Глобів не буває.
+**Scenarios** — what we promise. Each one becomes a test, so word them so that it
+is visible when one fails: **Given** a state, **When** an action, **Then** an
+observable consequence. Name them; do not number them. A scenario nobody can
+check is a wish — either reword it or admit it is a boundary.
 
-Точну форму шапки — які поля, як пишеться `proves`, `implements`, `contracts`,
-звідки береться редакція — дивись у `keel/KEEL.md`. Каркас від `keel new step`
-показує кістяк, довідник пояснює поля.
+**Transforms** — what does the work. Each becomes exactly one commit. List the
+files by name before the work starts. Globs do not exist here: under a glob an
+agent creates ten files where one was meant, and nothing objects.
 
-## Питай, а не вгадуй
+For the exact header shape — which fields exist, how `proves`, `implements` and
+`contracts` are written, where a revision comes from — read `keel/KEEL.md`. The
+skeleton shows the bones; the reference explains the fields.
 
-Крок читатиме й схвалюватиме людина, тож здогадка, вписана в план, обходиться
-дорожче за питання. Коли трапляється розвилка — став питання **інструментом
-опитування**, якщо він є (у Claude Code це `AskUserQuestion`), і давай готові
-варіанти з наслідками кожного. Немає такого інструмента — спитай у чаті й
-зупинись, доки не відповіли.
+## Ask, do not guess
 
-Питай про:
+A person will read and approve this step, so a guess written into the plan costs
+more than a question. When you reach a fork, ask through the **question tool** if
+there is one — in Claude Code that is `AskUserQuestion` — and offer ready options
+with the consequence of each. Without such a tool, ask in chat and stop until
+there is an answer.
 
-- **вибір підходу**, коли їх кілька й вони ведуть до різної роботи;
-- **межі кроку** — чи входить сюди сусіднє, чи це наступний крок;
-- **розріз, на якому промовчали** — чи пишемо сценарій, чи кажемо «ні» вголос;
-- **рішення**, яке переживе цей крок: чи заводити окремий файл у `keel/decisions/`;
-- **імена контрактів**, коли крок створює нову межу між модулями.
+Ask about:
 
-Кожне питання пиши самодостатньо, ніби людина щойно прийшла й контексту не має.
+- **the choice of approach**, when several exist and they lead to different work;
+- **the edges of the step** — does the neighbouring thing belong here or in the
+  next step;
+- **a quality cut you were silent on** — do we write a scenario, or say "no" out
+  loud;
+- **a decision that outlives this step** — does it earn its own file in
+  `keel/decisions/`;
+- **contract names**, when the step draws a new boundary between modules.
 
-Не питай про те, що можна прочитати: структуру коду, наявність файлів, те, на що
-відповідає `keel gaps`. Питання — для суджень, не для фактів.
+Write every question so it stands on its own, as if the person had just walked in
+with no context.
 
-Нез'ясоване, яке не блокує решту, не спиняє роботу: напиши все, що не залежить від
-відповіді, і винеси питання туди, де воно доречне.
+Do not ask about anything readable: the shape of the code, whether a file exists,
+anything `keel gaps` already answers. Questions are for judgement, not for facts.
 
-## Розрізи якості
+An open question that blocks nothing does not stop the work: write everything
+that does not depend on the answer, and raise the question where it belongs.
 
-Перед тим, як вважати список сценаріїв повним, пройди `keel/QUALITY.md` — сорок
-питань під девʼятьма заголовками. Один прохід на крок, тут і зараз.
+## Quality cuts
 
-На кожен розріз одна відповідь із трьох:
+Before treating the list of scenarios as complete, walk `keel/QUALITY.md` — forty
+questions under nine headings. One pass per step, here, while the scenarios are
+being written.
 
-- **не стосується** — з причиною. Розріз про людину за інтерфейсом не стосується
-  файла збірки;
-- **відповіли** — назви сценарій. Сценарій, що доводить вужче, ніж питає розріз,
-  не є відповіддю: це наступний випадок;
-- **промовчали** — розріз доречний, ніщо його не закриває. Скажи, що конкретно
-  може піти не так саме тут, і напиши сценарій.
+Every cut gets exactly one of three answers:
 
-Розріз, доречний, а відповідь на нього свідомо «ні», — це рішення, і його
-називають вголос. Мовчання є тим, що цей список припиняє; відмова — ні.
+- **does not apply** — with the reason. A cut about the person at the interface
+  does not apply to a build file;
+- **answered** — name the scenario. A scenario that proves something narrower
+  than the cut asks is not an answer; it is the next case;
+- **silent** — the cut is relevant, nothing closes it. Say what specifically can
+  go wrong here, and write the scenario that closes it.
 
-Перевір, що прийшло з бібліотекою, перш ніж казати, що чогось бракує.
+A cut that is relevant and deliberately answered "no" is a decision, and it gets
+said out loud. Silence is what this list ends; refusal is not.
 
-## Де проходить межа
+Check what arrived with the library before claiming something is missing.
 
-**Сценарій чи межа.** Якщо це можна довести тестом — сценарій. Якщо це «ми
-свідомо цього не робимо» — абзац «Межі» в трансформі. Межа без сценарію чесна;
-сценарій без тесту — ні.
+## Where the line runs
 
-**Трансформа ще не атомарна**, якщо не знаєш файлів наперед. Це не привід писати
-глоб, це привід різати далі. Друга ознака: повідомлення комміта хочеться писати
-через «і».
+**Scenario or boundary.** If a test can prove it, it is a scenario. If it is "we
+deliberately do not do this", it is the `Межі` paragraph inside the transform. A
+boundary without a scenario is honest; a scenario without a test is not.
 
-**Рішення окремим файлом** — тільки коли на нього спираються два кроки й більше.
-Важливе для одного кроку живе в його тілі.
+**A transform is not yet atomic** if you cannot name its files in advance. That
+is not a reason to write a glob, it is a reason to cut further. The other tell:
+you want to write the commit message with an "and" in it.
 
-**Контракт** заводиться, коли обіцянка переживе крок, що її створив. Модуль,
-експортовані функції, сенс.
+**A decision earns its own file** only when two steps or more lean on it.
+Anything that matters to one step lives inside that step.
 
-## Перед тим, як віддавати план
+**A contract appears** when a promise outlives the step that created it: module,
+exported functions, meaning.
 
-Крути, доки не стане чисто:
+## Before handing the plan over
+
+Run this until it comes back clean:
 
     python3 keel/keel.py gaps
 
-Він скаже, чого бракує механічно: слаги без секцій, трансформи без файлів,
-сценарії без `proves`. Якщо спираєшся на контракт, свіжу редакцію впише
-`python3 keel/keel.py rev --write`.
+It reports what is missing mechanically: slugs without sections, transforms
+without files, scenarios without `proves`. If you lean on a contract, a fresh
+revision comes from `python3 keel/keel.py rev --write`.
 
-Далі комміт у гілці `plan/<крок>` і PR. **Коду в цьому PR немає** — гілка плану
-чіпає лише `keel/`, і перевірка меж це стереже.
+Then commit on the `plan/<step>` branch and open the PR. **No code goes in this
+PR** — a plan branch touches only `keel/`, and the scope check enforces it.
 
-Схвалення нікуди не пишеться: воно в тому, що файл кроку опинився в головній
-гілці. Доти `keel next` роботи не видасть, і це навмисно.
+Approval is written nowhere: it is the fact that the step file reached the main
+branch. Until then `keel next` hands out no work, and that is deliberate.
 """
 
 WORK_BODY = """\
-## Хід
+## The move
 
-Один виклик — одна трансформа. Не бери дві: комміт має відповідати одній,
-інакше слаг у повідомленні перестає щось означати.
+One invocation, one transform. Do not take two: a commit has to answer to a
+single transform, otherwise the slug in its message stops meaning anything.
 
     python3 keel/keel.py next
 
-Віддає одну трансформу: що робить, які файли, де межі, які сценарії наближає,
-тіла контрактів, на які спирається. Це повний зріз для одного ходу — довкола
-нічого відкривати не треба.
+This hands over one transform — what it does, which files, where its boundaries
+run, which scenarios it brings closer, and the bodies of the contracts it leans
+on. It is the whole slice for one move; nothing around it needs opening.
 
-Якщо `next` відмовляє, він каже чому: гілка не названа іменем кроку, або план ще
-не в головній гілці. Це не привід починати руками — це привід повернутись до
-`/keel-plan`.
+If `next` refuses, it says why: the branch is not named after a step, or the plan
+has not reached the main branch yet. Neither is a reason to start by hand — both
+are a reason to go back to `/keel-plan`.
 
-Далі зроби рівно те, потім
+Do exactly that work, then run
 
     python3 keel/keel.py check
 
-і комміт, у повідомленні якого **першим словом стоїть слаг трансформи**:
+and commit with the **transform slug as the first word** of the message:
 
-    drive-turns-on-reqllm: крутити ходи, доки модель кличе інструменти
+    drive-turns-on-reqllm: keep turning while the model calls tools
 
-Слаг — єдиний звʼязок роботи з планом; без нього трансформа лишиться відкритою,
-хоч би що було в коді.
+The slug is English because it comes from the step header; the rest of the
+message follows the project's prose language, like the step files do. The slug is
+the only link between the work and the plan — without it the transform stays open
+no matter what the code says.
 
-Повтори, доки `next` не скаже, що відкритих не лишилось. Тоді крок готовий до
-ревʼю — далі `/keel-review`.
+Repeat until `next` reports nothing open. The step is then ready for review —
+that is `/keel-review`.
 
-## Межі
+## Boundaries
 
-Файли зі списку — і тільки вони. Знадобився файл поза списком: допиши його в
-трансформу в файлі кроку. Дрейф не заборонений, він названий, і його видно в
-diff. Мовчки вийти за список — заборонено.
+The files on the list, and only those. If you need a file that is not there, add
+it to the transform in the step file. Drift is not forbidden — it is named, and
+it shows up as a line in the diff. Leaving the list silently is what is
+forbidden, and the write hook will refuse it.
 
-Кожен сценарій, який трансформа наближає, потребує тесту зі своїм імʼям і
-редакцією в тезі. Редакцію друкує `next`, а `keel rev --write` вписує її, коли
-текст сценарію змінився — після того, як ти його перечитав.
+Every scenario the transform brings closer needs a test carrying its name and its
+revision in the tag. `next` prints the revision; `keel rev --write` records a new
+one once the scenario text has changed — after you have reread it, which is the
+entire point of the mechanism.
 """
 
 REVIEW_BODY = """\
-## Що робиться
+## What happens
 
     python3 keel/keel.py check
 
-Повний гейт: посилання, цикли, редакції, межі, сценарії з зеленими тестами,
-експорти модулів. Червоне лагодиться, а не пояснюється.
+The full gate: references, cycles, revisions, scope, scenarios with green tests,
+module exports. Red gets fixed, not explained.
 
-Далі — те, чого перевірка не бачить. Перечитай крок і спитай не «що ще має бути
-правдою», а **про що ми промовчали**. Найчастіше промовчали про відмови: що
-станеться, коли залежність не відповість, коли даних більше, ніж думали, коли
-викликали двічі. Знайдене закривається до PR, як і будь-що інше.
+Then the part no check can see. Reread the step and ask not "what else should be
+true" but **what did we stay silent about**. Most often the silence is about
+failure: what happens when a dependency does not answer, when there is more data
+than anyone expected, when the thing is called twice. Whatever you find gets
+closed before the PR, like anything else.
 
-Звір текст сценаріїв із тим, що насправді доводять тести. Тест, який зеленіє,
-не перевіряючи обіцянки, гірший за відсутній: він мовчить.
+Compare the text of each scenario with what its test actually proves. A test that
+goes green without checking the promise is worse than a missing one, because it
+stays quiet.
 
-Окремо глянь на межі в обидва боки. Перевірка каже не лише «чіпнув неоголошене»,
-а й «оголосив і не чіпнув» — а це зазвичай означає, що трансформа описана не так,
-як зроблена, або що частину роботи забули.
+Look at scope in both directions. The check reports not only "touched something
+undeclared" but also "declared and never touched" — and the second usually means
+the transform was described differently from how it was built, or that a piece of
+the work was forgotten.
 
-## Далі
+## After that
 
-Коли чисто — пуш і PR. Крок цілий: усі трансформи закриті коммітами, усі
-сценарії доведені тестами, шість перевірок зелені. Більше нічого проставляти не
-треба, статуси рахуються самі.
+When it is clean, push and open the PR. The step stands whole: every transform
+closed by a commit, every scenario proved by a test, six checks green. Nothing
+else needs marking — the statuses are derived.
 """
 
 SKILLS = (
     {
         "name": "keel-plan",
-        "description": ("Написати крок Keel: навіщо, сценарії через розрізи якості, "
-                        "трансформи з точними файлами. У проєкті, де є тека keel/, "
-                        "бери цей скіл щоразу, коли починається будь-яка нова "
-                        "робота — навіть якщо слово «крок» не звучало, а сказали "
-                        "«додай», «зроби», «реалізуй», «давай спланую» чи просто "
-                        "описали, чого бракує. Так само бери, коли редагується "
-                        "keel/steps/*.md, коли питають, як розбити роботу на "
-                        "трансформи, чим сценарій відрізняється від межі, або коли "
-                        "keel gaps каже, що в кроці прогалини."),
+        "description": ("Write a Keel step: why it exists, scenarios drawn through "
+                        "the quality cuts, transforms with exact file lists. In a "
+                        "project that has a keel/ directory, use this skill "
+                        "whenever any new work begins — even when nobody says the "
+                        "word step and the request is «додай», «зроби», «реалізуй», "
+                        "\"add\", \"implement\", \"let's plan this\", or just a "
+                        "description of what is missing. Use it as well when "
+                        "keel/steps/*.md is being edited, when asked how to split "
+                        "work into transforms or how a scenario differs from a "
+                        "boundary, and when keel gaps reports an incomplete step."),
         "paths": ["keel/steps/*.md"],
         "argument_hint": "[слаг нового кроку]",
         "body": PLAN_BODY,
     },
     {
         "name": "keel-work",
-        "description": ("Зробити наступну трансформу кроку Keel: keel next, робота "
-                        "рівно у названих файлах, keel check, комміт зі слагом. "
-                        "У проєкті з текою keel/ бери цей скіл щоразу, коли просять "
-                        "писати код, продовжити роботу, «зроби наступне», «що далі» "
-                        "— і коли гілка названа іменем кроку, навіть якщо про Keel "
-                        "не згадали. Бери його й тоді, коли треба закоммітити "
-                        "зроблене: повідомлення комміта має нести слаг трансформи."),
+        "description": ("Do the next transform of a Keel step: keel next, work "
+                        "strictly inside the named files, keel check, commit "
+                        "carrying the transform slug. In a project with a keel/ "
+                        "directory, use this skill whenever the request is to write "
+                        "code, continue the work, «зроби наступне», «що далі», "
+                        "\"what's next\", \"keep going\" — and whenever the branch "
+                        "is named after a step, even if Keel was never mentioned. "
+                        "Use it before committing too: the message has to carry the "
+                        "transform slug or the transform stays open."),
         "paths": None,
         "argument_hint": None,
         "body": WORK_BODY,
     },
     {
         "name": "keel-review",
-        "description": ("Перевірити крок Keel перед pull request: повний keel check "
-                        "і питання, про що промовчали. У проєкті з текою keel/ бери "
-                        "цей скіл, коли просять зробити PR, злити гілку, питають "
-                        "«готово?», «все на місці?» чи «можна мержити» — і коли всі "
-                        "трансформи кроку вже закриті коммітами. Бери його перед "
-                        "тим, як казати, що робота завершена."),
+        "description": ("Check a Keel step before the pull request: the full keel "
+                        "check plus the question of what we stayed silent about. In "
+                        "a project with a keel/ directory, use this skill when asked "
+                        "to open a PR or merge a branch, and when the question is "
+                        "«готово?», «можна мержити», \"is this done\", \"ready to "
+                        "merge\" — and whenever every transform of the step is "
+                        "already closed by a commit. Use it before claiming the work "
+                        "is finished."),
         "paths": None,
         "argument_hint": None,
         "body": REVIEW_BODY,
     },
 )
 
-GENERATED_NOTE = ("Породжено `keel skills` з методики. Правити тут не варто — "
-                  "затре наступне оновлення; правити треба джерело.")
+GENERATED_NOTE = ("Generated by `keel skills` from the methodology. Editing this "
+                  "file does not last — the next run overwrites it; edit the "
+                  "source instead.")
 
 SKILL_FILE = """---
 name: {name}
