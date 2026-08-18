@@ -1,6 +1,6 @@
 ---
 translates: README.md
-source-rev: 8c5719
+source-rev: 489aca
 ---
 
 # keel
@@ -185,11 +185,14 @@ files, so anything of yours sitting uncommitted next to it stays yours.
 reads all of its state from git, and creating somebody's repository is a bigger
 decision than installing a method.
 
-**The agent has to be started in the project directory itself.** Skills are taken
-from the starting directory and its parents; ones that sit below it are only
-picked up once the agent reads a file there — until then `/keel-plan` answers
-"Unknown skill". If the session is already open it has to be restarted: `/clear`
-does not register the directory, and there is no `reload-skills` command.
+**The agent is started in the project directory itself.** Skills are taken from
+the starting directory and its parents; ones that sit below it are only picked up
+once the agent reads a file there.
+
+Right after the install the first call may answer "Unknown skill" — the skills
+have not been picked up yet. `/reload-skills` fixes it, and so does simply
+calling again; a session opened before the install has to be restarted, because
+`/clear` does not register the directory.
 
 **A plan branch may carry Keel's own files.** The rule "a plan touches no code"
 is about the project's code, not about what `init` put there: otherwise it would

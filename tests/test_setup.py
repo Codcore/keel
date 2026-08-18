@@ -79,9 +79,10 @@ class TestInit(unittest.TestCase):
     def test_init_says_where_the_agent_must_be_started(self):
         """Скіли беруться з теки старту; запуск вище — і їх немає."""
         _, out = self.init()
-        self.assertIn("в самій теці проєкту", out)
+        self.assertIn("у самій теці проєкту", out)
         self.assertIn(self.root, out)
-        self.assertIn("/clear тут не допомагає", out)
+        self.assertIn("/reload-skills", out)
+        self.assertIn("Unknown skill", out)
 
     def test_init_commits_what_it_wrote(self):
         _, out = self.init()
