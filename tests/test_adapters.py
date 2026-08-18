@@ -268,6 +268,26 @@ class TestAdapterChoice(unittest.TestCase):
         self.assertIn("setup-python", wanted[keel.CI_FILE])
         self.assertNotIn("setup-beam", wanted[keel.CI_FILE])
 
+    def test_init_writes_the_ci_of_the_flag_not_of_the_first_marker(self):
+        """--adapter python у поліглотному корені: CI теж python."""
+        import subprocess as sp
+        from io import StringIO
+        self.mark("mix.exs", "pyproject.toml")
+        sp.run(["git", "init", "-b", "main", "-q", self.root], check=True)
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            keel.cmd_init(keel.Project(self.root), type("Args", (), {
+                "install": True, "force": False, "no_commit": True,
+                "adapter": "python", "docs": None, "lang": None, "mode": None,
+                "agent_hooks": None})())
+        finally:
+            sys.stdout = saved
+        with open(os.path.join(self.root, keel.CI_FILE), encoding="utf-8") as handle:
+            ci = handle.read()
+        self.assertIn("setup-python", ci)
+        self.assertNotIn("setup-beam", ci)
+
     def test_no_marker_at_all_is_still_no_adapter(self):
         self.assertIsNone(keel.Project(self.root).adapter)
 

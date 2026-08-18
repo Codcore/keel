@@ -354,6 +354,16 @@ class TestTheHookSpeaksWhenItCannotJudge(unittest.TestCase):
         self.assertEqual(kind, "note")
         self.assertIn("declares no transforms", message)
 
+    def test_keels_own_furniture_is_not_denied(self):
+        """Хук навмисно не суворіший за гейт: що звільняє перевірка 4, те й він."""
+        self.step("---\ntransforms:\n  do-it:\n    files: [lib/a.ex]\n---\n\n"
+                  "## Why\n\nх.\n\n## transform: do-it\n\nЩось.\n")
+        for name in ("AGENTS.md", ".claude/skills/keel-plan/SKILL.md",
+                     ".github/workflows/keel.yml"):
+            verdict = keel.write_verdict(
+                keel.Project(self.root), {"tool_input": {"file_path": name}})
+            self.assertIsNone(verdict, name)
+
     def test_a_readable_step_still_denies_an_undeclared_file(self):
         self.step("---\ntransforms:\n  do-it:\n    files: [lib/a.ex]\n---\n\n"
                   "## Why\n\nх.\n\n## transform: do-it\n\nЩось.\n")

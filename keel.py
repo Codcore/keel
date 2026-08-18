@@ -640,9 +640,9 @@ class Ref:
 
 def shape_names():
     """Spelled out as literals so the catalogue guard can see them."""
-    return {"list": t("a list"),
-            "map": t("a set of named entries"),
-            "name": t("a name")}
+    return {list: t("a list"),
+            dict: t("a set of named entries"),
+            str: t("a name")}
 
 
 class Doc:
@@ -689,12 +689,12 @@ class Doc:
     SHAPES = {}
 
     def _wrong_shape(self):
-        for field, (kinds, name) in self.SHAPES.items():
+        for field, kind in self.SHAPES.items():
             value = self.front.get(field)
-            if value is None or isinstance(value, kinds):
+            if value is None or isinstance(value, kind):
                 continue
             return t("{field} has to be {kind}, and this is {actual}",
-                     field=field, kind=shape_names()[name],
+                     field=field, kind=shape_names()[kind],
                      actual=type(value).__name__)
         return None
 
@@ -744,10 +744,7 @@ class Contract(Doc):
     # `verify` is left out on purpose: check 6 already names a wrong shape
     # there, with the value in the message, and that is a promise about a
     # command rather than about the document's own structure.
-    SHAPES = {
-        "module": ((str,), "name"),
-        "exports": ((list,), "list"),
-    }
+    SHAPES = {"module": str, "exports": list}
 
     @property
     def module(self):
@@ -777,11 +774,7 @@ class Contract(Doc):
 
 
 class Step(Doc):
-    SHAPES = {
-        "depends_on": ((list,), "list"),
-        "scenarios": ((dict,), "map"),
-        "transforms": ((dict,), "map"),
-    }
+    SHAPES = {"depends_on": list, "scenarios": dict, "transforms": dict}
 
     @property
     def depends_on(self):
@@ -1219,11 +1212,14 @@ def parse_export_output(proc, modules):
 ADAPTERS = (ElixirAdapter, PythonAdapter)
 
 
+BY_NAME = {adapter.name: adapter for adapter in ADAPTERS}
+
+
 def matching_adapters(root):
     return [adapter for adapter in ADAPTERS if adapter.detect(root)]
 
 
-def detect_adapter(root, chosen=""):
+def detect_adapter(root, chosen="", found=None):
     """The language adapter, chosen by name or by the markers in the root.
 
     A polyglot repository has more than one marker, and picking the first in a
@@ -1231,12 +1227,10 @@ def detect_adapter(root, chosen=""):
     count. Naming it in the settings settles it; leaving it unset is reported
     rather than guessed.
     """
-    if chosen:
-        for adapter in ADAPTERS:
-            if adapter.name == chosen:
-                return adapter()
-        return None
-    found = matching_adapters(root)
+    if chosen in BY_NAME:
+        return BY_NAME[chosen]()
+    if found is None:
+        found = matching_adapters(root)
     return found[0]() if found else None
 
 
@@ -1244,7 +1238,7 @@ def adapter_problem(project, check):
     """One line when the root says two languages and nobody said which."""
     if project.settings.get("adapter"):
         return []
-    found = matching_adapters(project.root)
+    found = project.adapter_candidates
     if len(found) < 2:
         return []
     return [Problem(check, t(
@@ -1278,12 +1272,14 @@ class Problem:
 
 
 class Project:
-    def __init__(self, root):
+    def __init__(self, root, settings=None):
         self.root = root
         self.keel = os.path.join(root, "keel")
         self.git = Git(root)
-        self.settings = read_config(root)
-        self.adapter = detect_adapter(root, self.settings["adapter"])
+        self.settings = read_config(root) if settings is None else settings
+        self.adapter_candidates = matching_adapters(root)
+        self.adapter = detect_adapter(root, self.settings["adapter"],
+                                      self.adapter_candidates)
         self.steps = {}
         self.contracts = {}
         self.broken = []
@@ -2244,8 +2240,9 @@ LANGS = ("uk", "en")
 # called. `strict` is the default because a method nobody starts is not a method.
 MODES = ("strict", "soft", "manual")
 # "" means: work it out from the markers in the root, and say so when the root
-# is ambiguous.
-ADAPTER_NAMES = ("", "elixir", "python")
+# is ambiguous. Derived, not restated: a third adapter added to ADAPTERS must
+# not leave the settings layer disagreeing about which adapters exist.
+ADAPTER_NAMES = ("",) + tuple(adapter.name for adapter in ADAPTERS)
 DEFAULTS = {"docs": PUBLISHED_LANG, "lang": PUBLISHED_LANG, "mode": "strict",
             "adapter": ""}
 ALLOWED = {"docs": LANGS, "lang": LANGS, "mode": MODES,
@@ -2309,9 +2306,10 @@ def read_config(root):
 
 def write_config(root, settings, done, manifest=None):
     path = os.path.join(root, CONFIG_FILE)
+    found = {}
     if os.path.exists(path):
         try:
-            json.loads(read_text(path))
+            found = json.loads(read_text(path))
         except ValueError:
             # Overwriting would silently reset docs and lang to the defaults,
             # and regenerate the skills with the wrong trigger language.
@@ -2320,14 +2318,7 @@ def write_config(root, settings, done, manifest=None):
     # Merge rather than replace: this file lives in somebody's repository, and
     # dropping a key we do not recognise is destroying their data during an
     # operation whose whole design elsewhere is to refuse rather than destroy.
-    stored = {}
-    if os.path.exists(path):
-        try:
-            found = json.loads(read_text(path))
-        except ValueError:
-            found = None
-        if isinstance(found, dict):
-            stored.update(found)
+    stored = dict(found) if isinstance(found, dict) else {}
     stored.update(settings)
     if manifest is not None:
         stored["generated"] = manifest
@@ -3045,8 +3036,9 @@ def write_verdict(project, payload):
         return ("note", t("keel: {target} is outside the repository, so the "
                           "step's scope does not apply to it. Judge for yourself "
                           "whether it should be written to.", target=target))
-    if relative.startswith(KEEL_DIR_PREFIX):
-        return None      # plan documents are not subject to scope
+    if keel_owns(relative):
+        return None      # the same exemption check 4 applies, so the hook is
+                         # never stricter than the gate
     if relative in declared:
         return None
 
@@ -3302,7 +3294,10 @@ def cmd_init(project, args):
     if update_agents(os.path.join(project.root, "AGENTS.md"), block):
         done.append("AGENTS.md " + t("(block between the markers)"))
 
-    setup = project.adapter.ci_steps(project.root) if project.adapter else []
+    # Not project.adapter: that was chosen before --adapter was read, and a
+    # polyglot root would get the other language's CI steps.
+    adapter = detect_adapter(project.root, settings["adapter"])
+    setup = adapter.ci_steps(project.root) if adapter else []
     write_if_changed(
         os.path.join(project.root, CI_FILE),
         CI_TEMPLATE.format(tool=VENDORED,
@@ -3839,9 +3834,10 @@ def main(argv=None):
     # reads all three. Set before the documents are read, not after: a document
     # composes its own error message as it is parsed, and doing this afterwards
     # left half of a broken-file report in the other language.
+    settings = read_config(root)
     global OUTPUT_LANG
-    OUTPUT_LANG = read_config(root)["lang"]
-    project = Project(root)
+    OUTPUT_LANG = settings["lang"]
+    project = Project(root, settings)
     project.branch_override = getattr(args, "branch", None)
 
     if args.command not in ("new", "init") and not project.ready:
