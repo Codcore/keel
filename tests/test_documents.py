@@ -130,6 +130,23 @@ class TestRefChecks(ProjectCase):
         self.assertEqual(len(problems), 2)
         self.assertTrue(all("без редакції" in p.message for p in problems))
 
+    def test_a_repeated_heading_is_reported(self):
+        """Читають перший, а редакція рахується з останнього."""
+        step = "keel/steps/0001-session-loop.md"
+        self.fixture.write(step, self.fixture.read(step)
+                           + "\n## scenario: finishes-when-no-tool-called\n\n"
+                             "**Then** зовсім інше.\n")
+        problems = keel.check_headings(self.project)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("трапляється двічі", problems[0].message)
+
+    def test_a_repeated_transform_heading_too(self):
+        step = "keel/steps/0001-session-loop.md"
+        self.fixture.write(step, self.fixture.read(step)
+                           + "\n## transform: drive-turns\n\nІнше тіло.\n")
+        self.assertTrue(any("трапляється двічі" in p.message
+                            for p in keel.check_headings(self.project)))
+
     def test_heading_without_header_entry(self):
         text = self.fixture.read("keel/steps/0001-session-loop.md")
         self.fixture.write("keel/steps/0001-session-loop.md",

@@ -81,6 +81,20 @@ class TestScope(ProjectCase):
         self.assertTrue(problems)
         self.assertIn("не знайшов, від чого відійшла гілка", problems[0].message)
 
+    def test_origin_head_pointing_at_the_work_branch_is_not_trusted(self):
+        """Одногілковий клон робив гілку власною базою — і все проходило."""
+        self.fixture.branch("0001-session-loop")
+        self.fixture.git("update-ref", "refs/remotes/origin/HEAD",
+                         "refs/heads/0001-session-loop")
+        self.fixture.git("symbolic-ref", "refs/remotes/origin/HEAD",
+                         "refs/remotes/origin/0001-session-loop")
+        self.fixture.write("lib/session.ex", "змінено\n")
+        self.fixture.write("lib/stray.ex", "не оголошено\n")
+        problems = keel.check_scope(self.project)
+        self.assertTrue(problems, "перевірка мовчала на неоголошеному файлі")
+        self.assertTrue(any("lib/stray.ex" in p.message
+                            or "не знайшов, від чого" in p.message for p in problems))
+
     def test_branch_that_is_not_a_step(self):
         self.fixture.branch("random-branch")
         problems = keel.check_scope(self.project)

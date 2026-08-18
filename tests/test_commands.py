@@ -248,6 +248,15 @@ class TestNewAndPlan(ProjectCase):
         self.assertEqual(code, 0)
         self.assertIn("план повний", out)
 
+    def test_gaps_without_an_argument_names_only_its_own_step(self):
+        """Заголовок казав один крок, а список — інший."""
+        self.fixture.write("keel/steps/0009-other.md",
+                           "---\ndepends_on: []\nscenarios:\n  zzz: {proves: session-run}\n"
+                           "transforms: {}\n---\n\n## Навіщо\n\nx\n")
+        self.fixture.branch("0001-session-loop")
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(step=None))
+        self.assertNotIn("0009-other", out)
+
     def test_plan_finds_a_transform_without_files(self):
         self.fixture.write(
             "keel/steps/0001-session-loop.md",

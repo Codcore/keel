@@ -297,6 +297,23 @@ class TestLanguageSettings(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 self.init(docs="en")
 
+    def test_a_broken_config_is_not_overwritten(self):
+        """Перезапис тихо скинув би мови й перепородив скіли чужими тригерами."""
+        self.init(lang="uk")
+        os.makedirs(os.path.join(self.root, "keel"), exist_ok=True)
+        with open(os.path.join(self.root, keel.CONFIG_FILE), "w") as handle:
+            handle.write("{ побите")
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            keel.write_config(self.root, keel.DEFAULTS, [], {})
+        finally:
+            sys.stdout = saved
+        self.assertIn("не чіпаю", stream.getvalue())
+        with open(os.path.join(self.root, keel.CONFIG_FILE)) as handle:
+            self.assertEqual(handle.read(), "{ побите")
+
     def test_broken_config_falls_back_to_defaults(self):
         os.makedirs(os.path.join(self.root, "keel"), exist_ok=True)
         with open(os.path.join(self.root, keel.CONFIG_FILE), "w") as handle:

@@ -1,6 +1,6 @@
 ---
 translates: README.md
-source-rev: 8bf475
+source-rev: d40c4d
 ---
 
 # keel
@@ -100,7 +100,16 @@ module's exports come from (6). A contract with `verify` needs no adapter — it
 carries a command. It has to be a string, or the check turns red rather than
 passing it over in silence, and it is bounded at 30 seconds: a promise is a
 probe, not a build, and a hung probe would hold `pre-push` and CI for as long
-as they are allowed to run. The adapter is chosen by a marker in the project
+as they are allowed to run. Its stdin is closed, so a command that prompts fails
+at once instead of waiting, and `--no-tests` does not run it.
+
+**`verify` executes a command out of a file in the repository, and that is worth
+knowing.** `keel check` runs it through a shell, and `pre-push` runs `keel check`.
+So cloning somebody's project, or checking out a branch from a pull request and
+running `git push`, means executing whatever its contracts say. Until now every
+subprocess Keel launched was a fixed adapter command; this is the first one set
+by whoever wrote the contract. The practical conclusion is simple: read a
+contract in somebody else's PR as carefully as you read code. The adapter is chosen by a marker in the project
 root.
 
 | | Elixir | Python |

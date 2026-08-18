@@ -110,6 +110,23 @@ class TestYaml(unittest.TestCase):
         with self.assertRaises(keel.YamlError):
             keel.parse_yaml("- a\n- b\n")
 
+    def test_a_map_inside_a_list_is_an_error(self):
+        """Валідний YAML, який ми читали б рядком — краще впасти, ніж збрехати."""
+        for src in ("depends_on:\n  - name: a", "x: [a: b, c]"):
+            with self.assertRaises(keel.YamlError, msg=src):
+                keel.parse_yaml(src)
+
+    def test_an_apostrophe_does_not_swallow_the_comment(self):
+        self.assertEqual(keel.parse_yaml("a: файл ім'я # коментар")["a"], "файл ім'я")
+
+    def test_an_apostrophe_inside_a_flow_list_item(self):
+        self.assertEqual(keel.parse_yaml("files: [a.py, src/ім'я.py]  # нотатка")["files"],
+                         ["a.py", "src/ім'я.py"])
+
+    def test_quoting_still_works_where_a_value_starts(self):
+        self.assertEqual(keel.parse_yaml('x: ["a, b", c]')["x"], ["a, b", "c"])
+        self.assertEqual(keel.parse_yaml("n: ['a', 'b']")["n"], ["a", "b"])
+
     def test_missing_colon_is_an_error(self):
         with self.assertRaises(keel.YamlError) as caught:
             keel.parse_yaml("module Foo\n")

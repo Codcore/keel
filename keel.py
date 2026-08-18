@@ -52,7 +52,9 @@ def _strip_comment(text):
             out.append(ch)
             if ch == quote:
                 quote = None
-        elif ch in "\"'":
+        elif ch in "\"'" and (not out or out[-1] in " \t:[{,"):
+            # A quote opens a scalar at the start of a value, not mid-word:
+            # otherwise an apostrophe inside a word swallows the comment after it.
             quote = ch
             out.append(ch)
         elif ch == "#" and (not out or out[-1] in " \t"):
@@ -87,7 +89,7 @@ def _split_flow(text, line):
             if ch == quote:
                 quote = None
             continue
-        if ch in "\"'":
+        if ch in "\"'" and (not cur or cur[-1] in " \t:[{,"):
             quote = ch
         elif ch in "[{":
             depth += 1
@@ -110,12 +112,22 @@ def _split_flow(text, line):
     return [p.strip() for p in parts if p.strip()]
 
 
+MAP_ITEM = re.compile(r"^[^\s\"'\[{][^:]*:(\s|$)")
+
+
+def _list_item(text, line):
+    """One element of a list. A map here is valid YAML we do not read."""
+    if MAP_ITEM.match(text.strip()):
+        raise YamlError(line, f"мапа в списку не підтримується: {text.strip()!r}")
+    return _flow(text, line)
+
+
 def _flow(text, line):
     text = text.strip()
     if text.startswith("["):
         if not text.endswith("]"):
             raise YamlError(line, "список не закритий дужкою")
-        return [_flow(p, line) for p in _split_flow(text[1:-1], line)]
+        return [_list_item(p, line) for p in _split_flow(text[1:-1], line)]
     if text.startswith("{"):
         if not text.endswith("}"):
             raise YamlError(line, "мапа не закрита дужкою")
@@ -170,7 +182,7 @@ def _parse_list(lines, index, indent):
             break
         if own > indent or not text.startswith("- "):
             raise YamlError(number, "рядок не є елементом списку")
-        items.append(_flow(text[2:], number))
+        items.append(_list_item(text[2:], number))
         index += 1
     return items, index
 
@@ -259,6 +271,7 @@ class Doc:
         self.body = ""
         self.sections = {}          # heading -> the text under it
         self.section_lines = {}     # heading -> line number
+        self.repeated = []          # headings written more than once
         with open(path, encoding="utf-8") as handle:
             text = handle.read()
         self.text = text
@@ -278,6 +291,12 @@ class Doc:
         for order, mark in enumerate(marks):
             end = marks[order + 1].start() if order + 1 < len(marks) else len(self.body)
             title = mark.group(1).strip()
+            if title in self.sections:
+                # Silently keeping the last one hashes text nobody approved:
+                # the reader sees the first section, the revision comes from
+                # the second, and check 7 stays quiet because the name sets
+                # still match.
+                self.repeated.append(title)
             self.sections[title] = self.body[mark.end():end].strip()
             self.section_lines[title] = self.body[: mark.start()].count("\n") + self.body_offset + 1
 
@@ -443,8 +462,11 @@ class Git:
     def main_branch(self):
         """The main branch. On CI it is not local — there it is origin/main."""
         head = self.out("symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
-        if head:
-            short = head.rsplit("/", 1)[-1]
+        short = head.rsplit("/", 1)[-1] if head else ""
+        # In a single-branch clone origin/HEAD names the branch under test.
+        # Believing it makes a branch its own baseline: the diff covers nothing
+        # and the scope check reports green having compared nothing.
+        if short and short != self.branch:
             if self.run("rev-parse", "--verify", "--quiet", short)[0] == 0:
                 return short
             return f"origin/{short}"
@@ -1056,7 +1078,7 @@ def check_scenarios(project, run_tests=True):
     return problems
 
 
-def check_exports(project):
+def check_exports(project, run_tests=True):
     problems = []
     # A promise that is not a module carries the command that proves it: a
     # service answering, a binary on PATH, a dependency of the right version.
@@ -1064,6 +1086,8 @@ def check_exports(project):
     for contract in project.contracts.values():
         if contract.error:
             continue
+        if not run_tests and contract.verify:
+            continue      # --no-tests означає «нічого не запускай», і це теж запуск
         if "verify" in contract.front and not contract.verify:
             # Written, but not as a command we can run — a list, a number, an
             # empty string. Skipping it would print a green check over a promise
@@ -1079,6 +1103,7 @@ def check_exports(project):
         try:
             proc = subprocess.run(contract.verify, shell=True, cwd=project.root,
                                   capture_output=True, text=True,
+                                  stdin=subprocess.DEVNULL,
                                   timeout=VERIFY_TIMEOUT)
         except subprocess.TimeoutExpired:
             # Unbounded, a hung command holds pre-push and CI for as long as
@@ -1123,6 +1148,12 @@ def check_exports(project):
 
 def check_headings(project):
     problems = []
+    for doc in list(project.steps.values()) + list(project.contracts.values()):
+        for title in sorted(set(doc.repeated)):
+            problems.append(Problem(
+                7, f"заголовок ## {title} трапляється двічі — читають перший, "
+                   f"а рахується останній",
+                doc.rel, doc.section_lines.get(title)))
     for step in project.steps.values():
         if step.error:
             continue
@@ -1150,7 +1181,7 @@ def run_checks(project, only=None, run_tests=True):
         3: lambda: check_revisions(project),
         4: lambda: check_scope(project),
         5: lambda: check_scenarios(project, run_tests=run_tests),
-        6: lambda: check_exports(project),
+        6: lambda: check_exports(project, run_tests=run_tests),
         7: lambda: check_headings(project),
     }
     for number in sorted(runners):
@@ -1278,9 +1309,9 @@ def cmd_gaps(project, args):
                 problems.append(Problem(
                     0, f"сценарій {slug} без тіла: given/when/then", step.rel))
 
-    problems += check_headings(project) if not args.step else [
-        p for p in check_headings(project) if p.where in {s.rel for s in steps}]
-    problems += [p for p in check_refs(project) if p.where in {s.rel for s in steps}]
+    mine = {step.rel for step in steps}
+    problems += [p for p in check_headings(project) if p.where in mine]
+    problems += [p for p in check_refs(project) if p.where in mine]
 
     names = ", ".join(step.slug for step in steps) or "нічого"
     if not problems:
@@ -1544,10 +1575,18 @@ def read_config(root):
 
 
 def write_config(root, settings, done, manifest=None):
+    path = os.path.join(root, CONFIG_FILE)
+    if os.path.exists(path):
+        try:
+            json.loads(read_text(path))
+        except ValueError:
+            # Overwriting would silently reset docs and lang to the defaults,
+            # and regenerate the skills with the wrong trigger language.
+            print(f"  {CONFIG_FILE}: не читається як JSON, не чіпаю")
+            return
     stored = dict(settings)
     if manifest is not None:
         stored["generated"] = manifest
-    path = os.path.join(root, CONFIG_FILE)
     text = json.dumps(stored, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     if os.path.exists(path) and read_text(path) == text:
         return

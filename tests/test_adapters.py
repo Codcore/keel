@@ -172,6 +172,22 @@ class TestExports(unittest.TestCase):
         self.write("keel/contracts/prose.md", "---\nmodule: demo\n---\n\nСама проза.\n")
         self.assertEqual(keel.check_exports(keel.Project(self.root)), [])
 
+    def test_no_tests_does_not_run_verify(self):
+        """Прапорець обіцяє нічого не запускати — команда контракту теж запуск."""
+        self.write("keel/contracts/boom.md",
+                   '---\nverify: "exit 1"\n---\n\nВпаде.\n')
+        project = keel.Project(self.root)
+        self.assertTrue(keel.check_exports(project))
+        self.assertEqual(keel.check_exports(project, run_tests=False), [])
+
+    def test_verify_does_not_inherit_stdin(self):
+        """Команда з підказкою мусить упасти одразу, а не з'їсти таймаут."""
+        self.write("keel/contracts/asks.md",
+                   '---\nverify: "read x"\n---\n\nПитає.\n')
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("не підтвердився", problems[0].message)
+
     def test_module_absent(self):
         self.write("keel/contracts/demo.md",
                    "---\nmodule: nosuchmodule\nexports: [run/1]\n---\n\nТекст.\n")
