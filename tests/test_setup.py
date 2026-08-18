@@ -123,6 +123,17 @@ class TestInit(unittest.TestCase):
         self.assertEqual(after["team-note"], "наше")
         self.assertEqual(after["mode"], "soft")
 
+    def test_a_leftover_hook_steps_aside_when_keel_is_gone(self):
+        """Вихід 2 для PreToolUse означає «заборонити» — репозиторій завмирає."""
+        self.init()
+        shutil.rmtree(os.path.join(self.root, "keel"))
+        done = subprocess.run(
+            [sys.executable, os.path.join(keel.home(), "keel.py"),
+             "-C", self.root, "hook", "write", "--agent", "claude"],
+            input='{"tool_input": {"file_path": "lib/a.ex"}}',
+            capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stderr)
+
     def test_a_lookalike_file_is_not_swept_into_our_commit(self):
         """AGENTS.mdx лише починається так само — він чужий."""
         self.write("AGENTS.mdx", "чиєсь своє, ще не закомічене\n")

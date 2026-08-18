@@ -183,6 +183,27 @@ class TestExports(unittest.TestCase):
         self.assertEqual(len(problems), 1)
         self.assertIn("was not confirmed", problems[0].message)
 
+    def test_exports_without_a_module_are_named_not_dropped(self):
+        """Обіцянка конкретна й перевірна — а не звірялась ні з чим."""
+        self.write("keel/contracts/orphan.md",
+                   "---\nexports: [run/2, launch/1]\n---\n\nх.\n")
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("names no module", problems[0].message)
+
+    def test_no_tests_never_loads_the_projects_code(self):
+        """Прапорець обіцяє нічого не запускати — імпорт модуля теж запуск."""
+        sentinel = os.path.join(self.root, "ran")
+        self.write("demo.py",
+                   f"open({sentinel!r}, 'w').write('x')\n"
+                   "def run(a, b, c):\n    return a\n")
+        self.contract("[run/3]")
+        project = keel.Project(self.root)
+        self.assertEqual(keel.check_exports(project, run_tests=False), [])
+        self.assertFalse(os.path.exists(sentinel), "пробник виконав код проєкту")
+        keel.check_exports(project)
+        self.assertTrue(os.path.exists(sentinel), "а з тестами мав виконати")
+
     def test_module_absent(self):
         self.write("keel/contracts/demo.md",
                    "---\nmodule: nosuchmodule\nexports: [run/1]\n---\n\nТекст.\n")
@@ -391,6 +412,13 @@ class TestPromisedSignature(unittest.TestCase):
     def test_no_arguments_is_arity_zero(self):
         self.assertEqual(keel.promised_signature("start() :: :ok"), ("start", 0))
 
+    def test_arrows_written_tight_are_not_a_difference(self):
+        """Компілятор ставить пробіли довкола => і ->, людина — не завжди."""
+        self.assertEqual(keel.flatten_spec("run(%{atom()=>integer()}) :: :ok"),
+                         keel.flatten_spec("run(%{atom() => integer()}) :: :ok"))
+        self.assertEqual(keel.flatten_spec("each((integer()->:ok)) :: :ok"),
+                         keel.flatten_spec("each((integer() -> :ok)) :: :ok"))
+
     def test_commas_inside_a_type_do_not_add_arguments(self):
         """{:ok, term()} — один аргумент, а не два."""
         self.assertEqual(
@@ -401,8 +429,16 @@ class TestPromisedSignature(unittest.TestCase):
         self.assertEqual(keel.promised_signature("valid?(t()) :: boolean()"),
                          ("valid?", 1))
 
+    def test_a_parenless_zero_arity_spec_is_legal_elixir(self):
+        """`@spec run :: :ok` пишуть без дужок; компілятор рендерить із ними."""
+        self.assertEqual(keel.promised_signature("run :: :ok"), ("run", 0))
+        self.assertEqual(keel.promised_signature("ready? :: boolean()"),
+                         ("ready?", 0))
+        self.assertEqual(keel.flatten_spec("run :: :ok"),
+                         keel.flatten_spec("run() :: :ok"))
+
     def test_nonsense_is_nonsense(self):
-        for entry in ("сміття", "run/x", "run/", ":: t()", "run :: t()",
+        for entry in ("сміття", "run/x", "run/", ":: t()", "Мод.run :: t()",
                       "run(a)(b) :: t()", "run(a :: t()", "run/²"):
             self.assertIsNone(keel.promised_signature(entry), entry)
 

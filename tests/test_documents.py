@@ -354,6 +354,24 @@ class TestSectionSplitting(unittest.TestCase):
         self.assertEqual(doc.section_lines["scenario: s"], 6)
 
 
+class TestRewriteTag(unittest.TestCase):
+    """Restamping one scenario's tag leaves its longer-named sibling alone."""
+
+    def test_a_superstring_slug_is_not_a_match(self):
+        text = ('@tag proves: :parse, rev: "aaaaaa"\n'
+                '@tag proves: :parse_error, rev: "bbbbbb"\n')
+        out = keel.rewrite_tag(text, "parse", "ffffff")
+        self.assertIn(':parse, rev: "ffffff"', out)
+        self.assertIn(':parse_error, rev: "bbbbbb"', out)
+
+    def test_the_python_form_too(self):
+        text = ('# proves: parse, rev: "aaaaaa"\n'
+                '# proves: parse-error, rev: "bbbbbb"\n')
+        out = keel.rewrite_tag(text, "parse", "ffffff")
+        self.assertIn('parse, rev: "ffffff"', out)
+        self.assertIn('parse-error, rev: "bbbbbb"', out)
+
+
 class TestRewriteRef(unittest.TestCase):
     """rev --write restamps a reference, and nothing that merely shares its name."""
 

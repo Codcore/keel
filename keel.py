@@ -62,6 +62,8 @@ UK = {
     "two colons on one line: {line}": "дві двокрапки в одному рядку: {line}",
     "empty key": "порожній ключ",
     "no header between --- markers": "немає шапки між рисками ---",
+    "the contract promises exports and names no module to ask for them":
+        "контракт обіцяє exports і не називає модуля, в якого їх спитати",
     "{kind} {slug} has to be a set of named fields, and this is {actual}":
         "{kind} {slug} має бути набором іменованих полів, а це {actual}",
     "{field} of transform {slug} has to be a list, and this is {actual}":
@@ -410,7 +412,7 @@ def _strip_comment(text):
     out = []
     quote = None
     escaped = False
-    for ch in text:
+    for index, ch in enumerate(text):
         if quote:
             out.append(ch)
             if escaped:
@@ -422,7 +424,14 @@ def _strip_comment(text):
                 # round trip of a value yaml_string itself wrote.
                 escaped = True
             elif ch == quote:
-                quote = None
+                if quote == "'" and text[index + 1: index + 2] == "'":
+                    # A single-quoted string escapes a quote by doubling it, so
+                    # the first of a '' pair is not the end either. _scalar has
+                    # always unescaped ''; the scanners have to see it the same
+                    # way, or `'it''s # note'` loses its tail to the comment.
+                    escaped = True
+                else:
+                    quote = None
         elif ch in "\"'" and (not out or out[-1] in " \t:[{,"):
             # A quote opens a scalar at the start of a value, not mid-word:
             # otherwise an apostrophe inside a word swallows the comment after it.
@@ -475,7 +484,7 @@ def unescape(body, line):
 def _split_flow(text, line):
     """Split the inside of [..] or {..} on top-level commas."""
     parts, depth, quote, cur, escaped = [], 0, None, [], False
-    for ch in text:
+    for index, ch in enumerate(text):
         if quote:
             cur.append(ch)
             if escaped:
@@ -483,7 +492,10 @@ def _split_flow(text, line):
             elif quote == '"' and ch == "\\":
                 escaped = True      # `\"` is a quote in the value, not its end
             elif ch == quote:
-                quote = None
+                if quote == "'" and text[index + 1: index + 2] == "'":
+                    escaped = True  # the first of a '' pair — same rule
+                else:
+                    quote = None
             continue
         if ch in "\"'" and (not cur or cur[-1] in " \t:[{,"):
             quote = ch
@@ -1749,7 +1761,9 @@ def promised_signature(entry):
         return (name.strip(), int(arity)) if arity.strip().isdecimal() else None
     match = re.match(r"^([a-z_][A-Za-z0-9_]*[?!]?)\s*\((.*)\)$", head, re.S)
     if not match:
-        return None
+        # `@spec run :: :ok` is legal Elixir: a bare head is zero arity.
+        bare = re.fullmatch(r"[a-z_][A-Za-z0-9_]*[?!]?", head)
+        return (head, 0) if bare else None
     name, inside = match.group(1), match.group(2).strip()
     if not balanced(inside):
         # `run(a)(b)` matches the pattern because `.*` is greedy. Accepting it
@@ -1785,9 +1799,16 @@ def flatten_spec(text):
     text = re.sub(r" ([)\]}])", r"\1", text)
     text = re.sub(r"\s*,\s*", ", ", text)
     text = re.sub(r"\s*\|\s*", " | ", text)
-    # `::` last, and it matters: named arguments put one inside the head, where
-    # people write it tight and the compiler writes it spaced.
-    return re.sub(r"\s*::\s*", " :: ", text)
+    # The map and function-type arrows get the same treatment as the bar: the
+    # compiler always spaces them, people write them tight.
+    text = re.sub(r"\s*=>\s*", " => ", text)
+    text = re.sub(r"\s*->\s*", " -> ", text)
+    # `::` after the arrows, and it matters: named arguments put one inside the
+    # head, where people write it tight and the compiler writes it spaced.
+    text = re.sub(r"\s*::\s*", " :: ", text)
+    # `@spec run :: :ok` is legal Elixir, but the compiler renders zero arity
+    # with parens — give the bare head its parens so the two forms compare equal.
+    return re.sub(r"^([a-z_][A-Za-z0-9_]*[?!]?) ::", r"\1() ::", text)
 
 
 def check_exports(project, run_tests=True):
@@ -1831,6 +1852,15 @@ def check_exports(project, run_tests=True):
                    + ("\n" + "\n".join("      " + line for line in tail) if tail else ""),
                 contract.rel, contract.line_of("verify")))
 
+    # Exports without a module are a concrete, checkable promise compared
+    # against nothing. Filtering them out silently was green over unproven.
+    for contract in project.contracts.values():
+        if not contract.error and contract.exports and not contract.module:
+            problems.append(Problem(
+                6, t("the contract promises exports and names no module to ask "
+                     "for them"),
+                contract.rel, contract.line_of("exports")))
+
     contracts = [c for c in project.contracts.values()
                  if not c.error and c.module and c.exports]
     if not contracts:
@@ -1839,6 +1869,12 @@ def check_exports(project, run_tests=True):
     if project.adapter is None:
         return problems + [
             Problem(6, t("no language adapter found — nothing to check exports with"))]
+    if not run_tests:
+        # The probe imports the project's modules, and importing runs whatever
+        # they run at load. --no-tests promises to run nothing; the verify loop
+        # above honours that, and so must this. The skip is silent, as verify's
+        # is: the flag is the operator's own informed choice.
+        return problems
 
     modules = sorted({c.module for c in contracts})
     actual = project.adapter.exports(project.root, modules)
@@ -2330,10 +2366,12 @@ MODES = ("strict", "soft", "manual")
 # is ambiguous. Derived, not restated: a third adapter added to ADAPTERS must
 # not leave the settings layer disagreeing about which adapters exist.
 ADAPTER_NAMES = ("",) + tuple(adapter.name for adapter in ADAPTERS)
+# agent_hooks: "" lets the mode decide; True/False is the operator's override,
+# stored so the first routine update does not quietly revert their choice.
 DEFAULTS = {"docs": PUBLISHED_LANG, "lang": PUBLISHED_LANG, "mode": "strict",
-            "adapter": ""}
+            "adapter": "", "agent_hooks": ""}
 ALLOWED = {"docs": LANGS, "lang": LANGS, "mode": MODES,
-           "adapter": ADAPTER_NAMES}
+           "adapter": ADAPTER_NAMES, "agent_hooks": ("", True, False)}
 REVISIONS = "docs/revisions.json"
 
 
@@ -2367,13 +2405,18 @@ def generated_files(root, settings):
 def agent_hooks_wanted(settings, args=None):
     """Whether to install the hooks that watch what the agent writes.
 
-    The mode decides, and a flag can overrule it. `manual --agent-hooks` is the
-    combination the three words alone would lose: a person who starts every
-    procedure by hand may still want the guard that refuses a write outside the
-    declared files.
+    The mode decides, a stored override outlives it, and a flag overrules both.
+    `manual --agent-hooks` is the combination the three words alone would lose:
+    a person who starts every procedure by hand may still want the guard that
+    refuses a write outside the declared files.
     """
     chosen = getattr(args, "agent_hooks", None)
-    return settings["mode"] == "strict" if chosen is None else chosen
+    if chosen is not None:
+        return chosen
+    stored = settings.get("agent_hooks", "")
+    if stored != "":
+        return stored
+    return settings["mode"] == "strict"
 
 
 def read_config(root):
@@ -3353,6 +3396,10 @@ def cmd_init(project, args):
         chosen = getattr(args, key, None)
         if chosen:
             settings[key] = chosen
+    # Separately, because the loop keeps only truthy values and this override
+    # is meaningful when it is False.
+    if getattr(args, "agent_hooks", None) is not None:
+        settings["agent_hooks"] = args.agent_hooks
 
     principles = principles_lines(settings["docs"])
     sources = {name: doc_source(name, settings["docs"]) for name in REFERENCES}
@@ -3841,15 +3888,21 @@ def rewrite_ref(text, raw, new):
 
 
 def rewrite_tag(text, slug, fresh):
-    """Write a fresh revision into a test tag, in whichever form is already there."""
+    """Write a fresh revision into a test tag, in whichever form is already there.
+
+    The slug is bounded on the right, as rewrite_ref's is: without the boundary,
+    restamping `parse` also matched the front of `parse_error` — renaming the
+    other scenario's tag and splicing the new revision into the middle of it,
+    which a second run could not undo.
+    """
     atom = slug.replace("-", "_")
     elixir = re.compile(
-        rf"@tag\s+proves:\s*:({re.escape(atom)})"
+        rf"@tag\s+proves:\s*:({re.escape(atom)})(?![\w?!])"
         rf"(?:\s*,\s*rev:\s*[\"'][^\"']*[\"'])?"
     )
     text = elixir.sub(lambda m: f'@tag proves: :{m.group(1)}, rev: "{fresh}"', text)
     python = re.compile(
-        rf"#\s*proves:\s*({re.escape(slug)}|{re.escape(atom)})"
+        rf"#\s*proves:\s*({re.escape(slug)}|{re.escape(atom)})(?![\w-])"
         rf"(?:\s*,\s*rev:\s*[\"']?[^\"'\s,]*[\"']?)?"
     )
     return python.sub(lambda m: f'# proves: {m.group(1)}, rev: "{fresh}"', text)
@@ -3960,6 +4013,12 @@ def main(argv=None):
     project = Project(root, settings)
     project.branch_override = getattr(args, "branch", None)
 
+    if args.command == "hook" and not project.ready:
+        # A leftover hook entry after keel/ was removed. Failing here exits 2,
+        # and for a PreToolUse hook exit 2 means deny — every write in the
+        # repository would be blocked by a tool that is not even installed.
+        # Answer nothing and step aside.
+        return 0
     if args.command not in ("new", "init") and not project.ready:
         fail(t("{root} has no keel/ directory — Keel is not installed here", root=root))
 

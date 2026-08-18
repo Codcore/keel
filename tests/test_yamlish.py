@@ -197,6 +197,14 @@ class TestQuotedRoundTrip(unittest.TestCase):
         for original in ('з "лапками"', "зі \\\\ слешем", 'край\\', '"'):
             self.assertEqual(self.back(original), original, repr(original))
 
+    def test_a_doubled_single_quote_before_a_hash_survives(self):
+        """`''` — канонічний апостроф у одинарних лапках; сканери мають знати."""
+        self.assertEqual(keel.parse_yaml("module: 'it''s # keep me'")["module"],
+                         "it's # keep me")
+
+    def test_a_doubled_single_quote_before_a_comma_in_a_flow_list(self):
+        self.assertEqual(keel.parse_yaml("x: ['a'',c']")["x"], ["a',c"])
+
     def test_an_escaped_quote_before_a_hash_survives(self):
         """`\\\"` не закриває рядок, тож решітка після нього — не коментар."""
         self.assertEqual(self.back('a" # b'), 'a" # b')

@@ -213,8 +213,10 @@ It needs no adapter — it carries a command. That command has to be a string, o
 the check turns red rather than passing it over in silence, and it is bounded at
 30 seconds: a promise is a probe, not a build, and a hung probe would hold
 `pre-push` and CI for as long as they are allowed to run. Its stdin is closed, so
-a command that prompts fails at once instead of waiting, and `--no-tests` does
-not run it.
+a command that prompts fails at once instead of waiting. `--no-tests` runs
+neither it nor the export probe: the probe imports the project's modules, and an
+import executes whatever a module does at load — so the run-nothing flag is now
+honest all the way down.
 
 **Everything that executes the project's code is bounded**, not only `verify`.
 The test run gets ten minutes, the export probe two. A fixed command from an
@@ -458,7 +460,9 @@ keel init --mode manual --agent-hooks
 The mode is written into `keel/keel.json` and read back by `keel skills` and
 `keel update`, so regenerating never quietly hands back either the procedures to
 the model or the hooks the mode did not want. Edit that mode by hand and the next
-`update` takes the hooks back rather than merely declining to add them.
+`update` takes the hooks back rather than merely declining to add them. The
+`--agent-hooks` and `--no-agent-hooks` flags are written there too: the override
+outlives updates instead of lasting until the first one.
 
 **Narrowing the mode also takes back what a wider one installed.** `keel init
 --mode manual` over a strict install does not merely stop writing hooks: it

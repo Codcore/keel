@@ -326,6 +326,38 @@ class TestOwnership(unittest.TestCase):
         self.assertFalse(keel.keel_owns("keeling/x.md"))
 
 
+class TestTheOverrideOutlivesInit(ModeCase):
+    """--agent-hooks/--no-agent-hooks is a choice, and update must not undo it."""
+
+    def update(self):
+        return subprocess.run(
+            [sys.executable, os.path.join(keel.home(), "keel.py"),
+             "-C", self.root, "update"], capture_output=True, text=True)
+
+    def test_no_agent_hooks_survives_update(self):
+        self.init(mode="strict", agent_hooks=False)
+        self.assertFalse(self.has_agent_hooks())
+        self.update()
+        self.assertFalse(self.has_agent_hooks())
+
+    def test_manual_with_hooks_survives_update(self):
+        """Задокументована четверта комбінація — перший update її стирав."""
+        self.init(mode="manual", agent_hooks=True)
+        self.assertTrue(self.has_agent_hooks())
+        self.update()
+        self.assertTrue(self.has_agent_hooks())
+
+    def test_the_override_is_written_down(self):
+        self.init(mode="strict", agent_hooks=False)
+        with open(self.path(keel.CONFIG_FILE), encoding="utf-8") as handle:
+            self.assertIs(json.load(handle)["agent_hooks"], False)
+
+    def test_without_a_flag_nothing_is_written_and_the_mode_decides(self):
+        self.init(mode="soft")
+        with open(self.path(keel.CONFIG_FILE), encoding="utf-8") as handle:
+            self.assertEqual(json.load(handle)["agent_hooks"], "")
+
+
 class TestGitHooksAreNotTheAgentHooks(ModeCase):
     """Two different animals under one word: these guard the repository."""
 
