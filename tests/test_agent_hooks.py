@@ -65,6 +65,49 @@ class TestFindPath(unittest.TestCase):
 
 
 
+class TestScopeWidenedAfterApproval(ProjectCase):
+    """Розширювати список дозволено — але не мовчки.
+
+    Раніше послідовність «допиши файл у крок, тоді пиши що завгодно» проходила
+    обидва заслони без жодного слова, і сказати про це могла хіба що перевірка,
+    три ходи по тому й в іншому місці.
+    """
+
+    def verdict(self, path):
+        return keel.write_verdict(
+            self.project, {"tool_input": {"file_path": self.fixture.path(path)}})
+
+    def widen(self, name):
+        step = "keel/steps/0001-session-loop.md"
+        self.fixture.write(step, self.fixture.read(step).replace(
+            "files:      [lib/session.ex]", f"files:      [lib/session.ex, {name}]"))
+
+    def test_a_file_from_the_approved_plan_passes_in_silence(self):
+        self.fixture.branch("0001-session-loop")
+        self.assertIsNone(self.verdict("lib/session.ex"))
+
+    def test_a_file_added_here_is_allowed_and_said(self):
+        self.fixture.branch("0001-session-loop")
+        self.widen("lib/extra.ex")
+        kind, message = self.verdict("lib/extra.ex")
+        self.assertEqual(kind, "note")
+        self.assertIn("lib/extra.ex", message)
+        self.assertIn("approved", message)
+
+    def test_a_file_in_no_list_at_all_is_still_refused(self):
+        self.fixture.branch("0001-session-loop")
+        kind, _ = self.verdict("lib/nobody.ex")
+        self.assertEqual(kind, "deny")
+
+    def test_a_step_that_never_reached_main_has_nothing_to_compare_with(self):
+        """Крок, якого на головній гілці немає, ще ніхто не схвалював."""
+        self.fixture.branch("0002-fresh")
+        self.fixture.write("keel/steps/0002-fresh.md", self.fixture.read(
+            "keel/steps/0001-session-loop.md"))
+        self.assertIsNone(keel.approved_files(
+            self.project, self.project.steps["0002-fresh"]))
+
+
 class TestTheMainBranchIsNotAWorkbench(ProjectCase):
     """Гілка, де за планом нічого не роблять, була єдиною, де можна було все.
 

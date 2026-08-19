@@ -156,6 +156,15 @@ class TestSkills(ProjectCase):
             self.assertIn("is not permission to", body, relative)
             self.assertIn("do not commit the plan", body, relative)
 
+    def test_who_decided_goes_into_the_commit_message(self):
+        """Git знає хто й коли, diff знає що — а чому і за чиїм рішенням ніде."""
+        self.generate()
+        for _, relative in keel.skill_targets(keel.SKILLS[0]):
+            body = self.fixture.read(relative)
+            self.assertIn("in the commit message", body, relative)
+            self.assertIn("whoever decided", body.lower(), relative)
+            self.assertIn("on whose call", body.lower(), relative)
+
     def test_somebody_elses_step_is_not_moved_out_of_the_way(self):
         """Заслон завалив чужим скелетом — і його відсунули, щоб пройти."""
         self.generate()

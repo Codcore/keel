@@ -238,6 +238,10 @@ UK = {
     "CI is not set up: {command} — there is no such command":
         "CI не налаштований: {command} — такої команди немає",
     "CI is red: {command}": "CI червоний: {command}",
+    "{name} was added to step {step} on this branch, not in the plan that was "
+    "approved. Allowed — say in the pull request what widened and why.":
+        "{name} додано до кроку {step} на цій гілці, а не в схваленому плані. "
+        "Дозволено — скажіть у PR, що саме розширили й чому.",
     "contract {slug} arrives with this step, and no transform or scenario leans "
     "on it — deliberate?":
         "контракт {slug} приходить із цим кроком, і жодна трансформа чи "
@@ -3715,6 +3719,15 @@ branch did not come to touch.
 Then commit on the `plan/<step>` branch and open the PR. **No code goes in this
 PR** — a plan branch touches only `keel/`, and the scope check enforces it.
 
+**Whoever decided what goes in the commit message, in its own paragraph.** The
+documents say what the step promises; they do not say which fork you stood at,
+what the choices were, and who picked. Git records who and when, the diff
+records what — why and on whose call is recorded nowhere, and the chat where it
+was settled does not travel with the repository. So write it down: the question,
+the options, the answer, and whether the answer came from the operator or from
+you. Two or three lines. A guess and a decision look identical six months later,
+and the difference is the whole of it.
+
 Approval is written nowhere: it is the fact that the step file reached the main
 branch. Until then `keel next` hands out no work, and that is deliberate.
 """
@@ -4102,6 +4115,51 @@ def repo_relative(project, target):
     return relative
 
 
+def approved_files(project, step):
+    """The files the step declared when it reached the main branch, or None.
+
+    Read out of git rather than through a Doc: this is the text as it was
+    approved, not as it sits on disk now, and there is no file to open.
+    """
+    if not project.git.available or not project.git.has_commits:
+        return None
+    if not project.git.file_in_branch(project.git.main_branch, step.rel):
+        return None
+    text = project.git.out("show", f"{project.git.main_branch}:{step.rel}",
+                           default=None)
+    if not text:
+        return None
+    front, _, _ = split_front_matter(text)
+    if front is None:
+        return None
+    transforms = parse_yaml(front).get("transforms")
+    if not isinstance(transforms, dict):
+        return None
+    files = set()
+    for spec in transforms.values():
+        if not isinstance(spec, dict):
+            continue
+        value = spec.get("files")
+        if isinstance(value, list):
+            files.update(str(item).strip() for item in value if str(item).strip())
+        elif isinstance(value, str) and value.strip():
+            files.add(value.strip())
+    return files
+
+
+def widened_here(project, step, relative):
+    """Whether this file entered the step's scope after the plan was approved.
+
+    Extending the list is allowed — KEEL.md says so, and it stays a line in the
+    diff. But the hook used to wave such a write through in silence: amend the
+    step, then write anything, and nothing said a word until `check` ran, which
+    is three moves later and somewhere else. Said here instead, at the moment
+    the judgement is actually made.
+    """
+    approved = approved_files(project, step)
+    return approved is not None and relative not in approved
+
+
 def main_branch_verdict(project, payload):
     """The main branch takes finished work; it is not where work is written.
 
@@ -4167,6 +4225,11 @@ def write_verdict(project, payload):
         return None      # the same exemption check 4 applies, so the hook is
                          # never stricter than the gate
     if relative in declared:
+        if widened_here(project, step, relative):
+            return ("note", t("{name} was added to step {step} on this branch, "
+                              "not in the plan that was approved. Allowed — say "
+                              "in the pull request what widened and why.",
+                              name=relative, step=step.slug))
         return None
 
     return ("deny", t("{name} is not declared in step {step}. Declared: "
