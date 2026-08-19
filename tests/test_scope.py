@@ -20,6 +20,102 @@ from tests.support import ProjectCase  # noqa: E402
 # Check 4: scope
 # ─────────────────────────────────────────────────────────────────────────────
 
+class TestScopeAsksOnlyAboutClosedTransforms(ProjectCase):
+    """Крок робиться по трансформі за раз, і заслон має це знати.
+
+    Інакше pre-commit не пускає жодного комміту, крім останнього, а агент,
+    який зустрів заслон, крізь який чесно не пройти, вчиться казати
+    `--no-verify`. Перевірено наживо: вистачило однієї відмови.
+    """
+
+    TWO = """---
+depends_on: []
+
+scenarios:
+  first-holds:  {proves: session-run@%(rev)s}
+  second-holds: {proves: session-run@%(rev)s}
+
+transforms:
+  do-the-first:
+    implements: [first-holds]
+    contracts:  [session-run@%(rev)s]
+    files:      [lib/first.ex]
+
+  do-the-second:
+    implements: [second-holds]
+    contracts:  [session-run@%(rev)s]
+    files:      [lib/second.ex]
+---
+
+## Навіщо
+
+Дві трансформи, щоб було видно, що буває після першої.
+
+## scenario: first-holds
+
+**Given** одне, **When** друге, **Then** третє.
+
+## scenario: second-holds
+
+**Given** одне, **When** друге, **Then** третє.
+
+## transform: do-the-first
+
+Робить перше.
+
+Межі: не робить другого.
+
+## transform: do-the-second
+
+Робить друге.
+
+Межі: не робить першого.
+"""
+
+    def setUp(self):
+        super().setUp()
+        self.fixture.write("keel/steps/0002-two-moves.md",
+                           self.TWO % {"rev": self.fixture.contract_rev})
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "план на дві трансформи")
+        self.fixture.branch("0002-two-moves")
+
+    def commit_the_first(self):
+        self.fixture.write("lib/first.ex", "defmodule First do\nend\n")
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "do-the-first: перше")
+
+    def test_the_second_transform_is_not_owed_before_its_commit(self):
+        self.commit_the_first()
+        problems = keel.check_scope(self.project)
+        self.assertEqual([p.message for p in problems], [], [p.render() for p in problems])
+
+    def test_reaching_outside_the_step_still_shows_at_once(self):
+        self.fixture.write("lib/first.ex", "defmodule First do\nend\n")
+        self.fixture.write("lib/nobody_declared.ex", "defmodule Nope do\nend\n")
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "do-the-first: перше і зайве")
+        problems = keel.check_scope(self.project)
+        self.assertTrue(any("lib/nobody_declared.ex" in p.message for p in problems),
+                        [p.render() for p in problems])
+
+    def test_a_closed_transform_that_touched_nothing_is_still_caught(self):
+        """Комміт зі слагом є, а файла він не приніс — це та сама тиша."""
+        self.fixture.write("lib/second.ex", "defmodule Second do\nend\n")
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "do-the-first: слаг першої, а файл другої")
+        problems = keel.check_scope(self.project)
+        self.assertTrue(any("lib/first.ex" in p.message for p in problems),
+                        [p.render() for p in problems])
+
+    def test_when_every_transform_is_closed_the_whole_list_is_owed(self):
+        self.commit_the_first()
+        self.fixture.git("commit", "--allow-empty", "-m", "do-the-second: порожній")
+        problems = keel.check_scope(self.project)
+        self.assertTrue(any("lib/second.ex" in p.message for p in problems),
+                        [p.render() for p in problems])
+
+
 class TestScope(ProjectCase):
     def test_main_branch_is_not_checked(self):
         self.assertEqual(keel.check_scope(self.project), [])
@@ -38,8 +134,12 @@ class TestScope(ProjectCase):
         self.assertIn("lib/extra.ex", problems[0].message)
         self.assertIn("not declared", problems[0].message)
 
-    def test_declared_but_untouched(self):
+    def test_declared_but_untouched_once_the_transform_is_closed(self):
+        """Поки комміту зі слагом немає, трансформа ще нічого не винна."""
         self.fixture.branch("0001-session-loop")
+        self.assertEqual(keel.check_scope(self.project), [])
+
+        self.fixture.git("commit", "--allow-empty", "-m", "drive-turns: нічого не приніс")
         problems = keel.check_scope(self.project)
         self.assertEqual(len(problems), 1)
         self.assertIn("declared but not changed", problems[0].message)

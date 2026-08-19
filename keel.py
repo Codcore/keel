@@ -1984,10 +1984,32 @@ def check_scope(project):
     # over a diff that plainly changed it — a message stating a falsehood.
     declared = {name for name in step.declared_files() if not keel_owns(name)}
 
+    # The two directions do not read the same list, and that is the whole point.
+    #
+    # "Changed but not declared" asks about every transform of the step: reach
+    # outside the step's files and it shows, whichever transform you are on.
+    #
+    # "Declared but not changed" may only ask about transforms already closed by
+    # a commit. A step is worked one transform at a time — that is what `next`
+    # hands out — so on the first of five commits the other four have touched
+    # nothing yet, by design. Asking about them there made pre-commit refuse
+    # every commit but the last, and an agent that meets a gate it cannot pass
+    # honestly learns `--no-verify`, which is worse than no gate at all.
+    # Verified live: it took one refusal.
+    #
+    # Nothing is lost at the end: once every transform is closed the two lists
+    # are the same, so the branch is still held to everything it declared.
+    closed = project.transform_state(step)
+    promised = set()
+    for slug in step.transforms:
+        if closed[slug][0] is not None:
+            promised.update(step.transform_files(slug))
+    promised = {name for name in promised if not keel_owns(name)}
+
     problems = []
     for name in sorted(changed - declared):
         problems.append(Problem(4, t("changed but not declared: {name}", name=name), step.rel))
-    for name in sorted(declared - changed):
+    for name in sorted(promised - changed):
         problems.append(Problem(4, t("declared but not changed: {name}", name=name),
                                 step.rel, step.line_of(name)))
     return problems
