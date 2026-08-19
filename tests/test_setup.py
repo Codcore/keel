@@ -215,14 +215,22 @@ class TestInit(unittest.TestCase):
         self.assertIn("Keel", self.log())
 
     def test_a_repository_without_an_identity_falls_back_to_the_hint(self):
+        """Єдиний assert ховався за if — тест зеленів рівно тоді, коли ловив
+        те, проти чого написаний. Ідентичність вимикається явно, environment
+        включно, і обидві гілки перевіряються завжди."""
         subprocess.run(["git", "-C", self.root, "config", "user.email", ""], check=True)
         subprocess.run(["git", "-C", self.root, "config", "user.name", ""], check=True)
-        _, out = self.init()
-        if "committed" not in out:
-            self.assertIn("are not in git yet", out)
+        clean = {key: value for key, value in os.environ.items()
+                 if not key.startswith(("GIT_AUTHOR", "GIT_COMMITTER"))}
+        with unittest.mock.patch.dict(os.environ, clean, clear=True):
+            _, out = self.init()
+        self.assertNotIn("committed separately", out)
+        self.assertIn("are not in git yet", out)
 
-    def test_creates_the_three_folders(self):
+    def test_creates_the_step_and_contract_folders(self):
+        """Дві теки — з часу «двох типів документів»; стара назва казала три."""
         self.init()
+        self.assertEqual(set(keel.INIT_DIRS), {"keel/steps", "keel/contracts"})
         for folder in keel.INIT_DIRS:
             self.assertTrue(os.path.isdir(os.path.join(self.root, folder)), folder)
 

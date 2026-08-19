@@ -1496,10 +1496,14 @@ KEEL_DIR_PREFIX = "keel/"
 # Keel's own furniture in a project. A plan branch may carry it: it is not the
 # project's code, and refusing it walls off the very first plan commit whenever
 # `init` or `update` has just refreshed something.
+# Defined here, before the ownership list that uses them, and nowhere else:
+# a path restated as a literal can drift from the constant that names it.
+CLAUDE_SETTINGS = ".claude/settings.json"
+CURSOR_HOOKS = ".cursor/hooks.json"
+CI_FILE = ".github/workflows/keel.yml"
+
 KEEL_OWNED_DIRS = (KEEL_DIR_PREFIX, ".claude/skills/", ".cursor/skills/")
-KEEL_OWNED_FILES = (".claude/settings.json", ".cursor/hooks.json",
-                    ".codex/hooks.json", ".github/workflows/keel.yml",
-                    "AGENTS.md")
+KEEL_OWNED_FILES = (CLAUDE_SETTINGS, CURSOR_HOOKS, CI_FILE, "AGENTS.md")
 def keel_owns(name):
     """Ours, by whole path — not by anything that merely starts the same way.
 
@@ -2402,7 +2406,6 @@ INIT_DIRS = ("keel/steps", "keel/contracts")
 AGENTS_START = "<!-- keel:start -->"
 AGENTS_END = "<!-- keel:end -->"
 VENDORED = "keel/keel.py"
-CI_FILE = ".github/workflows/keel.yml"
 # References travel as copies: AGENTS.md points at them, and you can only point
 # at what sits in the same repository. Methodology, tool, quality cuts.
 REFERENCES = ("KEEL.md", "README.md", "QUALITY.md")
@@ -3018,8 +3021,6 @@ def yaml_string(text):
 # apart. Codex is left out until its apply_patch payload is worked out.
 # ─────────────────────────────────────────────────────────────────────────────
 
-CLAUDE_SETTINGS = ".claude/settings.json"
-CURSOR_HOOKS = ".cursor/hooks.json"
 # What marks a hook entry as ours in a shared config. The vendored path, not
 # "keel.py hook": quoting the command put a " between the script and the
 # subcommand, and a space-joined tag would no longer match — so is_ours would
@@ -3472,7 +3473,7 @@ def cmd_init(project, args):
     done, manifest = [], {}
     for folder in INIT_DIRS:
         os.makedirs(os.path.join(project.root, folder), exist_ok=True)
-    done.append("keel/steps, keel/contracts")
+    done.append(", ".join(INIT_DIRS))
     project.settings = settings
 
     # One owner of "which files, with what content": the same table update and

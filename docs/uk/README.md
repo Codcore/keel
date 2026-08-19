@@ -239,7 +239,6 @@ AGENTS.md                       блок між маркерами: принци
 .cursor/skills/keel-*/SKILL.md  породжені — той самий формат
 .claude/settings.json           хуки агента в режимі strict; чуже лишається
 .cursor/hooks.json              те саме для Cursor
-.codex/hooks.json               те саме для Codex — ще не породжується
 .git/hooks/                     pre-commit і pre-push, що кличуть keel
 ```
 

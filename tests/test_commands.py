@@ -177,9 +177,7 @@ class TestRev(ProjectCase):
         step = "keel/steps/0001-session-loop.md"
         text = self.fixture.read(step).replace(
             f"session-run@{self.fixture.contract_rev}", "session-run")
-        text = text.replace("## transform: drive-turns",
-                            "## transform: drive-turns").replace(
-            "Крутити ходи", "Крутити ходи session-run")
+        text = text.replace("Крутити ходи", "Крутити ходи session-run")
         self.fixture.write(step, text)
         self.run_rev(write=True)
         after = self.fixture.read(step)

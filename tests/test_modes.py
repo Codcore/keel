@@ -50,6 +50,13 @@ class ModeCase(unittest.TestCase):
                 for skill in keel.SKILLS
                 for _, relative in keel.skill_targets(skill)]
 
+    def update(self):
+        """A real `keel update` subprocess; stdout+stderr as one text."""
+        done = subprocess.run(
+            [sys.executable, os.path.join(keel.home(), "keel.py"),
+             "-C", self.root, "update"], capture_output=True, text=True)
+        return done.stdout + done.stderr
+
     def has_agent_hooks(self):
         """Both dialects or neither — a half-installed guard is worse than none."""
         cursor = os.path.exists(self.path(keel.CURSOR_HOOKS))
@@ -222,12 +229,6 @@ class TestNarrowingTheModeTakesTheHooksBack(ModeCase):
 class TestUpdateKeepsTheMode(ModeCase):
     """The refresh that quietly put the guard back."""
 
-    def update(self):
-        done = subprocess.run(
-            [sys.executable, os.path.join(keel.home(), "keel.py"),
-             "-C", self.root, "update"], capture_output=True, text=True)
-        return done.stdout + done.stderr
-
     def test_update_does_not_reinstall_what_the_mode_excluded(self):
         self.init(mode="manual")
         self.update()
@@ -284,12 +285,6 @@ class TestSomebodyElsesSettingsFile(ModeCase):
 class TestUpdateTakesTheHooksBack(ModeCase):
     """A mode narrowed by hand in keel.json, then a routine refresh."""
 
-    def update(self):
-        done = subprocess.run(
-            [sys.executable, os.path.join(keel.home(), "keel.py"),
-             "-C", self.root, "update"], capture_output=True, text=True)
-        return done.stdout + done.stderr
-
     def narrow_by_hand(self, mode):
         path = self.path(keel.CONFIG_FILE)
         with open(path, encoding="utf-8") as handle:
@@ -328,11 +323,6 @@ class TestOwnership(unittest.TestCase):
 
 class TestTheOverrideOutlivesInit(ModeCase):
     """--agent-hooks/--no-agent-hooks is a choice, and update must not undo it."""
-
-    def update(self):
-        return subprocess.run(
-            [sys.executable, os.path.join(keel.home(), "keel.py"),
-             "-C", self.root, "update"], capture_output=True, text=True)
 
     def test_no_agent_hooks_survives_update(self):
         self.init(mode="strict", agent_hooks=False)

@@ -252,7 +252,6 @@ AGENTS.md                       a block between markers: principles and pointers
 .cursor/skills/keel-*/SKILL.md  generated — the same format
 .claude/settings.json           agent hooks in strict mode; anything else stays
 .cursor/hooks.json              the same for Cursor
-.codex/hooks.json               the same for Codex — not generated yet
 .git/hooks/                     pre-commit and pre-push, which call keel
 ```
 
