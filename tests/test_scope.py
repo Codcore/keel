@@ -554,3 +554,40 @@ transforms:
             sys.stdout = saved
         self.assertEqual(code, 0, stream.getvalue())
         self.assertIn("do-it", stream.getvalue())
+
+
+class TestDeletingSomebodyElsesDocument(ProjectCase):
+    """Найтихіший шлях повз заслон: те, чого немає, не назве ніщо.
+
+    `keel/` виведено з-під скоупу, щоб `update` міг оновити наші файли посеред
+    роботи, а нота про дрейф читає лише зміни. Тож `git rm` чужого кроку
+    проходив усі гейти зеленим.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.fixture.write("keel/steps/0002-other.md",
+                           self.fixture.read("keel/steps/0001-session-loop.md")
+                           .replace("drive-turns", "other-turns")
+                           .replace("finishes-when-no-tool-called", "other-holds"))
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "другий крок")
+        self.fixture.branch("0001-session-loop")
+
+    def test_removing_another_step_is_named(self):
+        self.fixture.git("rm", "-q", "keel/steps/0002-other.md")
+        self.fixture.git("commit", "-m", "drive-turns: прибрав те, що заважало")
+        problems = keel.check_scope(self.project)
+        self.assertTrue(any("0002-other" in p.message for p in problems),
+                        [p.message for p in problems])
+
+    def test_removing_a_contract_is_named_too(self):
+        self.fixture.git("rm", "-q", "keel/contracts/session-run.md")
+        self.fixture.git("commit", "-m", "drive-turns: і контракт теж")
+        problems = keel.check_scope(self.project)
+        self.assertTrue(any("session-run" in p.message for p in problems),
+                        [p.message for p in problems])
+
+    def test_touching_nothing_says_nothing(self):
+        self.assertEqual(
+            [p for p in keel.check_scope(self.project) if "deleted" in p.message], [])

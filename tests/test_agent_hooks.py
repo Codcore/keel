@@ -271,8 +271,16 @@ class TestSessionContextRespectsTheGate(ProjectCase):
 class TestSessionContext(ProjectCase):
     def test_the_hook_does_not_contradict_the_skill_on_order(self):
         """Номер зʼявляється після new step, тож гілку заводять після нього."""
+        self.fixture.git("commit", "--allow-empty", "-m", "drive-turns: зроблено")
         text = keel.session_context(self.project)
         self.assertLess(text.index("new step"), text.index("plan/"), text)
+
+    def test_on_main_the_hook_says_what_next_says(self):
+        """Хук читають першим, і він казав «роботи тут немає» над схваленим
+        кроком, кожна трансформа якого стояла незакритою."""
+        text = keel.session_context(self.project)
+        self.assertIn("0001-session-loop", text)
+        self.assertIn("git checkout -b 0001-session-loop", text)
 
     def test_main_branch_points_at_planning(self):
         text = keel.session_context(self.project)
@@ -530,3 +538,17 @@ class TestApprovedFilesComeFromTheBranchPoint(ProjectCase):
         self.fixture.git("checkout", "0001-session-loop")
         self.assertFalse(keel.widened_here(
             self.project, self.project.steps["0001-session-loop"], "lib/session.ex"))
+
+
+class TestTheHookSpeaksOnADetachedHead(ProjectCase):
+    """Перервана перебазова, bisect, checkout за хешем — і заслон вимикався
+    без жодного слова, хоч перевірка 4 про той самий стан каже вголос."""
+
+    def test_a_detached_head_is_named(self):
+        self.fixture.git("checkout", "--detach", "HEAD")
+        verdict = keel.write_verdict(
+            self.project, {"tool_input": {"file_path": self.fixture.path("lib/x.ex")}})
+        self.assertIsNotNone(verdict)
+        kind, message = verdict
+        self.assertEqual(kind, "note")
+        self.assertIn("detached", message)

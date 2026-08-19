@@ -77,8 +77,11 @@ class TestHooks(ProjectCase):
 
     def test_hook_blocks_a_commit_beyond_scope(self):
         self.capture(install=True)
-        env = dict(os.environ, KEEL=os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(keel.__file__))), "keel.py"))
+        # keel.__file__ is already the tool; going up two directories pointed
+        # the variable at a path that does not exist, so `[ -f "${KEEL}" ]`
+        # failed and the commit was blocked through the baked fallback instead
+        # — the branch this test is named for was never reached.
+        env = dict(os.environ, KEEL=os.path.abspath(keel.__file__))
         self.fixture.branch("0001-session-loop")
         self.fixture.write("lib/session.ex", "змінено\n")
         self.fixture.write("lib/extra.ex", "не оголошено\n")

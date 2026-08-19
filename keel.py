@@ -239,6 +239,32 @@ UK = {
     "CI is not set up: {command} — there is no such command":
         "CI не налаштований: {command} — такої команди немає",
     "CI is red: {command}": "CI червоний: {command}",
+    "the whole hooks key": "весь ключ hooks",
+    "{file}: {what} is somebody else's shape, so the write guard was not "
+    "installed there — put it in by hand or move what is in the way":
+        "{file}: {what} має чужу форму, тож заслон перед записом туди не "
+        "встановлено — впишіть руками або приберіть те, що заважає",
+    "{name} was deleted on this branch. A step or a contract outlives the "
+    "branch that removes it — say so in the pull request, or put it back.":
+        "{name} видалено на цій гілці. Крок і контракт живуть довше за гілку, "
+        "яка їх прибирає — скажіть про це в PR або поверніть на місце.",
+    "step {step} has two scenarios that read as {slug} once dashes and "
+    "underscores are levelled, and a tag names only that — rename one":
+        "у кроці {step} два сценарії читаються як {slug}, щойно зрівняти дефіси "
+        "з підкресленнями, а тег називає тільки це — перейменуйте один",
+    "keel: the head is detached, so there is no step to judge this write "
+    "against. Scope is not being checked.":
+        "keel: голова відчеплена, тож немає кроку, за яким судити цей запис. "
+        "Межі не перевіряються.",
+    "contract {slug} promises nothing that can be checked: no exports to compare "
+    "and no verify to run":
+        "контракт {slug} не обіцяє нічого перевірного: ні експортів для звірки, "
+        "ні команди verify",
+    "(the tests and probes were not run)": "(тести й проби не запускались)",
+    "the test for {slug} did not run: {name} is skipped. A test that does not "
+    "run proves nothing.":
+        "тест для {slug} не виконувався: {name} пропущено. Тест, який не "
+        "біжить, нічого не доводить.",
     "keel: the hook payload carried no file path, so this write was not judged. "
     "This is {main}, where finished work arrives.":
         "keel: у виклику хука не було шляху до файла, тож цей запис ніхто не "
@@ -1173,11 +1199,18 @@ class Git:
         # a wildcard means the clone tracks the whole remote.
         if short and short == self.branch and self.tracks_whole_remote:
             return short
+        # The remote-tracking ref first, and this order matters. A local `main`
+        # sits wherever it sat when the repository was cloned: nobody checks it
+        # out, colleagues keep merging, and using it as the baseline made check
+        # 4 report their files as changed by this branch — in the pre-commit
+        # hook, naming files the branch never opened. What the branch will be
+        # merged into is `origin/main`, so that is what it is compared against.
         if short and short != self.branch:
-            if self.run("rev-parse", "--verify", "--quiet", short)[0] == 0:
-                return short
+            for name in (f"origin/{short}", short):
+                if self.run("rev-parse", "--verify", "--quiet", name)[0] == 0:
+                    return name
             return f"origin/{short}"
-        for name in ("main", "master", "origin/main", "origin/master"):
+        for name in ("origin/main", "origin/master", "main", "master"):
             if self.run("rev-parse", "--verify", "--quiet", name)[0] == 0:
                 return name
         return "main"
@@ -1300,6 +1333,8 @@ class Git:
 # a module's exports come from. The adapter is chosen by a marker in the root.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Printed by the test runner for every test that did not actually execute.
+SKIP_MARK = "keel-skipped|"
 EXPORT_MARK = "keel-exports|"
 SPEC_MARK = "keel-spec|"
 # A module reference is letters, digits, dots and underscores — nothing that can
@@ -1571,9 +1606,19 @@ class PythonAdapter(Adapter):
             "    spec.loader.exec_module(module)\n"
             "    suite.addTests(loader.loadTestsFromModule(module))\n"
             "result = unittest.TextTestRunner().run(suite)\n"
+            # A skipped test is not a proof. The suite is successful with it,
+            # and check 5 used to print "every scenario has a green test" over a
+            # test marked skip whose body was a bare failure. Name them so the
+            # check can tell a promise that ran from one that did not.
+            "for case, _why in list(result.skipped) + [\n"
+            "        (c, None) for c, *_ in result.expectedFailures]:\n"
+            f"    print('{SKIP_MARK}' + case.id())\n"
             "sys.exit(0 if result.wasSuccessful() else 1)\n"
         )
-        return [sys.executable, "-c", script]
+        # -B for the same reason the probe sets PYTHONDONTWRITEBYTECODE: the
+        # runner imports every test file, and the bytecode it would leave
+        # behind is what check 4 blamed the branch for a moment later.
+        return [sys.executable, "-B", "-c", script]
 
     def test_label(self, root):
         count = len(self.test_files(root))
@@ -1619,6 +1664,12 @@ class PythonAdapter(Adapter):
         return parse_export_output(run_probe(
             [sys.executable, "-c", script], root,
             env={**os.environ,
+                 # Without this the probe writes __pycache__ into the project,
+                 # and check 4 — which runs after it on purpose — then reports
+                 # the tool's own litter as files the branch changed and never
+                 # declared. It was the cause as well as the thing the ordering
+                 # was meant to catch.
+                 "PYTHONDONTWRITEBYTECODE": "1",
                  "PYTHONPATH": root + os.pathsep + os.environ.get("PYTHONPATH", "")}),
             modules)
 
@@ -2067,8 +2118,13 @@ def ambiguous_scenarios(project):
         if step.error:
             continue
         for slug in step.scenarios:
-            seen.setdefault(normalise_slug(slug), set()).add(step.slug)
-    return {slug: sorted(steps) for slug, steps in seen.items() if len(steps) > 1}
+            # Counted per scenario, not per step: two scenarios in one step
+            # that normalise alike collide exactly as hard — the tags get
+            # swapped, both read as drifted, and `rev --write` cannot fix it
+            # because each is already stamped with what the other now hashes to.
+            seen.setdefault(normalise_slug(slug), []).append((step.slug, slug))
+    return {flat: sorted({step for step, _ in owners})
+            for flat, owners in seen.items() if len(owners) > 1}
 
 
 def scenario_tags(project, tags=None, shared=None):
@@ -2171,6 +2227,25 @@ def check_revisions(project):
     return problems
 
 
+def deleted_documents(project, base):
+    """Steps and contracts this branch removed.
+
+    Not covered by anything else: the scope check waves all of `keel/` through
+    so that `update` can refresh our own files mid-work, and the drift note
+    reads only modifications. So `git rm keel/steps/0002-other.md` left every
+    gate green — the quietest way past the guard written to stop exactly that,
+    because a document that is gone is in no list the checks walk.
+    """
+    if not base:
+        return []
+    listing = project.git.out("diff", "--name-only", "--diff-filter=D", base,
+                             "--", "keel/steps", "keel/contracts")
+    return [Problem(4, t("{name} was deleted on this branch. A step or a "
+                         "contract outlives the branch that removes it — say so "
+                         "in the pull request, or put it back.", name=name))
+            for name in sorted(listing.splitlines()) if name.strip()]
+
+
 def check_scope(project):
     if not project.git.available:
         return [Problem(4, t("this is not a git repository — nothing to check scope against"))]
@@ -2208,12 +2283,20 @@ def check_scope(project):
 
     if project.is_plan_branch(branch):
         stray = sorted(name for name in changed if not keel_owns(name))
-        return [Problem(4, t("a plan branch is touching code: {name}", name=name)) for name in stray]
+        return (deleted_documents(project, base)
+                + [Problem(4, t("a plan branch is touching code: {name}", name=name))
+                   for name in stray])
 
     # Keel's own furniture is out of scope on a work branch too. `update` may
     # refresh a skill in the middle of the work, and telling the person to
     # declare our own generated file in their transform is the same mine the
     # plan branch was cleared of.
+    # Before the exemption: a deleted step or contract is not drift and not
+    # furniture. Keel's own files are waved through so that `update` may refresh
+    # them mid-work, and removing somebody's approved plan slipped through the
+    # same door — quieter than moving it, because what is gone cannot be named
+    # by anything that walks the documents that remain.
+    problems = deleted_documents(project, base)
     changed = {name for name in changed if not keel_owns(name)}
 
     step = project.step_for_branch(branch)
@@ -2251,7 +2334,6 @@ def check_scope(project):
             promised.update(step.transform_files(slug))
     promised = {name for name in promised if not keel_owns(name)}
 
-    problems = []
     for name in sorted(changed - declared):
         problems.append(Problem(4, t("changed but not declared: {name}", name=name), step.rel))
     for name in sorted(promised - changed):
@@ -2271,10 +2353,16 @@ def check_scenarios(project, run_tests=True):
     # only then learn the slugs were never distinguishable.
     shared = ambiguous_scenarios(project)
     for slug, owners in sorted(shared.items()):
-        problems.append(Problem(
-            5, t("scenario {slug} is declared by more than one step ({steps}), "
-                 "and a test tag names only the slug — it cannot say which",
-                 slug=slug, steps=", ".join(owners))))
+        if len(owners) > 1:
+            problems.append(Problem(
+                5, t("scenario {slug} is declared by more than one step ({steps}), "
+                     "and a test tag names only the slug — it cannot say which",
+                     slug=slug, steps=", ".join(owners))))
+        else:
+            problems.append(Problem(
+                5, t("step {step} has two scenarios that read as {slug} once "
+                     "dashes and underscores are levelled, and a tag names only "
+                     "that — rename one", step=owners[0], slug=slug)))
     if project.adapter is None:
         return problems + [Problem(
             5, t("nothing to run the tests with: the root has none of {markers}",
@@ -2324,6 +2412,43 @@ def check_scenarios(project, run_tests=True):
             problems.append(Problem(
                 5, t("the tests are red ({command}):", command=label)
                 + "\n" + "\n".join("      " + line for line in tail)))
+        else:
+            problems += skipped_proofs(project, proc.stdout or "")
+    return problems
+
+
+def skipped_proofs(project, output):
+    """Scenarios whose test was there, was named, and did not run.
+
+    A skipped test leaves the suite successful, so `wasSuccessful()` — the only
+    thing greenness used to mean — is true over a test whose body is a bare
+    failure. That put "every scenario has a green test" on top of a promise
+    nothing had proved, which is the deepest silence this tool can produce.
+
+    Attribution is by name, the way a person would read it: the test proving
+    `runs-ok` is called `test_runs_ok`, and both normalise to the same thing.
+    A skipped test that names no scenario says nothing here — a platform test
+    that cannot run on this machine is not a broken promise.
+    """
+    skipped = [line[len(SKIP_MARK):].strip() for line in output.splitlines()
+               if line.startswith(SKIP_MARK)]
+    if not skipped:
+        return []
+    flattened = [normalise_slug(name) for name in skipped]
+    problems = []
+    for step in project.steps.values():
+        if step.error:
+            continue
+        for slug in step.scenarios:
+            wanted = normalise_slug(slug)
+            for name, flat in zip(skipped, flattened):
+                if wanted and wanted in flat:
+                    problems.append(Problem(
+                        5, t("the test for {slug} did not run: {name} is "
+                             "skipped. A test that does not run proves nothing.",
+                             slug=slug, name=name), step.rel,
+                        step.section_lines.get(f"scenario: {slug}")))
+                    break
     return problems
 
 
@@ -2484,6 +2609,23 @@ def check_exports(project, run_tests=True):
                 6, t("the contract was not confirmed: {command}", command=contract.verify)
                    + ("\n" + "\n".join("      " + line for line in tail) if tail else ""),
                 contract.rel, contract.line_of("verify")))
+
+    # A contract that promises nothing checkable is not a contract. KEEL.md is
+    # explicit: "a promise nothing can check is not a contract but a boundary,
+    # and it lives as a paragraph inside a transform." Left alone, it collected
+    # a green sixth check and a scenario could prove it — a tick over a promise
+    # nobody ever compared against anything.
+    for contract in project.contracts.values():
+        # The key's presence, not its value: a verify that is empty or of the
+        # wrong type is already named above, and saying it twice would make one
+        # mistake read as two.
+        if contract.error or "verify" in contract.front:
+            continue
+        if not contract.exports:
+            problems.append(Problem(
+                6, t("contract {slug} promises nothing that can be checked: no "
+                     "exports to compare and no verify to run", slug=contract.slug),
+                contract.rel))
 
     # Exports without a module are a concrete, checkable promise compared
     # against nothing. Filtering them out silently was green over unproven.
@@ -3066,6 +3208,10 @@ def cmd_check(project, args):
                 str(number): {
                     "name": t(CHECK_NAMES[number]),
                     "run": results[number] is not None,
+                    # Distinct from "run": the check ran, its expensive half
+                    # did not, and a script could not tell the two apart.
+                    "fully": (results[number] is not None
+                              and not (args.no_tests and number in PLAN_BLIND)),
                     "problems": [p.as_dict() for p in (results[number] or [])],
                 }
                 for number in sorted(results)
@@ -3091,6 +3237,11 @@ def cmd_check(project, args):
         print()
 
     blind = t("(not run: a plan branch has no code)")
+    # The expensive half of 5 and 6 — the suite, the module probe, the verify
+    # commands — is what --no-tests turns off, and the tick was printed from
+    # "no problems", which a check that was skipped also has. Say so on the tick
+    # itself rather than let it read as proof.
+    partial = t("(the tests and probes were not run)") if args.no_tests else ""
     for number in sorted(results):
         problems = results[number]
         if problems is None:
@@ -3099,7 +3250,8 @@ def cmd_check(project, args):
             continue
         total += len(problems)
         if not problems:
-            print(f"✓ {number}. " + t(CHECK_NAMES[number]))
+            qualifier = " " + partial if partial and number in PLAN_BLIND else ""
+            print(f"✓ {number}. " + t(CHECK_NAMES[number]) + qualifier)
             continue
         print(f"✗ {number}. " + t(CHECK_NAMES[number]))
         for problem in problems:
@@ -3839,7 +3991,9 @@ it is and tell the operator it is there. The same goes for every other file the
 branch did not come to touch.
 
 Then commit on the `plan/<step>` branch and open the PR. **No code goes in this
-PR** — a plan branch touches only `keel/`, and the scope check enforces it.
+PR** — a plan branch touches Keel's own files and nothing else: `keel/`, the
+skills, `AGENTS.md`, the CI file and the hook configs. Anything the project
+itself owns is code, and the scope check refuses it here.
 
 **Whoever decided what goes in the commit message, in its own paragraph.** The
 documents say what the step promises; they do not say which fork you stood at,
@@ -4150,6 +4304,15 @@ def session_context(project):
 
     step = project.step_for_branch(branch)
     if step is None:
+        # On the main branch, the same answer `next` gives — it walks the graph
+        # and names the step waiting to be worked. The hook used to say "there
+        # is no planned work here" while `next`, in the same repository at the
+        # same moment, named an approved step with every transform open. The
+        # hook is what a fresh agent reads first, so the wrong answer was the
+        # one that arrived first.
+        if branch == project.git.main_short:
+            return "Keel: " + main_branch_answer(project) + " " + take(
+                project, "keel-plan")
         # Order matters and is easy to get backwards: the number only exists
         # after `new step`, and a branch named before it never links to the step.
         return t("Keel: branch {branch} is not named after a step, so there is no "
@@ -4331,7 +4494,11 @@ def write_verdict(project, payload):
     """(kind, message), or None when there is nothing to say."""
     branch = project.branch
     if not branch or branch == "HEAD":
-        return None
+        # Every other unknown here is loud, and check 4 reports this same state
+        # loudly too. A detached head — an interrupted rebase, a bisect, a
+        # checkout by sha — used to turn the guard off without a word.
+        return ("note", t("keel: the head is detached, so there is no step to "
+                          "judge this write against. Scope is not being checked."))
     if branch == project.git.main_short:
         return main_branch_verdict(project, payload)
     if project.is_plan_branch(branch):
@@ -4468,18 +4635,34 @@ def strip_claude_settings(path, done):
 
 
 def merge_claude_settings(path, done):
-    """Settings.json belongs to the project; we own only our own entries in it."""
+    """Settings.json belongs to the project; we own only our own entries in it.
+
+    Refusing to rewrite a shape that is not ours is right. Refusing in silence
+    is not: with `"hooks": []` already in the file, strict mode installed
+    Cursor's guard, listed it, exited zero — and Claude's write guard was simply
+    absent, with nothing said. The operator believed strict mode was on while
+    half of it was not.
+    """
+    refused = []
+
     def change(data):
         hooks = data.setdefault("hooks", {})
         if not isinstance(hooks, dict):
+            refused.append(t("the whole hooks key"))
             return
         for event, entries in claude_hook_config().items():
             existing = ours_only(hooks.get(event, []))
             if existing is None:
-                continue      # somebody else's shape; adding to it would break it
+                refused.append(event)   # somebody else's shape; adding would break it
+                continue
             hooks[event] = existing + entries
 
     edit_claude_settings(path, change, done, CLAUDE_SETTINGS, create=True)
+    if refused:
+        done.append(t("{file}: {what} is somebody else's shape, so the write "
+                      "guard was not installed there — put it in by hand or "
+                      "move what is in the way",
+                      file=CLAUDE_SETTINGS, what=", ".join(refused)))
 
 
 def is_ours(entry):

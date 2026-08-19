@@ -6,8 +6,9 @@ This file is **what has to be true, and why**. What runs it, how it is installed
 into a project, which commands, hooks and skills exist — that is [README.md](README.md).
 The two may point at each other freely; mixing them in one file, no.
 
-The principles are one page, `PRINCIPLES.md`, read always. This file is a
-reference, read when needed.
+The principles are one page. In this repository they are `PRINCIPLES.md`; in
+a project they arrive as the block `init` writes into `AGENTS.md`, which is
+what an agent reads at every start. This file is a reference, read when needed.
 
 ## Language and format
 

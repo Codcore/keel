@@ -253,9 +253,15 @@ class TestExports(unittest.TestCase):
         self.assertEqual(len(problems), 1)
         self.assertIn("has to be a command as a string", problems[0].message)
 
-    def test_a_contract_without_verify_at_all_is_left_alone(self):
+    def test_a_contract_that_promises_nothing_checkable_is_named(self):
+        """Було «лишаємо в спокої» — і воно збирало зелену шосту ні над чим.
+
+        `KEEL.md`: обіцянка, якої ніщо не перевіряє, — це не контракт, а межа,
+        і живе вона абзацом у трансформі."""
         self.write("keel/contracts/prose.md", "---\nmodule: demo\n---\n\nСама проза.\n")
-        self.assertEqual(keel.check_exports(keel.Project(self.root)), [])
+        problems = keel.check_exports(keel.Project(self.root))
+        self.assertTrue(any("prose" in p.message for p in problems),
+                        [p.message for p in problems])
 
     def test_no_tests_does_not_run_verify(self):
         """Прапорець обіцяє нічого не запускати — команда контракту теж запуск."""
@@ -1031,7 +1037,10 @@ class TestGitEdges(unittest.TestCase):
                  "refs/remotes/origin/release/2024")
         self.git("checkout", "-q", "-b", "feature")
         g = keel.Git(self.root)
-        self.assertEqual(g.main_branch, "release/2024")
+        # origin/release/2024 is as right as release/2024 and better as a
+        # baseline; what must never happen is the truncated origin/2024.
+        self.assertIn("release/2024", g.main_branch)
+        self.assertNotIn("origin/2024", g.main_branch)
         self.assertEqual(g.main_short, "release/2024")
         self.assertTrue(g.merge_base(g.main_branch))
 
@@ -1179,3 +1188,85 @@ class TestGitEdges(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestASkippedTestProvesNothing(unittest.TestCase):
+    """Пропущений тест лишає набір успішним, тож `wasSuccessful()` — усе, чим
+    була «зелень», — правдиве над тестом, чиє тіло є голим провалом."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-skip-")
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        for folder in ("keel/steps", "keel/contracts", "src", "tests"):
+            os.makedirs(os.path.join(self.root, folder))
+        self.write("pyproject.toml", "[project]\nname = 'demo'\nversion = '0.1'\n")
+        self.write("src/__init__.py", "")
+        self.write("src/thing.py", "def run(a):\n    return a\n")
+        self.write("keel/contracts/thing.md",
+                   "---\nmodule: src.thing\nexports: [run/1]\n---\n\nОбіцянка.\n")
+        self.write("keel/steps/0001-demo.md", """---
+depends_on: []
+
+scenarios:
+  runs-ok: {proves: thing}
+
+transforms:
+  build-it:
+    implements: [runs-ok]
+    contracts:  [thing]
+    files:      [src/thing.py]
+---
+
+## Навіщо
+
+Демо.
+
+## scenario: runs-ok
+
+**Given** одне, **When** друге, **Then** третє.
+
+## transform: build-it
+
+Робить.
+
+Межі: нічого.
+""")
+
+    def write(self, name, text):
+        path = os.path.join(self.root, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+
+    def write_test(self, skip):
+        project = keel.Project(self.root)
+        rev = project.steps["0001-demo"].scenario_revision("runs-ok")
+        self.write("tests/test_demo.py",
+                   "import unittest\n"
+                   "from src.thing import run\n\n"
+                   "class T(unittest.TestCase):\n"
+                   f'    # proves: runs-ok, rev: "{rev}"\n'
+                   + ('    @unittest.skip("ще не написаний")\n' if skip else "")
+                   + "    def test_runs_ok(self):\n"
+                   + ("        self.fail('не доведено нічим')\n" if skip
+                      else "        self.assertEqual(run(1), 1)\n"))
+
+    def test_a_test_that_runs_is_still_green(self):
+        self.write_test(skip=False)
+        self.assertEqual(keel.check_scenarios(keel.Project(self.root)), [])
+
+    def test_a_skipped_test_is_not_a_proof(self):
+        self.write_test(skip=True)
+        problems = keel.check_scenarios(keel.Project(self.root))
+        self.assertTrue(any("did not run" in p.message for p in problems),
+                        [p.message for p in problems])
+
+    def test_the_run_leaves_no_bytecode_behind(self):
+        """Проба й прогін писали __pycache__, і перевірка 4 звинувачувала
+        гілку в тому, що інструмент насмітив секундою раніше."""
+        self.write_test(skip=False)
+        keel.check_scenarios(keel.Project(self.root))
+        keel.check_exports(keel.Project(self.root))
+        left = [name for _, dirs, _ in os.walk(self.root) for name in dirs
+                if name == "__pycache__"]
+        self.assertEqual(left, [])

@@ -402,3 +402,29 @@ class TestGitHooksAreNotTheAgentHooks(ModeCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestInitSaysWhenItCouldNotInstallTheGuard(unittest.TestCase):
+    """Відмовлятись переписувати чужу форму — правильно. Відмовлятись мовчки —
+    ні: строгий режим ставив хуки Cursor, звітував про них, виходив нулем, а
+    заслон Claude просто був відсутній."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-mute-")
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        os.makedirs(os.path.join(self.root, ".claude"))
+        with open(os.path.join(self.root, ".claude/settings.json"), "w",
+                  encoding="utf-8") as handle:
+            handle.write('{"hooks": [], "permissions": {"allow": []}}\n')
+
+    def test_a_hooks_key_of_the_wrong_shape_is_named(self):
+        done = []
+        keel.merge_claude_settings(
+            os.path.join(self.root, ".claude/settings.json"), done)
+        self.assertTrue(any("somebody else's shape" in line for line in done), done)
+
+    def test_the_operators_data_is_still_left_alone(self):
+        path = os.path.join(self.root, ".claude/settings.json")
+        keel.merge_claude_settings(path, [])
+        with open(path, encoding="utf-8") as handle:
+            self.assertEqual(json.load(handle)["hooks"], [])

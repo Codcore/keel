@@ -147,7 +147,9 @@ model, and it is always English. So is what neither of them reads: the CI
 workflow and the git hook scripts, down to the message somebody meets on a
 failing push.
 
-Those two and the mode are the whole of what Keel keeps in that settings file,
+Those two, the mode, the adapter, the agent-hooks override and the CI command
+are what Keel keeps in that settings file, along with the digests of every file
+it generated,
 but not the whole of what may live there: the file is yours, it sits in your
 repository, and keys Keel does not know survive a rewrite. Neither language can
 be guessed: the language of a project's prose is a team's decision, not a
@@ -323,8 +325,10 @@ a clean machine on every push; it fetches only the project's repository, so
 question of whether whoever cloned the repo has keel installed.
 
 A hook looks for the tool in order: the `KEEL` variable, then `keel` on PATH,
-then the copy in the project. The copy is last, and it is the only one always
-there.
+then the copy in the project, and last the absolute path of whatever installed
+the hook. The copy in the project is the one always there; the baked path is a
+fallback for a checkout that has none, and it is why `.git/hooks` is not worth
+sharing between machines.
 
 **The references travel as copies, and `AGENTS.md` points at each.** A file makes
 nobody read it: four things do — `AGENTS.md`, which is always read, the
