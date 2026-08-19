@@ -426,6 +426,14 @@ produce a blocked call. So the text says "ask them to type /keel-plan".
 It compares the file against those declared in the step — deliberately the same
 ones check 4 compares, so that the hook is not stricter than the gate.
 
+**On the main branch it refuses a write to code.** Not through scope — there is
+nothing there to compare against: check 4 compares a branch **with** `main`, and
+standing on `main` itself it honestly returns nothing. Which is why the one
+branch where no work is planned stayed the one branch where anything could be
+written. Now the hook says that `main` is where finished work arrives, and sends
+you to a step's branch. Keel's own furniture is always free, and a project with
+no step yet is not walled in: there is no plan there to work from.
+
 The path sits in different places in the incoming JSON, and the documentation is
 uneven. In Claude it is `tool_input.file_path` for Write, Edit and NotebookEdit,
 and that is documented. Cursor documents nothing for its write tools; `file_path`

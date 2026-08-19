@@ -225,6 +225,12 @@ UK = {
     "clean": "чисто",
     "problems: {count}": "проблем: {count}",
     "(not run: a plan branch has no code)": "(не запускалась: на гілці плану коду немає)",
+    "{name}: this is {main}, where finished work arrives — it is not where work "
+    "is written. Code belongs on a branch named after a step: check out the step "
+    "you are working on, or plan a new one with keel new step.":
+        "{name}: це {main}, куди готова робота приїжджає, — а не там, де її "
+        "пишуть. Кодові місце на гілці, названій за кроком: перейдіть на крок, "
+        "над яким працюєте, або заплануйте новий через keel new step.",
     "the plan is missing things": "планові дечого бракує",
     "{steps}: this branch did not come to write that step. Somebody else's step "
     "is not moved, renamed or deleted to get a check green — leave it and say it "
@@ -1993,9 +1999,10 @@ def check_scope(project):
     # a commit. A step is worked one transform at a time — that is what `next`
     # hands out — so on the first of five commits the other four have touched
     # nothing yet, by design. Asking about them there made pre-commit refuse
-    # every commit but the last, and an agent that meets a gate it cannot pass
-    # honestly learns `--no-verify`, which is worse than no gate at all.
-    # Verified live: it took one refusal.
+    # every commit until each declared file had been touched at least once —
+    # that is, the early ones, exactly when the step is least finished. An agent
+    # that meets a gate it cannot pass honestly learns `--no-verify`, which is
+    # worse than no gate at all. Verified live: it took one refusal.
     #
     # Nothing is lost at the end: once every transform is closed the two lists
     # are the same, so the branch is still held to everything it declared.
@@ -3690,11 +3697,57 @@ def read_stdin_json():
         return {}
 
 
+def repo_relative(project, target):
+    """The path as the repository sees it, or None when it lies outside.
+
+    realpath on both sides: on macOS /tmp is a symlink to /private/tmp, and the
+    agent hands over the path the user sees. Comparing the two unresolved turns
+    every write into "outside the repository" — that is, into silence.
+    """
+    absolute = target if os.path.isabs(target) else os.path.join(project.root, target)
+    relative = os.path.relpath(os.path.realpath(absolute),
+                               os.path.realpath(project.root))
+    relative = relative.replace(os.sep, "/")
+    if relative == ".." or relative.startswith("../"):
+        return None
+    return relative
+
+
+def main_branch_verdict(project, payload):
+    """The main branch takes finished work; it is not where work is written.
+
+    Nothing guarded it. Check 4 compares a branch against main and so has
+    nothing to compare while standing on main, and this hook used to return
+    early — leaving the one branch with no planned work as the one branch where
+    anything could be written. Found by walking the cycle, not by a test.
+
+    Only once a step exists: a repository still being set up, or one that has
+    just taken Keel and planned nothing yet, has no plan to work from and no
+    business being walled in.
+    """
+    if not project.steps:
+        return None
+    target = find_path(payload)
+    if target is None:
+        return None
+    relative = repo_relative(project, target)
+    if relative is None or keel_owns(relative):
+        return None
+    return ("deny", t("{name}: this is {main}, where finished work arrives — it "
+                      "is not where work is written. Code belongs on a branch "
+                      "named after a step: check out the step you are working "
+                      "on, or plan a new one with keel new step.",
+                      name=relative, main=project.git.main_short))
+
+
 def write_verdict(project, payload):
     """(kind, message), or None when there is nothing to say."""
     branch = project.branch
-    if (not branch or branch in ("HEAD", project.git.main_short)
-            or project.is_plan_branch(branch)):
+    if not branch or branch == "HEAD":
+        return None
+    if branch == project.git.main_short:
+        return main_branch_verdict(project, payload)
+    if project.is_plan_branch(branch):
         return None
     step = project.step_for_branch(branch)
     if step is None:
@@ -3716,14 +3769,8 @@ def write_verdict(project, payload):
                           "was not checked. Files the step declares: {declared}",
                           declared=", ".join(sorted(declared)) or t("none")))
 
-    # realpath on both sides: on macOS /tmp is a symlink to /private/tmp, and the
-    # agent hands over the path the user sees. Comparing the two unresolved turns
-    # every write into "outside the repository" — that is, into silence.
-    absolute = target if os.path.isabs(target) else os.path.join(project.root, target)
-    relative = os.path.relpath(os.path.realpath(absolute),
-                               os.path.realpath(project.root))
-    relative = relative.replace(os.sep, "/")
-    if relative == ".." or relative.startswith("../"):
+    relative = repo_relative(project, target)
+    if relative is None:
         return ("note", t("keel: {target} is outside the repository, so the "
                           "step's scope does not apply to it. Judge for yourself "
                           "whether it should be written to.", target=target))

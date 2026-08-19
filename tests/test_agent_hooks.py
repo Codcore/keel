@@ -65,12 +65,49 @@ class TestFindPath(unittest.TestCase):
 
 
 
+class TestTheMainBranchIsNotAWorkbench(ProjectCase):
+    """Гілка, де за планом нічого не роблять, була єдиною, де можна було все.
+
+    Перевірка 4 порівнює гілку з `main`, тож, стоячи на самому `main`, їй нема
+    з чим порівнювати; хук мовчав. Знайдено прогулянкою циклом, не тестом.
+    """
+
+    def verdict(self, path):
+        return keel.write_verdict(
+            self.project, {"tool_input": {"file_path": self.fixture.path(path)}})
+
+    def test_code_on_the_main_branch_is_refused(self):
+        verdict = self.verdict("lib/whatever.ex")
+        self.assertIsNotNone(verdict)
+        kind, message = verdict
+        self.assertEqual(kind, "deny")
+        self.assertIn("lib/whatever.ex", message)
+
+    def test_keels_own_furniture_stays_free(self):
+        for name in ("keel/steps/0001-session-loop.md", "AGENTS.md",
+                     "keel/keel.json"):
+            self.assertIsNone(self.verdict(name), name)
+
+    def test_a_project_with_no_steps_is_not_walled_in(self):
+        """Проєкт, який щойно взяв Keel, ще не має плану, з якого працювати."""
+        os.remove(self.fixture.path("keel/steps/0001-session-loop.md"))
+        self.assertIsNone(self.verdict("lib/whatever.ex"))
+
+    def test_a_step_branch_is_judged_by_its_scope_as_before(self):
+        self.fixture.branch("0001-session-loop")
+        self.assertIsNone(self.verdict("lib/session.ex"))
+        kind, _ = self.verdict("lib/nobody_declared.ex")
+        self.assertEqual(kind, "deny")
+
+
 class TestWriteVerdict(ProjectCase):
     def payload(self, path):
         return {"tool_name": "Write", "tool_input": {"file_path": path}}
 
-    def test_main_branch_says_nothing(self):
-        self.assertIsNone(keel.write_verdict(self.project, self.payload("lib/x.ex")))
+    def test_main_branch_refuses_code(self):
+        """Було «мовчить»; мовчання й виявилось дірою — див. TestTheMainBranchIsNotAWorkbench."""
+        kind, _ = keel.write_verdict(self.project, self.payload("lib/x.ex"))
+        self.assertEqual(kind, "deny")
 
     def test_plan_branch_says_nothing(self):
         self.fixture.branch("plan/0001-session-loop")
