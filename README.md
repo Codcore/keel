@@ -76,9 +76,8 @@ fine while planning and not fine before a PR. One command with two modes would
 confuse both. And neither of them plans: `gaps` says what is missing, `check`
 says what is wrong.
 
-The `-C ТЕКА` flag says where to work — the tool's own output is Ukrainian, so
-is its metavar. The project root is searched upwards: the first directory with
-`keel/steps/`, or the first with `.git`.
+The `-C DIR` flag says where to work. The project root is searched upwards: the
+first directory with `keel/steps/`, or the first with `.git`.
 
 ## Two languages, and they are independent
 

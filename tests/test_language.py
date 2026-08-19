@@ -271,6 +271,34 @@ class TestSpokenLanguage(unittest.TestCase):
         self.assertIn("no such step", self.speak("en", "show", "0009-nope"))
         self.assertIn("кроку немає", self.speak("uk", "show", "0009-nope"))
 
+    def test_init_speaks_the_language_it_establishes(self):
+        """Команда, що вписує lang: uk, сама говорила англійською."""
+        import tempfile as tf, shutil as sh
+        root = tf.mkdtemp(prefix="keel-initlang-")
+        self.addCleanup(sh.rmtree, root, True)
+        subprocess.run(["git", "init", "-b", "main", "-q", root], check=True)
+        done = subprocess.run(
+            [sys.executable, os.path.join(keel.home(), "keel.py"),
+             "-C", root, "init", "--lang", "uk", "--no-commit"],
+            capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("are not in git yet", done.stdout)
+        self.assertIn("ще не в git", done.stdout)
+
+    def test_the_argument_hint_follows_the_language(self):
+        """Підказка аргументу — для оператора, як і тригери."""
+        for lang, expected in (("en", "[slug of the new step]"),
+                               ("uk", "[слаг нового кроку]")):
+            text = keel.render_skill(keel.SKILLS[0], "claude", lang)
+            self.assertIn(expected, text, lang)
+
+    def test_the_docs_do_not_contradict_the_cli_about_the_metavar(self):
+        """README казав `-C ТЕКА`, а CLI друкує `-C DIR` — і тест, і доки тепер
+        про одне."""
+        for name in ("README.md", os.path.join("docs", "uk", "README.md")):
+            with open(os.path.join(keel.home(), name), encoding="utf-8") as handle:
+                self.assertNotIn("ТЕКА", handle.read(), name)
+
     def test_the_command_line_itself_stays_english(self):
         """Прапорці й довідка — словник інтерфейсу, як і самі їхні назви."""
         for lang in ("en", "uk"):

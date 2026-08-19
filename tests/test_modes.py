@@ -24,6 +24,7 @@ class ModeCase(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-mode-")
         self.addCleanup(shutil.rmtree, self.root, True)
+        self.addCleanup(setattr, keel, "OUTPUT_LANG", keel.OUTPUT_LANG)
         with open(os.path.join(self.root, "mix.exs"), "w", encoding="utf-8") as handle:
             handle.write("defmodule Demo.MixProject do\nend\n")
         subprocess.run(["git", "init", "-b", "main", "-q", self.root], check=True)

@@ -2945,7 +2945,8 @@ SKILLS = (
             "en": "\"add\", \"build\", \"implement\", \"let's plan this\"",
         },
         "paths": ["keel/steps/*.md"],
-        "argument_hint": "[слаг нового кроку]",
+        "argument_hint": {"uk": "[слаг нового кроку]",
+                          "en": "[slug of the new step]"},
         "body": PLAN_BODY,
     },
     {
@@ -3391,7 +3392,9 @@ def render_skill(skill, agent, lang=DEFAULTS["lang"], mode=DEFAULTS["mode"]):
         extra += "paths:\n" + "".join(
             f"  - {yaml_string(item)}\n" for item in skill["paths"])
     if agent == "claude" and skill.get("argument_hint"):
-        extra += f"argument-hint: {yaml_string(skill['argument_hint'])}\n"
+        # Keyed by lang, like the triggers: the hint is shown to the operator,
+        # and an English project was getting a Ukrainian one.
+        extra += f"argument-hint: {yaml_string(skill['argument_hint'][lang])}\n"
     return SKILL_FILE.format(
         name=skill["name"],
         description=yaml_string(skill_description(skill, lang)),
@@ -3461,6 +3464,11 @@ def cmd_init(project, args):
     # is meaningful when it is False.
     if getattr(args, "agent_hooks", None) is not None:
         settings["agent_hooks"] = args.agent_hooks
+
+    # The command that establishes lang speaks it: OUTPUT_LANG was set from the
+    # config as it stood before init, so `init --lang uk` reported in English.
+    global OUTPUT_LANG
+    OUTPUT_LANG = settings["lang"]
 
     principles = principles_lines(settings["docs"])
     sources = {name: doc_source(name, settings["docs"]) for name in REFERENCES}

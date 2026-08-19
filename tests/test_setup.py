@@ -69,6 +69,7 @@ class TestInit(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-init-")
         self.addCleanup(shutil.rmtree, self.root, True)
+        self.addCleanup(setattr, keel, "OUTPUT_LANG", keel.OUTPUT_LANG)
         with open(os.path.join(self.root, "mix.exs"), "w", encoding="utf-8") as handle:
             handle.write("defmodule Demo.MixProject do\nend\n")
         subprocess.run(["git", "init", "-b", "main", "-q", self.root], check=True)
@@ -335,6 +336,8 @@ class TestLanguageSettings(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-lang-")
         self.addCleanup(shutil.rmtree, self.root, True)
+        # cmd_init перемикає OUTPUT_LANG процесу — сусідні тести не мають це успадкувати
+        self.addCleanup(setattr, keel, "OUTPUT_LANG", keel.OUTPUT_LANG)
         subprocess.run(["git", "init", "-b", "main", "-q", self.root], check=True)
 
     def init(self, **kwargs):
@@ -429,7 +432,8 @@ class TestLanguageSettings(unittest.TestCase):
             keel.write_config(self.root, keel.DEFAULTS, [], {})
         finally:
             sys.stdout = saved
-        self.assertIn("leaving it alone", stream.getvalue())
+        # init --lang uk тепер сам перемикає мову процесу — далі все нею
+        self.assertIn("не чіпаю", stream.getvalue())
         with open(os.path.join(self.root, keel.CONFIG_FILE)) as handle:
             self.assertEqual(handle.read(), "{ побите")
 
