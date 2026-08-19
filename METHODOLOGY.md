@@ -66,8 +66,9 @@ checking it. A contract lives in its own file.
 
 *Grounds: the promise outlives the wave that created it.*
 
-**§2.7.** Our own promise is declared as a module and the list of functions it
-exports. The check loads the module and compares.
+**§2.7.** Our own promise is declared as a module, the list of functions it
+exports, **and the meaning written in prose**. The check loads the module and
+compares the first two; the third nothing compares — see §7.8.
 
 **§2.8.** Somebody else's promise — a library, a service, a binary — carries
 `verify`: a command whose success is the proof. Who makes the promise does not
@@ -288,6 +289,8 @@ everything ever weighed turns the paragraph into a diary, which nobody reads.*
 
 **§9.1.** The tool knows the state. It does not write prose.
 
+*Grounds: it has no model.*
+
 **§9.2.** The agent has judgement. It does not remember the rules — it asks the
 tool.
 
@@ -320,7 +323,8 @@ malice, but because it looked stupid.*
 **§10.1.** `QUALITY.md` is a checklist, not a structure. No wave is required to
 have a scenario for every cut.
 
-**§10.2.** The cuts are walked once per wave, where the scenarios are written.
+**§10.2.** The cuts are walked once per wave, where the scenarios are written —
+not to convergence, and not at every level.
 
 **§10.3.** Every cut gets exactly one of three answers: does not apply — with the
 reason; answered by this scenario; silent.
@@ -334,8 +338,8 @@ what ends silence; it does not end refusal.
 **§10.5.** A boundary that says "we deliberately do not do this" is checked
 against the dependency exactly as a quality cut is.
 
-*Grounds: a foreign library's default made a boundary untrue from the moment it
-was written.*
+*Grounds: `QUALITY.md`, the rule about libraries. The story that produced it
+lives there and only there.*
 
 ---
 

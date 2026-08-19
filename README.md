@@ -156,6 +156,10 @@ The stage does not have to be remembered. The session-start hook asks the tool
 which state the wave is in, and puts the answer into the context along with the
 name of the skill to take.
 
+The agent remembers nothing between moves, and that is deliberate: in an
+autonomous run the context is cleared anyway. The stages did not disappear — they
+became state that is derived, instead of a page somebody has to hold in mind.
+
 ## Installing
 
 ```bash
