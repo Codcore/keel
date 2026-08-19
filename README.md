@@ -6,7 +6,7 @@
 
 The tool behind the Keel method. It knows the state and writes no prose.
 
-The method itself — why steps, contracts and revisions exist — is in
+MIT licensed. The method itself — why steps, contracts and revisions exist — is in
 [KEEL.md](KEEL.md). This file is what runs it. Either may point at the other
 freely: KEEL.md says what has to be true, README says which command checks it.
 
