@@ -238,6 +238,20 @@ UK = {
     "CI is not set up: {command} — there is no such command":
         "CI не налаштований: {command} — такої команди немає",
     "CI is red: {command}": "CI червоний: {command}",
+    "keel: the hook payload carried no file path, so this write was not judged. "
+    "This is {main}, where finished work arrives.":
+        "keel: у виклику хука не було шляху до файла, тож цей запис ніхто не "
+        "судив. Це {main}, куди готова робота приїжджає.",
+    "the documents do not agree with themselves, so there is no saying what is "
+    "done: {reason}":
+        "документи не узгоджені між собою, тож сказати, що зроблено, не можна: "
+        "{reason}",
+    "transform {name} is declared by {others} as well, and a commit naming it "
+    "would close both. A slug is the only link between a commit and its "
+    "transform, so it belongs to one step.":
+        "трансформу {name} оголошує ще й {others}, і комміт із цим імʼям закрив "
+        "би обидві. Слаг — єдиний звʼязок між коммітом і трансформою, тож він "
+        "належить одному крокові.",
     "{name} was added to step {step} on this branch, not in the plan that was "
     "approved. Allowed — say in the pull request what widened and why.":
         "{name} додано до кроку {step} на цій гілці, а не в схваленому плані. "
@@ -1691,6 +1705,7 @@ class Project:
     def __init__(self, root, settings=None):
         self.root = root
         self.keel = os.path.join(root, "keel")
+        self._transform_state = {}
         self.git = Git(root)
         self.settings = read_config(root) if settings is None else settings
         self.adapter_candidates = matching_adapters(root)
@@ -1738,7 +1753,18 @@ class Project:
         return (branch or self.branch or "").startswith("plan/")
 
     def transform_state(self, step):
-        """{transform -> (commit sha or None, {files of that commit})}."""
+        """{transform -> (commit sha or None, {files of that commit})}.
+
+        Cached per step: check 4, `next` and the session hook each ask within
+        one run, and every ask used to resolve the merge base and walk the
+        branch's commits again.
+        """
+        if step.slug in self._transform_state:
+            return self._transform_state[step.slug]
+        state = self._transform_state[step.slug] = self._transform_state_of(step)
+        return state
+
+    def _transform_state_of(self, step):
         base = self.git.merge_base(self.git.main_branch)
         found = {}
         for sha, message, files in self.git.commits_since(base):
@@ -1746,6 +1772,23 @@ class Project:
                 if message_closes(message, slug) and slug not in found:
                     found[slug] = (sha, files)
         return {slug: found.get(slug, (None, set())) for slug in step.transforms}
+
+    @functools.cached_property
+    def arriving_contracts(self):
+        """Contracts not yet on the main branch — the ones a step is bringing.
+
+        One `ls-tree` for the whole directory rather than a `cat-file` per
+        contract per step: the old shape spawned a git process for every
+        contract of every step `gaps` looked at, and reported the same orphan
+        once per step on top of it.
+        """
+        if not self.git.available or not self.git.has_commits:
+            return set()
+        listing = self.git.out("ls-tree", "--name-only",
+                               f"{self.git.main_branch}:keel/contracts")
+        there = {os.path.splitext(name)[0] for name in listing.splitlines()
+                 if name.strip()}
+        return {slug for slug in self.contracts if slug not in there}
 
     @functools.cached_property
     def main_messages(self):
@@ -1784,13 +1827,14 @@ class Project:
                 unplanned.append(step)
                 done[slug] = False
                 continue
-            done[slug] = not self.unclosed_on_main(step)
-            if not done[slug]:
-                unfinished.append(step)
+            open_now = self.unclosed_on_main(step)
+            done[slug] = not open_now
+            if open_now:
+                unfinished.append((step, len(open_now)))
         ready, blocked = [], []
-        for step in unfinished:
+        for step, open_count in unfinished:
             laid = all(done.get(need, False) for need in step.depends_on)
-            (ready if laid else blocked).append(step)
+            (ready if laid else blocked).append((step, open_count))
         return ready, blocked, unplanned
 
 
@@ -1859,7 +1903,39 @@ def keel_owns(name):
 
 
 def check_structure(project):
-    return [Problem(0, doc.error, doc.rel) for doc in project.broken]
+    return ([Problem(0, doc.error, doc.rel) for doc in project.broken]
+            + shared_transform_slugs(project))
+
+
+def shared_transform_slugs(project):
+    """A transform slug used by two steps at once.
+
+    The slug in a commit message is the only link between the work and the
+    plan — no hash is recorded anywhere, precisely so that nobody writes a
+    status by hand. That makes the slug an identifier, and an identifier two
+    steps share identifies neither: a commit closing one step's `setup` closes
+    the other's as well, and the tool reports work as done that nobody did.
+    Found by review after `next` announced a finished project with a step whose
+    every transform was untouched.
+    """
+    owners = {}
+    for slug, step in sorted(project.steps.items()):
+        if step.error:
+            continue
+        for name in step.transforms:
+            owners.setdefault(name, []).append(step)
+    problems = []
+    for name, steps in sorted(owners.items()):
+        if len(steps) < 2:
+            continue
+        others = ", ".join(step.slug for step in steps[1:])
+        problems.append(Problem(
+            0, t("transform {name} is declared by {others} as well, and a "
+                 "commit naming it would close both. A slug is the only link "
+                 "between a commit and its transform, so it belongs to one "
+                 "step.", name=name, others=others), steps[0].rel,
+            steps[0].line_of(name)))
+    return problems
 
 
 def check_refs(project):
@@ -2550,9 +2626,15 @@ def drifted_from_main(project):
     if (not branch or branch == "HEAD" or branch == project.git.main_short
             or project.is_plan_branch(branch)):
         return []
+    # The merge base, not the tip: main moves on while a branch is open, and
+    # diffing against the tip reported somebody else's merged amendment as this
+    # branch's drift — a note that fires when nothing happened, which is how a
+    # note stops being read.
+    base = project.git.merge_base(project.git.main_branch)
+    if not base:
+        return []
     stdout = project.git.out("diff", "--numstat", "--diff-filter=M",
-                             project.git.main_branch, "--",
-                             "keel/steps", "keel/contracts")
+                             base, "--", "keel/steps", "keel/contracts")
     drifted = []
     for line in (stdout or "").splitlines():
         parts = line.split("\t")
@@ -2564,7 +2646,11 @@ def drifted_from_main(project):
 
 
 def ci_verdict(project, run=True):
-    """(problems, note) — the project's own gate, named by whoever owns it.
+    """(problems, note, ran) — the project's own gate, named by whoever owns it.
+
+    `ran` exists because the tick was printed from "no problems", and a gate
+    that was skipped also has no problems: `check --no-tests` reported a green
+    CI over a command it never started.
 
     Keel checks documents against facts. Whether the project itself builds,
     lints and passes its own suite is the project's business, and only the
@@ -2582,7 +2668,7 @@ def ci_verdict(project, run=True):
     """
     command = (project.settings.get("ci") or CI_UNDECIDED).strip()
     if command == CI_REFUSED:
-        return [], None
+        return [], None, False
     if not command:
         # The example is the adapter's own proposal where there is one: telling
         # a Python project to write "mix ci" is a small untruth in a message
@@ -2593,22 +2679,22 @@ def ci_verdict(project, run=True):
         return [], t("no CI command: merges go with nothing of the project's "
                      "own run. Name one in {file} (\"ci\": \"{example}\"), or "
                      "say there is none (\"ci\": \"none\").",
-                     file=CONFIG_FILE, example=example)
+                     file=CONFIG_FILE, example=example), False
     if not run:
-        return [], None
+        return [], None, False
     try:
         proc = subprocess.run(command, shell=True, cwd=project.root,
                               capture_output=True, text=True,
                               stdin=subprocess.DEVNULL, timeout=CI_TIMEOUT)
     except subprocess.TimeoutExpired:
         return [Problem(0, t("CI did not finish within {seconds}s: {command}",
-                             seconds=CI_TIMEOUT, command=command))], None
+                             seconds=CI_TIMEOUT, command=command))], None, True
     except OSError as exc:
         return [Problem(0, t("CI could not run ({command}): {reason}",
                              command=command,
-                             reason=exc.strerror or exc))], None
+                             reason=exc.strerror or exc))], None, True
     if proc.returncode == 0:
-        return [], None
+        return [], None, True
     tail = (proc.stdout or proc.stderr).strip().splitlines()[-10:]
     # 127 is the shell saying the thing is not there at all. Worth its own
     # sentence: "the command is missing" and "the command failed" are different
@@ -2618,7 +2704,7 @@ def ci_verdict(project, run=True):
               t("CI is red: {command}"))
     return [Problem(0, reason.format(command=command)
                     + ("\n" + "\n".join("      " + line for line in tail)
-                       if tail else ""))], None
+                       if tail else ""))], None, True
 
 
 def run_checks(project, only=None, run_tests=True):
@@ -2847,16 +2933,10 @@ def unclaimed_contracts(project, step):
                  for ref in step.transform_contracts(slug)}
     leaned_on |= {ref.slug for slug in step.scenarios
                   for ref in step.proves(slug)}
-    problems = []
-    for slug, contract in sorted(project.contracts.items()):
-        if slug in leaned_on:
-            continue
-        if project.git.file_in_branch(project.git.main_branch, contract.rel):
-            continue
-        problems.append(Problem(
-            0, t("contract {slug} arrives with this step, and no transform or "
-                 "scenario leans on it — deliberate?", slug=slug), step.rel))
-    return problems
+    return [Problem(
+        0, t("contract {slug} arrives with this step, and no transform or "
+             "scenario leans on it — deliberate?", slug=slug), step.rel)
+        for slug in sorted(project.arriving_contracts - leaned_on)]
 
 
 def gaps_problems(project, steps):
@@ -2944,7 +3024,9 @@ def cmd_check(project, args):
                  else gaps_problems(project, [planning]))
     # The project's own gate, and only in the full run — same reasoning as the
     # plan's: a commit may be half-written, a push and a merge may not.
-    ci_problems, ci_note = ci_verdict(project, run=not args.fast and not args.no_tests)
+    ci_problems, ci_note, ci_ran = ci_verdict(
+        project, run=not args.fast and not args.no_tests)
+    drift = drifted_from_main(project)
 
     if args.json:
         payload = {
@@ -2954,7 +3036,12 @@ def cmd_check(project, args):
             "plan": [p.as_dict() for p in plan_gaps],
             "ci": {"command": project.settings.get("ci", ""),
                    "problems": [p.as_dict() for p in ci_problems],
-                   "note": ci_note},
+                   "note": ci_note, "ran": ci_ran},
+            # Drift belongs here too: the whole point of naming it is that
+            # somebody learns of it, and scripts read this payload, not the
+            # prose underneath.
+            "drift": [{"file": name, "added": added, "removed": removed}
+                      for name, added, removed in drift],
             "checks": {
                 str(number): {
                     "name": t(CHECK_NAMES[number]),
@@ -2997,7 +3084,7 @@ def cmd_check(project, args):
         total += len(ci_problems)
         for problem in ci_problems:
             print("\u2717 " + problem.message)
-    elif project.settings.get("ci", "").strip() not in ("", CI_REFUSED) and not args.fast:
+    elif ci_ran:
         # Not through the catalogue: a proper noun and a command have nothing
         # to translate, and an entry that renders to itself reads as a
         # forgotten translation to the guard that watches for exactly that.
@@ -3008,7 +3095,7 @@ def cmd_check(project, args):
     if ci_note:
         print("\u2013 " + ci_note)
 
-    for name, added, removed in drifted_from_main(project):
+    for name, added, removed in drift:
         print("\u2013 " + t("{file} differs from what was approved: +{added} "
                             "-{removed}. Allowed, and it stays a line in the "
                             "diff — say in the pull request what changed and "
@@ -3041,6 +3128,13 @@ def main_branch_answer(project):
     the documents and git together plainly said which step is approved, which
     of its transforms are open, and what its branch has to be called.
     """
+    # Not from ambiguous documents. Closure is read out of commit messages by
+    # slug, so a slug two steps share makes every answer here a guess — and the
+    # guess it made was "every step is finished" over a step nobody had started.
+    broken = check_structure(project)
+    if broken:
+        return t("the documents do not agree with themselves, so there is no "
+                 "saying what is done: {reason}", reason=broken[0].message)
     ready, blocked, unplanned = project.ready_steps()
     if not ready and not blocked and not unplanned:
         return t("every step is finished. The next one starts with a plan: "
@@ -3051,16 +3145,15 @@ def main_branch_answer(project):
             return t("{steps}: the plan is not written yet — no transforms, so "
                      "there is no work to hand out. keel gaps says what is "
                      "missing.", steps=names)
-        waiting = ", ".join(step.slug for step in blocked)
+        waiting = ", ".join(step.slug for step, _ in blocked)
         return t("every unfinished step is waiting on another that is not done "
                  "yet: {steps}. Finish what they lean on, or plan the step that "
                  "is missing.", steps=waiting)
-    step = ready[0]
-    open_now = project.unclosed_on_main(step)
+    step, open_count = ready[0]
     return t("step {step} is approved and {open} of {total} transforms are not "
              "closed. The work goes on its own branch:\n"
              "  git checkout -b {step}", step=step.slug,
-             open=len(open_now), total=len(step.transforms))
+             open=open_count, total=len(step.transforms))
 
 
 def cmd_next(project, args):
@@ -4123,10 +4216,16 @@ def approved_files(project, step):
     """
     if not project.git.available or not project.git.has_commits:
         return None
-    if not project.git.file_in_branch(project.git.main_branch, step.rel):
+    # Against the branch point for the same reason as the drift note: the plan
+    # this branch was approved under is the one it left main with.
+    base = project.git.merge_base(project.git.main_branch)
+    if not base:
         return None
-    text = project.git.out("show", f"{project.git.main_branch}:{step.rel}",
-                           default=None)
+    # `show` alone: it fails the same way `cat-file -e` would, so asking twice
+    # bought a second process per write for an answer we already had. The hook
+    # runs as its own process for every write, so this is the only saving
+    # available — caching between writes is not.
+    text = project.git.out("show", f"{base}:{step.rel}", default=None)
     if not text:
         return None
     front, _, _ = split_front_matter(text)
@@ -4176,7 +4275,11 @@ def main_branch_verdict(project, payload):
         return None
     target = find_path(payload)
     if target is None:
-        return None
+        # The same unknown is loud on a step branch and used to be silent here,
+        # on the one branch where code is not supposed to be written at all.
+        return ("note", t("keel: the hook payload carried no file path, so this "
+                          "write was not judged. This is {main}, where finished "
+                          "work arrives.", main=project.git.main_short))
     relative = repo_relative(project, target)
     if relative is None or keel_owns(relative):
         return None

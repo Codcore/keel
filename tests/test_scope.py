@@ -377,3 +377,83 @@ class TestNestedKeelRoot(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDriftIsMeasuredFromTheBranchPoint(ProjectCase):
+    """Головна гілка йде далі, поки гілка відкрита.
+
+    Проти вершини `main` чужа злита правка читалась як дрейф цієї гілки — тобто
+    повідомлення спрацьовувало там, де не сталось нічого, а саме так воно й
+    перестає читатись.
+    """
+
+    def test_somebody_elses_merge_is_not_this_branch_drift(self):
+        self.fixture.branch("0001-session-loop")
+        self.fixture.git("checkout", "main")
+        step = "keel/steps/0001-session-loop.md"
+        self.fixture.write(step, self.fixture.read(step) + "\nПравка на main.\n")
+        self.fixture.git("commit", "-am", "хтось інший правив свій крок")
+        self.fixture.git("checkout", "0001-session-loop")
+        self.assertEqual(keel.drifted_from_main(self.project), [])
+
+    def test_this_branch_own_change_is_still_named(self):
+        self.fixture.branch("0001-session-loop")
+        step = "keel/steps/0001-session-loop.md"
+        self.fixture.write(step, self.fixture.read(step) + "\nПравка тут.\n")
+        drifted = keel.drifted_from_main(self.project)
+        self.assertEqual([name for name, _, _ in drifted], [step])
+
+
+class TestATransformSlugBelongsToOneStep(ProjectCase):
+    """Слаг у повідомленні комміта — єдиний звʼязок роботи з планом.
+
+    Спільний слаг не ідентифікує нічого: комміт закривав трансформу в обох
+    кроках, і `next` оголошував завершеним проєкт, у якому крок ніхто не
+    починав.
+    """
+
+    def second_step_with(self, transform):
+        rev = self.fixture.contract_rev
+        self.fixture.write("keel/steps/0002-other.md", f"""---
+depends_on: []
+
+scenarios:
+  other-holds: {{proves: session-run@{rev}}}
+
+transforms:
+  {transform}:
+    implements: [other-holds]
+    contracts:  [session-run@{rev}]
+    files:      [lib/other.ex]
+---
+
+## Навіщо
+
+Другий крок.
+
+## scenario: other-holds
+
+**Given** одне, **When** друге, **Then** третє.
+
+## transform: {transform}
+
+Робить.
+
+Межі: нічого.
+""")
+
+    def test_a_slug_two_steps_share_is_refused(self):
+        self.second_step_with("drive-turns")
+        problems = keel.check_structure(self.project)
+        self.assertTrue(any("drive-turns" in p.message for p in problems),
+                        [p.message for p in problems])
+
+    def test_distinct_slugs_pass(self):
+        self.second_step_with("other-turns")
+        self.assertEqual(keel.check_structure(self.project), [])
+
+    def test_next_refuses_to_answer_from_ambiguous_documents(self):
+        self.second_step_with("drive-turns")
+        answer = keel.main_branch_answer(self.project)
+        self.assertIn("do not agree with themselves", answer)
+        self.assertNotIn("every step is finished", answer)

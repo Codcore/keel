@@ -499,3 +499,34 @@ class TestTheHookSpeaksWhenItCannotJudge(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheHookSaysWhenItCannotJudgeOnMain(ProjectCase):
+    """Той самий невідомий був гучним на гілці кроку й тихим на головній —
+    саме там, де коду взагалі не місце."""
+
+    def test_a_payload_without_a_path_is_named_on_main(self):
+        kind, message = keel.write_verdict(self.project, {"tool_name": "Write"})
+        self.assertEqual(kind, "note")
+        self.assertIn("no file path", message)
+
+    def test_a_payload_without_a_path_is_still_named_on_a_step_branch(self):
+        self.fixture.branch("0001-session-loop")
+        kind, message = keel.write_verdict(self.project, {"tool_name": "Write"})
+        self.assertEqual(kind, "note")
+        self.assertIn("no file path", message)
+
+
+class TestApprovedFilesComeFromTheBranchPoint(ProjectCase):
+    """Крок могли поправити на main уже після того, як гілку відрізали."""
+
+    def test_an_amendment_made_on_main_is_not_this_branch_widening(self):
+        self.fixture.branch("0001-session-loop")
+        self.fixture.git("checkout", "main")
+        step = "keel/steps/0001-session-loop.md"
+        self.fixture.write(step, self.fixture.read(step).replace(
+            "files:      [lib/session.ex]", "files:      [lib/elsewhere.ex]"))
+        self.fixture.git("commit", "-am", "хтось інший переписав список")
+        self.fixture.git("checkout", "0001-session-loop")
+        self.assertFalse(keel.widened_here(
+            self.project, self.project.steps["0001-session-loop"], "lib/session.ex"))
