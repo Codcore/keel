@@ -23,6 +23,19 @@ It clones the repository into `~/.keel` and puts a `keel` command in
 A single downloaded file would not do: `keel init` copies the references into the
 project beside the tool, so the whole repository has to be somewhere on disk.
 
+**Hence two levels, and they are easy to confuse.** `~/.keel` is the method's
+home, your clone of the repository; `keel/` inside a project holds the copies
+`init` put there. Different commands move them:
+
+| what is updated | with | from where |
+|---|---|---|
+| the home `~/.keel` | the same `curl` line again | GitHub |
+| the project's copies | `keel update` | the home |
+
+`keel update` **fetches nothing from the network** — it only carries into the
+project what already sits at home. So when the method moves on, the home is
+updated first and the project second.
+
 Then, in the project you want to work in:
 
 ```bash
