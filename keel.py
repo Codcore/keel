@@ -242,6 +242,10 @@ UK = {
         "{file}: не читається як JSON, не чіпаю",
     "{file}: not an object, leaving it alone": "{file}: не обʼєкт, не чіпаю",
     "the skills did not change": "скіли не змінились",
+    "{file}: the keel markers are out of balance — fix them by hand, this "
+    "block was not touched":
+        "{file}: маркери keel розбалансовані — полагодьте руками, блок не "
+        "чіпався",
     "the tests did not finish within {seconds}s ({command}). Nothing was proved, "
     "which is not the same as nothing being wrong.":
         "тести не завершились за {seconds}с ({command}). Нічого не доведено, а це "
@@ -375,6 +379,10 @@ UK = {
         "розійшлося: {count}. keel rev --write впише нові — після того, як "
         "перечитаєш текст, на який спираєшся.",
     "recorded: {count}": "вписано: {count}",
+    "recorded {written} of {count} — the rest were reported and not found where "
+    "the rewrite looked":
+        "вписано {written} з {count} — решту звітовано, але там, де шукав "
+        "перепис, їх немає",
     "no such directory: {path}": "теки немає: {path}",
     "nothing": "нічого",
     "test {slug}": "тест {slug}",
@@ -600,7 +608,13 @@ def parse_yaml(text):
 def _parse_block(lines, index, indent):
     if index >= len(lines):
         return {}, index
-    if lines[index][2].startswith("- "):
+    number, _, text = lines[index]
+    if text.startswith(("[", "{")):
+        # A flow value wrapped onto its own line under a key. Reading it as a
+        # block map ate `{proves: c@1}` into the key '{proves' — no error, and
+        # a scenario that silently proved nothing.
+        return _flow(text, number), index + 1
+    if text.startswith("- "):
         return _parse_list(lines, index, indent)
     return _parse_map(lines, index, indent)
 
@@ -806,14 +820,20 @@ class Doc:
 
         The same slug@rev may sit under a scenario and a transform alike, and
         pointing every report at the first hit sent the reader to the wrong
-        header line for everything after it.
+        header line for everything after it. Occurrences are counted within a
+        line too — `[x@a, x@a]` is two — and when the count still runs out, the
+        last line that held the needle is a better answer than line 1.
         """
+        found = 1
         for number, line in enumerate(self.text.splitlines(), 1):
-            if needle in line:
-                if skip == 0:
-                    return number
-                skip -= 1
-        return 1
+            hits = line.count(needle)
+            if not hits:
+                continue
+            found = number
+            if skip < hits:
+                return number
+            skip -= hits
+        return found
 
 
 def split_front_matter(text):
@@ -1020,9 +1040,16 @@ class Git:
         # and the scope check reports green having compared nothing. But
         # standing on the default branch of a full clone looks the same from
         # here, and a default named outside the fallback list (trunk, develop)
-        # would turn into a false red. The clones differ in what they carry:
-        # a single-branch clone tracks exactly one remote branch.
+        # would turn into a false red. A branch count alone cannot tell the two
+        # apart — CI routinely fetches the base into a single-branch clone,
+        # which makes it look plural. So the order is: whenever a known main
+        # exists anywhere, it wins over an origin/HEAD that names the current
+        # branch; only when no known main exists at all does the branch count
+        # separate the full clone on trunk from the single-branch clone.
         if short and short == self.branch:
+            for name in ("main", "master", "origin/main", "origin/master"):
+                if self.run("rev-parse", "--verify", "--quiet", name)[0] == 0:
+                    return name
             code, refs, _ = self.run("for-each-ref", "refs/remotes/origin",
                                      "--format=%(refname)")
             tracked = [line for line in refs.splitlines()
@@ -1158,8 +1185,13 @@ class Adapter:
     def detect(cls, root):
         return any(os.path.exists(os.path.join(root, item)) for item in cls.marker)
 
-    def test_command(self):
+    def test_command(self, root):
         raise NotImplementedError
+
+    def test_label(self, root):
+        """The command as a report names it — argv joined, unless it is a
+        generated script that would make the message unreadable."""
+        return " ".join(self.test_command(root))
 
     def test_files(self, root):
         found = []
@@ -1205,6 +1237,21 @@ class ElixirAdapter(Adapter):
     marker = ("mix.exs",)
     test_dirs = ("test",)
     test_suffix = ("_test.exs",)
+
+    def test_files(self, root):
+        # An umbrella project keeps its tests in apps/*/test — mix test runs
+        # them, and a collector that only walks test/ reported every tagged,
+        # passing test as missing: a permanent false red on check 5.
+        found = list(super().test_files(root))
+        apps = os.path.join(root, "apps")
+        if os.path.isdir(apps):
+            for app in sorted(os.listdir(apps)):
+                base = os.path.join(apps, app, "test")
+                for current, _, names in os.walk(base):
+                    for name in sorted(names):
+                        if name.endswith(tuple(self.test_suffix)):
+                            found.append(os.path.join(current, name))
+        return sorted(found)
     # rev is captured whatever it looks like, not only hex: rubbish in a
     # revision should turn a check red rather than pass unnoticed.
     tag_re = re.compile(
@@ -1317,14 +1364,37 @@ class PythonAdapter(Adapter):
         return sorted(found)
 
     def test_command(self, root):
-        # The pattern matters: discover's default test*.py never runs the
-        # *_test.py files the tag collector counts — a tag is seen, its test is
-        # not run, and check 5 is green over a failure. *test*.py runs both
-        # spellings. The start directory follows test_dirs instead of assuming.
-        start = next((d for d in self.test_dirs
-                      if os.path.isdir(os.path.join(root, d))), self.test_dirs[0])
-        return [sys.executable, "-m", "unittest", "discover",
-                "-s", start, "-p", "*test*.py", "-t", "."]
+        # The runner loads exactly the files the tag collector walks — parity
+        # by construction, not by pattern. `discover` came apart from the
+        # collector twice: its default pattern never ran *_test.py, and it
+        # skips a nested directory with no __init__.py, so a counted tag's
+        # failing test never ran and check 5 was green over it. Files load by
+        # path, the way the collector reads them.
+        dirs = [d for d in self.test_dirs if os.path.isdir(os.path.join(root, d))]
+        script = (
+            "import importlib.util, os, sys, unittest\n"
+            "sys.path.insert(0, os.getcwd())\n"
+            "suite = unittest.TestSuite()\n"
+            "loader = unittest.TestLoader()\n"
+            f"for start in {dirs or list(self.test_dirs)!r}:\n"
+            "    for current, _, names in os.walk(start):\n"
+            "        for name in sorted(names):\n"
+            "            if not (name.endswith('_test.py')\n"
+            "                    or (name.startswith('test_') and name.endswith('.py'))):\n"
+            "                continue\n"
+            "            path = os.path.join(current, name)\n"
+            "            spec = importlib.util.spec_from_file_location(\n"
+            "                os.path.splitext(path)[0].replace(os.sep, '.'), path)\n"
+            "            module = importlib.util.module_from_spec(spec)\n"
+            "            spec.loader.exec_module(module)\n"
+            "            suite.addTests(loader.loadTestsFromModule(module))\n"
+            "result = unittest.TextTestRunner().run(suite)\n"
+            "sys.exit(0 if result.wasSuccessful() else 1)\n"
+        )
+        return [sys.executable, "-c", script]
+
+    def test_label(self, root):
+        return f"{os.path.basename(sys.executable)} -m unittest, test*.py and *_test.py"
 
     def ci_steps(self, root):
         return [
@@ -1657,13 +1727,23 @@ def check_cycles(project):
 
 
 def contract_refs(step):
-    """Everything in a step that leans on a contract: (who leans, reference)."""
-    for slug in step.scenarios:
-        for ref in step.proves(slug):
-            yield t("scenario {slug}", slug=slug), ref
-    for slug in step.transforms:
-        for ref in step.transform_contracts(slug):
-            yield t("transform {slug}", slug=slug), ref
+    """Everything in a step that leans on a contract: (who leans, reference).
+
+    Yielded in the file's own order — the parser keeps key order, so iterating
+    the header keeps scenarios and transforms in whichever sequence they were
+    written. Line numbers for repeated references are assigned by occurrence,
+    and a fixed scenarios-first order handed the transform's line to the
+    scenario whenever the file was written transforms-first.
+    """
+    for key in step.front:
+        if key == "scenarios":
+            for slug in step.scenarios:
+                for ref in step.proves(slug):
+                    yield t("scenario {slug}", slug=slug), ref
+        elif key == "transforms":
+            for slug in step.transforms:
+                for ref in step.transform_contracts(slug):
+                    yield t("transform {slug}", slug=slug), ref
 
 
 def scenario_tags(project):
@@ -1707,13 +1787,33 @@ def drifted_tags(project):
             yield step, slug, body, path, line, rev
 
 
+def ref_line(step, raw, skip=0):
+    """The line holding this exact reference, not a longer one it prefixes.
+
+    A bare `auth` substring-matches the stamped `auth@d0c229` line, so the
+    report "leans on auth without a revision" pointed at the line that visibly
+    carries one. The same whole-reference boundary rewrite_ref uses.
+    """
+    token = re.compile(rf"(?<![\w@./-]){re.escape(raw)}(?![\w@./-])")
+    found = 1
+    for number, line in enumerate(step.text.splitlines(), 1):
+        hits = len(token.findall(line))
+        if not hits:
+            continue
+        found = number
+        if skip < hits:
+            return number
+        skip -= hits
+    return found
+
+
 def check_revisions(project):
     problems, seen = [], {}
     for step, who, ref, contract in drifted_contract_refs(project):
         # Identical references share their drift status, so counting only the
         # drifted ones still lands each report on its own line.
         key = (step.rel, ref.raw)
-        line = step.line_of(ref.raw, skip=seen.get(key, 0))
+        line = ref_line(step, ref.raw, skip=seen.get(key, 0))
         seen[key] = seen.get(key, 0) + 1
         if not ref.rev:
             problems.append(Problem(
@@ -1765,7 +1865,10 @@ def check_scope(project):
     if step.error:
         return []
 
-    declared = step.declared_files()
+    # The same exemption on both sides: keel_owns is filtered out of changed,
+    # and a declared AGENTS.md would otherwise earn "declared but not changed"
+    # over a diff that plainly changed it — a message stating a falsehood.
+    declared = {name for name in step.declared_files() if not keel_owns(name)}
 
     problems = []
     for name in sorted(changed - declared):
@@ -1804,6 +1907,7 @@ def check_scenarios(project, run_tests=True):
 
     if run_tests:
         command = project.adapter.test_command(project.root)
+        label = project.adapter.test_label(project.root)
         try:
             proc = subprocess.run(command, cwd=project.root, capture_output=True,
                                   text=True, stdin=subprocess.DEVNULL,
@@ -1813,17 +1917,17 @@ def check_scenarios(project, run_tests=True):
             # traceback out of the pre-push hook.
             return problems + [Problem(
                 5, t("the test command could not run ({command}): {reason}",
-                     command=" ".join(command), reason=exc.strerror or exc))]
+                     command=label, reason=exc.strerror or exc))]
         except subprocess.TimeoutExpired:
             return problems + [Problem(
                 5, t("the tests did not finish within {seconds}s ({command}). "
                      "Nothing was proved, which is not the same as nothing "
                      "being wrong.", seconds=TEST_TIMEOUT,
-                     command=" ".join(command)))]
+                     command=label))]
         if proc.returncode != 0:
             tail = (proc.stdout or proc.stderr).strip().splitlines()[-12:]
             problems.append(Problem(
-                5, t("the tests are red ({command}):", command=" ".join(command))
+                5, t("the tests are red ({command}):", command=label)
                 + "\n" + "\n".join("      " + line for line in tail)))
     return problems
 
@@ -3538,8 +3642,13 @@ def cmd_skills(project, args=None):
                "defaults would rewrite the project in the wrong language.",
                file=CONFIG_FILE))
     done = []
+    # With the manifest: regenerated skills that keep their old digests read as
+    # "edited by hand" to the next update, which then refuses to refresh them —
+    # keel wedged on its own output.
+    manifest = read_manifest(project.root)
     write_skills(project.root, project.settings["lang"], done,
-                 mode=project.settings["mode"])
+                 mode=project.settings["mode"], manifest=manifest)
+    write_config(project.root, project.settings, done, manifest)
     for line in done:
         print(f"  {line}")
     if not done:
@@ -3729,8 +3838,20 @@ def write_if_changed(path, text, done, label, manifest=None):
 
 
 def update_agents(path, block):
-    """Add the block to AGENTS.md without touching the rest of the file."""
+    """Add the block to AGENTS.md without touching the rest of the file.
+
+    Markers out of balance — an end lost in a merge, a start pasted twice —
+    make the block's edges unknowable. Appending anyway compounded it: the
+    first run added a second block, the second run swallowed everything a
+    person had written between the stray markers. Named and left instead.
+    """
     old = read_text(path) if os.path.exists(path) else ""
+    starts, ends = old.count(AGENTS_START), old.count(AGENTS_END)
+    if starts != ends or starts > 1 or (
+            ends == 1 and old.find(AGENTS_END) < old.find(AGENTS_START)):
+        print("  " + t("{file}: the keel markers are out of balance — fix them "
+                       "by hand, this block was not touched", file="AGENTS.md"))
+        return False
     if AGENTS_START in old and AGENTS_END in old:
         head, _, rest = old.partition(AGENTS_START)
         _, _, tail = rest.partition(AGENTS_END)
@@ -4024,11 +4145,24 @@ def cmd_rev(project, args):
             text = handle.read()
         for old, new in changes:
             if isinstance(old, tuple):
-                text = rewrite_tag(text, old[1], new)
+                text, _ = rewrite_tag(text, old[1], new,
+                                      project.adapter.name
+                                      if project.adapter else "elixir")
             else:
                 text = rewrite_ref(text, old, new)
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
+    # Measured, not assumed: re-read the project and count what still drifts.
+    # A claim of success over a write that did not happen — a capitalised tag
+    # the rewrite could not see — is the one thing this tool must never print.
+    after = Project(project.root)
+    remaining = (sum(1 for _ in drifted_contract_refs(after))
+                 + sum(1 for _ in drifted_tags(after)))
+    if remaining:
+        print("\n" + t("recorded {written} of {count} — the rest were reported "
+                       "and not found where the rewrite looked",
+                       written=len(report) - remaining, count=len(report)))
+        return 1
     print("\n" + t("recorded: {count}", count=len(report)))
     return 0
 
@@ -4075,25 +4209,30 @@ def rewrite_ref(text, raw, new):
     return text[:match.start(2)] + front + text[match.end(2):]
 
 
-def rewrite_tag(text, slug, fresh):
-    """Write a fresh revision into a test tag, in whichever form is already there.
+def rewrite_tag(text, slug, fresh, dialect):
+    """Write a fresh revision into a test tag — the current adapter's form only.
 
-    The slug is bounded on the right, as rewrite_ref's is: without the boundary,
-    restamping `parse` also matched the front of `parse_error` — renaming the
-    other scenario's tag and splicing the new revision into the middle of it,
-    which a second run could not undo.
+    One dialect, because applying both rewrote what was never reported: a
+    Python test holding an Elixir tag inside a string fixture had the fixture
+    restamped. The slug is bounded on the right, as rewrite_ref's is, and
+    matched case-blind, as the collector matches it — a capitalised tag was
+    reported drifted, "recorded", and never actually written.
+
+    Returns (text, how many tags changed), so the caller can tell a write that
+    happened from one it merely claimed.
     """
     atom = slug.replace("-", "_")
-    elixir = re.compile(
-        rf"@tag\s+proves:\s*:({re.escape(atom)})(?![\w?!])"
-        rf"(?:\s*,\s*rev:\s*[\"'][^\"']*[\"'])?"
-    )
-    text = elixir.sub(lambda m: f'@tag proves: :{m.group(1)}, rev: "{fresh}"', text)
-    python = re.compile(
+    if dialect == "elixir":
+        pattern = re.compile(
+            rf"@tag\s+proves:\s*:({re.escape(atom)})(?![\w?!])"
+            rf"(?:\s*,\s*rev:\s*[\"'][^\"']*[\"'])?", re.I)
+        return pattern.subn(
+            lambda m: f'@tag proves: :{m.group(1)}, rev: "{fresh}"', text)
+    pattern = re.compile(
         rf"#\s*proves:\s*({re.escape(slug)}|{re.escape(atom)})(?![\w-])"
-        rf"(?:\s*,\s*rev:\s*[\"']?[^\"'\s,]*[\"']?)?"
-    )
-    return python.sub(lambda m: f'# proves: {m.group(1)}, rev: "{fresh}"', text)
+        rf"(?:\s*,\s*rev:\s*[\"']?[^\"'\s,]*[\"']?)?", re.I)
+    return pattern.subn(
+        lambda m: f'# proves: {m.group(1)}, rev: "{fresh}"', text)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

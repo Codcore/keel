@@ -369,14 +369,16 @@ class TestRewriteTag(unittest.TestCase):
     def test_a_superstring_slug_is_not_a_match(self):
         text = ('@tag proves: :parse, rev: "aaaaaa"\n'
                 '@tag proves: :parse_error, rev: "bbbbbb"\n')
-        out = keel.rewrite_tag(text, "parse", "ffffff")
+        out, changed = keel.rewrite_tag(text, "parse", "ffffff", "elixir")
+        self.assertEqual(changed, 1)
         self.assertIn(':parse, rev: "ffffff"', out)
         self.assertIn(':parse_error, rev: "bbbbbb"', out)
 
     def test_the_python_form_too(self):
         text = ('# proves: parse, rev: "aaaaaa"\n'
                 '# proves: parse-error, rev: "bbbbbb"\n')
-        out = keel.rewrite_tag(text, "parse", "ffffff")
+        out, changed = keel.rewrite_tag(text, "parse", "ffffff", "python")
+        self.assertEqual(changed, 1)
         self.assertIn('parse, rev: "ffffff"', out)
         self.assertIn('parse-error, rev: "bbbbbb"', out)
 
@@ -411,6 +413,40 @@ class TestRewriteRef(unittest.TestCase):
     def test_the_trailing_newline_is_kept(self):
         text = "---\nscenarios:\n  s: {proves: c@aaaa}\n---\n\nтіло\n"
         self.assertTrue(keel.rewrite_ref(text, "c@aaaa", "c@ffff").endswith("тіло\n"))
+
+
+class TestRefLinesPairCorrectly(unittest.TestCase):
+    """The report's line numbers follow the file, not the yield order."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-lines-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        for folder in ("keel/steps", "keel/contracts"):
+            os.makedirs(os.path.join(self.root, folder))
+        with open(os.path.join(self.root, "keel/contracts/c.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write('---\nverify: "true"\n---\n\nх.\n')
+
+    def problems(self, header):
+        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write(f"---\n{header}---\n\n## Why\n\nх.\n")
+        return keel.check_revisions(keel.Project(self.root))
+
+    def test_a_transforms_first_header_pairs_lines_by_kind(self):
+        """Фіксований порядок сценарії-перші віддавав рядок трансформи сценарію."""
+        problems = self.problems(
+            "transforms:\n  do:\n    implements: [s]\n    contracts: [c@aaaa]\n"
+            "    files: [lib/a.ex]\nscenarios:\n  s: {proves: c@aaaa}\n")
+        by_kind = {("transform" if "transform" in x.message else "scenario"): x.line
+                   for x in problems}
+        self.assertLess(by_kind["transform"], by_kind["scenario"])
+
+    def test_two_identical_refs_on_one_line_share_that_line(self):
+        """Другий звіт падав на рядок 1, коли обидва входження в одному рядку."""
+        problems = self.problems("scenarios:\n  s: {proves: [c@aaaa, c@aaaa]}\n")
+        self.assertEqual(len(problems), 2)
+        self.assertEqual({x.line for x in problems}, {3})
 
 
 if __name__ == "__main__":

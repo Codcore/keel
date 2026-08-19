@@ -72,6 +72,18 @@ class TestScope(ProjectCase):
             self.fixture.write(name, "породжене\n")
         self.assertEqual(keel.check_scope(self.project), [])
 
+    def test_a_declared_keel_file_earns_no_false_report(self):
+        """Оголошений AGENTS.md давав «declared but not changed» над diff-ом,
+        який його явно змінив."""
+        self.fixture.branch("0001-session-loop")
+        self.fixture.write("lib/session.ex", "змінено\n")
+        text = self.fixture.read("keel/steps/0001-session-loop.md")
+        self.fixture.write("keel/steps/0001-session-loop.md",
+                           text.replace("files:      [lib/session.ex]",
+                                        "files:      [lib/session.ex, AGENTS.md]"))
+        self.fixture.write("AGENTS.md", "змінений блок\n")
+        self.assertEqual(keel.check_scope(self.project), [])
+
     def test_a_work_branch_still_catches_an_undeclared_project_file(self):
         """Звільнення стосується нашої обстановки, не будь-чого поруч."""
         self.fixture.branch("0001-session-loop")

@@ -197,6 +197,14 @@ class TestQuotedRoundTrip(unittest.TestCase):
         for original in ('з "лапками"', "зі \\\\ слешем", 'край\\', '"'):
             self.assertEqual(self.back(original), original, repr(original))
 
+    def test_a_flow_value_wrapped_onto_its_own_line(self):
+        """`{proves: c@1}` на власному рядку ставав блок-мапою з ключем
+        '{proves' — сценарій тихо нічого не доводив."""
+        parsed = keel.parse_yaml("scenarios:\n  happy:\n    {proves: c@abc123}\n")
+        self.assertEqual(parsed["scenarios"]["happy"], {"proves": "c@abc123"})
+        parsed = keel.parse_yaml("files:\n  [a.py, b.py]\n")
+        self.assertEqual(parsed["files"], ["a.py", "b.py"])
+
     def test_a_same_indent_list_may_be_followed_by_a_key(self):
         """Звичайна форма шапки: depends_on списком, далі transforms."""
         parsed = keel.parse_yaml("a:\n- x\n- y\nb: z\n")

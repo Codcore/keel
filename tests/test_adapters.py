@@ -71,6 +71,17 @@ class TestScenarios(ProjectCase):
         self.assertEqual(len(problems), 1)
         self.assertIn("the test holds", problems[0].message)
 
+    def test_umbrella_tests_are_collected(self):
+        """apps/*/test — mix test їх ганяє, а збирач не бачив: вічне хибне
+        «has no test» над зеленим тегованим тестом."""
+        self.fixture.write(
+            "apps/demo/test/demo_test.exs",
+            f'defmodule DemoTest do\n'
+            f'  @tag proves: :finishes_when_no_tool_called, '
+            f'rev: "{self.fixture.scenario_rev()}"\n'
+            f'  test "x", do: assert true\nend\n')
+        self.assertEqual(keel.check_scenarios(self.project, run_tests=False), [])
+
     def test_slug_dashes_match_atom_underscores(self):
         self.assertEqual(keel.normalise_slug("finishes_when_no_tool_called"),
                          keel.normalise_slug("finishes-when-no-tool-called"))
@@ -786,23 +797,120 @@ class TestRestampedTagsStayRecognisable(unittest.TestCase):
     be a revision written into a tag that stopped being one."""
 
     def test_elixir(self):
-        out = keel.rewrite_tag('@tag proves: :does_a, rev: "aaaaaa"\n',
-                               "does-a", "ffffff")
+        out, _ = keel.rewrite_tag('@tag proves: :does_a, rev: "aaaaaa"\n',
+                                  "does-a", "ffffff", "elixir")
         found = keel.ElixirAdapter.tag_re.search(out)
         self.assertIsNotNone(found)
         self.assertEqual(found.group(2), "ffffff")
 
     def test_python(self):
-        out = keel.rewrite_tag('# proves: does-a, rev: "aaaaaa"\n',
-                               "does-a", "ffffff")
+        out, _ = keel.rewrite_tag('# proves: does-a, rev: "aaaaaa"\n',
+                                  "does-a", "ffffff", "python")
         found = keel.PythonAdapter.tag_re.search(out)
         self.assertIsNotNone(found)
         self.assertEqual(found.group(2), "ffffff")
 
     def test_a_tag_written_without_a_revision_gains_one_recognisably(self):
-        out = keel.rewrite_tag("@tag proves: :does_a\n", "does-a", "ffffff")
+        out, _ = keel.rewrite_tag("@tag proves: :does_a\n", "does-a",
+                                  "ffffff", "elixir")
         found = keel.ElixirAdapter.tag_re.search(out)
         self.assertEqual(found.group(2), "ffffff")
+
+
+class TestPythonRunnerRunsWhatTheCollectorCounts(unittest.TestCase):
+    """discover's default test*.py never ran *_test.py — green over a failure."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-runner-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        for folder in ("keel/steps", "keel/contracts", "tests"):
+            os.makedirs(os.path.join(self.root, folder))
+        with open(os.path.join(self.root, "pyproject.toml"), "w") as handle:
+            handle.write("[project]\nname='d'\n")
+        with open(os.path.join(self.root, "tests/__init__.py"), "w") as handle:
+            handle.write("")
+
+    def scenario(self):
+        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("---\nscenarios:\n  does-a: {}\n---\n\n"
+                         "## scenario: does-a\n\n**Given** щось.\n")
+        return keel.Project(self.root).steps["0001-a"].scenario_body("does-a")
+
+    def test_the_runner_walks_what_the_collector_walks(self):
+        """Паритет за побудовою: ті самі два написання, без conftest.py,
+        включно з вкладеними теками без __init__.py."""
+        script = keel.PythonAdapter().test_command(self.root)[-1]
+        self.assertIn("_test.py", script)
+        self.assertIn("test_", script)
+        self.assertIn("os.walk", script)
+        self.assertNotIn("discover", script)
+
+    def test_a_failing_test_in_a_nested_dir_without_init_is_red(self):
+        """discover пропускав не-пакетну теку — зелене над червоним тестом."""
+        body = self.scenario()
+        os.makedirs(os.path.join(self.root, "tests/unit"))
+        with open(os.path.join(self.root, "tests/unit/foo_test.py"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("import unittest\n"
+                         f"# proves: does-a, rev: \"{keel.revision(body)}\"\n"
+                         "class T(unittest.TestCase):\n"
+                         "    def test_x(self):\n"
+                         "        self.fail('червоний')\n")
+        problems = keel.check_scenarios(keel.Project(self.root))
+        self.assertTrue(any("the tests are red" in x.message for x in problems),
+                        [x.message for x in problems])
+
+    def test_a_failing_suffix_test_turns_check_5_red(self):
+        body = self.scenario()
+        with open(os.path.join(self.root, "tests/greet_test.py"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("import unittest\n"
+                         f"# proves: does-a, rev: \"{keel.revision(body)}\"\n"
+                         "class T(unittest.TestCase):\n"
+                         "    def test_x(self):\n"
+                         "        self.fail('червоний')\n")
+        problems = keel.check_scenarios(keel.Project(self.root))
+        self.assertTrue(any("the tests are red" in x.message for x in problems),
+                        [x.message for x in problems])
+
+    def test_a_conftest_that_cannot_import_does_not_break_check_5(self):
+        body = self.scenario()
+        with open(os.path.join(self.root, "tests/conftest.py"), "w") as handle:
+            handle.write("import немає_такого_модуля\n")
+        with open(os.path.join(self.root, "tests/greet_test.py"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("import unittest\n"
+                         f"# proves: does-a, rev: \"{keel.revision(body)}\"\n"
+                         "class T(unittest.TestCase):\n"
+                         "    def test_x(self):\n"
+                         "        self.assertTrue(True)\n")
+        problems = keel.check_scenarios(keel.Project(self.root))
+        self.assertEqual(problems, [], [x.message for x in problems])
+
+    def test_the_start_directory_follows_test_dirs(self):
+        os.rename(os.path.join(self.root, "tests"),
+                  os.path.join(self.root, "test"))
+        script = keel.PythonAdapter().test_command(self.root)[-1]
+        self.assertIn("'test'", script)
+
+
+class TestTheDictatedTagFollowsTheAdapter(unittest.TestCase):
+    """next dictated the Elixir form to Python operators — invisible tags."""
+
+    def test_each_dialect_dictates_its_own(self):
+        self.assertIn(":does_a", keel.ElixirAdapter.tag_example("does-a", "ffffff"))
+        python = keel.PythonAdapter.tag_example("does-a", "ffffff")
+        self.assertNotIn(":does", python)
+        self.assertTrue(python.startswith("# proves: does-a"))
+
+    def test_what_is_dictated_is_what_the_collector_reads(self):
+        """Написане під диктовку мусить читатися своїм же збирачем."""
+        for adapter in (keel.ElixirAdapter, keel.PythonAdapter):
+            example = adapter.tag_example("does-a", "ffffff")
+            found = adapter.tag_re.search(example)
+            self.assertIsNotNone(found, adapter.name)
+            self.assertEqual(found.group(2), "ffffff", adapter.name)
 
 
 class TestGitEdges(unittest.TestCase):
@@ -885,6 +993,28 @@ class TestGitEdges(unittest.TestCase):
         g = keel.Git(self.root)
         self.assertEqual(g.main_branch, "trunk")
         self.assertEqual(g.main_short, "trunk")
+
+    def test_a_ci_base_fetch_does_not_defeat_the_single_branch_guard(self):
+        """clone --single-branch + fetch origin main — стандартний CI: дві
+        гілки в origin, і лічильник сам по собі повірив би origin/HEAD."""
+        self.repo()
+        with open(os.path.join(self.root, "f.txt"), "w") as handle:
+            handle.write("x\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
+        self.git("checkout", "-q", "-b", "0001-work")
+        with open(os.path.join(self.root, "f.txt"), "a") as handle:
+            handle.write("y\n")
+        self.git("commit", "-qam", "робота")
+        # так виглядає одногілковий клон із домальованою базою
+        self.git("update-ref", "refs/remotes/origin/0001-work", "HEAD")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD~1")
+        self.git("symbolic-ref", "refs/remotes/origin/HEAD",
+                 "refs/remotes/origin/0001-work")
+        self.git("branch", "-q", "-D", "main")
+        g = keel.Git(self.root)
+        self.assertNotEqual(g.main_branch, "0001-work",
+                            "гілка стала власною базою")
+        self.assertTrue(g.merge_base(g.main_branch))
 
     def test_a_single_branch_clone_is_still_distrusted(self):
         """Гілка під тестом не має ставати власною базою — як і раніше."""

@@ -125,8 +125,8 @@ new` пише каркас кроку чи контракту. Поля шапк
 | | Elixir | Python |
 |---|---|---|
 | маркер | `mix.exs` | `pyproject.toml`, `setup.py`, `setup.cfg` |
-| тести | `mix test` | `python3 -m unittest discover -s tests -p "*test*.py" -t .` |
-| де тести | `test/**/*_test.exs` | `tests/**/test_*.py`, `*_test.py` |
+| тести | `mix test` | unittest по всіх `test_*.py` і `*_test.py`, завантажених за шляхом |
+| де тести | `test/**/*_test.exs`, `apps/*/test/**` | `tests/**/test_*.py`, `*_test.py` |
 | тег сценарію | `@tag proves: :slug, rev: "a3f1c0"` | `# proves: slug, rev: "a3f1c0"` |
 | експорти | `mix run --no-start` питає `__info__(:functions)` | імпорт модуля, `__all__` або публічні імена |
 | типи | `Code.Typespec.fetch_specs` — цілий `@spec` перевіряється | немає: обіцяна форма позначається неперевіреною |

@@ -148,6 +148,27 @@ class TestTheModeIsRemembered(ModeCase):
         self.init(mode="manual")
         self.assertEqual(json.loads(self.read(keel.CONFIG_FILE))["mode"], "manual")
 
+    def test_regenerated_skills_do_not_wedge_the_next_update(self):
+        """skills без маніфесту лишав старі дайджести — update таврував
+        власний вивід як правлений руками й відмовлявся його оновити."""
+        self.init()
+        path = self.path(keel.CONFIG_FILE)
+        with open(path, encoding="utf-8") as handle:
+            stored = json.load(handle)
+        stored["lang"] = "uk"
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(stored, handle)
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            keel.cmd_skills(keel.Project(self.root))
+        finally:
+            sys.stdout = saved
+        out = self.update()
+        self.assertNotIn("edited by hand", out)
+        self.assertNotIn("правлено руками", out)
+
     def test_regenerating_the_skills_keeps_it(self):
         """keel skills не має тихо повернути процедури моделі."""
         self.init(mode="manual")

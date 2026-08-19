@@ -132,8 +132,8 @@ root.
 | | Elixir | Python |
 |---|---|---|
 | marker | `mix.exs` | `pyproject.toml`, `setup.py`, `setup.cfg` |
-| tests | `mix test` | `python3 -m unittest discover -s tests -p "*test*.py" -t .` |
-| where tests live | `test/**/*_test.exs` | `tests/**/test_*.py`, `*_test.py` |
+| tests | `mix test` | unittest over every `test_*.py` and `*_test.py`, loaded by path |
+| where tests live | `test/**/*_test.exs`, `apps/*/test/**` | `tests/**/test_*.py`, `*_test.py` |
 | scenario tag | `@tag proves: :slug, rev: "a3f1c0"` | `# proves: slug, rev: "a3f1c0"` |
 | exports | `mix run --no-start` asks `__info__(:functions)` | import the module, `__all__` or the public names |
 | types | `Code.Typespec.fetch_specs` — a whole `@spec` is checkable | none: a promised shape is reported as unchecked |

@@ -444,5 +444,99 @@ class TestCheckOrderIsHonest(unittest.TestCase):
                         [x.message for x in first])
 
 
+class TestRevWritesHonestly(unittest.TestCase):
+    """rev --write edits what it reported, and reports what it edited."""
+
+    def setUp(self):
+        import tempfile, shutil, subprocess
+        self.root = tempfile.mkdtemp(prefix="keel-revh-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        for folder in ("keel/steps", "keel/contracts", "tests"):
+            os.makedirs(os.path.join(self.root, folder))
+        with open(os.path.join(self.root, "pyproject.toml"), "w") as handle:
+            handle.write("[project]\nname='d'\n")
+        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("---\nscenarios:\n  parse: {}\n---\n\n"
+                         "## scenario: parse\n\n**Given** щось.\n")
+
+    def rev_write(self):
+        from io import StringIO
+        from tests.support import Args
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_rev(keel.Project(self.root), Args(write=True))
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def test_the_other_dialect_inside_a_fixture_is_left_alone(self):
+        """Elixir-тег у рядковій фікстурі python-тесту не перештамповується."""
+        with open(os.path.join(self.root, "tests/parse_test.py"), "w",
+                  encoding="utf-8") as handle:
+            handle.write('FIXTURE = \'@tag proves: :parse, rev: "keepme99"\'\n'
+                         '# proves: parse, rev: "00000000"\n')
+        code, _ = self.rev_write()
+        with open(os.path.join(self.root, "tests/parse_test.py"),
+                  encoding="utf-8") as handle:
+            after = handle.read()
+        self.assertIn('keepme99', after)
+        self.assertNotIn('"00000000"', after)
+        self.assertEqual(code, 0)
+
+    def test_a_capitalised_tag_is_restamped_not_claimed(self):
+        """«recorded: 1» над файлом, що не змінився, — заборонений клас."""
+        with open(os.path.join(self.root, "tests/parse_test.py"), "w",
+                  encoding="utf-8") as handle:
+            handle.write('# proves: Parse, rev: "00000000"\n')
+        code, out = self.rev_write()
+        with open(os.path.join(self.root, "tests/parse_test.py"),
+                  encoding="utf-8") as handle:
+            after = handle.read()
+        self.assertNotIn('"00000000"', after)
+        self.assertEqual(code, 0, out)
+
+
+class TestAgentsMarkers(unittest.TestCase):
+    """Markers out of balance are named and left, not compounded."""
+
+    def setUp(self):
+        import tempfile, shutil
+        self.root = tempfile.mkdtemp(prefix="keel-mark-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.path = os.path.join(self.root, "AGENTS.md")
+
+    def run_update(self, text):
+        from io import StringIO
+        with open(self.path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            changed = keel.update_agents(self.path, "БЛОК\n")
+        finally:
+            sys.stdout = saved
+        with open(self.path, encoding="utf-8") as handle:
+            return changed, handle.read(), stream.getvalue()
+
+    def test_an_orphaned_start_is_left_alone(self):
+        """Другий прогін зʼїдав усе між маркером-сиротою і новим блоком."""
+        text = (keel.AGENTS_START + "\nстаре\n\n## Правила дому\n\n"
+                "Не чіпати прод.\n")
+        changed, after, out = self.run_update(text)
+        self.assertFalse(changed)
+        self.assertEqual(after, text)
+        self.assertIn("out of balance", out)
+
+    def test_balanced_markers_still_update(self):
+        text = ("своє\n" + keel.AGENTS_START + "\nстаре\n" + keel.AGENTS_END
+                + "\nхвіст\n")
+        changed, after, _ = self.run_update(text)
+        self.assertTrue(changed)
+        self.assertIn("БЛОК", after)
+        self.assertIn("хвіст", after)
+
+
 if __name__ == "__main__":
     unittest.main()
