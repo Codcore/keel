@@ -212,6 +212,13 @@ class TestTheTemplatesFollowTheLanguage(unittest.TestCase):
             text, _ = self.render(lang)
             self.assertTrue(keel.unfilled_why(self.step(text)), lang)
 
+    def test_a_tool_created_step_with_an_untouched_why_is_flagged(self):
+        """Каркас пише слаг без номера, файл зветься з номером — розпізнавач
+        не спрацьовував на жодному створеному інструментом кроці."""
+        text, _ = self.render("en")
+        self.assertTrue(keel.unfilled_why(self.step(
+            keel.step_skeleton("0001-thing"))))
+
     def test_a_filled_in_why_is_not_mistaken_for_the_placeholder(self):
         text, _ = self.render("en")
         filled = text.replace("why this step exists and what is missing without it",

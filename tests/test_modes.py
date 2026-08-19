@@ -277,10 +277,20 @@ class TestSomebodyElsesSettingsFile(ModeCase):
         with open(self.path(keel.CLAUDE_SETTINGS), encoding="utf-8") as handle:
             self.assertEqual(handle.read(), "{ це не json\n")
 
-    def test_an_empty_hooks_object_is_removed_not_left_hanging(self):
+    def test_an_empty_hooks_object_of_ours_is_removed_not_left_hanging(self):
         self.init()
         self.init(mode="manual")
         self.assertNotIn("hooks", self.read_settings())
+
+    def test_a_foreign_empty_event_is_not_tidied_away(self):
+        """{"PreToolUse": []} без нічого нашого — чужа форма, не наша прибирати.
+        Раніше вона зникала зі звітом «наші записи вилучено»."""
+        self.init(mode="manual")
+        theirs = {"permissions": {"allow": []}, "hooks": {"PreToolUse": []}}
+        self.settings(theirs)
+        out = self.init(mode="soft")
+        self.assertEqual(self.read_settings(), theirs)
+        self.assertNotIn("taken out", out)
 
 
 class TestUpdateTakesTheHooksBack(ModeCase):

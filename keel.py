@@ -51,6 +51,8 @@ UK = {
     "unclosed bracket": "дужка не закрита",
     "a map inside a list is not supported: {item}":
         "мапа в списку не підтримується: {item}",
+    "a list inside a list is not supported: {item}":
+        "список у списку не підтримується: {item}",
     "list is not closed by a bracket": "список не закритий дужкою",
     "map is not closed by a bracket": "мапа не закрита дужкою",
     "no colon in the map entry: {entry}": "у мапі немає двокрапки: {entry}",
@@ -59,12 +61,18 @@ UK = {
     "unexpected indent": "несподіваний відступ",
     "a header has to be a set of keys, not a list":
         "шапка має бути набором ключів, а не списком",
-    "this line is not a list item": "рядок не є елементом списку",
     "a list where a key was expected": "список там, де очікується ключ",
     "no key before the colon: {line}": "немає ключа перед двокрапкою: {line}",
     "two colons on one line: {line}": "дві двокрапки в одному рядку: {line}",
     "empty key": "порожній ключ",
     "no header between --- markers": "немає шапки між рисками ---",
+    "the test command could not run ({command}): {reason}":
+        "команда тестів не запустилась ({command}): {reason}",
+    "{command} could not run: {reason}": "{command} не запустився: {reason}",
+    "{file} does not parse — fix it first. Regenerating on the defaults would "
+    "rewrite the project in the wrong language.":
+        "{file} не читається — спершу полагодьте його. Перегенерація за "
+        "замовчуваннями переписала б проєкт не тією мовою.",
     "the contract promises exports and names no module to ask for them":
         "контракт обіцяє exports і не називає модуля, в якого їх спитати",
     "{kind} {slug} has to be a set of named fields, and this is {actual}":
@@ -240,7 +248,6 @@ UK = {
         "не те саме, що «нічого не зламано».",
     "{command} did not answer within {seconds}s":
         "{command} не відповів за {seconds}с",
-    "{command} was not found": "{command} не знайдено",
     "path/to/file": "шлях/до/файлу",
     "What exactly is promised, and to whom.": "Що саме обіцяно й кому.",
     "Why": "Навіщо",
@@ -264,8 +271,7 @@ UK = {
         "Виконує: [{slug}](../contracts/{slug}.md)@{rev}",
     "Proves: {proves} · revision `{rev}`":
         "Доводить: {proves} · ревізія `{rev}`",
-    "Test tag: `proves: :{atom}, rev: \"{rev}\"`":
-        "Тег тесту: `proves: :{atom}, rev: \"{rev}\"`",
+    "Test tag: `{tag}`": "Тег тесту: `{tag}`",
     "The skills /keel-plan, /keel-work and /keel-review are in place. Start the "
     "agent in the project directory itself:\n  cd {root} && <agent>\nIf it answers "
     "\"Unknown skill\" they have not been picked up yet: /reload-skills, or simply "
@@ -467,7 +473,7 @@ def _scalar(text, line):
     return text
 
 
-ESCAPES = {'"': '"', "\\": "\\", "n": "\n", "t": "\t"}
+ESCAPES = {'"': '"', "\\": "\\", "n": "\n", "t": "\t", "r": "\r"}
 
 
 def unescape(body, line):
@@ -539,6 +545,11 @@ def _list_item(text, line):
     # far from the line that caused it.
     if MAP_ITEM.match(stripped) or stripped.startswith("{"):
         raise YamlError(line, t("a map inside a list is not supported: {item}", item=repr(stripped)))
+    # A list inside a list — flow `[a, b]` or block `- - a` — is the same story:
+    # it coerced through str() into a Python repr that surfaced far away as a
+    # file literally named "['g.py']", or silently became the scalar "- a".
+    if stripped.startswith(("[", "- ")):
+        raise YamlError(line, t("a list inside a list is not supported: {item}", item=repr(stripped)))
     return _flow(text, line)
 
 
@@ -600,8 +611,13 @@ def _parse_list(lines, index, indent):
         number, own, text = lines[index]
         if own < indent:
             break
-        if own > indent or not text.startswith("- "):
-            raise YamlError(number, t("this line is not a list item"))
+        if own > indent:
+            raise YamlError(number, t("unexpected indent"))
+        if not text.startswith("- "):
+            # A sibling key after a same-indent list — `depends_on:` written the
+            # ordinary way. Raising here made the natural form of a header die
+            # while the same list at document end parsed.
+            break
         items.append(_list_item(text[2:], number))
         index += 1
     return items, index
@@ -700,7 +716,10 @@ class Doc:
         self.section_lines = {}     # heading -> line number
         self.repeated = []          # headings written more than once
         try:
-            with open(path, encoding="utf-8") as handle:
+            # utf-8-sig: reads plain UTF-8 unchanged and strips a BOM when one
+            # is there. A file saved by a Windows editor used to report "no
+            # header between --- markers" with the header right on line one.
+            with open(path, encoding="utf-8-sig") as handle:
                 text = handle.read()
         except OSError as exc:
             # A broken symlink, a permission change, a file removed while an
@@ -957,8 +976,11 @@ class Git:
         self.root = root
 
     def run(self, *args):
+        # core.quotePath off: without it diff/log return octal escapes for any
+        # non-ASCII path, so a file named файл.txt never matches its declared
+        # name and check 4 reports gibberish twice.
         proc = subprocess.run(
-            ["git", "-C", self.root, *args],
+            ["git", "-C", self.root, "-c", "core.quotePath=false", *args],
             capture_output=True, text=True,
         )
         return proc.returncode, proc.stdout, proc.stderr
@@ -987,7 +1009,18 @@ class Git:
         short = head[len(self.ORIGIN):] if head.startswith(self.ORIGIN) else ""
         # In a single-branch clone origin/HEAD names the branch under test.
         # Believing it makes a branch its own baseline: the diff covers nothing
-        # and the scope check reports green having compared nothing.
+        # and the scope check reports green having compared nothing. But
+        # standing on the default branch of a full clone looks the same from
+        # here, and a default named outside the fallback list (trunk, develop)
+        # would turn into a false red. The clones differ in what they carry:
+        # a single-branch clone tracks exactly one remote branch.
+        if short and short == self.branch:
+            code, refs, _ = self.run("for-each-ref", "refs/remotes/origin",
+                                     "--format=%(refname)")
+            tracked = [line for line in refs.splitlines()
+                       if line and not line.endswith("/HEAD")]
+            if code == 0 and len(tracked) > 1:
+                return short
         if short and short != self.branch:
             if self.run("rev-parse", "--verify", "--quiet", short)[0] == 0:
                 return short
@@ -1011,7 +1044,11 @@ class Git:
         """All the branch changed: commits since the base plus what is not committed."""
         files = set()
         if base:
-            code, stdout, _ = self.run("diff", "--name-only", base, "HEAD")
+            # --no-renames: a committed rename otherwise collapses to its
+            # destination while the uncommitted half of this set reports both
+            # names — the verdict of check 4 would flip at commit time.
+            code, stdout, _ = self.run("diff", "--name-only", "--no-renames",
+                                       base, "HEAD")
             if code == 0:
                 files.update(name for name in stdout.splitlines() if name)
         code, stdout, _ = self.run("status", "--porcelain", "-z", "--untracked-files=all")
@@ -1042,7 +1079,7 @@ class Git:
         if not base:
             return []
         code, stdout, _ = self.run("log", "--format=%x1e%H%x1f%B%x1f",
-                                   "--name-only", f"{base}..HEAD")
+                                   "--name-only", "--no-renames", f"{base}..HEAD")
         if code != 0:
             return []
         commits = []
@@ -1095,8 +1132,11 @@ def run_probe(command, root, env=None):
     except subprocess.TimeoutExpired:
         return Probe(1, "", t("{command} did not answer within {seconds}s",
                               command=command[0], seconds=PROBE_TIMEOUT))
-    except FileNotFoundError:
-        return Probe(1, "", t("{command} was not found", command=command[0]))
+    except OSError as exc:
+        # FileNotFoundError and PermissionError alike: a broken shim on PATH
+        # must come back as a failed probe, not a traceback.
+        return Probe(1, "", t("{command} could not run: {reason}",
+                              command=command[0], reason=exc.strerror or exc))
 
 
 class Adapter:
@@ -1164,7 +1204,11 @@ class ElixirAdapter(Adapter):
         r"(?:\s*,\s*rev:\s*[\"']([^\"']*)[\"'])?"
     )
 
-    def test_command(self):
+    @staticmethod
+    def tag_example(slug, rev):
+        return f'@tag proves: :{slug.replace("-", "_")}, rev: "{rev}"' 
+
+    def test_command(self, root):
         return ["mix", "test"]
 
     def ci_steps(self, root):
@@ -1246,6 +1290,12 @@ class PythonAdapter(Adapter):
         r"(?:\s*,\s*rev:\s*[\"']?([^\"'\s,]*)[\"']?)?"
     )
 
+    @staticmethod
+    def tag_example(slug, rev):
+        # No leading colon: written as dictated, the Elixir form is invisible
+        # to this adapter's own recogniser.
+        return f'# proves: {slug}, rev: "{rev}"' 
+
     def test_files(self, root):
         found = list(super().test_files(root))
         for directory in self.test_dirs:
@@ -1258,8 +1308,15 @@ class PythonAdapter(Adapter):
                             found.append(path)
         return sorted(found)
 
-    def test_command(self):
-        return [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", "."]
+    def test_command(self, root):
+        # The pattern matters: discover's default test*.py never runs the
+        # *_test.py files the tag collector counts — a tag is seen, its test is
+        # not run, and check 5 is green over a failure. *test*.py runs both
+        # spellings. The start directory follows test_dirs instead of assuming.
+        start = next((d for d in self.test_dirs
+                      if os.path.isdir(os.path.join(root, d))), self.test_dirs[0])
+        return [sys.executable, "-m", "unittest", "discover",
+                "-s", start, "-p", "*test*.py", "-t", "."]
 
     def ci_steps(self, root):
         return [
@@ -1733,11 +1790,17 @@ def check_scenarios(project, run_tests=True):
                  slug=slug, held=rev, now=revision(body)), path, line))
 
     if run_tests:
-        command = project.adapter.test_command()
+        command = project.adapter.test_command(project.root)
         try:
             proc = subprocess.run(command, cwd=project.root, capture_output=True,
                                   text=True, stdin=subprocess.DEVNULL,
                                   timeout=TEST_TIMEOUT)
+        except OSError as exc:
+            # mix off PATH, a non-executable shim: red with the reason, not a
+            # traceback out of the pre-push hook.
+            return problems + [Problem(
+                5, t("the test command could not run ({command}): {reason}",
+                     command=" ".join(command), reason=exc.strerror or exc))]
         except subprocess.TimeoutExpired:
             return problems + [Problem(
                 5, t("the tests did not finish within {seconds}s ({command}). "
@@ -2134,7 +2197,10 @@ def cmd_new(project, args):
                    if (m := re.match(r"(\d{4})-", name))] if os.path.isdir(folder) else []
         number = max(numbers, default=0) + 1
         name = f"{number:04d}-{clean}.md"
-        text = step_skeleton(clean)
+        # The numbered name, as the file is called: the Why placeholder starts
+        # with the slug, and the recogniser compares against step.slug — the
+        # unnumbered form made unfilled_why blind to every tool-created step.
+        text = step_skeleton(os.path.splitext(name)[0])
     else:
         folder = os.path.join(project.keel, "contracts")
         name = f"{clean}.md"
@@ -2315,11 +2381,18 @@ def next_package(project, step, slug, state):
     scenarios = []
     for name in step.transform_implements(slug):
         body = step.scenario_body(name)
+        rev = step.scenario_revision(name)
         scenarios.append({
             "slug": name,
-            "rev": step.scenario_revision(name),
+            "rev": rev,
             "proves": [ref.raw for ref in step.proves(name)],
             "body": (body or "").strip(),
+            # The dictated tag in the adapter's own dialect: dictating the
+            # Elixir form to a Python project made the operator's obedient tag
+            # invisible to the collector. No adapter — no dictation.
+            "tag": (project.adapter.tag_example(name, rev)
+                    if project.adapter and hasattr(project.adapter, "tag_example")
+                    else None),
         })
 
     return {
@@ -2373,9 +2446,9 @@ def render_next(package):
             out.append("")
             out.append(item["body"] or t("(no body)"))
             out.append("")
-            out.append(t('Test tag: `proves: :{atom}, rev: "{rev}"`',
-                         atom=item["slug"].replace("-", "_"), rev=item["rev"]))
-            out.append("")
+            if item.get("tag"):
+                out.append(t("Test tag: `{tag}`", tag=item["tag"]))
+                out.append("")
 
     if package["contracts"]:
         out += ["## " + t("Contracts it leans on"), ""]
@@ -2481,6 +2554,23 @@ def agent_hooks_wanted(settings, args=None):
     if stored != "":
         return stored
     return settings["mode"] == "strict"
+
+
+def config_broken(root):
+    """The settings file exists and does not read as an object.
+
+    read_config falls back to the defaults then — right for a hook, which must
+    answer something — but a command that regenerates files would act on those
+    defaults: rewrite a Ukrainian project's AGENTS block in English and label
+    the pristine copies hand-edited. Those commands refuse instead.
+    """
+    path = os.path.join(root, CONFIG_FILE)
+    if not os.path.exists(path):
+        return False
+    try:
+        return not isinstance(json.loads(read_text(path)), dict)
+    except ValueError:
+        return True
 
 
 def read_config(root):
@@ -3009,7 +3099,8 @@ def yaml_string(text):
     quotes is a scalar our own reader would meet as two lines and never put back
     together. The reader undoes exactly these four.
     """
-    for raw, escaped in (("\\", "\\\\"), ('"', '\\"'), ("\n", "\\n"), ("\t", "\\t")):
+    for raw, escaped in (("\\", "\\\\"), ('"', '\\"'), ("\n", "\\n"),
+                         ("\t", "\\t"), ("\r", "\\r")):
         text = text.replace(raw, escaped)
     return '"' + text + '"'
 
@@ -3328,15 +3419,20 @@ def strip_claude_settings(path, done):
         hooks = data.get("hooks")
         if not isinstance(hooks, dict):
             return
+        touched = False
         for event in list(hooks):
             kept = ours_only(hooks[event])
-            if kept is None:
+            if kept is None or len(kept) == len(hooks[event]):
+                # Nothing of ours in it — a foreign event, even an empty one,
+                # is not ours to tidy away. Deleting it reported "our hook
+                # entries taken out" over an edit to somebody else's shape.
                 continue
+            touched = True
             if kept:
                 hooks[event] = kept
             else:
                 del hooks[event]
-        if not hooks:
+        if touched and not hooks:
             del data["hooks"]
 
     edit_claude_settings(path, change, done,
@@ -3420,6 +3516,10 @@ def skill_targets(skill):
 
 
 def cmd_skills(project, args=None):
+    if config_broken(project.root):
+        fail(t("{file} does not parse — fix it first. Regenerating on the "
+               "defaults would rewrite the project in the wrong language.",
+               file=CONFIG_FILE))
     done = []
     write_skills(project.root, project.settings["lang"], done,
                  mode=project.settings["mode"])
@@ -3448,6 +3548,10 @@ def principles_lines(lang=SOURCE_LANG):
 
 
 def cmd_init(project, args):
+    if config_broken(project.root):
+        fail(t("{file} does not parse — fix it first. Regenerating on the "
+               "defaults would rewrite the project in the wrong language.",
+               file=CONFIG_FILE))
     # Keel reads every bit of its state from git: closure, scope, branch
     # comparison, the approval of a plan. Without a repository almost nothing
     # works, and creating one is a bigger decision than installing a method.
@@ -3549,7 +3653,11 @@ def commit_own(project):
     if project.git.run("add", "--", *mine)[0] != 0:
         return None
     message = COMMIT_MESSAGE.get(project.settings["lang"], COMMIT_MESSAGE["en"])
-    if project.git.run("commit", "--no-verify", "-m", message)[0] != 0:
+    # --only: a bare commit takes the whole index, and anything the person had
+    # staged would be swallowed into Keel's commit — against the one promise
+    # this function makes.
+    if project.git.run("commit", "--no-verify", "--only", "-m", message,
+                       "--", *mine)[0] != 0:
         return None      # no identity configured, mid-merge — the hint still stands
     return len(mine)
 
@@ -3778,6 +3886,10 @@ def cmd_update(project, args):
     # Run from the copy inside a project, every source would be compared against
     # itself and the answer would always be "nothing to do" — a no-op wearing the
     # face of a clean result.
+    if config_broken(project.root):
+        fail(t("{file} does not parse — fix it first. Regenerating on the "
+               "defaults would rewrite the project in the wrong language.",
+               file=CONFIG_FILE))
     if not os.path.exists(os.path.join(home(), "PRINCIPLES.md")):
         fail(t("update compares the project against the methodology home, and there "
                "are no sources beside this copy. Run it from the keel repository:\n"

@@ -197,6 +197,23 @@ class TestQuotedRoundTrip(unittest.TestCase):
         for original in ('з "лапками"', "зі \\\\ слешем", 'край\\', '"'):
             self.assertEqual(self.back(original), original, repr(original))
 
+    def test_a_same_indent_list_may_be_followed_by_a_key(self):
+        """Звичайна форма шапки: depends_on списком, далі transforms."""
+        parsed = keel.parse_yaml("a:\n- x\n- y\nb: z\n")
+        self.assertEqual(parsed, {"a": ["x", "y"], "b": "z"})
+
+    def test_a_list_inside_a_list_is_refused_both_ways(self):
+        """[a, b] чи `- - a` коерсилось у Python-repr або тихий скаляр."""
+        for src in ("depends_on:\n  - [a, b]", "files: [f.py, [g.py]]",
+                    "k:\n- - a"):
+            with self.assertRaises(keel.YamlError):
+                keel.parse_yaml(src)
+
+    def test_a_carriage_return_survives_the_round_trip(self):
+        """Вставлене з Windows-буфера значення несе \r."""
+        self.assertEqual(keel.parse_yaml("k: " + keel.yaml_string("a\rb"))["k"],
+                         "a\rb")
+
     def test_a_braced_map_in_a_list_is_refused_like_the_bare_one(self):
         """`[{a: b}]` давав dict, і Ref(dict) зринав далеко від причини."""
         with self.assertRaises(keel.YamlError):

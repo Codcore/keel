@@ -267,6 +267,15 @@ class TestHeaderShape(unittest.TestCase):
                                "## Why\n\nх.\n")
         self.assertIsNone(doc.error)
 
+    def test_a_bom_does_not_hide_the_header(self):
+        """utf-8-sig від Windows-редактора давав «немає шапки»."""
+        path = os.path.join(self.root, "keel/steps/0001-a.md")
+        with open(path, "w", encoding="utf-8-sig") as handle:
+            handle.write("---\ndepends_on: []\n---\n\n## Why\n\nх.\n")
+        doc = keel.Step(path, self.root)
+        self.assertIsNone(doc.error)
+        self.assertEqual(doc.front["depends_on"], [])
+
     def test_a_file_that_cannot_be_read_is_named(self):
         path = os.path.join(self.root, "keel/steps/0002-gone.md")
         os.symlink("/немає/такого", path)

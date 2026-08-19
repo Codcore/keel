@@ -125,7 +125,7 @@ new` пише каркас кроку чи контракту. Поля шапк
 | | Elixir | Python |
 |---|---|---|
 | маркер | `mix.exs` | `pyproject.toml`, `setup.py`, `setup.cfg` |
-| тести | `mix test` | `python3 -m unittest discover -s tests -t .` |
+| тести | `mix test` | `python3 -m unittest discover -s tests -p "*test*.py" -t .` |
 | де тести | `test/**/*_test.exs` | `tests/**/test_*.py`, `*_test.py` |
 | тег сценарію | `@tag proves: :slug, rev: "a3f1c0"` | `# proves: slug, rev: "a3f1c0"` |
 | експорти | `mix run --no-start` питає `__info__(:functions)` | імпорт модуля, `__all__` або публічні імена |
@@ -431,6 +431,12 @@ Codex поки без хуків: запис іде через `apply_patch`, і
 ```bash
 keel init --mode manual --agent-hooks
 ```
+
+Якщо `keel/keel.json` не читається, `init`, `skills` і `update` відмовляються
+працювати, поки його не полагодять: діяти за замовчуваннями означало б
+переписати український проєкт англійською й затаврувати незаймані копії як
+правлені руками. Хуки натомість відповідають і з битим конфігом — їм мовчати не
+можна.
 
 Режим записується в `keel/keel.json`, і `keel skills` та `keel update` його
 читають — перегенерація ніколи не поверне ні процедури моделі, ні хуки, яких

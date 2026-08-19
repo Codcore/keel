@@ -152,6 +152,31 @@ class TestInit(unittest.TestCase):
             capture_output=True, text=True)
         self.assertEqual(done.returncode, 0, done.stderr)
 
+    def test_the_users_staged_work_stays_staged(self):
+        """Голий git commit брав увесь індекс — чуже wip їхало в наш комміт."""
+        self.write("wip.txt", "чиє-с-ь\n")
+        subprocess.run(["git", "-C", self.root, "add", "wip.txt"], check=True)
+        self.init()
+        shown = subprocess.run(
+            ["git", "-C", self.root, "show", "--name-only", "--format=", "HEAD"],
+            capture_output=True, text=True).stdout
+        self.assertNotIn("wip.txt", shown)
+        self.assertIn("A  wip.txt", self.porcelain())
+
+    def test_a_broken_config_stops_update_before_it_acts(self):
+        """Інакше update діяв за замовчуваннями: переписував український
+        AGENTS.md англійською і таврував незаймані копії правленими."""
+        self.init(lang="uk", docs="uk")
+        with open(os.path.join(self.root, keel.CONFIG_FILE), "w") as handle:
+            handle.write("{ побите")
+        agents_before = self.read("AGENTS.md")
+        done = subprocess.run(
+            [sys.executable, os.path.join(keel.home(), "keel.py"),
+             "-C", self.root, "update"], capture_output=True, text=True)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("does not parse", done.stdout + done.stderr)
+        self.assertEqual(self.read("AGENTS.md"), agents_before)
+
     def test_a_lookalike_file_is_not_swept_into_our_commit(self):
         """AGENTS.mdx лише починається так само — він чужий."""
         self.write("AGENTS.mdx", "чиєсь своє, ще не закомічене\n")

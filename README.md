@@ -132,7 +132,7 @@ root.
 | | Elixir | Python |
 |---|---|---|
 | marker | `mix.exs` | `pyproject.toml`, `setup.py`, `setup.cfg` |
-| tests | `mix test` | `python3 -m unittest discover -s tests -t .` |
+| tests | `mix test` | `python3 -m unittest discover -s tests -p "*test*.py" -t .` |
 | where tests live | `test/**/*_test.exs` | `tests/**/test_*.py`, `*_test.py` |
 | scenario tag | `@tag proves: :slug, rev: "a3f1c0"` | `# proves: slug, rev: "a3f1c0"` |
 | exports | `mix run --no-start` asks `__info__(:functions)` | import the module, `__all__` or the public names |
@@ -454,6 +454,11 @@ and `--no-agent-hooks` overrule the mode, so that combination stays reachable:
 ```bash
 keel init --mode manual --agent-hooks
 ```
+
+When `keel/keel.json` does not parse, `init`, `skills` and `update` refuse to
+work until it is fixed: acting on the defaults would rewrite a Ukrainian project
+in English and label its pristine copies hand-edited. The hooks still answer on
+a broken config — silence is the one thing they are not allowed.
 
 The mode is written into `keel/keel.json` and read back by `keel skills` and
 `keel update`, so regenerating never quietly hands back either the procedures to

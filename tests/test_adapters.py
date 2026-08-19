@@ -322,7 +322,7 @@ class SleepAdapter(keel.Adapter):
 
     name = "sleepy"
 
-    def test_command(self):
+    def test_command(self, root):
         return ["sleep", "30"]
 
     def test_files(self, root):
@@ -367,7 +367,36 @@ class TestNothingHangsForever(unittest.TestCase):
     def test_a_missing_interpreter_is_named_not_a_traceback(self):
         probe = keel.run_probe(["немає-такої-команди"], self.root)
         self.assertNotEqual(probe.returncode, 0)
-        self.assertIn("was not found", probe.stderr)
+        self.assertIn("could not run", probe.stderr)
+
+    def test_a_non_executable_runner_is_named_too(self):
+        """Битий shim на PATH — PermissionError, і теж не трейсбек."""
+        shim = os.path.join(self.root, "shim")
+        with open(shim, "w", encoding="utf-8") as handle:
+            handle.write("не виконуваний\n")
+        probe = keel.run_probe([shim], self.root)
+        self.assertNotEqual(probe.returncode, 0)
+        self.assertIn("could not run", probe.stderr)
+
+    def test_a_missing_test_runner_is_a_check_problem_not_a_crash(self):
+        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("---\nscenarios:\n  does-a: {}\n---\n\n"
+                         "## scenario: does-a\n\n**Given** щось.\n")
+        project = keel.Project(self.root)
+
+        class GoneAdapter(keel.Adapter):
+            name = "gone"
+            def test_command(self, root):
+                return ["немає-такого-запускача"]
+            def test_files(self, root):
+                return []
+            def tags(self, root):
+                return {"does-a": [("t.py", 1, "abcd")]}
+        project.adapter = GoneAdapter()
+        problems = keel.check_scenarios(project)
+        self.assertTrue(any("could not run" in x.message for x in problems),
+                        [x.message for x in problems])
 
     def test_a_timed_out_probe_reads_as_a_failed_build(self):
         """parse_export_output має розібрати відповідь заглушки як помилку."""
@@ -813,6 +842,61 @@ class TestGitEdges(unittest.TestCase):
             handle.write("x\n")
         self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
         self.assertEqual(keel.Git(self.root).main_short, "main")
+
+    def test_a_cyrillic_path_arrives_unmangled(self):
+        """quotePath калічив diff/log — файл.txt ніколи не збігався з оголошеним."""
+        self.repo()
+        with open(os.path.join(self.root, "файл.txt"), "w", encoding="utf-8") as handle:
+            handle.write("вміст\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
+        with open(os.path.join(self.root, "файл.txt"), "a", encoding="utf-8") as handle:
+            handle.write("ще\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "зміна")
+        base = subprocess.run(["git", "-C", self.root, "rev-parse", "HEAD~1"],
+                              capture_output=True, text=True).stdout.strip()
+        changed = keel.Git(self.root).changed_files(base)
+        self.assertEqual(changed, {"файл.txt"})
+
+    def test_a_committed_rename_reports_both_names(self):
+        """Інакше вердикт четвірки перевертався в момент комміту."""
+        self.repo()
+        with open(os.path.join(self.root, "old.txt"), "w") as handle:
+            handle.write("вміст досить довгий для rename-детекції\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
+        base = subprocess.run(["git", "-C", self.root, "rev-parse", "HEAD"],
+                              capture_output=True, text=True).stdout.strip()
+        self.git("mv", "old.txt", "new.txt")
+        self.git("commit", "-q", "-m", "rename")
+        changed = keel.Git(self.root).changed_files(base)
+        self.assertEqual(changed, {"old.txt", "new.txt"})
+
+    def test_standing_on_a_default_branch_named_trunk(self):
+        """Одногілковий захист не має фарбувати сам default у червоне."""
+        self.repo("trunk")
+        with open(os.path.join(self.root, "f.txt"), "w") as handle:
+            handle.write("x\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
+        self.git("checkout", "-q", "-b", "other")   # друга гілка = повний клон
+        self.git("checkout", "-q", "trunk")
+        self.git("update-ref", "refs/remotes/origin/trunk", "HEAD")
+        self.git("update-ref", "refs/remotes/origin/other", "HEAD")
+        self.git("symbolic-ref", "refs/remotes/origin/HEAD",
+                 "refs/remotes/origin/trunk")
+        g = keel.Git(self.root)
+        self.assertEqual(g.main_branch, "trunk")
+        self.assertEqual(g.main_short, "trunk")
+
+    def test_a_single_branch_clone_is_still_distrusted(self):
+        """Гілка під тестом не має ставати власною базою — як і раніше."""
+        self.repo()
+        with open(os.path.join(self.root, "f.txt"), "w") as handle:
+            handle.write("x\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
+        self.git("checkout", "-q", "-b", "0001-work")
+        self.git("update-ref", "refs/remotes/origin/0001-work", "HEAD")
+        self.git("symbolic-ref", "refs/remotes/origin/HEAD",
+                 "refs/remotes/origin/0001-work")
+        self.assertNotEqual(keel.Git(self.root).main_branch, "0001-work")
 
     def test_a_worktree_rename_does_not_inject_a_phantom_path(self):
         self.repo()
