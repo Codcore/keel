@@ -89,6 +89,13 @@ fine while planning and not fine before a PR. One command with two modes would
 confuse both. And neither of them plans: `gaps` says what is missing, `check`
 says what is wrong.
 
+On a `plan/*` branch `check` knows where it is. Checks 5 and 6 do not run there —
+a plan branch carries no code by design — and `gaps` runs in their place. Without
+that a plan branch could be neither pushed nor merged: pre-push and CI run the
+full `check`, those two would fail every time, and red on a plan PR would soon
+stop meaning anything. `--fast` leaves it out deliberately: a commit on a plan
+branch may be half-written, a push and a merge may not.
+
 The `-C DIR` flag says where to work. The project root is searched upwards: the
 first directory with `keel/steps/`, or the first with `.git`.
 

@@ -224,6 +224,8 @@ UK = {
     "documents do not parse": "документи не читаються",
     "clean": "чисто",
     "problems: {count}": "проблем: {count}",
+    "(not run: a plan branch has no code)": "(не запускалась: на гілці плану коду немає)",
+    "the plan is missing things": "планові дечого бракує",
     "{steps}: this branch did not come to write that step. Somebody else's step "
     "is not moved, renamed or deleted to get a check green — leave it and say it "
     "is there.":
@@ -2334,8 +2336,27 @@ def foreign_steps(project, problems):
                   if step.rel in blamed and step.rel != mine.rel)
 
 
+PLAN_BLIND = (5, 6)
+
+
+def plan_step(project):
+    """The step this plan branch came to write, or None where it is not one.
+
+    Checks 5 and 6 want a green test for every scenario and a module that
+    exports what was promised. A plan branch carries neither, deliberately —
+    it holds documents and no code. So on every plan branch that ever existed
+    those two were red, pre-push refused, CI went red, and the operator learned
+    that red on a plan PR means nothing. A gate that is always shut is not a
+    gate; what the plan actually promises is read by `gaps`, and that is what
+    runs here instead.
+    """
+    return project.step_for_branch() if project.is_plan_branch() else None
+
+
 def run_checks(project, only=None, run_tests=True):
     only = set(only or CHECK_NAMES)
+    if plan_step(project) is not None:
+        only -= set(PLAN_BLIND)
     results = {}
     structural = check_structure(project)
     runners = {
@@ -2482,14 +2503,13 @@ def cmd_new(project, args):
     return 0
 
 
-def cmd_gaps(project, args):
-    steps = ([project.steps[args.step]] if args.step and args.step in project.steps
-             else [project.step_for_branch()] if not args.step and project.step_for_branch()
-             else list(project.steps.values()))
-    if args.step and args.step not in project.steps:
-        fail(t("no such step: {step}", step=args.step))
-    steps = [step for step in steps if step]
+def gaps_problems(project, steps):
+    """What a plan is missing mechanically. Read by `gaps` and by `check`.
 
+    One body, because the plan branch is gated by both: `gaps` while it is being
+    written, `check` before it is pushed and merged. Two spellings of the same
+    list would drift, and the half that drifted would be the gate.
+    """
     problems = []
     for step in steps:
         if step.error:
@@ -2531,7 +2551,18 @@ def cmd_gaps(project, args):
     mine = {step.rel for step in steps}
     problems += [p for p in check_headings(project) if p.where in mine]
     problems += [p for p in check_refs(project) if p.where in mine]
+    return problems
 
+
+def cmd_gaps(project, args):
+    steps = ([project.steps[args.step]] if args.step and args.step in project.steps
+             else [project.step_for_branch()] if not args.step and project.step_for_branch()
+             else list(project.steps.values()))
+    if args.step and args.step not in project.steps:
+        fail(t("no such step: {step}", step=args.step))
+    steps = [step for step in steps if step]
+
+    problems = gaps_problems(project, steps)
     names = ", ".join(step.slug for step in steps) or t("nothing")
     if not problems:
         print(t("the plan is complete: {names}", names=names))
@@ -2547,10 +2578,18 @@ def cmd_check(project, args):
     only = FAST_CHECKS if args.fast else None
     structural, results = run_checks(project, only, run_tests=not args.no_tests)
 
+    # The plan's own gate, and only in the full run: a commit on a plan branch
+    # may be half-written, a push and a merge may not.
+    planning = plan_step(project)
+    plan_gaps = ([] if planning is None or args.fast
+                 else gaps_problems(project, [planning]))
+
     if args.json:
         payload = {
-            "ok": not structural and not any(results.get(n) for n in results),
+            "ok": (not structural and not plan_gaps
+                   and not any(results.get(n) for n in results)),
             "structure": [p.as_dict() for p in structural],
+            "plan": [p.as_dict() for p in plan_gaps],
             "checks": {
                 str(number): {
                     "name": t(CHECK_NAMES[number]),
@@ -2570,10 +2609,12 @@ def cmd_check(project, args):
             print(problem.render())
         print()
 
+    blind = t("(not run: a plan branch has no code)")
     for number in sorted(results):
         problems = results[number]
         if problems is None:
-            print(f"– {number}. " + t(CHECK_NAMES[number]) + " " + t("(not run)"))
+            why = blind if planning is not None and number in PLAN_BLIND else t("(not run)")
+            print(f"– {number}. " + t(CHECK_NAMES[number]) + " " + why)
             continue
         total += len(problems)
         if not problems:
@@ -2582,10 +2623,16 @@ def cmd_check(project, args):
         print(f"✗ {number}. " + t(CHECK_NAMES[number]))
         for problem in problems:
             print(problem.render())
+    if plan_gaps:
+        total += len(plan_gaps)
+        print("\u2717 " + t("the plan is missing things"))
+        for problem in plan_gaps:
+            print(problem.render())
     print()
     print(t("clean") if total == 0 else t("problems: {count}", count=total))
 
-    everything = list(structural) + [p for found in results.values() if found for p in found]
+    everything = (list(structural) + list(plan_gaps)
+                  + [p for found in results.values() if found for p in found])
     strays = foreign_steps(project, everything)
     if strays:
         print("\n" + t("{steps}: this branch did not come to write that step. "

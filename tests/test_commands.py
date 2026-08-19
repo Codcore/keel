@@ -410,6 +410,53 @@ class TestCheck(ProjectCase):
         self.assertEqual(code, 1)
         self.assertNotIn("not moved, renamed or deleted", out)
 
+    def fileless_transform(self):
+        """A plan that says nothing about which files the work will touch."""
+        step = "keel/steps/0001-session-loop.md"
+        self.fixture.write(step, self.fixture.read(step).replace(
+            "    files:      [lib/session.ex]", "    files:      []"))
+
+    def test_a_plan_branch_is_not_asked_for_code_it_has_none_of(self):
+        self.fixture.branch("plan/0001-session-loop")
+        code, out = self.capture(Args(fast=False, no_tests=False, json=False))
+        self.assertIn("5. every scenario has a green test (not run: a plan branch", out)
+        self.assertIn("6. contracts hold (not run: a plan branch", out)
+        self.assertEqual(code, 0, out)
+
+    def test_an_incomplete_plan_does_not_get_pushed(self):
+        self.fileless_transform()
+        self.fixture.branch("plan/0001-session-loop")
+        code, out = self.capture(Args(fast=False, no_tests=True, json=False))
+        self.assertIn("the plan is missing things", out)
+        self.assertIn("declared no files", out)
+        self.assertEqual(code, 1)
+
+    def test_a_half_written_plan_still_commits(self):
+        """Коміт на гілці плану може бути недописаним; пуш і мерж — ні."""
+        self.fileless_transform()
+        self.fixture.branch("plan/0001-session-loop")
+        code, out = self.capture(Args(fast=True, no_tests=True, json=False))
+        self.assertNotIn("the plan is missing things", out)
+        self.assertEqual(code, 0, out)
+
+    def test_the_plan_gate_shows_up_in_json(self):
+        import json as jsonlib
+        self.fileless_transform()
+        self.fixture.branch("plan/0001-session-loop")
+        code, out = self.capture(Args(fast=False, no_tests=True, json=True))
+        payload = jsonlib.loads(out)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(any("declared no files" in p["message"] for p in payload["plan"]))
+        self.assertFalse(payload["checks"]["5"]["run"])
+        self.assertEqual(code, 1)
+
+    def test_a_work_branch_is_still_asked_for_everything(self):
+        self.fixture.branch("0001-session-loop")
+        code, out = self.capture(Args(fast=False, no_tests=True, json=False))
+        self.assertIn("5. every scenario has a green test", out)
+        self.assertNotIn("a plan branch has no code", out)
+        self.assertEqual(code, 1)
+
     def test_json_shape(self):
         import json as jsonlib
         code, out = self.capture(Args(fast=True, no_tests=True, json=True))
