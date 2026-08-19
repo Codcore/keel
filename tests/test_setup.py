@@ -275,17 +275,17 @@ class TestInit(unittest.TestCase):
     def test_copies_every_reference(self):
         self.init()
         self.assertIn("ISO/IEC 25010", self.read("keel/QUALITY.md"))
-        self.assertIn("six checks", self.read("keel/KEEL.md"))
+        self.assertIn("Chapter 7. The checks", self.read("keel/METHODOLOGY.md"))
         self.assertIn("keel new wave", self.read("keel/README.md"))
 
     def test_methodology_and_tool_stay_apart(self):
-        """Розділено навмисно: KEEL.md — що і чому, README.md — чим запускати."""
+        """Розділено навмисно: METHODOLOGY.md — норма, README.md — чим запускати."""
         self.init()
-        method, tool = self.read("keel/KEEL.md"), self.read("keel/README.md")
+        method, tool = self.read("keel/METHODOLOGY.md"), self.read("keel/README.md")
         self.assertNotIn("| `keel new wave", method)
         self.assertNotIn("mix.exs", method)
         self.assertIn("README.md", method)
-        self.assertIn("KEEL.md", tool)
+        self.assertIn("METHODOLOGY.md", tool)
 
     def test_agents_block_points_at_both_references(self):
         self.init()
@@ -423,18 +423,18 @@ class TestLanguageSettings(unittest.TestCase):
 
     def test_ukrainian_docs_arrive_in_ukrainian(self):
         self.init(docs="uk")
-        self.assertIn("два типи документів", self.read("keel/KEEL.md"))
+        self.assertIn("Типів документів два", self.read("keel/METHODOLOGY.md"))
         self.assertIn("Обіцянка перевіряється", self.read("AGENTS.md"))
 
     def test_english_docs_arrive_in_english(self):
         self.init(docs="en")
-        self.assertIn("two kinds of document", self.read("keel/KEEL.md"))
+        self.assertIn("two kinds of document", self.read("keel/METHODOLOGY.md"))
         self.assertIn("A promise is checked", self.read("AGENTS.md"))
 
     def test_docs_and_lang_really_are_independent(self):
         """Англійський довідник із українськими тригерами — той самий випадок."""
         self.init(docs="en", lang="uk")
-        self.assertIn("two kinds of document", self.read("keel/KEEL.md"))
+        self.assertIn("two kinds of document", self.read("keel/METHODOLOGY.md"))
         self.assertIn("«зроби наступне»",
                       self.read(".claude/skills/keel-work/SKILL.md"))
 
@@ -670,7 +670,7 @@ class TestTranslationCheck(unittest.TestCase):
         project = keel.Project(root)
         project.settings = {"docs": "en", "lang": "en"}
         with unittest.mock.patch.object(keel, "translations",
-                                        lambda lang: {"KEEL.md": ""}):
+                                        lambda lang: {"METHODOLOGY.md": ""}):
             problems = keel.check_translations(project)
         self.assertIn("names no source revision", problems[0].message)
 

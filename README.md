@@ -7,8 +7,8 @@
 The tool behind the Keel method. It knows the state and writes no prose.
 
 MIT licensed. The method itself — why waves, contracts and revisions exist — is in
-[KEEL.md](KEEL.md). This file is what runs it. Either may point at the other
-freely: KEEL.md says what has to be true, README says which command checks it.
+[METHODOLOGY.md](METHODOLOGY.md). This file is what runs it. Either may point at the other
+freely: METHODOLOGY.md says what has to be true, README says which command checks it.
 
 ## Installing
 
@@ -77,7 +77,7 @@ read by Claude and Cursor, not by it.
 | `keel new contract <slug>` | the same for a contract: `module` with `exports`, or `verify` |
 | `keel gaps [wave]` | what is missing from a wave's description: slugs without sections, transforms without files, scenarios without `proves`. And it asks about a forgotten edge: the wave declares a file another wave declares too while `depends_on` does not name it |
 | `keel next` | the **package** for the next move: the transform, its files and boundaries, the scenarios it brings closer, the bodies of the contracts it leans on — and nothing beyond. On the main branch it names instead the wave that is ready to be worked and the branch to take. Markdown; `--json` for scripts |
-| `keel check` | the six checks — the full gate. `--fast` leaves those that run nothing, `--no-tests` skips the test run and the CI command, `--branch` names the branch where git does not know it, `--json` for scripts |
+| `keel check` | every check — the full gate. `--fast` leaves those that run nothing, `--no-tests` skips the test run and the CI command, `--branch` names the branch where git does not know it, `--json` for scripts |
 | `keel rev` | shows revisions that have drifted apart; `--write` records the new ones |
 | `keel show` | a wave as a person reads it: the why, the scenarios and the transforms, with what is closed and what is not |
 | `keel hooks` | shows the state of `pre-commit` and `pre-push`; `--install` installs them, `--force` overwrites somebody else's |
@@ -181,7 +181,7 @@ translation quietly falling behind.
 
 ## Language adapters
 
-Two of the six checks depend on the language: what runs the tests (5) and where a
+Two of the checks depend on the language: what runs the tests (§7.5) and where a
 module's exports come from (6). The adapter is chosen by a marker in the project
 root.
 
@@ -312,7 +312,7 @@ keel/waves/                     empty directories
 keel/contracts/
 keel/keel.json                  the settings: two languages and the mode
 keel/keel.py                    the tool itself, as a copy
-keel/KEEL.md                    the method, as a copy
+keel/METHODOLOGY.md             the method, as a copy
 keel/README.md                  this file, as a copy
 keel/QUALITY.md                 the quality cuts — walked point by point
 AGENTS.md                       a block between markers: principles and pointers
@@ -396,7 +396,7 @@ owns a block inside them, not the file, so they are merged rather than replaced.
 
 The translation check lives here too: `update` turns red when the English
 reference has fallen behind the Ukrainian source. It is deliberately not in
-`check` — the six checks are about the graph of waves in a project, and this one
+`check` — the checks are about the graph of waves in a project, and this one
 is about the method's copies of itself.
 
 ## Git hooks
@@ -593,7 +593,7 @@ mode the operator is the only one who starts it:
 | `/keel-review` | before the PR | `keel check` |
 
 The words on the left and the words on the right are deliberately different. On
-the left are the **stages** of the cycle, named exactly as `KEEL.md` names them;
+the left are the **stages** of the cycle, named exactly as `METHODOLOGY.md` names them;
 on the right are the tool's **actions**. One stage is several actions, so they do
 not collapse into one word: `/keel-plan` is not `new wave`, it is three commands
 and all the judgement in between. The operator knows the three words on the left;
@@ -619,7 +619,7 @@ test guards that.
 
 ## State
 
-Done: the six checks, `new`, `gaps`, `next`, `rev`, `check`, `hooks`, `skills`,
+Done: every check, `new`, `gaps`, `next`, `rev`, `check`, `hooks`, `skills`,
 `init`, `update`, `hook`; the git hooks and CI; three skills in two dialects;
 agent hooks for Claude and Cursor; references in two languages with the revision
 lock on them.

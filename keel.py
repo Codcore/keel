@@ -10,7 +10,7 @@ catalogue is keyed by the English text.
     keel new contract <slug>   skeleton of a contract
     keel gaps                  what the wave description is missing
     keel next                  package for the next move
-    keel check                 the six checks and the project's own gate
+    keel check                 every check, and the project's own gate
     keel rev                   revisions that have drifted apart
     keel show                  a wave as a person reads it
     keel hooks                 git hooks: pre-commit and pre-push
@@ -392,6 +392,11 @@ UK = {
         "{file}: це не те, що писав Keel, лишаю на місці — хуки в ньому далі "
         "працюють",
     "{file} removed": "{file} прибрано",
+    "{file} removed — no longer part of the methodology":
+        "{file} прибрано — його вже немає в методиці",
+    "{file}: no longer part of the methodology, and not what Keel wrote — "
+    "leaving it in place":
+        "{file}: у методиці його вже немає, а писав його не Keel — лишаю на місці",
     "{file} (our hook entries taken out)": "{file} (наші записи хуків вилучено)",
     "Implements: [{slug}](../contracts/{slug}.md)@{rev}":
         "Виконує: [{slug}](../contracts/{slug}.md)@{rev}",
@@ -1343,7 +1348,7 @@ class Git:
 # ─────────────────────────────────────────────────────────────────────────────
 # Language adapters
 #
-# Two of the six checks depend on the language: what runs the tests and where
+# Two of the checks depend on the language: what runs the tests and where
 # a module's exports come from. The adapter is chosen by a marker in the root.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1973,7 +1978,7 @@ def find_root(start):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# The six checks
+# The checks — §7
 # ─────────────────────────────────────────────────────────────────────────────
 
 CHECK_NAMES = {
@@ -2657,7 +2662,7 @@ def check_exports(project, run_tests=True):
                    + ("\n" + "\n".join("      " + line for line in tail) if tail else ""),
                 contract.rel, contract.line_of("verify")))
 
-    # A contract that promises nothing checkable is not a contract. KEEL.md is
+    # A contract that promises nothing checkable is not a contract. §2.10 is
     # explicit: "a promise nothing can check is not a contract but a boundary,
     # and it lives as a paragraph inside a transform." Left alone, it collected
     # a green sixth check and a scenario could prove it — a tick over a promise
@@ -2819,7 +2824,7 @@ def drifted_from_main(project):
     amended three times after it was approved. Every amendment was right, and
     every one was named only because the agent chose to name it.
 
-    Drift is not forbidden here either: KEEL.md says extending a transform's
+    Drift is not forbidden here either: §4.6 says extending a transform's
     file list stays a line in the diff. It is the silence that ends — the
     difference is stated, and whoever opens the pull request knows to look.
 
@@ -3548,7 +3553,7 @@ AGENTS_END = "<!-- keel:end -->"
 VENDORED = "keel/keel.py"
 # References travel as copies: AGENTS.md points at them, and you can only point
 # at what sits in the same repository. Methodology, tool, quality cuts.
-REFERENCES = ("KEEL.md", "README.md", "QUALITY.md")
+REFERENCES = ("METHODOLOGY.md", "README.md", "QUALITY.md")
 
 # Two settings, and they are deliberately separate: someone may well want the
 # reference in English while the agent writes and listens in their own language.
@@ -3800,7 +3805,7 @@ def check_translations(project):
 
     Same rule as everywhere else in Keel: whoever leans on a text holds its
     revision. Here the English page leans on the Ukrainian one. This lives with
-    `update` rather than with `check`: the six checks are about a project's own
+    `update` rather than with `check`: the checks are about a project's own
     graph, and this one is about the methodology's copies of itself.
     """
     lang = project.settings["docs"]
@@ -3828,8 +3833,8 @@ def check_translations(project):
 AGENTS_BLOCK_EN = """{start}
 ## Keel
 
-This project's method: two kinds of document — wave and contract — and six
-checks. Waves live in `keel/waves/`, contracts in `keel/contracts/`.
+This project's method: two kinds of document — wave and contract — and the
+checks that hold them. Waves live in `keel/waves/`, contracts in `keel/contracts/`.
 
 {principles}
 
@@ -3841,8 +3846,8 @@ Two commands:
 
 Three references — open them when something is unclear:
 
-- `keel/KEEL.md` — the method: what goes in a wave's header, how revisions work,
-  what each of the six checks looks at.
+- `keel/METHODOLOGY.md` — the method: what goes in a wave's header, how revisions work,
+  what each check looks at.
 - `keel/README.md` — the tool: every command with its flags, language adapters,
   hooks, skills.
 - `keel/QUALITY.md` — forty quality cuts. Walked once per wave, where the
@@ -3854,8 +3859,8 @@ This block is generated; edits between the markers are overwritten on the next u
 AGENTS_BLOCK = """{start}
 ## Keel
 
-Методика цього проєкту: два типи документів — хвиля і контракт — і шість
-перевірок. Хвилі лежать у `keel/waves/`, контракти в `keel/contracts/`.
+Методика цього проєкту: два типи документів — хвиля і контракт — і перевірки,
+що їх тримають. Хвилі лежать у `keel/waves/`, контракти в `keel/contracts/`.
 
 {principles}
 
@@ -3867,8 +3872,8 @@ AGENTS_BLOCK = """{start}
 
 Три довідники — відкривай, коли не ясно:
 
-- `keel/KEEL.md` — методика: що йде в шапку хвилі, як влаштовані редакції,
-  що саме перевіряє кожна з шести перевірок.
+- `keel/METHODOLOGY.md` — методика: що йде в шапку хвилі, як влаштовані редакції,
+  що саме перевіряє кожна перевірка.
 - `keel/README.md` — інструмент: усі команди з прапорцями, адаптери мов,
   хуки, скіли.
 - `keel/QUALITY.md` — сорок розрізів якості. Проходяться раз на хвилю, там,
@@ -3949,7 +3954,7 @@ files by name before the work starts. Globs do not exist here: under a glob an
 agent creates ten files where one was meant, and nothing objects.
 
 For the exact header shape — which fields exist, how `proves`, `implements` and
-`contracts` are written, where a revision comes from — read `keel/KEEL.md`. The
+`contracts` are written, where a revision comes from — read `keel/METHODOLOGY.md`. The
 skeleton shows the bones; the reference explains the fields.
 
 ## Ask, do not guess
@@ -4147,7 +4152,7 @@ the work was forgotten.
 ## After that
 
 When it is clean, push and open the PR. The wave stands whole: every transform
-closed by a commit, every scenario proved by a test, six checks green. Nothing
+closed by a commit, every scenario proved by a test, every check green. Nothing
 else needs marking — the statuses are derived.
 """
 
@@ -4510,7 +4515,7 @@ def approved_files(project, wave):
 def widened_here(project, wave, relative):
     """Whether this file entered the wave's scope after the plan was approved.
 
-    Extending the list is allowed — KEEL.md says so, and it stays a line in the
+    Extending the list is allowed — §4.6 says so, and it stays a line in the
     diff. But the hook used to wave such a write through in silence: amend the
     wave, then write anything, and nothing said a word until `check` ran, which
     is three moves later and somewhere else. Said here instead, at the moment
@@ -4607,6 +4612,33 @@ def write_verdict(project, payload):
                       name=relative, wave=wave.slug,
                       declared=", ".join(sorted(declared)) or t("none"),
                       file=wave.rel))
+
+
+def remove_retired(root, wanted, manifest, done):
+    """Take back a file the methodology has stopped generating.
+
+    Renaming a reference used to leave the old copy in every project that had
+    ever been updated — `keel/KEEL.md` beside `keel/METHODOLOGY.md`, both looking
+    authoritative, one of them frozen at whatever the methodology said the day it
+    was retired. A stale copy of the rules is worse than none: it answers.
+
+    Same answer as everywhere else for a file somebody edited: name it and leave
+    it. The manifest entry goes either way, so the next run has nothing to say
+    about a file that is no longer ours.
+    """
+    for relative in sorted(set(manifest) - set(wanted)):
+        path = os.path.join(root, relative)
+        if os.path.exists(path):
+            if digest(read_text(path)) != manifest[relative]:
+                print("  " + t("{file}: no longer part of the methodology, and not "
+                               "what Keel wrote — leaving it in place",
+                               file=relative))
+                del manifest[relative]
+                continue
+            os.remove(path)
+            done.append(t("{file} removed — no longer part of the methodology",
+                          file=relative))
+        del manifest[relative]
 
 
 def remove_hook_configs(root, done):
@@ -5233,6 +5265,7 @@ def cmd_update(project, args):
         # generated_files no longer lists the cursor file, so survey never
         # mentions it either.
         remove_hook_configs(project.root, done)
+    remove_retired(project.root, wanted, manifest, done)
     write_config(project.root, project.settings, done, manifest)
 
     for line in done:
@@ -5413,7 +5446,7 @@ def fail(message, code=2):
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        prog="keel", description="Keel: two kinds of document, six checks.")
+        prog="keel", description="Keel: two kinds of document, and the checks that hold them.")
     parser.add_argument("--version", action="version", version=VERSION)
     parser.add_argument("-C", dest="chdir", metavar="DIR",
                         help="work in this directory")
@@ -5426,7 +5459,7 @@ def build_parser():
     gaps = sub.add_parser("gaps", help="what is missing from a wave")
     gaps.add_argument("wave", nargs="?", help="a wave; without it, the branch's wave")
 
-    check = sub.add_parser("check", help="the six checks")
+    check = sub.add_parser("check", help="every check")
     check.add_argument("--fast", action="store_true",
                        help="only the ones that run nothing, as on pre-commit")
     check.add_argument("--no-tests", action="store_true", help="do not run anything")

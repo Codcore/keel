@@ -1,0 +1,449 @@
+# Keel: the method
+
+The normative text. Here is **what has to be true**; the grounds are given
+wherever they are not obvious, because a constraint without a reason is routed
+around by anyone able to read it.
+
+What runs this, which commands, hooks and skills exist — [README.md](README.md).
+The quality cuts — `QUALITY.md`. The principles — `PRINCIPLES.md`, and they
+reach a project as a block inside `AGENTS.md`.
+
+Citations take the form `§4.2`. Cite from anywhere: a commit message, an error
+string, a skill, a review finding.
+
+---
+
+## Chapter 1. Interpretation
+
+**§1.1.** This document is normative. A contradiction between it and any other
+text of the method is resolved in its favour, and the other text is corrected.
+
+**§1.2.** A document's header is written in English. Its prose is written in the
+project's own language.
+
+*Grounds: header fields become file names, test tags and code; the prose is read
+and approved by a person.*
+
+**§1.3.** The header is YAML between three dashes. The body is Markdown.
+
+**§1.4.** A document's identifier is its file name without the extension. There
+are no anchors inside documents.
+
+*Grounds: checking a reference reduces to the file being there, and needs no
+parser.*
+
+**§1.5.** Paragraph numbers never change. A paragraph that loses force keeps its
+number, marked withdrawn, and the number is not reused.
+
+*Grounds: a citation whose number was changed points at a different rule and
+lies silently.*
+
+**§1.6.** A fact that lives in code is not restated here.
+
+*Grounds: a restated fact drifts from its source with nothing to bring it back.
+The number of checks, for one, is nowhere given as a number — it is the number
+of paragraphs in chapter 7.*
+
+---
+
+## Chapter 2. Documents
+
+**§2.1.** There are two kinds of document: the **wave** and the **contract**.
+There are no others.
+
+**§2.2.** A wave is one file, one branch, one pull request.
+
+**§2.3.** A scenario is a promise about behaviour. Every scenario becomes a test.
+
+**§2.4.** A transform is the work that fulfils a promise. Every transform becomes
+exactly one commit.
+
+**§2.5.** The names of scenarios and transforms, and the edges between them, live
+in the header; their texts live as sections in the body.
+
+**§2.6.** A contract is a promise the code leans on, together with the means of
+checking it. A contract lives in its own file.
+
+*Grounds: the promise outlives the wave that created it.*
+
+**§2.7.** Our own promise is declared as a module and the list of functions it
+exports. The check loads the module and compares.
+
+**§2.8.** Somebody else's promise — a library, a service, a binary — carries
+`verify`: a command whose success is the proof. Who makes the promise does not
+matter; that it can be checked does.
+
+**§2.9.** An export is written either as a name with an arity (`run/3`) or as a
+whole signature (`run(binary(), keyword()) :: {:ok, term()}`). The short form
+promises the function exists; the long one promises its shape as well. Where the
+language can be asked about types, the check compares the promised shape against
+the declared one. Write as much as you promise.
+
+**§2.10.** A promise nothing checks is not a contract. It is a **boundary**, and
+it is written as a paragraph inside a transform.
+
+---
+
+## Chapter 3. Edges
+
+**§3.1.** The edges of the graph, and no others:
+
+| Edge | From, to | What for |
+|---|---|---|
+| `depends_on` | wave → wave | the order of work |
+| `proves` | scenario → contract | the contract has proof |
+| `contracts` | transform → contract | what it implements, plus the revision |
+| `implements` | transform → scenario | which commit brings which promise closer |
+| tag in a test | test → scenario | the promise is proved, and this exact revision of it |
+
+**§3.2.** An edge lives in the header, not in the prose.
+
+*Grounds: a reference written as prose is bold code plus an anchor plus a
+relative path — three things that drift apart separately, and no check will
+catch up with them.*
+
+**§3.3.** `proves` is never empty. So contracts are decided **together with** the
+scenarios rather than after them: if the promise a scenario needs does not exist
+yet, this wave brings it; if it already does, the scenario points at it, and a
+second one is not wanted.
+
+---
+
+## Chapter 4. Scope
+
+**§4.1.** A transform lists its files by name **before** the work starts.
+
+**§4.2.** Globs are not used.
+
+*Grounds: under a glob an agent creates ten files where one was meant, and
+nothing objects.*
+
+**§4.3.** A wave has no scope of its own: it is the sum of its transforms'.
+
+**§4.4.** Scope is checked in both directions: touched outside the list, and
+declared but never touched.
+
+**§4.5.** The whole branch is checked, not a single commit.
+
+*Grounds: work is handed out one transform at a time, so an early commit of a
+wave legitimately has not yet touched the files of later ones.*
+
+**§4.6.** Widening the file list is allowed and remains a line in the diff. Drift
+is not forbidden — it is named.
+
+**§4.7.** Whatever only prepares the ground rides in the file list of the
+transform that needs it, and gets no transform of its own.
+
+*Grounds: a build file, a first dependency and a project skeleton promise
+nothing and bring no scenario closer, so a transform without a scenario is
+refused — rightly.*
+
+**§4.8.** The method's own furniture — `keel/`, the skills, the hooks, the CI
+file, the block inside `AGENTS.md` — is out of scope on every branch.
+
+*Grounds: refreshing the method mid-work must not require declaring our own
+generated file inside somebody's transform.*
+
+**§4.9.** A plan branch touches nothing but the furniture of §4.8. No code
+appears on it.
+
+**§4.10.** Scope is compared against the branch, whose name is the wave's name.
+Where git does not know that name it is passed explicitly; skipping the
+comparison silently is not permitted.
+
+*Grounds: green obtained without comparing is worse than red.*
+
+---
+
+## Chapter 5. Revisions
+
+**§5.1.** A reference may carry the revision of what it points at — a short hash
+of the text. The check compares the recorded revision against the text as it
+stands.
+
+**§5.2.** A revision is six hexadecimal characters. Comparison is by prefix: a
+record of four or more characters passes if it matches the start of the current
+hash.
+
+**§5.3.** A contract is hashed whole, header included. A scenario is hashed by
+the body of its section.
+
+*Grounds: a change to `exports` is a change to the promise.*
+
+**§5.4.** A revision changes with any change of wording. Only repeated spaces and
+newlines are collapsed before hashing.
+
+**§5.5.** Only the one who leans on a text writes its revision. A wave's header
+carries no revisions of its own scenarios.
+
+---
+
+## Chapter 6. Closure and approval
+
+**§6.1.** No status is written by hand. Everything below is derived.
+
+**§6.2.** A transform is closed when the branch holds a commit whose message
+begins with its slug.
+
+**§6.3.** A scenario is closed when a test with its name exists, the test is
+green, and the revision in the tag matches.
+
+**§6.4.** A contract is closed when its revision matches the recorded one and the
+promise is confirmed — by exports or by the `verify` command.
+
+**§6.5.** A wave is closed when all its transforms are closed, all its scenarios
+are proved, the whole gate is green — the checks, the completeness of the plan,
+the project's own CI command — and no two documents contradict each other.
+
+**§6.6.** Approval of a plan is written nowhere: it is the fact that the wave's
+file reached the main branch. Until then no work is handed out.
+
+---
+
+## Chapter 7. The checks
+
+**§7.1.** References lead somewhere: every slug in a header has its file or its
+section, every reference in the text has its file.
+
+**§7.2.** `depends_on` has no cycles.
+
+**§7.3.** Contract revisions match the text as it stands.
+
+**§7.4.** The files a branch changed match those declared in its transforms — in
+both directions.
+
+**§7.5.** Every scenario has a green test bearing its name, and the revision in
+the tag matches.
+
+**§7.6.** Contracts hold: the module exports what was promised, the `verify`
+command passes.
+
+**§7.7.** The set of names in the header matches the set of headings in the body.
+
+**§7.8.** A green §7.5 means "a test by that name exists, its revision matches,
+and it passes" — not "the promise is proved". A green §7.6 means "the promised
+shape is in place" — not "the promise is kept".
+
+*Grounds: whether a test really checks what its scenario promises cannot be
+asked mechanically; a contract may promise in prose that a broken tool does not
+bring down the session, have a flawless shape, and have code that does the
+opposite. That gap is what the review aims at, with its single question: what
+did we stay silent about.*
+
+**§7.9.** Reading the documents comes before the checks. A header that does not
+parse, and a field of the wrong shape, are an error in the document rather than
+an empty default.
+
+*Grounds: empty reads as "nothing was declared" — which switches the guard off,
+or accuses a transform of declaring no files while the files sit right there,
+merely in the wrong shape.*
+
+**§7.10.** No check parses prose. They all read the header, git, and compiled
+modules.
+
+---
+
+## Chapter 8. Branches and acceptance
+
+**§8.1.** A wave takes two pull requests: the plan separately, the work
+separately.
+
+**§8.2.** The plan branch is named `plan/<wave>`, the work branch `<wave>`. The
+wave's name comes from the generated file's name, not from the slug that was
+typed.
+
+*Grounds: the tool looks a wave up by the branch name; named otherwise, the
+branch links to nothing.*
+
+**§8.3.** On a plan branch §7.5 and §7.6 do not run; the completeness of the plan
+is checked in their place.
+
+*Grounds: there is no code on a plan branch by §4.9, so both would be red
+always — and a gate that is always shut teaches people not to look at it.*
+
+**§8.4.** A commit names its transform by the slug at the start of its message.
+There is no `commit` field in the header.
+
+*Grounds: such a field would be a hand-written status, against §6.1.*
+
+**§8.5.** The number in a wave's name is a unique prefix, not an order. The order
+is derived from `depends_on`.
+
+*Grounds: otherwise the temptation to renumber appears, and references break.*
+
+**§8.6.** The plan commit's message carries, in its own paragraph: the question,
+the options, the answer, who decided — **and what the author refused out loud, if
+they then did it, together with what changed their mind**.
+
+*Grounds: git knows who and when, the diff knows what, and why and on whose call
+is known to nobody, because the chat does not travel with the repository. A
+withdrawn position is the purest case of what lives in the chat alone: it never
+became a file, so the diff cannot carry it. The line runs at said out loud, not
+at changed my mind: a thought nobody heard needs no trace, and listing
+everything ever weighed turns the paragraph into a diary, which nobody reads.*
+
+---
+
+## Chapter 9. Roles
+
+**§9.1.** The tool knows the state. It does not write prose.
+
+**§9.2.** The agent has judgement. It does not remember the rules — it asks the
+tool.
+
+**§9.3.** The hook is what lets nobody past.
+
+**§9.4.** The skill says how to think where there is judgement to exercise.
+
+**§9.5.** The operator gives direction and approves. Approval takes the form of
+§6.6.
+
+**§9.6.** A rule does not hold because the agent read it.
+
+*Grounds: one agent reads, another does not, and better instructions do not cure
+that. So every rule meant to hold rests on the tool, a hook or a check — or is
+admitted to hold by text alone.*
+
+**§9.7.** A constraint carries its reason with it, and a hint at what to do
+instead.
+
+*Grounds: for whoever reads your constraints, every constraint must also be
+intelligible and justified — otherwise it gets routed around, and not out of
+malice, but because it looked stupid.*
+
+**§9.8.** A guard that is wrong more often than right is removed, not weakened.
+
+---
+
+## Chapter 10. Quality
+
+**§10.1.** `QUALITY.md` is a checklist, not a structure. No wave is required to
+have a scenario for every cut.
+
+**§10.2.** The cuts are walked once per wave, where the scenarios are written.
+
+**§10.3.** Every cut gets exactly one of three answers: does not apply — with the
+reason; answered by this scenario; silent.
+
+**§10.4.** "Silent" means the cut is relevant and nothing closes it. Then either
+a scenario is written or a decision to say no is taken out loud. This list is
+what ends silence; it does not end refusal.
+
+*Grounds: an agent writes the happy path by default.*
+
+**§10.5.** A boundary that says "we deliberately do not do this" is checked
+against the dependency exactly as a quality cut is.
+
+*Grounds: a foreign library's default made a boundary untrue from the moment it
+was written.*
+
+---
+
+## Appendix A. An example
+
+`keel/waves/0007-session-loop.md`
+
+```markdown
+---
+depends_on: [0005-flat-tools, 0006-graph-tools]
+
+scenarios:
+  finishes-when-no-tool-called:   {proves: session-run@7c40de}
+  only-handed-tools-are-callable: {proves: session-run@7c40de}
+
+transforms:
+  declare-outcome-struct:
+    implements: [finishes-when-no-tool-called]
+    contracts:  [session-outcome@d91c4a]
+    files:      [lib/keel_agent/session/outcome.ex]
+
+  drive-turns-on-reqllm:
+    implements: [finishes-when-no-tool-called, only-handed-tools-are-callable]
+    contracts:  [session-run@7c40de]
+    files:
+      - lib/keel_agent/session.ex
+      - test/keel_agent/session_test.exs
+---
+
+## Why
+
+One conversation with a model against a toolset handed in from outside.
+The session does not know which tools it was given — so both paths are
+driven through it, and the difference between runs is a difference in tools.
+
+## scenario: finishes-when-no-tool-called
+
+**Given** an opening context and an empty toolset,
+**When** the model answers with text and calls nothing,
+**Then** the conversation ends in `:finished`, and the trace holds the turn.
+
+## transform: drive-turns-on-reqllm
+
+Drive turns while the model keeps calling tools. A tool's answer is
+appended to the trace before the next turn.
+
+Boundaries: there is no attempt counter — a tool's refusal is an answer,
+and the next turn is the retry.
+```
+
+`keel/contracts/session-run.md`
+
+```markdown
+---
+module: KeelAgent.Session
+exports:
+  - "run(Context.t(), [Tool.t()], Config.t()) :: Outcome.t()"
+---
+
+One conversation with one model. `opening` is the first context, `tools`
+are what the model may call, `config` is the one whose `model` says which
+model, and whose `step_budget_ms` bounds the whole call.
+```
+
+`test/keel_agent/session_test.exs`
+
+```elixir
+@tag proves: :finishes_when_no_tool_called, rev: "a3f1c0"
+test "the conversation finishes when the model calls no tool" do
+  outcome = Session.run(opening(), [], config())
+
+  assert outcome.stop == :finished
+  assert Enum.any?(outcome.trace.events, &(&1.kind == :turn))
+end
+```
+
+---
+
+## Appendix B. What deliberately does not exist
+
+No requirements, no questions, no journal, no statuses, no tags, no numbers
+inside a wave, no decision files. A promise is written once — as a scenario; a
+question lives for hours in the discussion of a pull request rather than for
+years in the graph; history is git's; status is computed by chapter 6.
+
+A constraint is not a field: what can be checked is a scenario, what is
+structural is scope, and the rest is a boundary under §2.10.
+
+Decision files existed and went: no header field pointed at them, no check
+looked at them, and the rule about when to open one was counted by nobody. What
+promises became a contract; what we deliberately do not do became a boundary; an
+architectural boundary became the linter's configuration.
+
+Every new entity must first hurt by its absence, and every existing one must
+prove it still hurts.
+
+---
+
+## Revision history
+
+Number and date. **What** changed is visible in the diff, **why** is said in the
+commit message; retelling it here would be a third description of the same
+thing.
+
+The list is kept by hand although git knows both the number and the date. There
+is one reason, and it is real: this document travels into projects as a copy,
+and the method's repository history is not there.
+
+| Revision | Date |
+|---|---|
+| 1 | 2026-08-20 |

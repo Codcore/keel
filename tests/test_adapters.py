@@ -256,7 +256,7 @@ class TestExports(unittest.TestCase):
     def test_a_contract_that_promises_nothing_checkable_is_named(self):
         """Було «лишаємо в спокої» — і воно збирало зелену шосту ні над чим.
 
-        `KEEL.md`: обіцянка, якої ніщо не перевіряє, — це не контракт, а межа,
+        `METHODOLOGY.md` §2.10: обіцянка, якої ніщо не перевіряє, — не контракт, а межа,
         і живе вона абзацом у трансформі."""
         self.write("keel/contracts/prose.md", "---\nmodule: demo\n---\n\nСама проза.\n")
         problems = keel.check_exports(keel.Project(self.root))

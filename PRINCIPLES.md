@@ -1,7 +1,7 @@
 # Keel — principles
 
 One page. Read always, before any work.
-The full account is in `KEEL.md`; that one is a reference, read when needed.
+The full account is in `METHODOLOGY.md`; that one is the normative text, cited by paragraph.
 
 ## 1. A promise is checked, or there is no promise
 

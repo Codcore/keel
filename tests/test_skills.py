@@ -191,7 +191,7 @@ class TestSkills(ProjectCase):
 
     def test_planning_skill_points_at_the_format_reference(self):
         self.generate()
-        self.assertIn("keel/KEEL.md",
+        self.assertIn("keel/METHODOLOGY.md",
                       self.fixture.read(".claude/skills/keel-plan/SKILL.md"))
 
     @unittest.skipUnless(HAS_PYYAML, "PyYAML не встановлений")
@@ -269,9 +269,12 @@ class TestSkillQuality(ProjectCase):
         """Заголовок методики — її обличчя; розійтись йому ніде не можна."""
         import re
         home = keel.home()
-        for name in ("KEEL.md", "docs/uk/KEEL.md"):
+        for name in ("METHODOLOGY.md", "docs/uk/METHODOLOGY.md"):
             text = keel.read_text(os.path.join(home, name))
-            self.assertRegex(text, r"(два типи документів|two kinds of document)")
+            # Норма про кількість живе в одному параграфі, і обидві мови мають
+            # нести саме його: розійтись число може лише там, де його переказали.
+            self.assertIn("**\u00a72.1.**", text)
+            self.assertRegex(text, r"(Тип\u0456в документ\u0456в два|two kinds of document)")
             self.assertNotRegex(text, r"(три типи документів|three kinds of document)")
         # PRINCIPLES.md стоїть окремо, бо там число написане іншими словами —
         # і саме тому воно й розійшлось: охорона дивилась на два файли з
