@@ -25,13 +25,13 @@ class TestNext(ProjectCase):
             sys.stdout = saved
         return code, stream.getvalue()
 
-    def test_on_main_it_names_the_step_that_is_ready(self):
+    def test_on_main_it_names_the_wave_that_is_ready(self):
         """Було «гілка не названа за кроком» — правда, але не відповідь."""
         code, out = self.run_next()
         self.assertEqual(code, 1)
         self.assertIn("git checkout -b 0001-session-loop", out)
 
-    def test_a_branch_that_is_neither_main_nor_a_step_still_says_the_rule(self):
+    def test_a_branch_that_is_neither_main_nor_a_wave_still_says_the_rule(self):
         self.fixture.branch("spike/whatever")
         code, out = self.run_next()
         self.assertEqual(code, 1)
@@ -226,14 +226,14 @@ class TestNewAndPlan(ProjectCase):
             sys.stdout = saved
         return code, stream.getvalue()
 
-    def test_new_step_takes_the_next_number(self):
+    def test_new_wave_takes_the_next_number(self):
         code, out = self.capture(keel.cmd_new, self.project,
                                  Args(kind="wave", slug="Tool Calls"))
         self.assertEqual(code, 0)
         self.assertIn("0002-tool-calls.md", out)
         self.assertTrue(os.path.exists(self.fixture.path("keel/waves/0002-tool-calls.md")))
 
-    def test_new_step_skeleton_parses(self):
+    def test_new_wave_skeleton_parses(self):
         self.capture(keel.cmd_new, self.project, Args(kind="wave", slug="tool-calls"))
         wave = self.project.waves["0002-tool-calls"]
         self.assertIsNone(wave.error)
@@ -253,7 +253,7 @@ class TestNewAndPlan(ProjectCase):
         self.assertEqual(code, 0)
         self.assertIn("the plan is complete", out)
 
-    def test_gaps_without_an_argument_names_only_its_own_step(self):
+    def test_gaps_without_an_argument_names_only_its_own_wave(self):
         """Заголовок казав один крок, а список — інший."""
         self.fixture.write("keel/waves/0009-other.md",
                            "---\ndepends_on: []\nscenarios:\n  zzz: {proves: session-run}\n"
@@ -314,7 +314,7 @@ class TestShow(ProjectCase):
             sys.stdout = saved
         return code, stream.getvalue()
 
-    def test_links_resolve_from_the_step_file(self):
+    def test_links_resolve_from_the_wave_file(self):
         code, out = self.show("0001-session-loop")
         self.assertEqual(code, 0)
         base = os.path.dirname(self.fixture.path("keel/waves/0001-session-loop.md"))
@@ -361,7 +361,7 @@ class TestShow(ProjectCase):
         self.assertIn("not there yet", out)
         self.assertIn("lib/поки_немає.ex", out)
 
-    def test_an_unknown_step_refuses(self):
+    def test_an_unknown_wave_refuses(self):
         with self.assertRaises(SystemExit):
             self.show("0009-nope")
 
@@ -374,7 +374,7 @@ class TestGapsAsksAboutAForgottenEdge(ProjectCase):
     файл, не спираючись один на одного.
     """
 
-    def second_step(self, depends="[]", files="[lib/session.ex]",
+    def second_wave(self, depends="[]", files="[lib/session.ex]",
                     contracts="[session-run@%s]"):
         rev = self.fixture.contract_rev
         self.fixture.write("keel/waves/0002-later.md", f"""---
@@ -410,28 +410,28 @@ transforms:
                 keel.missing_edges(self.project, self.project.waves[slug])]
 
     def test_a_shared_file_without_an_edge_is_asked_about(self):
-        self.second_step()
+        self.second_wave()
         self.assertTrue(any("lib/session.ex" in m for m in self.messages()),
                         self.messages())
 
     def test_the_edge_silences_it(self):
-        self.second_step(depends="[0001-session-loop]")
+        self.second_wave(depends="[0001-session-loop]")
         self.assertEqual(self.messages(), [])
 
-    def test_the_step_that_is_leaned_on_is_not_asked(self):
+    def test_the_wave_that_is_leaned_on_is_not_asked(self):
         """Напрямок читається з графа, а не з номерів у назвах."""
-        self.second_step(depends="[0001-session-loop]")
+        self.second_wave(depends="[0001-session-loop]")
         self.assertEqual(self.messages("0001-session-loop"), [])
 
     def test_a_shared_contract_alone_is_not_asked_about(self):
         """Спиратись на спільну обіцянку — не те саме, що залежати від кроку,
         який її написав. Питання про це було майже завжди хибним і давало
         N×(N−1) рядків на один поширений контракт."""
-        self.second_step(files="[lib/nothing_shared.ex]")
+        self.second_wave(files="[lib/nothing_shared.ex]")
         self.assertEqual(self.messages(), [])
 
-    def test_a_dependency_two_steps_away_still_counts_as_named(self):
-        self.second_step(depends="[0001-session-loop]")
+    def test_a_dependency_two_waves_away_still_counts_as_named(self):
+        self.second_wave(depends="[0001-session-loop]")
         self.fixture.write("keel/waves/0003-last.md",
                            self.fixture.read("keel/waves/0002-later.md")
                            .replace("depends_on: [0001-session-loop]",
@@ -456,7 +456,7 @@ class TestGapsAsksAboutAContractNobodyLeansOn(ProjectCase):
         wave = self.project.waves["0001-session-loop"]
         return [p.message for p in keel.unclaimed_contracts(self.project, wave)]
 
-    def test_a_contract_this_step_brings_and_nobody_names_is_asked_about(self):
+    def test_a_contract_this_wave_brings_and_nobody_names_is_asked_about(self):
         self.new_contract()
         self.assertTrue(any("brand-new" in m for m in self.messages()),
                         self.messages())
@@ -484,12 +484,12 @@ class TestNextOnTheMainBranch(ProjectCase):
     def close_the_only_transform(self):
         self.fixture.git("commit", "--allow-empty", "-m", "drive-turns: зроблено")
 
-    def add_step(self, slug, body):
+    def add_wave(self, slug, body):
         self.fixture.write(f"keel/waves/{slug}.md", body)
         self.fixture.git("add", "-A")
         self.fixture.git("commit", "-m", f"план {slug}")
 
-    def test_the_ready_step_is_named_with_its_branch(self):
+    def test_the_ready_wave_is_named_with_its_branch(self):
         answer = self.answer()
         self.assertIn("0001-session-loop", answer)
         self.assertIn("git checkout -b 0001-session-loop", answer)
@@ -502,16 +502,16 @@ class TestNextOnTheMainBranch(ProjectCase):
     def test_a_skeleton_is_not_a_finished_project(self):
         """Крок без трансформ закривати нічим — і він читався як завершений."""
         self.close_the_only_transform()
-        self.add_step("0002-empty", keel.step_skeleton("0002-empty"))
+        self.add_wave("0002-empty", keel.wave_skeleton("0002-empty"))
         answer = self.answer()
         self.assertIn("0002-empty", answer)
         self.assertIn("the plan is not written yet", answer)
 
-    def test_a_step_whose_ground_is_not_laid_is_not_offered(self):
+    def test_a_wave_whose_ground_is_not_laid_is_not_offered(self):
         self.close_the_only_transform()
         # Своя назва трансформи: інакше комміт, що закрив `drive-turns`
         # у першому кроці, закриває однойменну і в другому.
-        self.add_step("0002-later", self.fixture.read(
+        self.add_wave("0002-later", self.fixture.read(
             "keel/waves/0001-session-loop.md")
             .replace("depends_on: []", "depends_on: [0009-never-planned]")
             .replace("drive-turns", "later-turns"))
@@ -546,9 +546,9 @@ class TestCheck(ProjectCase):
     def stray_skeleton(self):
         """An unfilled skeleton of somebody else's wave, left behind untracked."""
         self.fixture.write("keel/waves/0002-left-behind.md",
-                           keel.step_skeleton("0002-left-behind"))
+                           keel.wave_skeleton("0002-left-behind"))
 
-    def test_a_stray_step_is_named_so_nobody_moves_it(self):
+    def test_a_stray_wave_is_named_so_nobody_moves_it(self):
         self.stray_skeleton()
         self.fixture.branch("plan/0001-session-loop")
         code, out = self.capture(Args(fast=True, no_tests=True, json=False))
@@ -556,7 +556,7 @@ class TestCheck(ProjectCase):
         self.assertIn("0002-left-behind", out)
         self.assertIn("not moved, renamed or deleted", out)
 
-    def test_the_branch_own_step_earns_no_such_note(self):
+    def test_the_branch_own_wave_earns_no_such_note(self):
         self.fixture.branch("plan/0001-session-loop")
         self.fixture.write("keel/waves/0001-session-loop.md",
                            self.fixture.read("keel/waves/0001-session-loop.md")
@@ -795,3 +795,18 @@ class TestAgentsMarkers(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAnEmptyProjectIsNotAFinishedOne(ProjectCase):
+    """«Усі хвилі завершені» над проєктом, у якому немає жодної, — неправда,
+    і це перший рядок, який читає агент нового проєкту."""
+
+    def test_no_waves_says_so(self):
+        os.remove(self.fixture.path("keel/waves/0001-session-loop.md"))
+        answer = keel.main_branch_answer(self.project)
+        self.assertIn("no waves yet", answer)
+        self.assertNotIn("every wave is finished", answer)
+
+    def test_all_done_still_says_finished(self):
+        self.fixture.git("commit", "--allow-empty", "-m", "drive-turns: зроблено")
+        self.assertIn("every wave is finished", keel.main_branch_answer(self.project))

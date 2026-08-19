@@ -165,7 +165,7 @@ class TestSkills(ProjectCase):
             self.assertIn("whoever decided", body.lower(), relative)
             self.assertIn("on whose call", body.lower(), relative)
 
-    def test_somebody_elses_step_is_not_moved_out_of_the_way(self):
+    def test_somebody_elses_wave_is_not_moved_out_of_the_way(self):
         """Заслон завалив чужим скелетом — і його відсунули, щоб пройти."""
         self.generate()
         for _, relative in keel.skill_targets(keel.SKILLS[0]):

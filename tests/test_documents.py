@@ -20,7 +20,7 @@ from tests.support import CONTRACT, ProjectCase  # noqa: E402
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestDocuments(ProjectCase):
-    def test_step_is_read(self):
+    def test_wave_is_read(self):
         wave = self.project.waves["0001-session-loop"]
         self.assertIsNone(wave.error)
         self.assertEqual(list(wave.scenarios), ["finishes-when-no-tool-called"])

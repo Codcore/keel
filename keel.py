@@ -245,6 +245,10 @@ UK = {
     "CI is not set up: {command} — there is no such command":
         "CI не налаштований: {command} — такої команди немає",
     "CI is red: {command}": "CI червоний: {command}",
+    "no waves yet. The first one starts with a plan: keel new wave <slug>, then "
+    "the branch plan/<that name>.":
+        "хвиль поки немає. Перша починається з плану: keel new wave <слаг>, а "
+        "тоді гілка plan/<те саме імʼя>.",
     "{count} tests did not run — skipped or excluded. The runner does not say "
     "which, so any scenario among them is unproven.":
         "{count} тестів не виконувались — пропущені або виключені. Раннер не "
@@ -307,7 +311,7 @@ UK = {
         "це навмисно?",
     "every wave is finished. The next one starts with a plan: keel new wave "
     "<slug>, then the branch plan/<that name>.":
-        "усі хвилі завершені. Наступний починається з плану: keel new wave "
+        "усі хвилі завершені. Наступна починається з плану: keel new wave "
         "<слаг>, а тоді гілка plan/<те саме імʼя>.",
     "{waves}: the plan is not written yet — no transforms, so there is no work "
     "to hand out. keel gaps says what is missing.":
@@ -1841,7 +1845,7 @@ class Project:
     def ready(self):
         return os.path.isdir(self.keel)
 
-    def step_for_branch(self, branch=None):
+    def wave_for_branch(self, branch=None):
         branch = branch or self.branch
         if not branch or branch in ("HEAD", self.git.main_short):
             return None
@@ -1911,7 +1915,7 @@ class Project:
                 if not any(message_closes(message, slug)
                            for message in self.main_messages)]
 
-    def ready_steps(self):
+    def ready_waves(self):
         """(ready, blocked, unplanned) — where the work stands, read from git.
 
         The order of work is derived from `depends_on`, never from the numbers
@@ -2334,7 +2338,7 @@ def check_scope(project):
     problems = deleted_documents(project, base)
     changed = {name for name in changed if not keel_owns(name)}
 
-    wave = project.step_for_branch(branch)
+    wave = project.wave_for_branch(branch)
     if wave is None:
         return [Problem(4, t("branch {branch} is not named after a wave — there is nothing "
                         "to compare scope against", branch=branch))]
@@ -2769,7 +2773,7 @@ def check_headings(project):
     return problems
 
 
-def foreign_steps(project, problems):
+def foreign_waves(project, problems):
     """Slugs of blamed waves that this branch did not come to write.
 
     Said out loud because of what happens when it is not: an unfinished skeleton
@@ -2777,7 +2781,7 @@ def foreign_steps(project, problems):
     walled off by a file that is not its business, and the shortest way past is
     to move the operator's wave out of the project.
     """
-    mine = project.step_for_branch()
+    mine = project.wave_for_branch()
     if mine is None:
         # On the main branch nobody is writing a wave, and a repo-wide check is
         # the operator's own business: every blamed wave would be "foreign", and
@@ -2791,7 +2795,7 @@ def foreign_steps(project, problems):
 PLAN_BLIND = (5, 6)
 
 
-def plan_step(project):
+def plan_wave(project):
     """The wave this plan branch came to write, or None where it is not one.
 
     Checks 5 and 6 want a green test for every scenario and a module that
@@ -2802,7 +2806,7 @@ def plan_step(project):
     gate; what the plan actually promises is read by `gaps`, and that is what
     runs here instead.
     """
-    return project.step_for_branch() if project.is_plan_branch() else None
+    return project.wave_for_branch() if project.is_plan_branch() else None
 
 
 def drifted_from_main(project):
@@ -2911,7 +2915,7 @@ def ci_verdict(project, run=True):
 
 def run_checks(project, only=None, run_tests=True):
     only = set(only or CHECK_NAMES)
-    if plan_step(project) is not None:
+    if plan_wave(project) is not None:
         only -= set(PLAN_BLIND)
     results = {}
     structural = check_structure(project)
@@ -2989,7 +2993,7 @@ exports: []
 WHY_HEADINGS = ("why", "навіщо")
 
 
-def step_skeleton(slug):
+def wave_skeleton(slug):
     """One formatting pass: two would need the literal braces escaped twice."""
     return STEP_SKELETON.format(
         slug=slug,
@@ -3043,7 +3047,7 @@ def cmd_new(project, args):
         # The numbered name, as the file is called: the Why placeholder starts
         # with the slug, and the recogniser compares against wave.slug — the
         # unnumbered form made unfilled_why blind to every tool-created wave.
-        text = step_skeleton(os.path.splitext(name)[0])
+        text = wave_skeleton(os.path.splitext(name)[0])
     else:
         folder = os.path.join(project.keel, "contracts")
         name = f"{clean}.md"
@@ -3193,7 +3197,7 @@ def gaps_problems(project, waves):
 
 def cmd_gaps(project, args):
     waves = ([project.waves[args.wave]] if args.wave and args.wave in project.waves
-             else [project.step_for_branch()] if not args.wave and project.step_for_branch()
+             else [project.wave_for_branch()] if not args.wave and project.wave_for_branch()
              else list(project.waves.values()))
     if args.wave and args.wave not in project.waves:
         fail(t("no such wave: {wave}", wave=args.wave))
@@ -3221,7 +3225,7 @@ def cmd_check(project, args):
 
     # The plan's own gate, and only in the full run: a commit on a plan branch
     # may be half-written, a push and a merge may not.
-    planning = plan_step(project)
+    planning = plan_wave(project)
     plan_gaps = ([] if planning is None or args.fast
                  else gaps_problems(project, [planning]))
     # The project's own gate, and only in the full run — same reasoning as the
@@ -3327,7 +3331,7 @@ def cmd_check(project, args):
 
     everything = (list(structural) + list(plan_gaps)
                   + [p for found in results.values() if found for p in found])
-    strays = foreign_steps(project, everything)
+    strays = foreign_waves(project, everything)
     if strays:
         print("\n" + t("{waves}: this branch did not come to write that wave. "
                        "Somebody else's wave is not moved, renamed or deleted to "
@@ -3359,7 +3363,13 @@ def main_branch_answer(project):
     if broken:
         return t("the documents do not agree with themselves, so there is no "
                  "saying what is done: {reason}", reason=broken[0].message)
-    ready, blocked, unplanned = project.ready_steps()
+    ready, blocked, unplanned = project.ready_waves()
+    if not project.waves:
+        # Not the same sentence as "everything is finished": in a project that
+        # has just taken Keel nothing is finished, because nothing exists — and
+        # this is the first line its agent ever reads.
+        return t("no waves yet. The first one starts with a plan: keel new wave "
+                 "<slug>, then the branch plan/<that name>.")
     if not ready and not blocked and not unplanned:
         return t("every wave is finished. The next one starts with a plan: "
                  "keel new wave <slug>, then the branch plan/<that name>.")
@@ -3381,7 +3391,7 @@ def main_branch_answer(project):
 
 
 def cmd_next(project, args):
-    wave = project.step_for_branch()
+    wave = project.wave_for_branch()
     branch = project.branch
     if wave is None:
         if branch and branch == project.git.main_short:
@@ -4336,7 +4346,7 @@ def session_context(project):
     """What the agent needs at session start — and which skill answers it."""
     branch = project.branch or "?"
     if project.is_plan_branch(branch):
-        wave = project.step_for_branch(branch)
+        wave = project.wave_for_branch(branch)
         where = (t("wave {slug}", slug=wave.slug) if wave
                  else t("there is no wave file for {branch} yet", branch=branch))
         return t("Keel: plan branch {branch}, {where}. The plan is written here, "
@@ -4345,7 +4355,7 @@ def session_context(project):
                  branch=branch, where=where, tool=VENDORED,
                  take=take(project, "keel-plan"))
 
-    wave = project.step_for_branch(branch)
+    wave = project.wave_for_branch(branch)
     if wave is None:
         # On the main branch, the same answer `next` gives — it walks the graph
         # and names the wave waiting to be worked. The hook used to say "there
@@ -4546,7 +4556,7 @@ def write_verdict(project, payload):
         return main_branch_verdict(project, payload)
     if project.is_plan_branch(branch):
         return None
-    wave = project.step_for_branch(branch)
+    wave = project.wave_for_branch(branch)
     if wave is None:
         return None
     if wave.error:
@@ -5097,7 +5107,7 @@ def cmd_show(project, args):
     badly. Rather than split the file — which would let the slug and its text
     drift apart in two places — this view is built on the fly and stored nowhere.
     """
-    wave = project.waves.get(args.wave) if args.wave else project.step_for_branch()
+    wave = project.waves.get(args.wave) if args.wave else project.wave_for_branch()
     if wave is None:
         fail(t("no such wave: {wave}",
                wave=args.wave or t("branch {branch}", branch=project.branch)))

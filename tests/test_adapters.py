@@ -128,7 +128,7 @@ class TestScenarios(ProjectCase):
                 git.relative_to_root(name, self.fixture.root)
         self.assertEqual(len(calls), 1, calls)
 
-    def test_two_steps_sharing_a_scenario_slug_are_named(self):
+    def test_two_waves_sharing_a_scenario_slug_are_named(self):
         """Тег несе лише слаг — за двох власників він принципово неоднозначний."""
         self.fixture.write(
             "keel/waves/0002-other.md",

@@ -253,7 +253,7 @@ class TestInit(unittest.TestCase):
         self.assertNotIn("committed separately", out)
         self.assertIn("uncommitted changes", out)
 
-    def test_creates_the_step_and_contract_folders(self):
+    def test_creates_the_wave_and_contract_folders(self):
         """Дві теки — з часу «двох типів документів»; стара назва казала три."""
         self.init()
         self.assertEqual(set(keel.INIT_DIRS), {"keel/waves", "keel/contracts"})

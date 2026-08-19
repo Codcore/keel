@@ -99,7 +99,7 @@ class TestScopeWidenedAfterApproval(ProjectCase):
         kind, _ = self.verdict("lib/nobody.ex")
         self.assertEqual(kind, "deny")
 
-    def test_a_step_that_never_reached_main_has_nothing_to_compare_with(self):
+    def test_a_wave_that_never_reached_main_has_nothing_to_compare_with(self):
         """Крок, якого на головній гілці немає, ще ніхто не схвалював."""
         self.fixture.branch("0002-fresh")
         self.fixture.write("keel/waves/0002-fresh.md", self.fixture.read(
@@ -131,12 +131,12 @@ class TestTheMainBranchIsNotAWorkbench(ProjectCase):
                      "keel/keel.json"):
             self.assertIsNone(self.verdict(name), name)
 
-    def test_a_project_with_no_steps_is_not_walled_in(self):
+    def test_a_project_with_no_waves_is_not_walled_in(self):
         """Проєкт, який щойно взяв Keel, ще не має плану, з якого працювати."""
         os.remove(self.fixture.path("keel/waves/0001-session-loop.md"))
         self.assertIsNone(self.verdict("lib/whatever.ex"))
 
-    def test_a_step_branch_is_judged_by_its_scope_as_before(self):
+    def test_a_wave_branch_is_judged_by_its_scope_as_before(self):
         self.fixture.branch("0001-session-loop")
         self.assertIsNone(self.verdict("lib/session.ex"))
         kind, _ = self.verdict("lib/nobody_declared.ex")
@@ -250,7 +250,7 @@ class TestHookReply(unittest.TestCase):
 class TestSessionContextRespectsTheGate(ProjectCase):
     """The hook may not dictate work the method's own gate refuses."""
 
-    def test_an_unapproved_step_hands_out_no_package(self):
+    def test_an_unapproved_wave_hands_out_no_package(self):
         """`next` відмовляє, поки крок не на main — хук казав протилежне."""
         self.fixture.git("checkout", "-q", "-b", "plan/0002-later")
         self.fixture.write("keel/waves/0002-later.md",
@@ -263,7 +263,7 @@ class TestSessionContextRespectsTheGate(ProjectCase):
         self.assertIn("is not on", text)
         self.assertNotIn("keel-work", text)
 
-    def test_an_approved_step_still_hands_out_the_package(self):
+    def test_an_approved_wave_still_hands_out_the_package(self):
         self.fixture.branch("0001-session-loop")
         self.assertIn("keel-work", keel.session_context(self.project))
 
@@ -299,7 +299,7 @@ class TestSessionContext(ProjectCase):
         self.assertIn("drive-turns", text)
         self.assertIn("lib/session.ex", text)
 
-    def test_closed_step_points_at_review(self):
+    def test_closed_wave_points_at_review(self):
         self.fixture.branch("0001-session-loop")
         self.fixture.write("lib/session.ex", "змінено\n")
         self.fixture.git("commit", "-am", "drive-turns: хід")
@@ -474,14 +474,14 @@ class TestTheHookSpeaksWhenItCannotJudge(unittest.TestCase):
         return keel.write_verdict(keel.Project(self.root),
                                   {"tool_input": {"file_path": "lib/anything.ex"}})
 
-    def test_a_step_that_does_not_parse_is_said_out_loud(self):
+    def test_a_wave_that_does_not_parse_is_said_out_loud(self):
         """Раніше зламана шапка вимикала охорону без жодного слова."""
         self.wave("---\ntransforms:\n  - do-it\n---\n\n## Why\n\nх.\n")
         kind, message = self.verdict()
         self.assertEqual(kind, "note")
         self.assertIn("scope is not being checked", message)
 
-    def test_a_step_with_no_transforms_is_said_too(self):
+    def test_a_wave_with_no_transforms_is_said_too(self):
         self.wave("---\ndepends_on: []\n---\n\n## Why\n\nх.\n")
         kind, message = self.verdict()
         self.assertEqual(kind, "note")
@@ -497,7 +497,7 @@ class TestTheHookSpeaksWhenItCannotJudge(unittest.TestCase):
                 keel.Project(self.root), {"tool_input": {"file_path": name}})
             self.assertIsNone(verdict, name)
 
-    def test_a_readable_step_still_denies_an_undeclared_file(self):
+    def test_a_readable_wave_still_denies_an_undeclared_file(self):
         self.wave("---\ntransforms:\n  do-it:\n    files: [lib/a.ex]\n---\n\n"
                   "## Why\n\nх.\n\n## transform: do-it\n\nЩось.\n")
         kind, message = self.verdict()
@@ -518,7 +518,7 @@ class TestTheHookSaysWhenItCannotJudgeOnMain(ProjectCase):
         self.assertEqual(kind, "note")
         self.assertIn("no file path", message)
 
-    def test_a_payload_without_a_path_is_still_named_on_a_step_branch(self):
+    def test_a_payload_without_a_path_is_still_named_on_a_wave_branch(self):
         self.fixture.branch("0001-session-loop")
         kind, message = keel.write_verdict(self.project, {"tool_name": "Write"})
         self.assertEqual(kind, "note")

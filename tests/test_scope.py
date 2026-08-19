@@ -29,28 +29,28 @@ class TestDriftFromWhatWasApproved(ProjectCase):
     захотів назвати. Дрейф лишається дозволеним; кінчається мовчання.
     """
 
-    def touch_the_step(self):
+    def touch_the_wave(self):
         wave = "keel/waves/0001-session-loop.md"
         self.fixture.write(wave, self.fixture.read(wave) + "\nЩе абзац.\n")
 
     def test_a_work_branch_names_the_difference(self):
         self.fixture.branch("0001-session-loop")
-        self.touch_the_step()
+        self.touch_the_wave()
         drifted = keel.drifted_from_main(self.project)
         self.assertEqual([name for name, _, _ in drifted],
                          ["keel/waves/0001-session-loop.md"])
 
-    def test_an_untouched_step_says_nothing(self):
+    def test_an_untouched_wave_says_nothing(self):
         self.fixture.branch("0001-session-loop")
         self.assertEqual(keel.drifted_from_main(self.project), [])
 
-    def test_a_plan_branch_is_where_a_step_is_written(self):
+    def test_a_plan_branch_is_where_a_wave_is_written(self):
         self.fixture.branch("plan/0001-session-loop")
-        self.touch_the_step()
+        self.touch_the_wave()
         self.assertEqual(keel.drifted_from_main(self.project), [])
 
     def test_the_main_branch_has_nothing_to_compare_with(self):
-        self.touch_the_step()
+        self.touch_the_wave()
         self.assertEqual(keel.drifted_from_main(self.project), [])
 
     def test_a_document_this_branch_created_is_not_drift(self):
@@ -131,7 +131,7 @@ transforms:
         problems = keel.check_scope(self.project)
         self.assertEqual([p.message for p in problems], [], [p.render() for p in problems])
 
-    def test_reaching_outside_the_step_still_shows_at_once(self):
+    def test_reaching_outside_the_wave_still_shows_at_once(self):
         self.fixture.write("lib/first.ex", "defmodule First do\nend\n")
         self.fixture.write("lib/nobody_declared.ex", "defmodule Nope do\nend\n")
         self.fixture.git("add", "-A")
@@ -270,7 +270,7 @@ class TestScope(ProjectCase):
         self.assertTrue(any("lib/stray.ex" in p.message
                             or "не знайшов, від чого" in p.message for p in problems))
 
-    def test_branch_that_is_not_a_step(self):
+    def test_branch_that_is_not_a_wave(self):
         self.fixture.branch("random-branch")
         problems = keel.check_scope(self.project)
         self.assertIn("is not named after a wave", problems[0].message)
@@ -358,7 +358,7 @@ class TestNestedKeelRoot(unittest.TestCase):
             handle.write("змінено\n")
         self.assertEqual(keel.check_scope(keel.Project(self.root)), [])
 
-    def test_a_sibling_directory_is_not_this_steps_business(self):
+    def test_a_sibling_directory_is_not_this_waves_business(self):
         with open(os.path.join(self.root, "lib/foo.txt"), "w") as handle:
             handle.write("змінено\n")
         with open(os.path.join(self.top, "other/x.txt"), "a") as handle:
@@ -404,7 +404,7 @@ class TestDriftIsMeasuredFromTheBranchPoint(ProjectCase):
         self.assertEqual([name for name, _, _ in drifted], [wave])
 
 
-class TestATransformSlugBelongsToOneStep(ProjectCase):
+class TestATransformSlugBelongsToOneWave(ProjectCase):
     """Слаг у повідомленні комміта — єдиний звʼязок роботи з планом.
 
     Спільний слаг не ідентифікує нічого: комміт закривав трансформу в обох
@@ -412,7 +412,7 @@ class TestATransformSlugBelongsToOneStep(ProjectCase):
     починав.
     """
 
-    def second_step_with(self, transform):
+    def second_wave_with(self, transform):
         rev = self.fixture.contract_rev
         self.fixture.write("keel/waves/0002-other.md", f"""---
 depends_on: []
@@ -442,23 +442,23 @@ transforms:
 Межі: нічого.
 """)
 
-    def test_a_slug_two_steps_share_is_refused(self):
-        self.second_step_with("drive-turns")
+    def test_a_slug_two_waves_share_is_refused(self):
+        self.second_wave_with("drive-turns")
         problems = keel.shared_transform_slugs(self.project)
         self.assertTrue(any("drive-turns" in p.message for p in problems),
                         [p.message for p in problems])
 
     def test_distinct_slugs_pass(self):
-        self.second_step_with("other-turns")
+        self.second_wave_with("other-turns")
         self.assertEqual(keel.shared_transform_slugs(self.project), [])
 
     def test_a_disagreement_is_not_a_parse_error(self):
         """Документи читаються чудово — вони суперечать одне одному."""
-        self.second_step_with("drive-turns")
+        self.second_wave_with("drive-turns")
         self.assertEqual(keel.check_structure(self.project), [])
 
     def test_next_refuses_to_answer_from_ambiguous_documents(self):
-        self.second_step_with("drive-turns")
+        self.second_wave_with("drive-turns")
         answer = keel.main_branch_answer(self.project)
         self.assertIn("do not agree with themselves", answer)
         self.assertNotIn("every wave is finished", answer)
@@ -529,7 +529,7 @@ transforms:
     def project(self):
         return keel.Project(self.root)
 
-    def test_the_step_is_seen_on_the_main_branch(self):
+    def test_the_wave_is_seen_on_the_main_branch(self):
         project = self.project
         self.assertTrue(project.git.file_in_branch(
             project.git.main_branch, "keel/waves/0001-demo.md"))
@@ -574,7 +574,7 @@ class TestDeletingSomebodyElsesDocument(ProjectCase):
         self.fixture.git("commit", "-m", "другий крок")
         self.fixture.branch("0001-session-loop")
 
-    def test_removing_another_step_is_named(self):
+    def test_removing_another_wave_is_named(self):
         self.fixture.git("rm", "-q", "keel/waves/0002-other.md")
         self.fixture.git("commit", "-m", "drive-turns: прибрав те, що заважало")
         problems = keel.check_scope(self.project)
