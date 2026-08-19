@@ -197,6 +197,15 @@ class TestQuotedRoundTrip(unittest.TestCase):
         for original in ('з "лапками"', "зі \\\\ слешем", 'край\\', '"'):
             self.assertEqual(self.back(original), original, repr(original))
 
+    def test_a_duplicate_key_is_caught_even_with_empty_values(self):
+        """Тихо загублений запис читається як «ніколи не оголошено»."""
+        with self.assertRaises(keel.YamlError):
+            keel.parse_yaml("scenarios: {s1: , s1: }")
+        with self.assertRaises(keel.YamlError):
+            keel.parse_yaml("scenarios: {s1: a, s1: b}")
+        self.assertEqual(keel.parse_yaml("scenarios: {s1: }"),
+                         {"scenarios": {"s1": None}})
+
     def test_a_flow_value_wrapped_onto_its_own_line(self):
         """`{proves: c@1}` на власному рядку ставав блок-мапою з ключем
         '{proves' — сценарій тихо нічого не доводив."""

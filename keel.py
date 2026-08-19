@@ -586,15 +586,15 @@ def _flow(text, line):
                 raise YamlError(line, t("no colon in the map entry: {entry}", entry=repr(part)))
             key, _, value = part.partition(":")
             key = _scalar(key, line)
-            if not value.strip():
-                # `{s1: }` — the block spelling of the same thing yields None,
-                # and the shape checks exempt None only, so one spelling killed
-                # the step while the other passed.
-                out[key] = None
-                continue
             if key in out:
+                # Before the empty-value branch below, not after: skipping the
+                # guard for `{s1: , s1: }` dropped one entry in silence, and a
+                # silently dropped entry reads as never declared.
                 raise YamlError(line, t("duplicate key {key}", key=repr(key)))
-            out[key] = _flow(value, line)
+            # `{s1: }` — the block spelling of the same thing yields None, and
+            # the shape checks exempt None only, so one spelling killed the step
+            # while the other passed.
+            out[key] = _flow(value, line) if value.strip() else None
         return out
     return _scalar(text, line)
 
@@ -1152,16 +1152,22 @@ class Git:
         commits.reverse()
         return commits
 
+    @functools.cached_property
+    def top_level(self):
+        """The repository root. Cached like every other repeated lookup here:
+        it cannot change during one invocation, and check_scope asks per file —
+        one scope check was spawning a git process for each one."""
+        return self.out("rev-parse", "--show-toplevel")
+
     def relative_to_root(self, name, root):
         """A top-level-relative git path, seen from the project root.
 
         None when it falls outside — a sibling directory in the same repository
         belongs to whoever owns it, not to this step.
         """
-        top = self.out("rev-parse", "--show-toplevel")
-        if not top:
+        if not self.top_level:
             return name
-        absolute = os.path.join(top, name)
+        absolute = os.path.join(self.top_level, name)
         relative = os.path.relpath(os.path.realpath(absolute),
                                    os.path.realpath(root))
         relative = relative.replace(os.sep, "/")
@@ -1970,6 +1976,16 @@ def check_scenarios(project, run_tests=True):
     if not steps:
         return []
     problems = adapter_problem(project, 5)
+    # Before the adapter guard: which slugs are ambiguous is a fact about the
+    # step documents, knowable from keel/steps alone. Behind the guard, a
+    # project would set its steps up, add a language marker months later, and
+    # only then learn the slugs were never distinguishable.
+    shared = ambiguous_scenarios(project)
+    for slug, owners in sorted(shared.items()):
+        problems.append(Problem(
+            5, t("scenario {slug} is declared by more than one step ({steps}), "
+                 "and a test tag names only the slug — it cannot say which",
+                 slug=slug, steps=", ".join(owners))))
     if project.adapter is None:
         return problems + [Problem(
             5, t("nothing to run the tests with: the root has none of {markers}",
@@ -1980,12 +1996,6 @@ def check_scenarios(project, run_tests=True):
     # adapter.tags re-walks and re-reads every test file, and this runs in the
     # pre-commit hook.
     tags = project.adapter.tags(project.root)
-    shared = ambiguous_scenarios(project)
-    for slug, steps in sorted(shared.items()):
-        problems.append(Problem(
-            5, t("scenario {slug} is declared by more than one step ({steps}), "
-                 "and a test tag names only the slug — it cannot say which",
-                 slug=slug, steps=", ".join(steps))))
     for step, slug, body, found in scenario_tags(project, tags, shared):
         if not found:
             problems.append(Problem(

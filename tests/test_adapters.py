@@ -82,6 +82,22 @@ class TestScenarios(ProjectCase):
             f'  test "x", do: assert true\nend\n')
         self.assertEqual(keel.check_scenarios(self.project, run_tests=False), [])
 
+    def test_the_top_level_is_looked_up_once_per_invocation(self):
+        """check_scope питає на кожен файл — це був git-процес на файл."""
+        calls = []
+        original = keel.Git.run
+
+        def counted(inner, *args):
+            if "--show-toplevel" in args:
+                calls.append(args)
+            return original(inner, *args)
+
+        git = keel.Git(self.fixture.root)
+        with unittest.mock.patch.object(keel.Git, "run", counted):
+            for name in ("a.ex", "b.ex", "c.ex", "d.ex"):
+                git.relative_to_root(name, self.fixture.root)
+        self.assertEqual(len(calls), 1, calls)
+
     def test_two_steps_sharing_a_scenario_slug_are_named(self):
         """Тег несе лише слаг — за двох власників він принципово неоднозначний."""
         self.fixture.write(
@@ -97,6 +113,23 @@ class TestScenarios(ProjectCase):
                          [x.message for x in problems])
         self.assertFalse(any("the test holds" in x.message for x in problems),
                          [x.message for x in problems])
+
+    def test_the_collision_is_named_without_a_language_adapter(self):
+        """Це факт про документи, а не про мову: без маркера він мовчав."""
+        import tempfile as tf, shutil as sh
+        root = tf.mkdtemp(prefix="keel-slug-")
+        self.addCleanup(sh.rmtree, root, True)
+        os.makedirs(os.path.join(root, "keel", "steps"))
+        os.makedirs(os.path.join(root, "keel", "contracts"))
+        for name in ("0001-a", "0002-b"):
+            with open(os.path.join(root, "keel/steps", name + ".md"), "w",
+                      encoding="utf-8") as handle:
+                handle.write("---\nscenarios:\n  same-slug: {}\n---\n\n"
+                             "## scenario: same-slug\n\n**Given** х.\n")
+        problems = keel.check_scenarios(keel.Project(root), run_tests=False)
+        self.assertIsNone(keel.Project(root).adapter)
+        self.assertTrue(any("more than one step" in x.message for x in problems),
+                        [x.message for x in problems])
 
     def test_slug_dashes_match_atom_underscores(self):
         self.assertEqual(keel.normalise_slug("finishes_when_no_tool_called"),
