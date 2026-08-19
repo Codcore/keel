@@ -366,6 +366,78 @@ class TestShow(ProjectCase):
             self.show("0009-nope")
 
 
+class TestGapsAsksAboutAForgottenEdge(ProjectCase):
+    """Порожнє `depends_on` виглядає однаково: залежності немає чи її забули.
+
+    Перевірка 2 шукає цикли, а в порожньому графі їх не буває, тож забуте ребро
+    не бачив ніхто. Питання, не вирок: два кроки можуть законно правити один
+    файл, не спираючись один на одного.
+    """
+
+    def second_step(self, depends="[]", files="[lib/session.ex]",
+                    contracts="[session-run@%s]"):
+        rev = self.fixture.contract_rev
+        self.fixture.write("keel/steps/0002-later.md", f"""---
+depends_on: {depends}
+
+scenarios:
+  later-holds: {{proves: session-run@{rev}}}
+
+transforms:
+  later-turns:
+    implements: [later-holds]
+    contracts:  {contracts % rev}
+    files:      {files}
+---
+
+## Навіщо
+
+Другий крок, щоб було на чому показати ребро.
+
+## scenario: later-holds
+
+**Given** одне, **When** друге, **Then** третє.
+
+## transform: later-turns
+
+Робить пізніше.
+
+Межі: не робить раніше.
+""")
+
+    def messages(self, slug="0002-later"):
+        return [p.message for p in
+                keel.missing_edges(self.project, self.project.steps[slug])]
+
+    def test_a_shared_file_without_an_edge_is_asked_about(self):
+        self.second_step()
+        self.assertTrue(any("lib/session.ex" in m for m in self.messages()),
+                        self.messages())
+
+    def test_the_edge_silences_it(self):
+        self.second_step(depends="[0001-session-loop]")
+        self.assertEqual(self.messages(), [])
+
+    def test_the_step_that_is_leaned_on_is_not_asked(self):
+        """Напрямок читається з графа, а не з номерів у назвах."""
+        self.second_step(depends="[0001-session-loop]")
+        self.assertEqual(self.messages("0001-session-loop"), [])
+
+    def test_a_shared_contract_is_asked_about_too(self):
+        self.second_step(files="[lib/nothing_shared.ex]")
+        self.assertTrue(any("session-run" in m for m in self.messages()),
+                        self.messages())
+
+    def test_a_dependency_two_steps_away_still_counts_as_named(self):
+        self.second_step(depends="[0001-session-loop]")
+        self.fixture.write("keel/steps/0003-last.md",
+                           self.fixture.read("keel/steps/0002-later.md")
+                           .replace("depends_on: [0001-session-loop]",
+                                    "depends_on: [0002-later]")
+                           .replace("later-", "last-"))
+        self.assertEqual(self.messages("0003-last"), [])
+
+
 class TestNextOnTheMainBranch(ProjectCase):
     """Інструмент знає стан — і мусить його сказати, а не переказати правило.
 

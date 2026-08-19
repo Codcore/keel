@@ -225,6 +225,14 @@ UK = {
     "clean": "чисто",
     "problems: {count}": "проблем: {count}",
     "(not run: a plan branch has no code)": "(не запускалась: на гілці плану коду немає)",
+    "step {other} declares {name} too, and depends_on does not name it — "
+    "deliberate?":
+        "крок {other} теж оголошує {name}, а depends_on його не називає — "
+        "це навмисно?",
+    "step {other} leans on contract {name} as well, and depends_on does not "
+    "name it — deliberate?":
+        "крок {other} теж спирається на контракт {name}, а depends_on його не "
+        "називає — це навмисно?",
     "every step is finished. The next one starts with a plan: keel new step "
     "<slug>, then the branch plan/<that name>.":
         "усі кроки завершені. Наступний починається з плану: keel new step "
@@ -2609,6 +2617,62 @@ def cmd_new(project, args):
     return 0
 
 
+def depends_closure(project, step):
+    """Every step this one reaches through depends_on, however far."""
+    seen, queue = set(), [ref.slug for ref in step.depends_on]
+    while queue:
+        slug = queue.pop()
+        if slug in seen:
+            continue
+        seen.add(slug)
+        other = project.steps.get(slug)
+        if other and not other.error:
+            queue.extend(ref.slug for ref in other.depends_on)
+    return seen
+
+
+def missing_edges(project, step):
+    """Steps this one leans on without saying so.
+
+    `depends_on` is the only order there is — the numbers in the names are
+    unique prefixes and nothing more — so an empty list reads the same whether
+    the dependency is absent or forgotten. Check 2 looks for cycles, and an
+    empty graph has none, so nothing ever noticed.
+
+    Asked, never demanded: two steps may legitimately touch one file without
+    either leaning on the other, and a fabricated failure is worse than silence.
+    """
+    known = depends_closure(project, step)
+    files = step.declared_files()
+    contracts = {ref.slug for slug in step.transforms
+                 for ref in step.transform_contracts(slug)}
+
+    problems = []
+    for slug, other in sorted(project.steps.items()):
+        if slug == step.slug or slug in known or other.error:
+            continue
+        if step.slug in depends_closure(project, other):
+            # It leans on us, so we do not lean on it. The direction is not
+            # guessed from the numbers in the names — those are unique
+            # prefixes, not an order — it is read from the graph itself.
+            continue
+        shared = sorted(files & other.declared_files())
+        if shared:
+            problems.append(Problem(
+                0, t("step {other} declares {name} too, and depends_on does not "
+                     "name it — deliberate?", other=slug, name=shared[0]), step.rel))
+            continue
+        theirs = {ref.slug for transform in other.transforms
+                  for ref in other.transform_contracts(transform)}
+        both = sorted(contracts & theirs)
+        if both:
+            problems.append(Problem(
+                0, t("step {other} leans on contract {name} as well, and "
+                     "depends_on does not name it — deliberate?",
+                     other=slug, name=both[0]), step.rel))
+    return problems
+
+
 def gaps_problems(project, steps):
     """What a plan is missing mechanically. Read by `gaps` and by `check`.
 
@@ -2653,6 +2717,8 @@ def gaps_problems(project, steps):
             if not (step.scenario_body(slug) or "").strip():
                 problems.append(Problem(
                     0, t("scenario {slug} has no body: given/when/then", slug=slug), step.rel))
+
+        problems += missing_edges(project, step)
 
     mine = {step.rel for step in steps}
     problems += [p for p in check_headings(project) if p.where in mine]

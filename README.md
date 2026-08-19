@@ -74,7 +74,7 @@ read by Claude and Cursor, not by it.
 |---|---|
 | `keel new step <slug>` | the file skeleton: a header with empty fields and stub sections |
 | `keel new contract <slug>` | the same for a contract: `module` with `exports`, or `verify` |
-| `keel gaps [step]` | what is missing from a step's description: slugs without sections, transforms without files, scenarios without `proves` |
+| `keel gaps [step]` | what is missing from a step's description: slugs without sections, transforms without files, scenarios without `proves`. And it asks about a forgotten edge: the step touches another's files or contracts while `depends_on` does not name it |
 | `keel next` | the **package** for the next move: the transform, its files and boundaries, the scenarios it brings closer, the bodies of the contracts it leans on — and nothing beyond. On the main branch it names instead the step that is ready to be worked and the branch to take. Markdown; `--json` for scripts |
 | `keel check` | the six checks — the full gate. `--fast` leaves those that run nothing, `--no-tests` skips the run, `--branch` names the branch where git does not know it, `--json` for scripts |
 | `keel rev` | shows revisions that have drifted apart; `--write` records the new ones |
