@@ -15,6 +15,7 @@ Messages printed to the human stay in Ukrainian: they are prose, not code.
 """
 
 import argparse
+import functools
 import hashlib
 import json
 import os
@@ -42,6 +43,8 @@ UK = {
     # читач YAML
     "line {line}: {message}": "рядок {line}: {message}",
     "unclosed quote": "лапки не закриті",
+    "a quote in the middle of a value: {value}":
+        "лапка посеред значення: {value}",
     "a backslash at the end of a value": "зворотний слеш у кінці значення",
     "unknown escape: {escape}": "невідоме екранування: {escape}",
     "stray bracket": "зайва дужка",
@@ -165,8 +168,6 @@ UK = {
         "заголовок ## {title} трапляється двічі — читають перший, а рахується останній",
     "the header has {kind} {slug} and the body has no section for it":
         "у шапці є {kind} {slug}, у тілі секції немає",
-    "the header has {kind} {slug} and the body has no "
-    "section for it": "у шапці є {kind} {slug}, у тілі секції немає",
     "the body has ## {kind}: {slug} and the header does not":
         "у тілі є ## {kind}: {slug}, у шапці його немає",
     "the translation names no source revision; it is now {now}":
@@ -313,8 +314,6 @@ UK = {
     "Keel is in manual mode: ask the person to type /{name}.":
         "Keel у ручному режимі: попроси людину набрати /{name}.",
     "no agent hooks: mode is {mode}": "агентських хуків немає: режим {mode}",
-    "step {slug}": "крок {slug}",
-    "there is no step file for {branch} yet": "файла кроку для {branch} ще немає",
     "Keel: plan branch {branch}, {where}. The plan is written here, not code.\n"
     "{take} What is missing is what `python3 {tool} gaps` says.":
         "Keel: гілка плану {branch}, {where}. Тут пишеться план, а не код.\n"
@@ -448,6 +447,15 @@ def _scalar(text, line):
     text = text.strip()
     if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
         body = text[1:-1]
+        # `"a" and "b"` has matching outer quotes and is still not one scalar:
+        # an unescaped inner quote means the writer meant something this reader
+        # does not read. Swallowing it moved the quotes into the value.
+        if text[0] == '"' and re.search(r'(?<!\\)"', body.replace('\\\\', "")):
+            raise YamlError(line, t("a quote in the middle of a value: {value}",
+                                    value=repr(text)))
+        if text[0] == "'" and "'" in body.replace("''", ""):
+            raise YamlError(line, t("a quote in the middle of a value: {value}",
+                                    value=repr(text)))
         if text[0] == '"':
             # One pass, not three chained replaces: chaining turns an escaped
             # backslash followed by n into a real newline, so a value written by
@@ -525,8 +533,12 @@ MAP_ITEM = re.compile(r"^[^\s\"'\[{][^:]*:(\s|$)")
 
 def _list_item(text, line):
     """One element of a list. A map here is valid YAML we do not read."""
-    if MAP_ITEM.match(text.strip()):
-        raise YamlError(line, t("a map inside a list is not supported: {item}", item=repr(text.strip())))
+    stripped = text.strip()
+    # Both spellings: `- a: b` and `- {a: b}`. The braced form parsed into a
+    # dict, and Ref(dict) later surfaced as a bogus "step that does not exist"
+    # far from the line that caused it.
+    if MAP_ITEM.match(stripped) or stripped.startswith("{"):
+        raise YamlError(line, t("a map inside a list is not supported: {item}", item=repr(stripped)))
     return _flow(text, line)
 
 
@@ -639,9 +651,9 @@ SECTION_RE = re.compile(r"^##\s+(.+?)\s*$", re.M)
 LINK_RE = re.compile(r"\]\(([^)\s]+\.md)\)")
 
 
-def revision(text, length=REV_LEN):
+def revision(text):
     """Short hash of a text. Only repeated spaces and newlines are collapsed."""
-    return full_revision(text)[:length]
+    return full_revision(text)[:REV_LEN]
 
 
 def full_revision(text):
@@ -887,6 +899,14 @@ class Step(Doc):
             return [Ref(item) for item in values]
         return []
 
+    def declared_files(self):
+        """Every file the step's transforms declare — the fact check 4 and the
+        write hook must agree on, so it is computed in exactly one place."""
+        declared = set()
+        for slug in self.transforms:
+            declared.update(self.transform_files(slug))
+        return declared
+
     def transform_files(self, slug):
         spec = self.transforms.get(slug)
         if not isinstance(spec, dict):
@@ -947,17 +967,17 @@ class Git:
         code, stdout, _ = self.run(*args)
         return stdout.strip() if code == 0 else default
 
-    @property
+    @functools.cached_property
     def available(self):
         return self.run("rev-parse", "--git-dir")[0] == 0
 
-    @property
+    @functools.cached_property
     def branch(self):
         return self.out("rev-parse", "--abbrev-ref", "HEAD")
 
     ORIGIN = "refs/remotes/origin/"
 
-    @property
+    @functools.cached_property
     def main_branch(self):
         """The main branch. On CI it is not local — there it is origin/main."""
         head = self.out("symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
@@ -977,7 +997,7 @@ class Git:
                 return name
         return "main"
 
-    @property
+    @functools.cached_property
     def main_short(self):
         # The local name of the main branch: origin/main → main, but
         # release/2024 stays release/2024 (only the remote prefix comes off).
@@ -1014,21 +1034,25 @@ class Git:
         return files
 
     def commits_since(self, base):
-        """[(sha, message, {files})], oldest first."""
+        """[(sha, message, {files})], oldest first.
+
+        One `git log --name-only`, not one `git show` per commit: the session
+        hook and `next` call this, and a spawn per commit made them O(branch).
+        """
         if not base:
             return []
-        code, stdout, _ = self.run("log", "--format=%H%x1f%B%x1e", f"{base}..HEAD")
+        code, stdout, _ = self.run("log", "--format=%x1e%H%x1f%B%x1f",
+                                   "--name-only", f"{base}..HEAD")
         if code != 0:
             return []
         commits = []
         for chunk in stdout.split("\x1e"):
-            chunk = chunk.strip("\n")
             if not chunk.strip():
                 continue
-            sha, _, message = chunk.partition("\x1f")
-            sha = sha.strip()
-            files = set(self.out("show", "--name-only", "--format=", sha).splitlines())
-            commits.append((sha, message.strip(), {name for name in files if name}))
+            sha, _, rest = chunk.partition("\x1f")
+            message, _, listing = rest.partition("\x1f")
+            files = {name for name in listing.splitlines() if name.strip()}
+            commits.append((sha.strip(), message.strip(), files))
         commits.reverse()
         return commits
 
@@ -1103,10 +1127,8 @@ class Adapter:
         """{scenario -> [(file, line, revision)]}, slug normalised."""
         out = {}
         for path in self.test_files(root):
-            try:
-                with open(path, encoding="utf-8") as handle:
-                    text = handle.read()
-            except OSError:
+            text = read_text(path)
+            if not text:
                 continue
             for match in self.tag_re.finditer(text):
                 slug = normalise_slug(match.group(1))
@@ -1159,8 +1181,11 @@ class ElixirAdapter(Adapter):
     def versions():
         """Versions from the machine running init. We ask rather than guess."""
         try:
+            # stdin closed like every other spawn: a version manager's shim can
+            # prompt (or install) on first call, and a prompt here hangs init.
             proc = subprocess.run(["elixir", "--version"],
-                                  capture_output=True, text=True, timeout=60)
+                                  capture_output=True, text=True, timeout=60,
+                                  stdin=subprocess.DEVNULL)
         except (OSError, subprocess.SubprocessError):
             return "1.18", "27"
         otp = re.search(r"Erlang/OTP (\d+)", proc.stdout)
@@ -1392,11 +1417,8 @@ class Project:
         return self.branch_override or self.git.branch
 
     def _load(self):
-        for kind, folder, cls in (
-            ("steps", "steps", Step),
-            ("contracts", "contracts", Contract),
-        ):
-            target = getattr(self, kind if kind != "steps" else "steps")
+        for folder, cls in (("steps", Step), ("contracts", Contract)):
+            target = getattr(self, folder)
             base = os.path.join(self.keel, folder)
             if not os.path.isdir(base):
                 continue
@@ -1478,9 +1500,6 @@ KEEL_OWNED_DIRS = (KEEL_DIR_PREFIX, ".claude/skills/", ".cursor/skills/")
 KEEL_OWNED_FILES = (".claude/settings.json", ".cursor/hooks.json",
                     ".codex/hooks.json", ".github/workflows/keel.yml",
                     "AGENTS.md")
-KEEL_OWNED = KEEL_OWNED_DIRS + KEEL_OWNED_FILES
-
-
 def keel_owns(name):
     """Ours, by whole path — not by anything that merely starts the same way.
 
@@ -1591,8 +1610,13 @@ def scenario_tags(project):
             yield step, slug, body, tags.get(normalise_slug(slug), [])
 
 
-def check_revisions(project):
-    problems = []
+def drifted_contract_refs(project):
+    """(step, who, ref, contract) for every reference not matching its contract.
+
+    One definition of "drifted", consumed by check 3 to report and by `rev` to
+    restamp: two hand-kept copies of this loop could disagree about what needs
+    fixing and what got fixed.
+    """
     for step in project.steps.values():
         if step.error:
             continue
@@ -1600,16 +1624,33 @@ def check_revisions(project):
             contract = project.contracts.get(ref.slug)
             if contract is None or contract.error:
                 continue
-            if not ref.rev:
-                problems.append(Problem(
-                    3, t("{who} leans on {slug} without a revision; it is now {now}",
-                      who=who, slug=ref.slug, now=contract.revision),
-                    step.rel, step.line_of(ref.raw)))
-            elif not contract.rev_ok(ref.rev):
-                problems.append(Problem(
-                    3, t("{who} holds {slug}@{held}, and the contract is now {now}",
-                      who=who, slug=ref.slug, held=ref.rev, now=contract.revision),
-                    step.rel, step.line_of(ref.raw)))
+            if ref.rev and contract.rev_ok(ref.rev):
+                continue
+            yield step, who, ref, contract
+
+
+def drifted_tags(project):
+    """(step, slug, body, path, line, rev) for every tag not matching its scenario."""
+    for step, slug, body, found in scenario_tags(project):
+        for path, line, rev in found:
+            if rev and rev_matches(rev, body):
+                continue
+            yield step, slug, body, path, line, rev
+
+
+def check_revisions(project):
+    problems = []
+    for step, who, ref, contract in drifted_contract_refs(project):
+        if not ref.rev:
+            problems.append(Problem(
+                3, t("{who} leans on {slug} without a revision; it is now {now}",
+                  who=who, slug=ref.slug, now=contract.revision),
+                step.rel, step.line_of(ref.raw)))
+        else:
+            problems.append(Problem(
+                3, t("{who} holds {slug}@{held}, and the contract is now {now}",
+                  who=who, slug=ref.slug, held=ref.rev, now=contract.revision),
+                step.rel, step.line_of(ref.raw)))
     return problems
 
 
@@ -1650,9 +1691,7 @@ def check_scope(project):
     if step.error:
         return []
 
-    declared = set()
-    for slug in step.transforms:
-        declared.update(step.transform_files(slug))
+    declared = step.declared_files()
 
     problems = []
     for name in sorted(changed - declared):
@@ -1679,16 +1718,15 @@ def check_scenarios(project, run_tests=True):
             problems.append(Problem(
                 5, t("scenario {slug} has no test", slug=slug), step.rel,
                 step.section_lines.get(f"scenario: {slug}")))
-            continue
-        for path, line, rev in found:
-            if not rev:
-                problems.append(Problem(
-                    5, t("the test for {slug} carries no revision; it is now {now}",
-                     slug=slug, now=revision(body)), path, line))
-            elif not rev_matches(rev, body):
-                problems.append(Problem(
-                    5, t("the test holds {slug}@{held}, and the scenario is now {now}",
-                     slug=slug, held=rev, now=revision(body)), path, line))
+    for _, slug, body, path, line, rev in drifted_tags(project):
+        if not rev:
+            problems.append(Problem(
+                5, t("the test for {slug} carries no revision; it is now {now}",
+                 slug=slug, now=revision(body)), path, line))
+        else:
+            problems.append(Problem(
+                5, t("the test holds {slug}@{held}, and the scenario is now {now}",
+                 slug=slug, held=rev, now=revision(body)), path, line))
 
     if run_tests:
         command = project.adapter.test_command()
@@ -1730,17 +1768,33 @@ def spec_head(entry):
 
 
 def count_arguments(inside):
-    """Commas at depth zero, plus one. A comma inside a type is part of that type."""
+    """Commas at depth zero, plus one. A comma inside a type is part of that type.
+
+    Bitstrings count as depth too: `<<_::binary, _::8>>` is one argument, and
+    without tracking << >> its comma read as a separator — a kept promise
+    reported as the wrong arity.
+    """
     if not inside.strip():
         return 0
-    depth, count = 0, 1
-    for char in inside:
+    depth, count, index = 0, 1, 0
+    while index < len(inside):
+        pair = inside[index:index + 2]
+        if pair == "<<":
+            depth += 1
+            index += 2
+            continue
+        if pair == ">>":
+            depth -= 1
+            index += 2
+            continue
+        char = inside[index]
         if char in "([{":
             depth += 1
         elif char in ")]}":
             depth -= 1
         elif char == "," and depth == 0:
             count += 1
+        index += 1
     return count
 
 
@@ -2031,7 +2085,7 @@ def step_skeleton(slug):
         slug=slug,
         path=t("path/to/file"),
         why=t("Why"),
-        why_hint=t("why this step exists and what is missing without it"),
+        why_hint=t(WHY_HINT),
         does=t("What it does."),
         bounds=t("Boundaries"),
         bounds_hint=t("what it does not do."))
@@ -2047,14 +2101,21 @@ def contract_skeleton():
         prose=t("What exactly is promised, and to whom."))
 
 
+WHY_HINT = "why this step exists and what is missing without it"
+
+
 def unfilled_why(step):
-    """The skeleton's own placeholder, in whatever language it was written in."""
+    """The skeleton's own placeholder, in whatever language it was written in.
+
+    Derived from the catalogue entry the skeleton writes, not restated: reword
+    the hint and this recogniser follows, instead of silently going blind.
+    """
     text = step.why.strip()
     if not text.startswith(f"{step.slug}:"):
         return False
     tail = text[len(step.slug) + 1:].strip().lower()
-    return any(tail.startswith(hint.lower()) for hint in (
-        "why this step exists", "навіщо цей крок"))
+    hints = (WHY_HINT, UK.get(WHY_HINT, WHY_HINT))
+    return any(tail.startswith(hint.lower()) for hint in hints)
 
 
 def cmd_new(project, args):
@@ -2445,6 +2506,11 @@ def write_config(root, settings, done, manifest=None):
             # and regenerate the skills with the wrong trigger language.
             print("  " + t("{file}: does not parse as JSON, leaving it alone", file=CONFIG_FILE))
             return
+        if not isinstance(found, dict):
+            # Valid JSON that is not an object is just as much somebody's file:
+            # replacing it wholesale is the destroy this function refuses.
+            print("  " + t("{file}: not an object, leaving it alone", file=CONFIG_FILE))
+            return
     # Merge rather than replace: this file lives in somebody's repository, and
     # dropping a key we do not recognise is destroying their data during an
     # operation whose whole design elsewhere is to refuse rather than destroy.
@@ -2474,11 +2540,10 @@ def read_manifest(root):
     return found if isinstance(found, dict) else {}
 
 
-def survey(project):
+def survey(project, wanted, manifest):
     """(fresh, stale, touched, absent) — what update would do to each file."""
-    manifest = read_manifest(project.root)
     fresh, stale, touched, absent = [], [], [], []
-    for relative, wanted in generated_files(project.root, project.settings).items():
+    for relative, wanted in wanted.items():
         path = os.path.join(project.root, relative)
         if not os.path.exists(path):
             absent.append(relative)
@@ -2520,8 +2585,12 @@ def translations(lang):
         stored = json.loads(read_text(os.path.join(home(), REVISIONS)))
     except (ValueError, OSError):
         return {}
+    if not isinstance(stored, dict):
+        # Checked before .items(), not inside the comprehension: a JSON list
+        # parsed fine and then crashed update with a traceback.
+        return {}
     return {name: str(rev) for name, rev in stored.items()
-            if isinstance(stored, dict) and os.path.exists(doc_source(name, lang))}
+            if os.path.exists(doc_source(name, lang))}
 
 
 LOGO_RE = re.compile(r'^<p align="center">.*?</p>\s*', re.S)
@@ -3152,9 +3221,7 @@ def write_verdict(project, payload):
         return ("note", t("keel: step {step} declares no transforms, so nothing "
                           "says which files belong to this work.", step=step.slug))
 
-    declared = set()
-    for slug in step.transforms:
-        declared.update(step.transform_files(slug))
+    declared = step.declared_files()
 
     target = find_path(payload)
     if target is None:
@@ -3186,13 +3253,6 @@ def write_verdict(project, payload):
                       name=relative, step=step.slug,
                       declared=", ".join(sorted(declared)) or t("none"),
                       file=step.rel))
-
-
-def write_hook_configs(root, done, manifest=None):
-    write_if_changed(os.path.join(root, CURSOR_HOOKS),
-                     json.dumps(cursor_hook_config(), ensure_ascii=False, indent=2) + "\n",
-                     done, CURSOR_HOOKS, manifest)
-    merge_claude_settings(os.path.join(root, CLAUDE_SETTINGS), done)
 
 
 def remove_hook_configs(root, done):
@@ -3415,18 +3475,19 @@ def cmd_init(project, args):
     done.append("keel/steps, keel/contracts")
     project.settings = settings
 
-    source = os.path.abspath(__file__)
-    target = os.path.join(project.root, VENDORED)
-    if os.path.abspath(target) != source:
-        write_if_changed(target, read_text(source), done, VENDORED, manifest)
-    for name, path in sources.items():
-        write_if_changed(os.path.join(project.root, "keel", name),
-                         strip_front_matter(read_text(path)), done,
-                         f"keel/{name}", manifest)
+    # One owner of "which files, with what content": the same table update and
+    # survey read. Init rendering its own copies by hand is how the CI block
+    # once honoured --adapter here and not there.
+    for relative, text in generated_files(project.root, settings).items():
+        target = os.path.join(project.root, relative)
+        if relative == VENDORED and os.path.abspath(target) == os.path.abspath(__file__):
+            continue      # init run from the vendored copy itself
+        write_if_changed(target, text, done, relative, manifest)
 
-    write_skills(project.root, settings["lang"], done, manifest, settings["mode"])
-    if agent_hooks_wanted(settings, args):
-        write_hook_configs(project.root, done, manifest)
+    # The two shared files generated_files cannot express: Keel owns entries
+    # inside them, not the files.
+    if agent_hooks_wanted(settings):
+        merge_claude_settings(os.path.join(project.root, CLAUDE_SETTINGS), done)
     else:
         remove_hook_configs(project.root, done)
         done.append(t("no agent hooks: mode is {mode}", mode=settings["mode"]))
@@ -3435,15 +3496,6 @@ def cmd_init(project, args):
     if update_agents(os.path.join(project.root, "AGENTS.md"), block):
         done.append("AGENTS.md " + t("(block between the markers)"))
 
-    # Not project.adapter: that was chosen before --adapter was read, and a
-    # polyglot root would get the other language's CI steps.
-    adapter = detect_adapter(project.root, settings["adapter"])
-    setup = adapter.ci_steps(project.root) if adapter else []
-    write_if_changed(
-        os.path.join(project.root, CI_FILE),
-        CI_TEMPLATE.format(tool=VENDORED,
-                           setup="".join(line + "\n" for line in setup)),
-        done, CI_FILE, manifest)
     write_config(project.root, settings, done, manifest)
 
     for line in done:
@@ -3465,6 +3517,15 @@ def digest(text):
 COMMIT_MESSAGE = {"uk": "Keel у проєкті", "en": "Keel in the project"}
 
 
+def pending_keel_paths(project):
+    """Keel-owned paths with uncommitted changes — one definition for the
+    commit that stages them and the hint that names them."""
+    code, stdout, _ = project.git.run("status", "--porcelain", "--untracked-files=all")
+    if code != 0:
+        return None
+    return sorted({row[3:] for row in stdout.splitlines() if keel_owns(row[3:])})
+
+
 def commit_own(project):
     """Commit what init just wrote — and nothing else.
 
@@ -3473,10 +3534,7 @@ def commit_own(project):
     revertable thing. Coming into somebody's existing repository, that is the
     most a tool should take.
     """
-    code, stdout, _ = project.git.run("status", "--porcelain", "--untracked-files=all")
-    if code != 0:
-        return None
-    mine = sorted({row[3:] for row in stdout.splitlines() if keel_owns(row[3:])})
+    mine = pending_keel_paths(project)
     if not mine:
         return None
     if project.git.run("add", "--", *mine)[0] != 0:
@@ -3497,9 +3555,7 @@ def closing_hint(project, restart=False):
     """
     lines = []
     if project.git.available:
-        code, stdout, _ = project.git.run("status", "--porcelain", "--untracked-files=all")
-        pending = [row[3:] for row in stdout.splitlines()
-                   if code == 0 and keel_owns(row[3:])]
+        pending = pending_keel_paths(project) or []
         if pending:
             lines.append("\n" + t("{count} Keel files are not in git yet. Commit "
                                   "them separately from the work:\n  git add {paths}"
@@ -3725,8 +3781,11 @@ def cmd_update(project, args):
             print(problem.render())
         print()
 
-    fresh, stale, touched, absent = survey(project)
+    # Rendered once: survey compares against it and the writes below reuse it,
+    # instead of reading every source and probing the adapter twice.
     wanted = generated_files(project.root, project.settings)
+    manifest = read_manifest(project.root)
+    fresh, stale, touched, absent = survey(project, wanted, manifest)
 
     if args.diff:
         for relative in stale + touched:
@@ -3735,7 +3794,7 @@ def cmd_update(project, args):
             print(t("no difference"))
         return 0
 
-    done, manifest = [], read_manifest(project.root)
+    done = []
     for relative in fresh:
         manifest[relative] = digest(wanted[relative])   # heal a lost record
     for relative in absent + stale + (touched if args.force else []):
@@ -3794,29 +3853,18 @@ def cmd_rev(project, args):
     edits = {}   # path -> [(old, new)]
     report = []
 
-    for step in project.steps.values():
-        if step.error:
-            continue
-        for who, ref in contract_refs(step):
-            contract = project.contracts.get(ref.slug)
-            if contract is None or contract.error:
-                continue
-            if ref.rev and contract.rev_ok(ref.rev):
-                continue
-            fresh = contract.revision
-            report.append((step.rel, who, f"{ref.slug}@{ref.rev or '—'}",
-                           f"{ref.slug}@{fresh}"))
-            edits.setdefault(step.path, []).append((ref.raw, f"{ref.slug}@{fresh}"))
+    for step, who, ref, contract in drifted_contract_refs(project):
+        fresh = contract.revision
+        report.append((step.rel, who, f"{ref.slug}@{ref.rev or '—'}",
+                       f"{ref.slug}@{fresh}"))
+        edits.setdefault(step.path, []).append((ref.raw, f"{ref.slug}@{fresh}"))
 
-    for _, slug, body, found in scenario_tags(project):
+    for _, slug, body, path, line, rev in drifted_tags(project):
         fresh = revision(body)
-        for path, line, rev in found:
-            if rev and rev_matches(rev, body):
-                continue
-            report.append((f"{path}:{line}", t("test {slug}", slug=slug),
-                           rev or "—", fresh))
-            edits.setdefault(os.path.join(project.root, path), []).append(
-                (("TAG", slug), fresh))
+        report.append((f"{path}:{line}", t("test {slug}", slug=slug),
+                       rev or "—", fresh))
+        edits.setdefault(os.path.join(project.root, path), []).append(
+            (("TAG", slug), fresh))
 
     if not report:
         print(t("every revision matches"))

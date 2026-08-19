@@ -108,6 +108,23 @@ class TestInit(unittest.TestCase):
         self.assertNotIn("logo.png", text)
         self.assertTrue(text.startswith("# keel"))
 
+    def test_a_config_that_is_a_json_list_is_left_alone(self):
+        """Валідний JSON не-обʼєкт — теж чийсь файл; заміна цілком — знищення."""
+        path = os.path.join(self.root, keel.CONFIG_FILE)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("[1, 2, 3]\n")
+        done, made = [], {}
+        keel.write_config(self.root, dict(keel.DEFAULTS), done, made)
+        with open(path, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), "[1, 2, 3]\n")
+
+    def test_a_revisions_file_that_is_a_list_does_not_crash_update(self):
+        """JSON-список парсився, а тоді падав AttributeError посеред update."""
+        with unittest.mock.patch.object(keel, "read_text",
+                                        side_effect=lambda p: "[1, 2]"):
+            self.assertEqual(keel.translations("en"), {})
+
     def test_a_key_we_do_not_know_survives_a_rewrite(self):
         """keel.json лежить у чужому репозиторії — губити з нього ключі не наше."""
         self.init()

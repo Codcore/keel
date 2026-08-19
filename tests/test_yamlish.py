@@ -197,6 +197,23 @@ class TestQuotedRoundTrip(unittest.TestCase):
         for original in ('з "лапками"', "зі \\\\ слешем", 'край\\', '"'):
             self.assertEqual(self.back(original), original, repr(original))
 
+    def test_a_braced_map_in_a_list_is_refused_like_the_bare_one(self):
+        """`[{a: b}]` давав dict, і Ref(dict) зринав далеко від причини."""
+        with self.assertRaises(keel.YamlError):
+            keel.parse_yaml("depends_on: [{a: b}]")
+
+    def test_a_multi_quote_value_is_an_error_not_a_swallow(self):
+        """Зовнішні лапки збігаються, але це не один скаляр."""
+        for src in ('t: "he said" and "she said"', "t: 'a' and 'b'"):
+            with self.assertRaises(keel.YamlError):
+                keel.parse_yaml(src)
+
+    def test_escaped_inner_quotes_are_still_one_scalar(self):
+        self.assertEqual(
+            keel.parse_yaml("t: " + keel.yaml_string('з "лапками" усередині'))["t"],
+            'з "лапками" усередині')
+        self.assertEqual(keel.parse_yaml("t: 'it''s'")["t"], "it's")
+
     def test_a_doubled_single_quote_before_a_hash_survives(self):
         """`''` — канонічний апостроф у одинарних лапках; сканери мають знати."""
         self.assertEqual(keel.parse_yaml("module: 'it''s # keep me'")["module"],

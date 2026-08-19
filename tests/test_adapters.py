@@ -429,6 +429,14 @@ class TestPromisedSignature(unittest.TestCase):
         self.assertEqual(keel.promised_signature("valid?(t()) :: boolean()"),
                          ("valid?", 1))
 
+    def test_a_comma_inside_a_bitstring_is_not_a_separator(self):
+        """<<_::binary, _::8>> — один аргумент, а не два."""
+        self.assertEqual(
+            keel.promised_signature("parse(<<_::binary, _::8>>) :: :ok"),
+            ("parse", 1))
+        self.assertEqual(
+            keel.promised_signature("mix(<<_::8>>, atom()) :: :ok"), ("mix", 2))
+
     def test_a_parenless_zero_arity_spec_is_legal_elixir(self):
         """`@spec run :: :ok` пишуть без дужок; компілятор рендерить із ними."""
         self.assertEqual(keel.promised_signature("run :: :ok"), ("run", 0))
@@ -708,6 +716,64 @@ class TestSpecsAgainstARealMixProject(unittest.TestCase):
         problems = keel.check_exports(keel.Project(self.root))
         self.assertEqual(len(problems), 1)
         self.assertIn("declares no @spec", problems[0].message)
+
+
+class TestEverySubprocessIsBounded(unittest.TestCase):
+    """The rule "everything that runs project code is bounded and stdinless"
+    is held by each call site; this reads them all so a new one cannot forget."""
+
+    ALLOWED_BARE = {"Git.run"}      # git is local and fast, and not project code
+
+    def test_every_run_carries_a_bound_or_is_git(self):
+        import ast
+        source = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "keel.py")
+        with open(source, encoding="utf-8") as handle:
+            tree = ast.parse(handle.read())
+        offenders = []
+
+        def walk(node, owner):
+            for child in ast.iter_child_nodes(node):
+                name = owner
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                      ast.ClassDef)):
+                    name = f"{owner}.{child.name}".strip(".")
+                if (isinstance(child, ast.Call)
+                        and isinstance(child.func, ast.Attribute)
+                        and child.func.attr == "run"
+                        and getattr(child.func.value, "id", "") == "subprocess"):
+                    keywords = {kw.arg for kw in child.keywords}
+                    if not {"timeout", "stdin"} <= keywords and                             not any(name.endswith(ok) for ok in self.ALLOWED_BARE):
+                        offenders.append((name, child.lineno))
+                walk(child, name)
+        walk(tree, "")
+        self.assertEqual(offenders, [],
+                         f"subprocess.run без timeout+stdin: {offenders}")
+
+
+class TestRestampedTagsStayRecognisable(unittest.TestCase):
+    """The rewriter and the recogniser are separate regexes; this keeps them
+    from drifting apart — a restamped tag the adapter cannot read again would
+    be a revision written into a tag that stopped being one."""
+
+    def test_elixir(self):
+        out = keel.rewrite_tag('@tag proves: :does_a, rev: "aaaaaa"\n',
+                               "does-a", "ffffff")
+        found = keel.ElixirAdapter.tag_re.search(out)
+        self.assertIsNotNone(found)
+        self.assertEqual(found.group(2), "ffffff")
+
+    def test_python(self):
+        out = keel.rewrite_tag('# proves: does-a, rev: "aaaaaa"\n',
+                               "does-a", "ffffff")
+        found = keel.PythonAdapter.tag_re.search(out)
+        self.assertIsNotNone(found)
+        self.assertEqual(found.group(2), "ffffff")
+
+    def test_a_tag_written_without_a_revision_gains_one_recognisably(self):
+        out = keel.rewrite_tag("@tag proves: :does_a\n", "does-a", "ffffff")
+        found = keel.ElixirAdapter.tag_re.search(out)
+        self.assertEqual(found.group(2), "ffffff")
 
 
 class TestGitEdges(unittest.TestCase):

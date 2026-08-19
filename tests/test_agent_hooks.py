@@ -224,8 +224,14 @@ class TestHookConfigs(unittest.TestCase):
             handle.write(data if isinstance(data, str) else json.dumps(data))
 
     def generate(self):
+        """The same two writes init does: the cursor file from the table, the
+        Claude entries merged — write_hook_configs went away with the dedup."""
         done = []
-        keel.write_hook_configs(self.root, done)
+        keel.write_if_changed(
+            os.path.join(self.root, keel.CURSOR_HOOKS),
+            json.dumps(keel.cursor_hook_config(), ensure_ascii=False, indent=2) + "\n",
+            done, keel.CURSOR_HOOKS)
+        keel.merge_claude_settings(os.path.join(self.root, keel.CLAUDE_SETTINGS), done)
         return done
 
     def test_cursor_config_shape(self):

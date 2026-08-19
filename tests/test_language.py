@@ -27,11 +27,25 @@ def spoken_strings():
         os.path.abspath(__file__))), "keel.py")
     with open(source, encoding="utf-8") as handle:
         tree = ast.parse(handle.read())
-    return {node.args[0].value for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name) and node.func.id == "t"
-            and node.args and isinstance(node.args[0], ast.Constant)
-            and isinstance(node.args[0].value, str)}
+    constants = {node.targets[0].id: node.value.value
+                 for node in tree.body
+                 if isinstance(node, ast.Assign) and len(node.targets) == 1
+                 and isinstance(node.targets[0], ast.Name)
+                 and isinstance(node.value, ast.Constant)
+                 and isinstance(node.value.value, str)}
+    spoken = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "t" and node.args):
+            continue
+        head = node.args[0]
+        if isinstance(head, ast.Constant) and isinstance(head.value, str):
+            spoken.add(head.value)
+        elif isinstance(head, ast.Name) and head.id in constants:
+            # t(WHY_HINT): a named constant is spoken too — without this, a
+            # string that moves into a constant would read as a dead entry.
+            spoken.add(constants[head.id])
+    return spoken
 
 
 class TestCatalogue(unittest.TestCase):
@@ -84,6 +98,23 @@ class TestCatalogue(unittest.TestCase):
         said = spoken_strings() | set(keel.CHECK_NAMES.values())
         stale = sorted(text for text in keel.UK if text not in said)
         self.assertEqual(stale, [], f"мертвих записів: {len(stale)}")
+
+    def test_the_catalogue_literal_has_no_duplicate_keys(self):
+        """Пізніший дубль тихо затирає ранішній — словник цього не покаже."""
+        source = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "keel.py")
+        with open(source, encoding="utf-8") as handle:
+            tree = ast.parse(handle.read())
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Assign)
+                    and getattr(node.targets[0], "id", "") == "UK"):
+                seen = {}
+                for key in node.value.keys:
+                    text = key.value
+                    self.assertNotIn(text, seen,
+                                     f"дубль ключа (рядки {seen.get(text)} "
+                                     f"і {key.lineno}): {text[:60]!r}")
+                    seen[text] = key.lineno
 
     def test_no_translation_is_left_identical(self):
         """Однаковий рядок означає забутий переклад, а не збіг."""
