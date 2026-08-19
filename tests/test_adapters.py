@@ -13,6 +13,36 @@ import unittest.mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import keel  # noqa: E402
+
+
+class TestCiStepsWaitForTheirMarker(unittest.TestCase):
+    """Мову можна назвати раніше, ніж зʼявиться її маркер.
+
+    Тоді крок установки біжить на гілці, де маркера немає, — а це кожна гілка
+    плану за задумом, — і CI червоний з причини, що не стосується гілки.
+    """
+
+    def test_every_adapter_guards_its_install_on_the_marker(self):
+        for cls in keel.ADAPTERS:
+            adapter = cls()
+            steps = adapter.ci_steps(".")
+            if not steps:
+                continue
+            guard = adapter.ci_guard()
+            for name in adapter.marker:
+                self.assertIn(f"'{name}'", guard, cls.__name__)
+            installs = [line for line in steps
+                        if line.strip().startswith(("- uses:", "- run:"))]
+            self.assertTrue(installs, cls.__name__)
+            for line in installs:
+                position = steps.index(line)
+                self.assertEqual(steps[position + 1], guard,
+                                 f"{cls.__name__}: {line.strip()} без умови")
+
+    def test_the_condition_is_a_yaml_key_at_the_step_indent(self):
+        guard = keel.ElixirAdapter().ci_guard()
+        self.assertTrue(guard.startswith("        if: "), guard)
+        self.assertNotIn("\n", guard)
 from tests.support import ProjectCase  # noqa: E402
 
 

@@ -166,6 +166,14 @@ the same thing.
 CI versions are not guessed: `keel init` asks `elixir --version` on the machine
 it was run on and writes down what it found.
 
+**The language's CI steps stand under a `hashFiles` condition, for a reason.** A
+language may be named before its marker exists — an adapter written into
+`keel.json` ahead of the work, or `init --adapter` in an empty repository. Then
+`mix deps.get` would run on a branch with no `mix.exs`, which is every plan
+branch by design, and CI would be red for a reason that has nothing to do with
+the branch. With the condition the steps simply do not run until the marker is
+there.
+
 **When more than one marker sits in the root, Keel does not guess.** A project
 holding both `mix.exs` and `pyproject.toml` is a question, not a first line of a
 list: the answer decides whose tests are run and who is asked for exports. Checks

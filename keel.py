@@ -1335,6 +1335,20 @@ class Adapter:
         """Workflow lines that install the language. Without them CI is mute."""
         return []
 
+    def ci_guard(self):
+        """The condition under which this language's steps make sense at all.
+
+        The settings may name a language before its marker file exists — an
+        adapter written into keel.json ahead of the work, or `init --adapter`
+        in a repository that has no code yet. Then the install step runs on a
+        branch with no marker, which is every plan branch by design, and CI
+        goes red for a reason that has nothing to do with what is on the
+        branch. Found live: the agent had to work out on its own that the
+        adapter must be named in the same commit that creates mix.exs.
+        """
+        patterns = ", ".join(f"'{name}'" for name in self.marker)
+        return f"        if: hashFiles({patterns}) != ''"
+
 
 def normalise_slug(text):
     return re.sub(r"[^a-z0-9]+", "-", str(text).strip().lower()).strip("-")
@@ -1374,10 +1388,12 @@ class ElixirAdapter(Adapter):
         elixir, otp = self.versions()
         return [
             "      - uses: erlef/setup-beam@v1",
+            self.ci_guard(),
             "        with:",
             f"          elixir-version: '{elixir}'",
             f"          otp-version: '{otp}'",
             "      - run: mix deps.get",
+            self.ci_guard(),
         ]
 
     @staticmethod
@@ -1496,6 +1512,7 @@ class PythonAdapter(Adapter):
     def ci_steps(self, root):
         return [
             "      - uses: actions/setup-python@v5",
+            self.ci_guard(),
             "        with:",
             f"          python-version: '{sys.version_info.major}."
             f"{sys.version_info.minor}'",
