@@ -225,6 +225,18 @@ UK = {
     "clean": "чисто",
     "problems: {count}": "проблем: {count}",
     "(not run: a plan branch has no code)": "(не запускалась: на гілці плану коду немає)",
+    "no CI command: merges go with nothing of the project's own run. Name one "
+    "in {file} (\"ci\": \"mix ci\"), or say there is none (\"ci\": \"none\").":
+        "команди CI немає: злиття йдуть без жодного власного прогону проєкту. "
+        "Назвіть її у {file} (\"ci\": \"mix ci\") або скажіть, що її не буде "
+        "(\"ci\": \"none\").",
+    "CI did not finish within {seconds}s: {command}":
+        "CI не вклався в {seconds} с: {command}",
+    "CI could not run ({command}): {reason}":
+        "CI не запустився ({command}): {reason}",
+    "CI is not set up: {command} — there is no such command":
+        "CI не налаштований: {command} — такої команди немає",
+    "CI is red: {command}": "CI червоний: {command}",
     "step {other} declares {name} too, and depends_on does not name it — "
     "deliberate?":
         "крок {other} теж оголошує {name}, а depends_on його не називає — "
@@ -448,6 +460,14 @@ def t(text, **fields):
 REV_LEN = 6          # how many hex digits keel rev writes
 REV_MIN = 4          # a shorter revision in a reference is not accepted
 VERIFY_TIMEOUT = 30
+# The project's own gate is the slowest thing Keel runs: a build, a linter and
+# a suite, not one probe. Bounded all the same — a hung command holds pre-push
+# and says nothing while it does.
+CI_TIMEOUT = 900
+# The command is free text, so the two words that are not commands have to be
+# spelled: nothing decided yet, and deliberately no gate.
+CI_UNDECIDED = ""
+CI_REFUSED = "none"
 # A test run is longer work than a promise being probed, but not unbounded: the
 # same reasoning applies. Everything here executes the project's own code, and a
 # suite that waits on input or on a socket would hold pre-push and CI for as
@@ -1335,6 +1355,12 @@ class Adapter:
         """Workflow lines that install the language. Without them CI is mute."""
         return []
 
+    # The command that stands for "this project is in order" — a build, a
+    # linter, its own suite. Only where the language has a convention for it:
+    # proposing one where there is none would be inventing a fact, and the
+    # operator would inherit a command that was never true.
+    ci_command = ""
+
     def ci_guard(self):
         """The condition under which this language's steps make sense at all.
 
@@ -1357,6 +1383,10 @@ def normalise_slug(text):
 class ElixirAdapter(Adapter):
     name = "elixir"
     marker = ("mix.exs",)
+    # `mix ci` is an alias projects define themselves; mix ships no such task.
+    # Proposed, not assumed — an alias that does not exist says so on the first
+    # run, which is the point of proposing it at all.
+    ci_command = "mix ci"
     test_dirs = ("test",)
     test_suffix = ("_test.exs",)
 
@@ -2484,6 +2514,57 @@ def plan_step(project):
     return project.step_for_branch() if project.is_plan_branch() else None
 
 
+def ci_verdict(project, run=True):
+    """(problems, note) — the project's own gate, named by whoever owns it.
+
+    Keel checks documents against facts. Whether the project itself builds,
+    lints and passes its own suite is the project's business, and only the
+    project knows the command — so it names one, and the condition is simply
+    that the command succeeds. The same shape a contract's `verify` already has,
+    for the same reason: who makes the promise does not matter, that it can be
+    checked does.
+
+    Three states, and the middle one is the whole point. A command is run. The
+    word `none` is the decision to have no gate, said out loud, and it is
+    silent. An empty setting is nobody having decided, and that is said on every
+    run — because a merge going through with nothing checked, and nobody knowing
+    it, is the silence this tool exists against. Refusal is not silence; that is
+    the rule the quality cuts already live by.
+    """
+    command = (project.settings.get("ci") or CI_UNDECIDED).strip()
+    if command == CI_REFUSED:
+        return [], None
+    if not command:
+        return [], t("no CI command: merges go with nothing of the project's "
+                     "own run. Name one in {file} (\"ci\": \"mix ci\"), or say "
+                     "there is none (\"ci\": \"none\").", file=CONFIG_FILE)
+    if not run:
+        return [], None
+    try:
+        proc = subprocess.run(command, shell=True, cwd=project.root,
+                              capture_output=True, text=True,
+                              stdin=subprocess.DEVNULL, timeout=CI_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return [Problem(0, t("CI did not finish within {seconds}s: {command}",
+                             seconds=CI_TIMEOUT, command=command))], None
+    except OSError as exc:
+        return [Problem(0, t("CI could not run ({command}): {reason}",
+                             command=command,
+                             reason=exc.strerror or exc))], None
+    if proc.returncode == 0:
+        return [], None
+    tail = (proc.stdout or proc.stderr).strip().splitlines()[-10:]
+    # 127 is the shell saying the thing is not there at all. Worth its own
+    # sentence: "the command is missing" and "the command failed" are different
+    # states, and a raw runner error makes the reader work that out.
+    reason = (t("CI is not set up: {command} — there is no such command")
+              if proc.returncode == 127 else
+              t("CI is red: {command}"))
+    return [Problem(0, reason.format(command=command)
+                    + ("\n" + "\n".join("      " + line for line in tail)
+                       if tail else ""))], None
+
+
 def run_checks(project, only=None, run_tests=True):
     only = set(only or CHECK_NAMES)
     if plan_step(project) is not None:
@@ -2772,13 +2853,19 @@ def cmd_check(project, args):
     planning = plan_step(project)
     plan_gaps = ([] if planning is None or args.fast
                  else gaps_problems(project, [planning]))
+    # The project's own gate, and only in the full run — same reasoning as the
+    # plan's: a commit may be half-written, a push and a merge may not.
+    ci_problems, ci_note = ci_verdict(project, run=not args.fast and not args.no_tests)
 
     if args.json:
         payload = {
-            "ok": (not structural and not plan_gaps
+            "ok": (not structural and not plan_gaps and not ci_problems
                    and not any(results.get(n) for n in results)),
             "structure": [p.as_dict() for p in structural],
             "plan": [p.as_dict() for p in plan_gaps],
+            "ci": {"command": project.settings.get("ci", ""),
+                   "problems": [p.as_dict() for p in ci_problems],
+                   "note": ci_note},
             "checks": {
                 str(number): {
                     "name": t(CHECK_NAMES[number]),
@@ -2817,8 +2904,20 @@ def cmd_check(project, args):
         print("\u2717 " + t("the plan is missing things"))
         for problem in plan_gaps:
             print(problem.render())
+    if ci_problems:
+        total += len(ci_problems)
+        for problem in ci_problems:
+            print("\u2717 " + problem.message)
+    elif project.settings.get("ci", "").strip() not in ("", CI_REFUSED) and not args.fast:
+        # Not through the catalogue: a proper noun and a command have nothing
+        # to translate, and an entry that renders to itself reads as a
+        # forgotten translation to the guard that watches for exactly that.
+        print("\u2713 CI: " + project.settings["ci"].strip())
     print()
     print(t("clean") if total == 0 else t("problems: {count}", count=total))
+
+    if ci_note:
+        print("\u2013 " + ci_note)
 
     everything = (list(structural) + list(plan_gaps)
                   + [p for found in results.values() if found for p in found])
@@ -3052,9 +3151,12 @@ ADAPTER_NAMES = ("",) + tuple(adapter.name for adapter in ADAPTERS)
 # agent_hooks: "" lets the mode decide; True/False is the operator's override,
 # stored so the first routine update does not quietly revert their choice.
 DEFAULTS = {"docs": PUBLISHED_LANG, "lang": PUBLISHED_LANG, "mode": "strict",
-            "adapter": "", "agent_hooks": ""}
+            "adapter": "", "agent_hooks": "", "ci": CI_UNDECIDED}
 ALLOWED = {"docs": LANGS, "lang": LANGS, "mode": MODES,
            "adapter": ADAPTER_NAMES, "agent_hooks": ("", True, False)}
+# Keys whose value is a command rather than one of a known set. Validating them
+# against a list would mean Keel deciding what a project may run.
+FREE_TEXT = ("ci",)
 REVISIONS = "docs/revisions.json"
 
 
@@ -3157,8 +3259,12 @@ def read_config(root):
             return settings
         if isinstance(stored, dict):
             for key in DEFAULTS:
-                if stored.get(key) in ALLOWED[key]:
-                    settings[key] = stored[key]
+                value = stored.get(key)
+                if key in FREE_TEXT:
+                    if isinstance(value, str):
+                        settings[key] = value.strip()
+                elif value in ALLOWED[key]:
+                    settings[key] = value
     return settings
 
 
@@ -4196,6 +4302,14 @@ def cmd_init(project, args):
     if getattr(args, "agent_hooks", None) is not None:
         settings["agent_hooks"] = args.agent_hooks
 
+    # A proposal, only where the language has a convention for one, and only
+    # into an empty setting: whoever already named a command keeps it, and a
+    # project that said `none` is not talked out of its decision.
+    if settings.get("ci", CI_UNDECIDED) == CI_UNDECIDED:
+        adapter = detect_adapter(project.root, settings["adapter"])
+        if adapter and adapter.ci_command:
+            settings["ci"] = adapter.ci_command
+
     # The command that establishes lang speaks it: OUTPUT_LANG was set from the
     # config as it stood before init, so `init --lang uk` reported in English.
     global OUTPUT_LANG
@@ -4806,6 +4920,10 @@ def build_parser():
     init.add_argument("--adapter", choices=[name for name in ADAPTER_NAMES if name],
                       help="which language this project is, when the root says "
                            "more than one")
+    init.add_argument("--ci", metavar="COMMAND",
+                      help="the project's own gate — a build, a linter, its "
+                           "suite. Any command; the condition is that it "
+                           "succeeds. 'none' says there is deliberately no gate")
     init.add_argument("--mode", choices=MODES,
                       help="how much of itself Keel installs: strict (the agent "
                            "starts the procedures and the hooks watch the "

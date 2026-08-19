@@ -89,6 +89,37 @@ fine while planning and not fine before a PR. One command with two modes would
 confuse both. And neither of them plans: `gaps` says what is missing, `check`
 says what is wrong.
 
+## CI is a command the project names
+
+Keel checks documents against facts. Whether the project builds, passes its own
+linter and its own suite is the project's business, and only the project knows
+the command. So it **names** one, and the condition is simply that the command
+succeeds — the same shape a contract's `verify` already has, for the same
+reason: who makes the promise does not matter, that it can be checked does.
+
+The `ci` key in `keel/keel.json`, and three states:
+
+| value | what it means | what `check` does |
+|---|---|---|
+| `"mix ci"` | a command is named | runs it; red when it fails |
+| `""` | **nobody has decided** | says so on every run, without turning red |
+| `"none"` | a refusal out loud | silent |
+
+The middle state is the whole point. A merge going through with nothing of the
+project's own run, and nobody knowing it, is the same silence the rest of this
+tool stands against. A project with no CI stays green — but only once that has
+been said out loud. Refusal is not silence; the quality cuts already live by
+that rule.
+
+The adapter **proposes** a command where the language has a convention for one:
+for Elixir that is `mix ci`. Python has no such convention, and inventing one
+would hand the operator a command that was never true — so it is left empty and
+said. `keel init --ci "<command>"` names it at install time.
+
+It runs in the full `check`, not in `--fast`: a commit may be half-written, a
+push and a merge may not. Which means pre-push, the CI workflow and
+`/keel-review` all get it without any wiring of their own.
+
 On a `plan/*` branch `check` knows where it is. Checks 5 and 6 do not run there —
 a plan branch carries no code by design — and `gaps` runs in their place. Without
 that a plan branch could be neither pushed nor merged: pre-push and CI run the
