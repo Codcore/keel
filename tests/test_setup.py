@@ -218,8 +218,8 @@ class TestInit(unittest.TestCase):
 
     def test_no_commit_leaves_it_and_says_so(self):
         _, out = self.init(no_commit=True)
-        self.assertNotIn("committed", out)
-        self.assertIn("are not in git yet", out)
+        self.assertNotIn("committed separately", out)
+        self.assertIn("uncommitted changes", out)
         self.assertIn("git add", out)
         self.assertIn("AGENTS.md", self.porcelain())
 
@@ -251,7 +251,7 @@ class TestInit(unittest.TestCase):
         with unittest.mock.patch.dict(os.environ, clean, clear=True):
             _, out = self.init()
         self.assertNotIn("committed separately", out)
-        self.assertIn("are not in git yet", out)
+        self.assertIn("uncommitted changes", out)
 
     def test_creates_the_step_and_contract_folders(self):
         """Дві теки — з часу «двох типів документів»; стара назва казала три."""

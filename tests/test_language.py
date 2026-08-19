@@ -289,8 +289,8 @@ class TestSpokenLanguage(unittest.TestCase):
              "-C", root, "init", "--lang", "uk", "--no-commit"],
             capture_output=True, text=True)
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertNotIn("are not in git yet", done.stdout)
-        self.assertIn("ще не в git", done.stdout)
+        self.assertNotIn("uncommitted changes", done.stdout)
+        self.assertIn("незакоміченими змінами", done.stdout)
 
     def test_the_argument_hint_follows_the_language(self):
         """Підказка аргументу — для оператора, як і тригери."""

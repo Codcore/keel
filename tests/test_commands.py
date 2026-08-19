@@ -396,5 +396,53 @@ class TestCheck(ProjectCase):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+class TestCheckOrderIsHonest(unittest.TestCase):
+    """Check 4 reads git after 5 and 6 ran: their side effects are in the verdict."""
+
+    def test_files_dropped_by_the_test_run_are_seen_by_check_4(self):
+        """Два послідовні прогони мають описувати дерево однаково."""
+        import tempfile, shutil, subprocess
+        root = tempfile.mkdtemp(prefix="keel-order-")
+        self.addCleanup(shutil.rmtree, root, True)
+        for folder in ("keel/steps", "keel/contracts", "tests"):
+            os.makedirs(os.path.join(root, folder))
+        with open(os.path.join(root, "pyproject.toml"), "w") as handle:
+            handle.write("[project]\nname='d'\n")
+        subprocess.run(["git", "init", "-b", "main", "-q", root], check=True)
+        for key, value in (("user.email", "t@e"), ("user.name", "t")):
+            subprocess.run(["git", "-C", root, "config", key, value], check=True)
+        with open(os.path.join(root, "keel/steps/0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("---\nscenarios:\n  does-a: {}\n"
+                         "transforms:\n  do:\n    implements: [does-a]\n"
+                         "    files: [lib/a.py]\n---\n\n## Why\n\nх.\n\n"
+                         "## scenario: does-a\n\n**Given** щось.\n\n"
+                         "## transform: do\n\nЩось.\n")
+        subprocess.run(["git", "-C", root, "add", "-A"], check=True)
+        subprocess.run(["git", "-C", root, "commit", "-q", "-m", "план"], check=True)
+        subprocess.run(["git", "-C", root, "checkout", "-q", "-b", "0001-a"],
+                       check=True)
+        os.makedirs(os.path.join(root, "lib"))
+        with open(os.path.join(root, "lib/a.py"), "w") as handle:
+            handle.write("x = 1\n")
+        body = keel.Project(root).steps["0001-a"].scenario_body("does-a")
+        with open(os.path.join(root, "tests/__init__.py"), "w") as handle:
+            handle.write("")
+        # тест, який при прогоні лишає в дереві неоголошений файл — як _build/
+        with open(os.path.join(root, "tests/side_test.py"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("import unittest, pathlib\n"
+                         f"# proves: does-a, rev: \"{keel.revision(body)}\"\n"
+                         "class T(unittest.TestCase):\n"
+                         "    def test_x(self):\n"
+                         "        pathlib.Path('side-effect.txt').write_text('x')\n")
+        first = keel.run_checks(keel.Project(root))[1][4]
+        second = keel.run_checks(keel.Project(root))[1][4]
+        self.assertEqual([x.message for x in first],
+                         [x.message for x in second])
+        self.assertTrue(any("side-effect.txt" in x.message for x in first),
+                        [x.message for x in first])
+
+
 if __name__ == "__main__":
     unittest.main()

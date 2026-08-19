@@ -304,10 +304,10 @@ UK = {
     "this is a plan branch: the step is written here, not code. keel gaps says "
     "what is missing.":
         "це гілка плану: тут пишеться крок, а не код. Чого бракує — каже keel gaps.",
-    "{count} Keel files are not in git yet. Commit them separately from the "
-    "work:\n  git add {paths}\n  git commit -m \"Keel in the project\"":
-        "{count} файлів Keel ще не в git. Закоміть їх окремо від роботи:\n"
-        "  git add {paths}\n  git commit -m \"Keel у проєкті\"",
+    "Keel files with uncommitted changes: {count}. Commit them separately from "
+    "the work:\n  git add {paths}\n  git commit -m \"Keel in the project\"":
+        "Файли Keel із незакоміченими змінами: {count}. Закоміть їх окремо від "
+        "роботи:\n  git add {paths}\n  git commit -m \"Keel у проєкті\"",
     "{name} is not declared in step {step}. Declared: {declared}. If this file "
     "is the one you need, add it to the transform in {file}: drift is not "
     "forbidden, it has to stay a line in the diff.":
@@ -801,10 +801,18 @@ class Doc:
                 out[slug.strip()] = text
         return out
 
-    def line_of(self, needle):
+    def line_of(self, needle, skip=0):
+        """The line holding the needle; `skip` earlier occurrences first.
+
+        The same slug@rev may sit under a scenario and a transform alike, and
+        pointing every report at the first hit sent the reader to the wrong
+        header line for everything after it.
+        """
         for number, line in enumerate(self.text.splitlines(), 1):
             if needle in line:
-                return number
+                if skip == 0:
+                    return number
+                skip -= 1
         return 1
 
 
@@ -1700,18 +1708,23 @@ def drifted_tags(project):
 
 
 def check_revisions(project):
-    problems = []
+    problems, seen = [], {}
     for step, who, ref, contract in drifted_contract_refs(project):
+        # Identical references share their drift status, so counting only the
+        # drifted ones still lands each report on its own line.
+        key = (step.rel, ref.raw)
+        line = step.line_of(ref.raw, skip=seen.get(key, 0))
+        seen[key] = seen.get(key, 0) + 1
         if not ref.rev:
             problems.append(Problem(
                 3, t("{who} leans on {slug} without a revision; it is now {now}",
                   who=who, slug=ref.slug, now=contract.revision),
-                step.rel, step.line_of(ref.raw)))
+                step.rel, line))
         else:
             problems.append(Problem(
                 3, t("{who} holds {slug}@{held}, and the contract is now {now}",
                   who=who, slug=ref.slug, held=ref.rev, now=contract.revision),
-                step.rel, step.line_of(ref.raw)))
+                step.rel, line))
     return problems
 
 
@@ -2085,7 +2098,11 @@ def run_checks(project, only=None, run_tests=True):
         6: lambda: check_exports(project, run_tests=run_tests),
         7: lambda: check_headings(project),
     }
-    for number in sorted(runners):
+    # Check 4 runs after 5 and 6, though it is displayed in place: the test run
+    # and the probes may drop files into the tree (_build/ without a gitignore),
+    # and reading git before they run made two consecutive checks describe the
+    # same tree in opposite words.
+    for number in sorted(runners, key=lambda n: (n in (4,), n)):
         results[number] = runners[number]() if number in only else None
     return structural, results
 
@@ -3674,8 +3691,10 @@ def closing_hint(project, restart=False):
     if project.git.available:
         pending = pending_keel_paths(project) or []
         if pending:
-            lines.append("\n" + t("{count} Keel files are not in git yet. Commit "
-                                  "them separately from the work:\n  git add {paths}"
+            # "with uncommitted changes", not "not in git yet": a tracked file
+            # with a pending edit was described as absent from git entirely.
+            lines.append("\n" + t("Keel files with uncommitted changes: {count}. "
+                                  "Commit them separately from the work:\n  git add {paths}"
                                   "\n  git commit -m \"Keel in the project\"",
                                   count=len(pending),
                                   paths=" ".join(sorted(
