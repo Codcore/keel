@@ -4,11 +4,157 @@
 
 # keel
 
-The tool behind the Keel method. It knows the state and writes no prose.
+The tool of the Keel method. It knows the state and writes no prose.
 
-MIT licensed. The method itself — why waves, contracts and revisions exist — is in
-[METHODOLOGY.md](METHODOLOGY.md). This file is what runs it. Either may point at the other
-freely: METHODOLOGY.md says what has to be true, README says which command checks it.
+The method — what has to be true — lives in [METHODOLOGY.md](METHODOLOGY.md), in
+chapters and numbered paragraphs, cited as `§4.2`. This file is what runs it.
+
+MIT licence.
+
+## Contents
+
+- [What it solves](#what-it-solves)
+- [What it looks like](#what-it-looks-like)
+- [The cycle](#the-cycle)
+- [Installing](#installing)
+- [Commands](#commands)
+- [CI is a command the project names](#ci-is-a-command-the-project-names)
+- [Two languages, and they are independent](#two-languages-and-they-are-independent)
+- [Language adapters](#language-adapters)
+  - [Exports, short and long](#exports-short-and-long)
+  - [A contract with `verify`](#a-contract-with-verify)
+- [How Keel gets into a project](#how-keel-gets-into-a-project)
+- [Git hooks](#git-hooks)
+- [Agent hooks](#agent-hooks)
+  - [The session hook points at a skill](#the-session-hook-points-at-a-skill)
+  - [The hook before a write](#the-hook-before-a-write)
+- [Three modes](#three-modes)
+- [Skills](#skills)
+- [State](#state)
+- [Open](#open)
+
+---
+
+## What it solves
+
+An agent writes fast and convincingly, which is exactly why it is hard to watch.
+It says "done" and did something else; it adds a file nobody planned; it writes a
+test that is green and proves nothing. Every one of those failures is quiet:
+everything looks fine.
+
+Keel does two things. **Predictable** — what was agreed is written so that the
+work is derived from it: a scenario becomes a test, a transform becomes a commit,
+a file list becomes a boundary. **Traceable** — no status is ever written by
+hand; it is computed from git and from the documents, so it cannot lie.
+
+There are two entities: the **wave**, which is what we are doing now, and the
+**contract**, a promise that outlives the wave. Everything else is derived.
+
+## What it looks like
+
+One wave, one file. The header is English, because its fields become code; the
+prose is the project's language, because a person reads it.
+
+`keel/waves/0007-session-loop.md`
+
+```markdown
+---
+depends_on: [0005-flat-tools, 0006-graph-tools]
+
+scenarios:
+  finishes-when-no-tool-called:   {proves: session-run@7c40de}
+  only-handed-tools-are-callable: {proves: session-run@7c40de}
+
+transforms:
+  drive-turns-on-reqllm:
+    implements: [finishes-when-no-tool-called, only-handed-tools-are-callable]
+    contracts:  [session-run@7c40de]
+    files:
+      - lib/keel_agent/session.ex
+      - test/keel_agent/session_test.exs
+---
+
+## Why
+
+One conversation with a model against a toolset handed in from outside.
+
+## scenario: finishes-when-no-tool-called
+
+**Given** an opening context and an empty toolset,
+**When** the model answers with text and calls nothing,
+**Then** the conversation ends in `:finished`, and the trace holds the turn.
+
+## transform: drive-turns-on-reqllm
+
+Drive turns while the model keeps calling tools.
+
+Boundaries: there is no attempt counter — a tool's refusal is an answer,
+and the next turn is the retry.
+```
+
+The contract sits in its own file, because it outlives the wave that created it:
+
+```markdown
+---
+module: KeelAgent.Session
+exports:
+  - "run(Context.t(), [Tool.t()], Config.t()) :: Outcome.t()"
+---
+
+One conversation with one model.
+```
+
+And the test names the scenario it proves — and which revision of it:
+
+```elixir
+@tag proves: :finishes_when_no_tool_called, rev: "a3f1c0"
+test "the conversation finishes when the model calls no tool" do
+  outcome = Session.run(opening(), [], config())
+
+  assert outcome.stop == :finished
+end
+```
+
+The three hashes in that example are not decoration. `session-run@7c40de` says
+**which revision** of the promise the transform implements, and `rev: "a3f1c0"`
+which revision of the scenario the test proves. Reword either text and the check
+says the proof has gone stale, instead of leaving it green.
+
+## The cycle
+
+Two pull requests per wave: the plan separately, the work separately. The
+operator starts each stage with a single command; the tool drives the rest.
+
+```
+PLAN                                branch plan/0007-session-loop
+
+  /keel-plan session-loop           the operator calls it
+      keel new wave                   the file skeleton
+      the agent writes                why → scenarios → transforms with files
+      the agent asks                  what is unsettled — as a question, not a guess
+      keel gaps                       what is missing
+  PR → a person reads → merge       approval = the plan is on the main branch
+
+WORK                                branch 0007-session-loop
+
+  /keel-work                        one invocation, one transform
+      keel next                       transform, files, boundaries, scenarios, contracts
+      the agent works                 strictly inside the named files
+      keel check                      what is wrong right now
+      git commit                      the transform slug in the message
+  ⟳ while keel next hands out another
+
+  /keel-review                      the full check and the "what did we stay silent about" question
+  PR
+```
+
+`keel next` hands over a **package**: everything needed for one move and nothing
+beyond it. The agent opens no documents around it — it gets a slice and works
+with that.
+
+The stage does not have to be remembered. The session-start hook asks the tool
+which state the wave is in, and puts the answer into the context along with the
+name of the skill to take.
 
 ## Installing
 
@@ -237,7 +383,7 @@ returns the specs as well.
 
 ### Exports, short and long
 
-An `exports:` entry is either `run/3` or a whole signature:
+Which forms may be written — §2.9. Here is how the check reads them.
 
 ```yaml
 exports:
@@ -580,7 +726,7 @@ skill, `keel-plan`, and two thin ones, `keel-work` and `keel-review`.
 
 The format is the same for both: `name`, `description`, an optional `paths`.
 Cursor also has rules in `.cursor/rules/*.mdc`, but those are for short standing
-constraints, and multi-wave procedures are skills.
+constraints, and multi-step procedures are skills.
 
 **A skill is not only for the model to pick up.** The directory name is the
 command, so the operator starts a stage of the cycle directly — and in `manual`

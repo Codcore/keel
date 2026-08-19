@@ -341,76 +341,10 @@ was written.*
 
 ## Appendix A. An example
 
-`keel/waves/0007-session-loop.md`
-
-```markdown
----
-depends_on: [0005-flat-tools, 0006-graph-tools]
-
-scenarios:
-  finishes-when-no-tool-called:   {proves: session-run@7c40de}
-  only-handed-tools-are-callable: {proves: session-run@7c40de}
-
-transforms:
-  declare-outcome-struct:
-    implements: [finishes-when-no-tool-called]
-    contracts:  [session-outcome@d91c4a]
-    files:      [lib/keel_agent/session/outcome.ex]
-
-  drive-turns-on-reqllm:
-    implements: [finishes-when-no-tool-called, only-handed-tools-are-callable]
-    contracts:  [session-run@7c40de]
-    files:
-      - lib/keel_agent/session.ex
-      - test/keel_agent/session_test.exs
----
-
-## Why
-
-One conversation with a model against a toolset handed in from outside.
-The session does not know which tools it was given — so both paths are
-driven through it, and the difference between runs is a difference in tools.
-
-## scenario: finishes-when-no-tool-called
-
-**Given** an opening context and an empty toolset,
-**When** the model answers with text and calls nothing,
-**Then** the conversation ends in `:finished`, and the trace holds the turn.
-
-## transform: drive-turns-on-reqllm
-
-Drive turns while the model keeps calling tools. A tool's answer is
-appended to the trace before the next turn.
-
-Boundaries: there is no attempt counter — a tool's refusal is an answer,
-and the next turn is the retry.
-```
-
-`keel/contracts/session-run.md`
-
-```markdown
----
-module: KeelAgent.Session
-exports:
-  - "run(Context.t(), [Tool.t()], Config.t()) :: Outcome.t()"
----
-
-One conversation with one model. `opening` is the first context, `tools`
-are what the model may call, `config` is the one whose `model` says which
-model, and whose `step_budget_ms` bounds the whole call.
-```
-
-`test/keel_agent/session_test.exs`
-
-```elixir
-@tag proves: :finishes_when_no_tool_called, rev: "a3f1c0"
-test "the conversation finishes when the model calls no tool" do
-  outcome = Session.run(opening(), [], config())
-
-  assert outcome.stop == :finished
-  assert Enum.any?(outcome.trace.events, &(&1.kind == :turn))
-end
-```
+A wave, a contract and the test that ties them together are in
+[README.md](README.md), under "What it looks like". They are deliberately not
+repeated here: an example illustrates rather than establishes, and two copies of
+it would drift the moment the shape changed.
 
 ---
 

@@ -326,76 +326,9 @@
 
 ## Додаток А. Приклад
 
-`keel/waves/0007-session-loop.md`
-
-```markdown
----
-depends_on: [0005-flat-tools, 0006-graph-tools]
-
-scenarios:
-  finishes-when-no-tool-called:   {proves: session-run@7c40de}
-  only-handed-tools-are-callable: {proves: session-run@7c40de}
-
-transforms:
-  declare-outcome-struct:
-    implements: [finishes-when-no-tool-called]
-    contracts:  [session-outcome@d91c4a]
-    files:      [lib/keel_agent/session/outcome.ex]
-
-  drive-turns-on-reqllm:
-    implements: [finishes-when-no-tool-called, only-handed-tools-are-callable]
-    contracts:  [session-run@7c40de]
-    files:
-      - lib/keel_agent/session.ex
-      - test/keel_agent/session_test.exs
----
-
-## Навіщо
-
-Одна розмова з моделлю проти набору інструментів, який дали ззовні.
-Сесія не знає, які інструменти отримала — тому нею ганяються обидва шляхи,
-і різниця між прогонами є різницею в інструментах.
-
-## scenario: finishes-when-no-tool-called
-
-**Given** початковий контекст і порожній набір інструментів,
-**When** модель відповідає текстом без виклику,
-**Then** розмова завершується станом `:finished`, а в записі є хід.
-
-## transform: drive-turns-on-reqllm
-
-Крутити ходи, доки модель кличе інструменти. Відповідь інструмента
-дописується в запис перед наступним ходом.
-
-Межі: лічильника спроб немає — відмова інструмента це відповідь,
-і наступний хід є повтором.
-```
-
-`keel/contracts/session-run.md`
-
-```markdown
----
-module: KeelAgent.Session
-exports:
-  - "run(Context.t(), [Tool.t()], Config.t()) :: Outcome.t()"
----
-
-Одна розмова з однією моделлю. `opening` — перший контекст, `tools` —
-інструменти, які модель може викликати, `config` — той, чий `model` каже
-яка модель, а `step_budget_ms` обмежує весь виклик.
-```
-
-`test/keel_agent/session_test.exs`
-
-```elixir
-@tag proves: :finishes_when_no_tool_called, rev: "a3f1c0"
-test "розмова завершується, коли модель не кличе інструментів" do
-  outcome = Session.run(opening(), [], config())
-
-  assert outcome.stop == :finished
-  assert Enum.any?(outcome.trace.events, &(&1.kind == :turn))
-end
-```
+Хвиля, контракт і тест, що їх звʼязує, — у [README.md](README.md), розділ «Як це
+виглядає». Тут його немає навмисно: приклад ілюструє, а не встановлює, і два його
+описи розійшлися б, щойно змінилася б форма.
 
 ---
 
