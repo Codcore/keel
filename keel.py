@@ -53,6 +53,8 @@ UK = {
         "мапа в списку не підтримується: {item}",
     "a list inside a list is not supported: {item}":
         "список у списку не підтримується: {item}",
+    "a list on the key's own line is not supported: {item}":
+        "список на тому ж рядку, що й ключ, не підтримується: {item}",
     "list is not closed by a bracket": "список не закритий дужкою",
     "map is not closed by a bracket": "мапа не закрита дужкою",
     "no colon in the map entry: {entry}": "у мапі немає двокрапки: {entry}",
@@ -146,6 +148,10 @@ UK = {
     "nothing to run the tests with: the root has none of {markers}":
         "не знайшов, чим запускати тести: у корені немає жодного з {markers}",
     "scenario {slug} has no test": "сценарій {slug} не має тесту",
+    "scenario {slug} is declared by more than one step ({steps}), and a test "
+    "tag names only the slug — it cannot say which":
+        "сценарій {slug} оголошено більш ніж одним кроком ({steps}), а тег "
+        "тесту називає лише слаг — він не може сказати, котрий",
     "the test for {slug} carries no revision; it is now {now}":
         "тест сценарію {slug} без редакції; зараз {now}",
     "the test holds {slug}@{held}, and the scenario is now {now}":
@@ -580,6 +586,12 @@ def _flow(text, line):
                 raise YamlError(line, t("no colon in the map entry: {entry}", entry=repr(part)))
             key, _, value = part.partition(":")
             key = _scalar(key, line)
+            if not value.strip():
+                # `{s1: }` — the block spelling of the same thing yields None,
+                # and the shape checks exempt None only, so one spelling killed
+                # the step while the other passed.
+                out[key] = None
+                continue
             if key in out:
                 raise YamlError(line, t("duplicate key {key}", key=repr(key)))
             out[key] = _flow(value, line)
@@ -665,6 +677,13 @@ def _parse_map(lines, index, indent):
         index += 1
         rest = rest.strip()
         if rest:
+            if rest.startswith("- "):
+                # `files: - a.py` — the classic mis-indent. Coercing it to the
+                # scalar "- a.py" planted a phantom file and sent every later
+                # message away from the typo. Lists guard this family already.
+                raise YamlError(number, t(
+                    "a list on the key's own line is not supported: {item}",
+                    item=repr(rest)))
             out[key] = _flow(rest, number)
             continue
         if index < len(lines) and lines[index][1] > indent:
@@ -681,7 +700,10 @@ def _parse_map(lines, index, indent):
 # Documents: header, body, sections, revisions
 # ─────────────────────────────────────────────────────────────────────────────
 
-SECTION_RE = re.compile(r"^##\s+(.+?)\s*$", re.M)
+# `[ \t]+`, not `\s+`: \s matches a newline, so a bare `##` line captured
+# the next prose line as its title — truncating the section above it, whose
+# revision then covered less text than the document holds.
+SECTION_RE = re.compile(r"^##[ \t]+(.+?)[ \t]*$", re.M)
 LINK_RE = re.compile(r"\]\(([^)\s]+\.md)\)")
 
 
@@ -819,25 +841,17 @@ class Doc:
                 out[slug.strip()] = text
         return out
 
-    def line_of(self, needle, skip=0):
-        """The line holding the needle; `skip` earlier occurrences first.
+    def line_of(self, needle):
+        """The first line holding the needle, or 1.
 
-        The same slug@rev may sit under a scenario and a transform alike, and
-        pointing every report at the first hit sent the reader to the wrong
-        header line for everything after it. Occurrences are counted within a
-        line too — `[x@a, x@a]` is two — and when the count still runs out, the
-        last line that held the needle is a better answer than line 1.
+        Repeated contract references need their own line each, and that lives in
+        ref_line: it knows where a reference may legally appear, which plain
+        substring search cannot.
         """
-        found = 1
         for number, line in enumerate(self.text.splitlines(), 1):
-            hits = line.count(needle)
-            if not hits:
-                continue
-            found = number
-            if skip < hits:
+            if needle in line:
                 return number
-            skip -= hits
-        return found
+        return 1
 
 
 def split_front_matter(text):
@@ -1138,6 +1152,21 @@ class Git:
         commits.reverse()
         return commits
 
+    def relative_to_root(self, name, root):
+        """A top-level-relative git path, seen from the project root.
+
+        None when it falls outside — a sibling directory in the same repository
+        belongs to whoever owns it, not to this step.
+        """
+        top = self.out("rev-parse", "--show-toplevel")
+        if not top:
+            return name
+        absolute = os.path.join(top, name)
+        relative = os.path.relpath(os.path.realpath(absolute),
+                                   os.path.realpath(root))
+        relative = relative.replace(os.sep, "/")
+        return None if relative == ".." or relative.startswith("../") else relative
+
     def file_in_branch(self, branch, path):
         return self.run("cat-file", "-e", f"{branch}:{path}")[0] == 0
 
@@ -1203,13 +1232,20 @@ class Adapter:
         generated script that would make the message unreadable."""
         return " ".join(self.test_command(root))
 
+    def test_roots(self, root):
+        """Where this language keeps its tests. Elixir adds apps/*/test."""
+        return [os.path.join(root, directory) for directory in self.test_dirs]
+
+    def is_test_file(self, name):
+        return name.endswith(tuple(self.test_suffix))
+
     def test_files(self, root):
+        """One walk, parameterised: three copies of it drifted apart twice."""
         found = []
-        for directory in self.test_dirs:
-            base = os.path.join(root, directory)
+        for base in self.test_roots(root):
             for current, _, names in os.walk(base):
                 for name in sorted(names):
-                    if name.endswith(tuple(self.test_suffix)):
+                    if self.is_test_file(name):
                         found.append(os.path.join(current, name))
         return sorted(found)
 
@@ -1248,20 +1284,16 @@ class ElixirAdapter(Adapter):
     test_dirs = ("test",)
     test_suffix = ("_test.exs",)
 
-    def test_files(self, root):
-        # An umbrella project keeps its tests in apps/*/test — mix test runs
-        # them, and a collector that only walks test/ reported every tagged,
-        # passing test as missing: a permanent false red on check 5.
-        found = list(super().test_files(root))
+    def test_roots(self, root):
+        # An umbrella keeps its tests in apps/*/test — mix test runs them, and a
+        # collector that only walked test/ called every tagged, passing test
+        # missing: a permanent false red on check 5.
+        roots = super().test_roots(root)
         apps = os.path.join(root, "apps")
         if os.path.isdir(apps):
-            for app in sorted(os.listdir(apps)):
-                base = os.path.join(apps, app, "test")
-                for current, _, names in os.walk(base):
-                    for name in sorted(names):
-                        if name.endswith(tuple(self.test_suffix)):
-                            found.append(os.path.join(current, name))
-        return sorted(found)
+            roots += [os.path.join(apps, app, "test")
+                      for app in sorted(os.listdir(apps))]
+        return roots
     # rev is captured whatever it looks like, not only hex: rubbish in a
     # revision should turn a check red rather than pass unnoticed.
     tag_re = re.compile(
@@ -1361,54 +1393,43 @@ class PythonAdapter(Adapter):
         # to this adapter's own recogniser.
         return f'# proves: {slug}, rev: "{rev}"' 
 
-    def test_files(self, root):
-        found = list(super().test_files(root))
-        for directory in self.test_dirs:
-            base = os.path.join(root, directory)
-            for current, _, names in os.walk(base):
-                for name in sorted(names):
-                    if name.startswith("test_") and name.endswith(".py"):
-                        path = os.path.join(current, name)
-                        if path not in found:
-                            found.append(path)
-        return sorted(found)
+    def is_test_file(self, name):
+        # Both spellings the ecosystem uses; the runner loads exactly this list,
+        # so collector and runner cannot disagree about what a test is.
+        return name.endswith("_test.py") or (
+            name.startswith("test_") and name.endswith(".py"))
 
     def test_command(self, root):
-        # The runner loads exactly the files the tag collector walks — parity
-        # by construction, not by pattern. `discover` came apart from the
-        # collector twice: its default pattern never ran *_test.py, and it
-        # skips a nested directory with no __init__.py, so a counted tag's
-        # failing test never ran and check 5 was green over it. Files load by
-        # path, the way the collector reads them.
-        dirs = [d for d in self.test_dirs if os.path.isdir(os.path.join(root, d))]
+        # The runner is handed the collector's own list, so "the files the tags
+        # were read from" and "the files that run" are one fact, not two rules
+        # kept in step by hand — they drifted apart twice when they were two.
+        # Loading by path also reaches a nested directory that is not a package,
+        # which unittest discover silently skips.
+        paths = [os.path.relpath(path, root).replace(os.sep, "/")
+                 for path in self.test_files(root)]
         script = (
             "import importlib.util, os, sys, unittest\n"
             "sys.path.insert(0, os.getcwd())\n"
             "suite = unittest.TestSuite()\n"
             "loader = unittest.TestLoader()\n"
-            f"for start in {dirs or list(self.test_dirs)!r}:\n"
-            "    for current, _, names in os.walk(start):\n"
-            "        for name in sorted(names):\n"
-            "            if not (name.endswith('_test.py')\n"
-            "                    or (name.startswith('test_') and name.endswith('.py'))):\n"
-            "                continue\n"
-            "            path = os.path.join(current, name)\n"
-            "            spec = importlib.util.spec_from_file_location(\n"
-            "                os.path.splitext(path)[0].replace(os.sep, '.'), path)\n"
-            "            module = importlib.util.module_from_spec(spec)\n"
+            f"for path in {paths!r}:\n"
+            "    spec = importlib.util.spec_from_file_location(\n"
+            "        os.path.splitext(path)[0].replace(os.sep, '.'), path)\n"
+            "    module = importlib.util.module_from_spec(spec)\n"
             # Registered before it runs: mock.patch('tests.x.thing') resolves
             # through the import system, and an unregistered module means patch
             # imports a second copy and patches that one while this copy runs.
-            "            sys.modules[spec.name] = module\n"
-            "            spec.loader.exec_module(module)\n"
-            "            suite.addTests(loader.loadTestsFromModule(module))\n"
+            "    sys.modules[spec.name] = module\n"
+            "    spec.loader.exec_module(module)\n"
+            "    suite.addTests(loader.loadTestsFromModule(module))\n"
             "result = unittest.TextTestRunner().run(suite)\n"
             "sys.exit(0 if result.wasSuccessful() else 1)\n"
         )
         return [sys.executable, "-c", script]
 
     def test_label(self, root):
-        return f"{os.path.basename(sys.executable)} -m unittest, test*.py and *_test.py"
+        count = len(self.test_files(root))
+        return f"{os.path.basename(sys.executable)}, {count} test files"
 
     def ci_steps(self, root):
         return [
@@ -1697,6 +1718,11 @@ def check_refs(project):
 
     for doc in list(project.steps.values()) + list(project.contracts.values()):
         for match in LINK_RE.finditer(doc.body):
+            if doc._in_fence(match.start()):
+                # The section splitter already treats fenced `## ` as content
+                # because the methodology's own docs quote examples; a link in
+                # the same example is content too, not a broken reference.
+                continue
             target = match.group(1)
             if target.startswith(("http://", "https://")):
                 continue
@@ -1760,9 +1786,30 @@ def contract_refs(step):
                     yield t("transform {slug}", slug=slug), ref
 
 
-def scenario_tags(project):
+def ambiguous_scenarios(project):
+    """Scenario slugs declared by more than one step.
+
+    A test tag names the slug and nothing else, so it cannot say which step's
+    scenario it proves. Sharing the pool between them suppressed one step's
+    "has no test" and reddened the other step's correct tag — and `rev --write`
+    would then restamp the good tag to the other step's revision, moving the
+    red rather than clearing it. Named instead of guessed.
+    """
+    seen = {}
+    for step in project.steps.values():
+        if step.error:
+            continue
+        for slug in step.scenarios:
+            seen.setdefault(normalise_slug(slug), set()).add(step.slug)
+    return {slug: sorted(steps) for slug, steps in seen.items() if len(steps) > 1}
+
+
+def scenario_tags(project, tags=None, shared=None):
     """(step, scenario, body, [(file, line, revision)]) — scenarios and their tags."""
-    tags = project.adapter.tags(project.root) if project.adapter else {}
+    if tags is None:
+        tags = project.adapter.tags(project.root) if project.adapter else {}
+    if shared is None:
+        shared = ambiguous_scenarios(project)
     for step in project.steps.values():
         if step.error:
             continue
@@ -1770,6 +1817,8 @@ def scenario_tags(project):
             body = step.scenario_body(slug)
             if body is None:
                 continue  # check 7 catches this
+            if normalise_slug(slug) in shared:
+                continue  # the collision is reported; attribution is not guessed
             yield step, slug, body, tags.get(normalise_slug(slug), [])
 
 
@@ -1792,9 +1841,9 @@ def drifted_contract_refs(project):
             yield step, who, ref, contract
 
 
-def drifted_tags(project):
+def drifted_tags(project, tags=None, shared=None):
     """(step, slug, body, path, line, rev) for every tag not matching its scenario."""
-    for step, slug, body, found in scenario_tags(project):
+    for step, slug, body, found in scenario_tags(project, tags, shared):
         for path, line, rev in found:
             if rev and rev_matches(rev, body):
                 continue
@@ -1809,9 +1858,22 @@ def ref_line(step, raw, skip=0):
     carries one. The same whole-reference boundary rewrite_ref uses.
     """
     token = re.compile(rf"(?<![\w@./-]){re.escape(raw)}(?![\w@./-])")
-    found = 1
+    found, in_block, block_indent = 1, False, 0
     for number, line in enumerate(step.text.splitlines(), 1):
-        hits = len(token.findall(line))
+        # Only where a contract reference can live. `depends_on: [auth]` names a
+        # STEP that may share the contract's slug, and counting it sent the
+        # report to the depends_on line. Same reading rewrite_ref uses when it
+        # writes: inline values, and items of a block list under one of the two
+        # keys.
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        if in_block and stripped.startswith("- ") and indent > block_indent:
+            hits = len(token.findall(line))
+        else:
+            in_block = bool(re.match(r"(proves|contracts)\s*:\s*$", stripped))
+            block_indent = indent if in_block else block_indent
+            hits = sum(len(token.findall(value))
+                       for value in REF_VALUE.findall(line))
         if not hits:
             continue
         found = number
@@ -1860,7 +1922,17 @@ def check_scope(project):
         return [Problem(4, t("cannot tell where this branch left from: {main} is missing or "
                         "the history is truncated. Scope was not compared, which "
                         "is not the same as scope being intact.", main=main))]
-    changed = project.git.changed_files(base)
+    # Git speaks in paths from the repository top level; declarations speak in
+    # paths from the keel root. A keel root nested in a bigger repo — a layout
+    # find_root explicitly supports — made every file fail scope in both
+    # directions at once, and the write hook allowed exactly what check 4 then
+    # condemned. Rebase git's answers onto the keel root, and drop what lies
+    # outside it: another team's directory is not this step's business.
+    changed = set()
+    for name in project.git.changed_files(base):
+        inside = project.git.relative_to_root(name, project.root)
+        if inside is not None:
+            changed.add(inside)
 
     if project.is_plan_branch(branch):
         stray = sorted(name for name in changed if not keel_owns(name))
@@ -1904,12 +1976,22 @@ def check_scenarios(project, run_tests=True):
                  markers=", ".join(item for cls in ADAPTERS
                                    for item in cls.marker)))]
 
-    for step, slug, body, found in scenario_tags(project):
+    # One walk of the test tree, shared by both loops: each call to
+    # adapter.tags re-walks and re-reads every test file, and this runs in the
+    # pre-commit hook.
+    tags = project.adapter.tags(project.root)
+    shared = ambiguous_scenarios(project)
+    for slug, steps in sorted(shared.items()):
+        problems.append(Problem(
+            5, t("scenario {slug} is declared by more than one step ({steps}), "
+                 "and a test tag names only the slug — it cannot say which",
+                 slug=slug, steps=", ".join(steps))))
+    for step, slug, body, found in scenario_tags(project, tags, shared):
         if not found:
             problems.append(Problem(
                 5, t("scenario {slug} has no test", slug=slug), step.rel,
                 step.section_lines.get(f"scenario: {slug}")))
-    for _, slug, body, path, line, rev in drifted_tags(project):
+    for _, slug, body, path, line, rev in drifted_tags(project, tags, shared):
         if not rev:
             problems.append(Problem(
                 5, t("the test for {slug} carries no revision; it is now {now}",
@@ -2695,6 +2777,34 @@ def agent_hooks_wanted(settings, args=None):
     return settings["mode"] == "strict"
 
 
+def load_json_object(path, label):
+    """The file as a dict, or None with the reason said once.
+
+    Both editors of a shared JSON file refuse the same two ways — unreadable
+    and not-an-object — and stating that twice is how the two came to validate
+    differently.
+    """
+    if not os.path.exists(path):
+        return {}
+    try:
+        found = json.loads(read_text(path))
+    except ValueError:
+        print("  " + t("{file}: does not parse as JSON, leaving it alone", file=label))
+        return None
+    if not isinstance(found, dict):
+        print("  " + t("{file}: not an object, leaving it alone", file=label))
+        return None
+    return found
+
+
+def refuse_broken_config(root):
+    """The three commands that regenerate files stop here, in one sentence."""
+    if config_broken(root):
+        fail(t("{file} does not parse — fix it first. Regenerating on the "
+               "defaults would rewrite the project in the wrong language.",
+               file=CONFIG_FILE))
+
+
 def config_broken(root):
     """The settings file exists and does not read as an object.
 
@@ -2729,20 +2839,12 @@ def read_config(root):
 
 def write_config(root, settings, done, manifest=None):
     path = os.path.join(root, CONFIG_FILE)
-    found = {}
-    if os.path.exists(path):
-        try:
-            found = json.loads(read_text(path))
-        except ValueError:
-            # Overwriting would silently reset docs and lang to the defaults,
-            # and regenerate the skills with the wrong trigger language.
-            print("  " + t("{file}: does not parse as JSON, leaving it alone", file=CONFIG_FILE))
-            return
-        if not isinstance(found, dict):
-            # Valid JSON that is not an object is just as much somebody's file:
-            # replacing it wholesale is the destroy this function refuses.
-            print("  " + t("{file}: not an object, leaving it alone", file=CONFIG_FILE))
-            return
+    # Overwriting an unreadable config would silently reset docs and lang to the
+    # defaults and regenerate the skills with the wrong triggers; valid JSON that
+    # is not an object is just as much somebody's file.
+    found = load_json_object(path, CONFIG_FILE)
+    if found is None:
+        return
     # Merge rather than replace: this file lives in somebody's repository, and
     # dropping a key we do not recognise is destroying their data during an
     # operation whose whole design elsewhere is to refuse rather than destroy.
@@ -3529,13 +3631,8 @@ def edit_claude_settings(path, change, done, label, create=False):
     """
     if not os.path.exists(path) and not create:
         return
-    try:
-        data = json.loads(read_text(path)) if os.path.exists(path) else {}
-    except ValueError:
-        print("  " + t("{file}: does not parse as JSON, leaving it alone", file=CLAUDE_SETTINGS))
-        return
-    if not isinstance(data, dict):
-        print("  " + t("{file}: not an object, leaving it alone", file=CLAUDE_SETTINGS))
+    data = load_json_object(path, CLAUDE_SETTINGS)
+    if data is None:
         return
 
     before = json.dumps(data, ensure_ascii=False, sort_keys=True)
@@ -3663,10 +3760,7 @@ def skill_targets(skill):
 
 
 def cmd_skills(project, args=None):
-    if config_broken(project.root):
-        fail(t("{file} does not parse — fix it first. Regenerating on the "
-               "defaults would rewrite the project in the wrong language.",
-               file=CONFIG_FILE))
+    refuse_broken_config(project.root)
     done = []
     # With the manifest: regenerated skills that keep their old digests read as
     # "edited by hand" to the next update, which then refuses to refresh them —
@@ -3700,10 +3794,7 @@ def principles_lines(lang=SOURCE_LANG):
 
 
 def cmd_init(project, args):
-    if config_broken(project.root):
-        fail(t("{file} does not parse — fix it first. Regenerating on the "
-               "defaults would rewrite the project in the wrong language.",
-               file=CONFIG_FILE))
+    refuse_broken_config(project.root)
     # Keel reads every bit of its state from git: closure, scope, branch
     # comparison, the approval of a plan. Without a repository almost nothing
     # works, and creating one is a bigger decision than installing a method.
@@ -4060,10 +4151,7 @@ def cmd_update(project, args):
     # Run from the copy inside a project, every source would be compared against
     # itself and the answer would always be "nothing to do" — a no-op wearing the
     # face of a clean result.
-    if config_broken(project.root):
-        fail(t("{file} does not parse — fix it first. Regenerating on the "
-               "defaults would rewrite the project in the wrong language.",
-               file=CONFIG_FILE))
+    refuse_broken_config(project.root)
     if not os.path.exists(os.path.join(home(), "PRINCIPLES.md")):
         fail(t("update compares the project against the methodology home, and there "
                "are no sources beside this copy. Run it from the keel repository:\n"

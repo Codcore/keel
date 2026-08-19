@@ -82,6 +82,22 @@ class TestScenarios(ProjectCase):
             f'  test "x", do: assert true\nend\n')
         self.assertEqual(keel.check_scenarios(self.project, run_tests=False), [])
 
+    def test_two_steps_sharing_a_scenario_slug_are_named(self):
+        """Тег несе лише слаг — за двох власників він принципово неоднозначний."""
+        self.fixture.write(
+            "keel/steps/0002-other.md",
+            "---\nscenarios:\n  finishes-when-no-tool-called: {}\n---\n\n"
+            "## scenario: finishes-when-no-tool-called\n\n**Given** інше.\n")
+        self.tag(self.fixture.scenario_rev())
+        problems = keel.check_scenarios(self.project, run_tests=False)
+        self.assertTrue(any("more than one step" in x.message for x in problems),
+                        [x.message for x in problems])
+        # і жодного хибного присвоєння тега тому чи тому кроку
+        self.assertFalse(any("has no test" in x.message for x in problems),
+                         [x.message for x in problems])
+        self.assertFalse(any("the test holds" in x.message for x in problems),
+                         [x.message for x in problems])
+
     def test_slug_dashes_match_atom_underscores(self):
         self.assertEqual(keel.normalise_slug("finishes_when_no_tool_called"),
                          keel.normalise_slug("finishes-when-no-tool-called"))
@@ -837,14 +853,24 @@ class TestPythonRunnerRunsWhatTheCollectorCounts(unittest.TestCase):
                          "## scenario: does-a\n\n**Given** щось.\n")
         return keel.Project(self.root).steps["0001-a"].scenario_body("does-a")
 
-    def test_the_runner_walks_what_the_collector_walks(self):
-        """Паритет за побудовою: ті самі два написання, без conftest.py,
-        включно з вкладеними теками без __init__.py."""
-        script = keel.PythonAdapter().test_command(self.root)[-1]
-        self.assertIn("_test.py", script)
-        self.assertIn("test_", script)
-        self.assertIn("os.walk", script)
-        self.assertNotIn("discover", script)
+    def test_the_runner_is_handed_the_collectors_own_list(self):
+        """Паритет по суті: не два правила, звірені руками, а один список."""
+        with open(os.path.join(self.root, "tests/greet_test.py"), "w") as handle:
+            handle.write("import unittest\n")
+        os.makedirs(os.path.join(self.root, "tests/unit"))
+        with open(os.path.join(self.root, "tests/unit/test_deep.py"), "w") as handle:
+            handle.write("import unittest\n")
+        with open(os.path.join(self.root, "tests/conftest.py"), "w") as handle:
+            handle.write("import unittest\n")
+        adapter = keel.PythonAdapter()
+        collected = {os.path.relpath(x, self.root)
+                     for x in adapter.test_files(self.root)}
+        script = adapter.test_command(self.root)[-1]
+        for name in collected:
+            self.assertIn(name, script)
+        self.assertNotIn("conftest.py", script)
+        self.assertEqual(collected,
+                         {"tests/greet_test.py", "tests/unit/test_deep.py"})
 
     def test_a_failing_test_in_a_nested_dir_without_init_is_red(self):
         """discover пропускав не-пакетну теку — зелене над червоним тестом."""
@@ -891,8 +917,10 @@ class TestPythonRunnerRunsWhatTheCollectorCounts(unittest.TestCase):
     def test_the_start_directory_follows_test_dirs(self):
         os.rename(os.path.join(self.root, "tests"),
                   os.path.join(self.root, "test"))
+        with open(os.path.join(self.root, "test/greet_test.py"), "w") as handle:
+            handle.write("import unittest\n")
         script = keel.PythonAdapter().test_command(self.root)[-1]
-        self.assertIn("'test'", script)
+        self.assertIn("test/greet_test.py", script)
 
 
 class TestTheDictatedTagFollowsTheAdapter(unittest.TestCase):

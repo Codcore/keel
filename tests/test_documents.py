@@ -469,5 +469,25 @@ class TestRefLinesPairCorrectly(unittest.TestCase):
         self.assertEqual({x.line for x in problems}, {3})
 
 
+
+
+class TestReaderRefusesWhatItCannotRead(unittest.TestCase):
+    """Valid YAML outside the subset errors at its own line, never coerces."""
+
+    def test_a_list_on_the_keys_own_line(self):
+        """`files: - a.py` — класична помилка відступу — ставало скаляром."""
+        with self.assertRaises(keel.YamlError):
+            keel.parse_yaml("transforms:\n  t1:\n    files: - a.py\n")
+
+    def test_an_empty_flow_value_matches_the_block_spelling(self):
+        self.assertEqual(keel.parse_yaml("scenarios: {s1: }"),
+                         keel.parse_yaml("scenarios:\n  s1:\n"))
+
+    def test_a_bare_hash_hash_does_not_capture_the_next_line(self):
+        titles = [m.group(1) for m in
+                  keel.SECTION_RE.finditer("## Why\nreal.\n##\nprose.\n")]
+        self.assertEqual(titles, ["Why"])
+
+
 if __name__ == "__main__":
     unittest.main()

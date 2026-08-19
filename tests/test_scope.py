@@ -2,7 +2,10 @@
 """Check 4: what the branch touched against what it declared."""
 
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -149,6 +152,58 @@ class TestBranchOverride(ProjectCase):
         self.assertIn("the head is detached", keel.check_scope(project)[0].message)
         project.branch_override = "0001-session-loop"
         self.assertEqual(keel.check_scope(project), [])
+
+
+
+
+class TestNestedKeelRoot(unittest.TestCase):
+    """A keel root inside a bigger repository — a layout find_root supports."""
+
+    def setUp(self):
+        self.top = tempfile.mkdtemp(prefix="keel-nested-")
+        self.addCleanup(shutil.rmtree, self.top, True)
+        self.root = os.path.join(self.top, "sub")
+        for folder in ("keel/steps", "keel/contracts", "lib"):
+            os.makedirs(os.path.join(self.root, folder))
+        os.makedirs(os.path.join(self.top, "other"))
+        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("---\ntransforms:\n  do:\n    files: [lib/foo.txt]\n"
+                         "---\n\n## Why\n\nх.\n\n## transform: do\n\nЩось.\n")
+        with open(os.path.join(self.top, "other/x.txt"), "w") as handle:
+            handle.write("чуже\n")
+        self.git("init", "-q", "-b", "main", ".")
+        self.git("config", "user.email", "t@e")
+        self.git("config", "user.name", "t")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "base")
+        self.git("checkout", "-q", "-b", "0001-a")
+
+    def git(self, *args):
+        subprocess.run(["git", "-C", self.top, *args], check=False,
+                       capture_output=True)
+
+    def test_a_declared_file_matches_despite_the_prefix(self):
+        """git каже sub/lib/foo.txt, крок оголошує lib/foo.txt."""
+        with open(os.path.join(self.root, "lib/foo.txt"), "w") as handle:
+            handle.write("змінено\n")
+        self.assertEqual(keel.check_scope(keel.Project(self.root)), [])
+
+    def test_a_sibling_directory_is_not_this_steps_business(self):
+        with open(os.path.join(self.root, "lib/foo.txt"), "w") as handle:
+            handle.write("змінено\n")
+        with open(os.path.join(self.top, "other/x.txt"), "a") as handle:
+            handle.write("чужа зміна\n")
+        self.assertEqual(keel.check_scope(keel.Project(self.root)), [])
+
+    def test_an_undeclared_file_inside_the_keel_root_is_still_caught(self):
+        with open(os.path.join(self.root, "lib/foo.txt"), "w") as handle:
+            handle.write("змінено\n")
+        with open(os.path.join(self.root, "lib/stray.txt"), "w") as handle:
+            handle.write("не оголошено\n")
+        problems = keel.check_scope(keel.Project(self.root))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("lib/stray.txt", problems[0].message)
 
 
 if __name__ == "__main__":
