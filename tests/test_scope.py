@@ -20,6 +20,47 @@ from tests.support import ProjectCase  # noqa: E402
 # Check 4: scope
 # ─────────────────────────────────────────────────────────────────────────────
 
+class TestDriftFromWhatWasApproved(ProjectCase):
+    """Схвалення виводиться з того, що крок дійшов до головної гілки.
+
+    Далі ніщо не заважало гілці його переписати: `keel/` поза скоупом навмисно,
+    щоб `update` міг оновити наші файли посеред роботи. Прогулянка дала крок,
+    правлений тричі після схвалення — і названо це було лише тому, що агент сам
+    захотів назвати. Дрейф лишається дозволеним; кінчається мовчання.
+    """
+
+    def touch_the_step(self):
+        step = "keel/steps/0001-session-loop.md"
+        self.fixture.write(step, self.fixture.read(step) + "\nЩе абзац.\n")
+
+    def test_a_work_branch_names_the_difference(self):
+        self.fixture.branch("0001-session-loop")
+        self.touch_the_step()
+        drifted = keel.drifted_from_main(self.project)
+        self.assertEqual([name for name, _, _ in drifted],
+                         ["keel/steps/0001-session-loop.md"])
+
+    def test_an_untouched_step_says_nothing(self):
+        self.fixture.branch("0001-session-loop")
+        self.assertEqual(keel.drifted_from_main(self.project), [])
+
+    def test_a_plan_branch_is_where_a_step_is_written(self):
+        self.fixture.branch("plan/0001-session-loop")
+        self.touch_the_step()
+        self.assertEqual(keel.drifted_from_main(self.project), [])
+
+    def test_the_main_branch_has_nothing_to_compare_with(self):
+        self.touch_the_step()
+        self.assertEqual(keel.drifted_from_main(self.project), [])
+
+    def test_a_document_this_branch_created_is_not_drift(self):
+        """Новий контракт — це робота, а не дрейф уже схваленого."""
+        self.fixture.branch("0001-session-loop")
+        self.fixture.write("keel/contracts/brand-new.md",
+                           "---\nmodule: Demo.New\nexports: [run/1]\n---\n\nНове.\n")
+        self.assertEqual(keel.drifted_from_main(self.project), [])
+
+
 class TestScopeAsksOnlyAboutClosedTransforms(ProjectCase):
     """Крок робиться по трансформі за раз, і заслон має це знати.
 

@@ -26,6 +26,7 @@ If you cannot name the files in advance, the transform is not atomic yet.
 
 A test carries the scenario's revision, a transform the contract's.
 The text changed after something leaned on it — the check turns red.
+A revision is not a lock but a doorbell: change it, but not in silence.
 
 ## 6. A contract is what code promises code
 
@@ -34,5 +35,5 @@ What the module actually exports is compared against what was promised.
 
 ## 7. Do not add an entity until its absence hurts
 
-Three kinds of document. No tags, no requirements, no questions settling in.
+Two kinds of document. No tags, no requirements, no questions settling in.
 Every new field has to hurt by being missing first.

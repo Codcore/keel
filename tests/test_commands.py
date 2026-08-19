@@ -438,6 +438,37 @@ transforms:
         self.assertEqual(self.messages("0003-last"), [])
 
 
+class TestGapsAsksAboutAContractNobodyLeansOn(ProjectCase):
+    """Перевірка 1 питає один бік — чи має слаг свій файл.
+
+    Зворотного не питав ніхто, тож контракт міг лежати, на нього ніхто не
+    спирався, файл його `verify` не був оголошений — і `gaps` казав «план
+    повний». Так і сталось у кроці 0003; агент помітив сам, але це не заслон.
+    """
+
+    def new_contract(self, slug="brand-new"):
+        self.fixture.write(f"keel/contracts/{slug}.md",
+                           "---\nmodule: Demo.New\nexports: [run/1]\n---\n\nНове.\n")
+
+    def messages(self):
+        step = self.project.steps["0001-session-loop"]
+        return [p.message for p in keel.unclaimed_contracts(self.project, step)]
+
+    def test_a_contract_this_step_brings_and_nobody_names_is_asked_about(self):
+        self.new_contract()
+        self.assertTrue(any("brand-new" in m for m in self.messages()),
+                        self.messages())
+
+    def test_a_contract_a_transform_leans_on_is_not_asked_about(self):
+        self.assertEqual(self.messages(), [])
+
+    def test_a_contract_already_on_the_main_branch_belongs_to_somebody_else(self):
+        self.new_contract()
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "чужий контракт")
+        self.assertEqual(self.messages(), [])
+
+
 class TestNextOnTheMainBranch(ProjectCase):
     """Інструмент знає стан — і мусить його сказати, а не переказати правило.
 

@@ -264,6 +264,13 @@ class TestSkillQuality(ProjectCase):
             text = keel.read_text(os.path.join(home, name))
             self.assertRegex(text, r"(два типи документів|two kinds of document)")
             self.assertNotRegex(text, r"(три типи документів|three kinds of document)")
+        # PRINCIPLES.md стоїть окремо, бо там число написане іншими словами —
+        # і саме тому воно й розійшлось: охорона дивилась на два файли з
+        # чотирьох, а четвертий тихо казав «три».
+        for name in ("PRINCIPLES.md", "docs/uk/PRINCIPLES.md"):
+            text = keel.read_text(os.path.join(home, name))
+            self.assertNotRegex(text, r"(Три типи документів|Three kinds of document)")
+            self.assertRegex(text, r"(Два типи документів|Two kinds of document)")
         source = keel.read_text(os.path.join(home, "keel.py"))
         self.assertNotIn("three kinds of document", source)
         self.assertNotIn("три типи документів", source)

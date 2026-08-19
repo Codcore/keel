@@ -23,7 +23,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -237,6 +237,14 @@ UK = {
     "CI is not set up: {command} — there is no such command":
         "CI не налаштований: {command} — такої команди немає",
     "CI is red: {command}": "CI червоний: {command}",
+    "contract {slug} arrives with this step, and no transform or scenario leans "
+    "on it — deliberate?":
+        "контракт {slug} приходить із цим кроком, і жодна трансформа чи "
+        "сценарій на нього не спираються — це навмисно?",
+    "{file} differs from what was approved: +{added} -{removed}. Allowed, and "
+    "it stays a line in the diff — say in the pull request what changed and why.":
+        "{file} відрізняється від схваленого: +{added} -{removed}. Дозволено, і "
+        "воно лишається рядком у diff — скажіть у PR, що змінилось і чому.",
     "step {other} declares {name} too, and depends_on does not name it — "
     "deliberate?":
         "крок {other} теж оголошує {name}, а depends_on його не називає — "
@@ -2514,6 +2522,42 @@ def plan_step(project):
     return project.step_for_branch() if project.is_plan_branch() else None
 
 
+def drifted_from_main(project):
+    """[(file, added, removed)] — documents this branch changed after approval.
+
+    Approval is derived rather than written: the step reached the main branch,
+    so a person read it and let it through. Nothing then stopped the branch from
+    rewriting it — `keel/` is out of scope by design, so that `update` may
+    refresh our own files mid-work — and walking the cycle produced a step
+    amended three times after it was approved. Every amendment was right, and
+    every one was named only because the agent chose to name it.
+
+    Drift is not forbidden here either: KEEL.md says extending a transform's
+    file list stays a line in the diff. It is the silence that ends — the
+    difference is stated, and whoever opens the pull request knows to look.
+
+    Only modifications, and only on a work branch: a document this branch
+    created is new work, not drift, and a plan branch exists to write one.
+    """
+    if not project.git.available or not project.git.has_commits:
+        return []
+    branch = project.branch
+    if (not branch or branch == "HEAD" or branch == project.git.main_short
+            or project.is_plan_branch(branch)):
+        return []
+    stdout = project.git.out("diff", "--numstat", "--diff-filter=M",
+                             project.git.main_branch, "--",
+                             "keel/steps", "keel/contracts")
+    drifted = []
+    for line in (stdout or "").splitlines():
+        parts = line.split("\t")
+        if len(parts) != 3:
+            continue
+        added, removed, name = parts
+        drifted.append((name, added, removed))
+    return sorted(drifted)
+
+
 def ci_verdict(project, run=True):
     """(problems, note) — the project's own gate, named by whoever owns it.
 
@@ -2771,6 +2815,38 @@ def missing_edges(project, step):
     return problems
 
 
+def unclaimed_contracts(project, step):
+    """Contracts this step brought that none of its transforms leans on.
+
+    Check 1 asks the one direction — every slug named in a header has its file.
+    Nothing asked the other, so a contract could be written, referenced by
+    nobody, its `verify` file declared in no transform, and `gaps` would still
+    say the plan is complete. Seen live in step 0003; the agent noticed and
+    wired it up itself, which is not a guard.
+
+    Only contracts this step is bringing: one that already lives on the main
+    branch belongs to whoever put it there, and a step is free to leave it
+    alone. A question, like the forgotten edge — a contract may honestly be
+    written a step ahead of the work that leans on it.
+    """
+    if not project.git.available or not project.git.has_commits:
+        return []
+    leaned_on = {ref.slug for slug in step.transforms
+                 for ref in step.transform_contracts(slug)}
+    leaned_on |= {ref.slug for slug in step.scenarios
+                  for ref in step.proves(slug)}
+    problems = []
+    for slug, contract in sorted(project.contracts.items()):
+        if slug in leaned_on:
+            continue
+        if project.git.file_in_branch(project.git.main_branch, contract.rel):
+            continue
+        problems.append(Problem(
+            0, t("contract {slug} arrives with this step, and no transform or "
+                 "scenario leans on it — deliberate?", slug=slug), step.rel))
+    return problems
+
+
 def gaps_problems(project, steps):
     """What a plan is missing mechanically. Read by `gaps` and by `check`.
 
@@ -2817,6 +2893,7 @@ def gaps_problems(project, steps):
                     0, t("scenario {slug} has no body: given/when/then", slug=slug), step.rel))
 
         problems += missing_edges(project, step)
+        problems += unclaimed_contracts(project, step)
 
     mine = {step.rel for step in steps}
     problems += [p for p in check_headings(project) if p.where in mine]
@@ -2918,6 +2995,12 @@ def cmd_check(project, args):
 
     if ci_note:
         print("\u2013 " + ci_note)
+
+    for name, added, removed in drifted_from_main(project):
+        print("\u2013 " + t("{file} differs from what was approved: +{added} "
+                            "-{removed}. Allowed, and it stays a line in the "
+                            "diff — say in the pull request what changed and "
+                            "why.", file=name, added=added, removed=removed))
 
     everything = (list(structural) + list(plan_gaps)
                   + [p for found in results.values() if found for p in found])
