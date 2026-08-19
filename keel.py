@@ -226,10 +226,11 @@ UK = {
     "problems: {count}": "проблем: {count}",
     "(not run: a plan branch has no code)": "(не запускалась: на гілці плану коду немає)",
     "no CI command: merges go with nothing of the project's own run. Name one "
-    "in {file} (\"ci\": \"mix ci\"), or say there is none (\"ci\": \"none\").":
+    "in {file} (\"ci\": \"{example}\"), or say there is none (\"ci\": \"none\").":
         "команди CI немає: злиття йдуть без жодного власного прогону проєкту. "
-        "Назвіть її у {file} (\"ci\": \"mix ci\") або скажіть, що її не буде "
+        "Назвіть її у {file} (\"ci\": \"{example}\") або скажіть, що її не буде "
         "(\"ci\": \"none\").",
+    "your command": "вашу команду",
     "CI did not finish within {seconds}s: {command}":
         "CI не вклався в {seconds} с: {command}",
     "CI could not run ({command}): {reason}":
@@ -2579,9 +2580,16 @@ def ci_verdict(project, run=True):
     if command == CI_REFUSED:
         return [], None
     if not command:
+        # The example is the adapter's own proposal where there is one: telling
+        # a Python project to write "mix ci" is a small untruth in a message
+        # whose whole job is to be acted on.
+        adapter = project.adapter
+        example = (adapter.ci_command if adapter and adapter.ci_command
+                   else t("your command"))
         return [], t("no CI command: merges go with nothing of the project's "
-                     "own run. Name one in {file} (\"ci\": \"mix ci\"), or say "
-                     "there is none (\"ci\": \"none\").", file=CONFIG_FILE)
+                     "own run. Name one in {file} (\"ci\": \"{example}\"), or "
+                     "say there is none (\"ci\": \"none\").",
+                     file=CONFIG_FILE, example=example)
     if not run:
         return [], None
     try:

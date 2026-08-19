@@ -53,6 +53,12 @@ class TestCiCommand(ProjectCase):
         self.assertIsNotNone(note)
         self.assertIn("no CI command", note)
 
+    def test_the_hint_offers_the_language_its_own_command(self):
+        """Сказати Python-проєктові «mix ci» — маленька неправда там, де
+        повідомлення тільки й існує, щоб за ним щось зробили."""
+        _, note = self.verdict("")
+        self.assertIn("mix ci", note)
+
     def test_a_refusal_out_loud_is_silent(self):
         problems, note = self.verdict("none")
         self.assertEqual(problems, [])
