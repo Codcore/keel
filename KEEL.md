@@ -84,6 +84,11 @@ paragraph inside a transform.
 | `implements` | transform → scenario | which commit brings which promise closer |
 | tag in a test | test → scenario | the promise is proved, and this exact revision of it |
 
+`proves` is never empty: a scenario points at a contract because that contract is
+what it proves. So contracts are decided **together with** the scenarios, not
+after them. The promise a scenario needs does not exist yet — this wave brings
+it; it already does — the scenario points at it, and a second one is not wanted.
+
 An edge lives in the header, not in the prose. Written as prose — bold code plus
 an anchor plus a relative path — it is three things that drift apart separately,
 and no check will catch up with them.

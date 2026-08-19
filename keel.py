@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -4056,6 +4056,14 @@ was settled does not travel with the repository. So write it down: the question,
 the options, the answer, and whether the answer came from the operator or from
 you. Two or three lines. A guess and a decision look identical six months later,
 and the difference is the whole of it.
+
+**And what you refused out loud, if you then did it, with what changed your
+mind.** Those four lines only ever look forward, and a position you abandoned is
+the purest case of what lives in the chat alone: it never became a file, so the
+diff cannot carry it. The line runs at said out loud — told to the operator, or
+written into a document. A thought nobody heard is thinking, not a reversal, and
+needs no trace; list everything you ever weighed and this paragraph becomes a
+diary, which is the one thing nobody reads.
 
 Approval is written nowhere: it is the fact that the wave file reached the main
 branch. Until then `keel next` hands out no work, and that is deliberate.
