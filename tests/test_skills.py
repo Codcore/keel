@@ -110,13 +110,14 @@ class TestSkills(ProjectCase):
                         if row.startswith("description:")]
                 self.assertEqual(len(line), 1, relative)
 
-    def test_only_the_planning_skill_is_path_scoped(self):
+    def test_no_skill_is_path_scoped(self):
+        """paths ховає скіл із меню, поки немає файла під шаблон — а скіл, що
+        пише перший крок, був привʼязаний саме до кроків. Перевірено наживо."""
         self.generate()
-        for _, relative in keel.skill_targets(keel.SKILLS[0]):
-            self.assertEqual(self.head(self.fixture.read(relative))["paths"],
-                             ["keel/steps/*.md"], relative)
-        for _, relative in keel.skill_targets(keel.SKILLS[1]):
-            self.assertNotIn("paths", self.head(self.fixture.read(relative)))
+        for skill in keel.SKILLS:
+            for _, relative in keel.skill_targets(skill):
+                self.assertNotIn("paths", self.head(self.fixture.read(relative)),
+                                 relative)
 
     def test_body_is_the_same_in_both_dialects(self):
         self.generate()

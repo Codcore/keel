@@ -3299,7 +3299,13 @@ SKILLS = (
             "uk": "«додай», «зроби це», «реалізуй», «давай спланую»",
             "en": "\"add\", \"build\", \"implement\", \"let's plan this\"",
         },
-        "paths": ["keel/steps/*.md"],
+        # No paths. It scopes a skill to the files it is about, and the
+        # skill that writes the FIRST step would be scoped to step files
+        # that do not exist yet — verified live: with keel/steps/ empty,
+        # /keel-plan was absent from the menu entirely, while its two
+        # unscoped siblings were there. The field hides a skill, not just
+        # its auto-loading, so nothing that bootstraps may carry it.
+        "paths": None,
         "argument_hint": {"uk": "[слаг нового кроку]",
                           "en": "[slug of the new step]"},
         "body": PLAN_BODY,
