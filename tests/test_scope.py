@@ -11,7 +11,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import keel  # noqa: E402
-from tests.support import ProjectCase  # noqa: E402
+from tests.support import Args, ProjectCase  # noqa: E402
 
 
 
@@ -444,12 +444,17 @@ transforms:
 
     def test_a_slug_two_steps_share_is_refused(self):
         self.second_step_with("drive-turns")
-        problems = keel.check_structure(self.project)
+        problems = keel.shared_transform_slugs(self.project)
         self.assertTrue(any("drive-turns" in p.message for p in problems),
                         [p.message for p in problems])
 
     def test_distinct_slugs_pass(self):
         self.second_step_with("other-turns")
+        self.assertEqual(keel.shared_transform_slugs(self.project), [])
+
+    def test_a_disagreement_is_not_a_parse_error(self):
+        """Документи читаються чудово — вони суперечать одне одному."""
+        self.second_step_with("drive-turns")
         self.assertEqual(keel.check_structure(self.project), [])
 
     def test_next_refuses_to_answer_from_ambiguous_documents(self):
@@ -457,3 +462,95 @@ transforms:
         answer = keel.main_branch_answer(self.project)
         self.assertIn("do not agree with themselves", answer)
         self.assertNotIn("every step is finished", answer)
+
+
+class TestAKeelRootNestedInABiggerRepository(unittest.TestCase):
+    """`<ref>:<шлях>` рахує шлях від кореня репозиторію й ігнорує `git -C`.
+
+    Keel говорить шляхами від кореня keel, і поки вони збігались, ніхто цього
+    не помічав. У монорепо `next` відмовляв усю роботу словами «план не
+    схвалений», хоч план лежав на main.
+    """
+
+    def setUp(self):
+        self.top = tempfile.mkdtemp(prefix="keel-nested-")
+        self.addCleanup(shutil.rmtree, self.top, ignore_errors=True)
+        self.root = os.path.join(self.top, "sub")
+        for folder in ("keel/steps", "keel/contracts", "lib"):
+            os.makedirs(os.path.join(self.root, folder))
+        self.write("../README.md", "корінь монорепо\n")
+        self.write("keel/contracts/thing.md",
+                   "---\nmodule: Demo.Thing\nexports: [run/1]\n---\n\nОбіцянка.\n")
+        self.write("keel/steps/0001-demo.md", """---
+depends_on: []
+
+scenarios:
+  it-works: {proves: thing}
+
+transforms:
+  do-it:
+    implements: [it-works]
+    contracts:  [thing]
+    files:      [lib/one.ex]
+---
+
+## Навіщо
+
+Демо.
+
+## scenario: it-works
+
+**Given** одне, **When** друге, **Then** третє.
+
+## transform: do-it
+
+Робить.
+
+Межі: нічого.
+""")
+        self.write("lib/one.ex", "one\n")
+        self.git("init", "-b", "main")
+        self.git("config", "user.email", "t@e.co")
+        self.git("config", "user.name", "t")
+        self.git("add", "-A")
+        self.git("commit", "-m", "монорепо з keel у sub/")
+
+    def write(self, name, text):
+        path = os.path.join(self.root, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+
+    def git(self, *args):
+        return subprocess.run(["git", "-C", self.top, *args], capture_output=True,
+                              text=True, stdin=subprocess.DEVNULL, timeout=30)
+
+    @property
+    def project(self):
+        return keel.Project(self.root)
+
+    def test_the_step_is_seen_on_the_main_branch(self):
+        project = self.project
+        self.assertTrue(project.git.file_in_branch(
+            project.git.main_branch, "keel/steps/0001-demo.md"))
+
+    def test_the_approved_file_list_is_readable(self):
+        project = self.project
+        self.assertEqual(
+            keel.approved_files(project, project.steps["0001-demo"]),
+            {"lib/one.ex"})
+
+    def test_a_contract_already_on_main_does_not_read_as_arriving(self):
+        self.assertEqual(self.project.arriving_contracts, set())
+
+    def test_next_hands_out_the_work(self):
+        from io import StringIO
+        self.git("checkout", "-b", "0001-demo")
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_next(self.project, Args(json=False))
+        finally:
+            sys.stdout = saved
+        self.assertEqual(code, 0, stream.getvalue())
+        self.assertIn("do-it", stream.getvalue())

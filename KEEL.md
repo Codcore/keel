@@ -152,7 +152,7 @@ No status is written by hand.
 | Transform | the branch has a commit whose message begins with its slug | git log |
 | Scenario | a test with its name exists, is green, and the revision matches | the test run, the step's text |
 | Contract | the revision matches the one recorded, and the promise is confirmed — by exports or by a command | the file, the compiled module, `verify` |
-| Step | every transform closed, every scenario proved, six checks green | all of the above together |
+| Step | every transform closed, every scenario proved, the whole gate green — the checks, the plan, the project's own CI command, and no two documents disagreeing | all of the above together |
 
 ## Six checks
 

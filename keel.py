@@ -222,6 +222,7 @@ UK = {
     'there is no step file for {branch} yet': 'файла кроку для {branch} ще немає',
     "(not run)": "(не запускалась)",
     "documents do not parse": "документи не читаються",
+    "documents disagree with each other": "документи суперечать одне одному",
     "clean": "чисто",
     "problems: {count}": "проблем: {count}",
     "(not run: a plan branch has no code)": "(не запускалась: на гілці плану коду немає)",
@@ -268,10 +269,6 @@ UK = {
     "deliberate?":
         "крок {other} теж оголошує {name}, а depends_on його не називає — "
         "це навмисно?",
-    "step {other} leans on contract {name} as well, and depends_on does not "
-    "name it — deliberate?":
-        "крок {other} теж спирається на контракт {name}, а depends_on його не "
-        "називає — це навмисно?",
     "every step is finished. The next one starts with a plan: keel new step "
     "<slug>, then the branch plan/<that name>.":
         "усі кроки завершені. Наступний починається з плану: keel new step "
@@ -1276,8 +1273,24 @@ class Git:
         relative = relative.replace(os.sep, "/")
         return None if relative == ".." or relative.startswith("../") else relative
 
+    def in_tree(self, path):
+        """A keel-root path as `<ref>:<path>` needs it: from the repository top.
+
+        Pathspecs honour `git -C`; `<ref>:<path>` does not — it always resolves
+        from the repository root. The two coincide only when the keel root is
+        the repository root, and a keel root nested in a bigger repository is a
+        layout find_root supports on purpose. Without this, every lookup of the
+        form `main:keel/steps/x.md` answered false there, and `next` refused all
+        work with "the plan is not approved" while the plan sat on main.
+        """
+        if not self.top_level:
+            return path
+        absolute = os.path.realpath(os.path.join(self.root, path))
+        relative = os.path.relpath(absolute, os.path.realpath(self.top_level))
+        return relative.replace(os.sep, "/")
+
     def file_in_branch(self, branch, path):
-        return self.run("cat-file", "-e", f"{branch}:{path}")[0] == 0
+        return self.run("cat-file", "-e", f"{branch}:{self.in_tree(path)}")[0] == 0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1784,8 +1797,13 @@ class Project:
         """
         if not self.git.available or not self.git.has_commits:
             return set()
-        listing = self.git.out("ls-tree", "--name-only",
-                               f"{self.git.main_branch}:keel/contracts")
+        # --full-tree: ls-tree takes the current directory as an implicit
+        # pathspec, and git runs with -C at the keel root — which is the
+        # repository root only when the two coincide. Nested, it listed nothing
+        # and every contract read as newly arrived.
+        listing = self.git.out(
+            "ls-tree", "--full-tree", "--name-only",
+            f"{self.git.main_branch}:{self.git.in_tree('keel/contracts')}")
         there = {os.path.splitext(name)[0] for name in listing.splitlines()
                  if name.strip()}
         return {slug for slug in self.contracts if slug not in there}
@@ -1903,8 +1921,7 @@ def keel_owns(name):
 
 
 def check_structure(project):
-    return ([Problem(0, doc.error, doc.rel) for doc in project.broken]
-            + shared_transform_slugs(project))
+    return [Problem(0, doc.error, doc.rel) for doc in project.broken]
 
 
 def shared_transform_slugs(project):
@@ -2881,11 +2898,16 @@ def missing_edges(project, step):
 
     Asked, never demanded: two steps may legitimately touch one file without
     either leaning on the other, and a fabricated failure is worse than silence.
+
+    Files only. A shared contract was asked about too and had to go: leaning on
+    a common promise is not depending on the step that first wrote it, so a
+    logger or a config contract produced a question in every step naming every
+    other — N steps, N×(N−1) questions, none of them a missing edge. A question
+    that is usually wrong is one an agent learns to answer "deliberate" without
+    reading it, which costs more than the silence it replaced.
     """
     known = depends_closure(project, step)
     files = step.declared_files()
-    contracts = {ref.slug for slug in step.transforms
-                 for ref in step.transform_contracts(slug)}
 
     problems = []
     for slug, other in sorted(project.steps.items()):
@@ -2901,15 +2923,6 @@ def missing_edges(project, step):
             problems.append(Problem(
                 0, t("step {other} declares {name} too, and depends_on does not "
                      "name it — deliberate?", other=slug, name=shared[0]), step.rel))
-            continue
-        theirs = {ref.slug for transform in other.transforms
-                  for ref in other.transform_contracts(transform)}
-        both = sorted(contracts & theirs)
-        if both:
-            problems.append(Problem(
-                0, t("step {other} leans on contract {name} as well, and "
-                     "depends_on does not name it — deliberate?",
-                     other=slug, name=both[0]), step.rel))
     return problems
 
 
@@ -3001,7 +3014,11 @@ def cmd_gaps(project, args):
         fail(t("no such step: {step}", step=args.step))
     steps = [step for step in steps if step]
 
-    problems = gaps_problems(project, steps)
+    # The same disagreement `check` refuses: gaps is what the planning skill
+    # runs until it comes back clean, so a slug two steps share must not slip
+    # through the plan and surface on a work branch, where fixing it means
+    # amending an approved plan.
+    problems = shared_transform_slugs(project) + gaps_problems(project, steps)
     names = ", ".join(step.slug for step in steps) or t("nothing")
     if not problems:
         print(t("the plan is complete: {names}", names=names))
@@ -3027,12 +3044,15 @@ def cmd_check(project, args):
     ci_problems, ci_note, ci_ran = ci_verdict(
         project, run=not args.fast and not args.no_tests)
     drift = drifted_from_main(project)
+    disagreements = shared_transform_slugs(project)
 
     if args.json:
         payload = {
-            "ok": (not structural and not plan_gaps and not ci_problems
+            "ok": (not structural and not disagreements and not plan_gaps
+                   and not ci_problems
                    and not any(results.get(n) for n in results)),
             "structure": [p.as_dict() for p in structural],
+            "disagreement": [p.as_dict() for p in disagreements],
             "plan": [p.as_dict() for p in plan_gaps],
             "ci": {"command": project.settings.get("ci", ""),
                    "problems": [p.as_dict() for p in ci_problems],
@@ -3054,10 +3074,19 @@ def cmd_check(project, args):
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0 if payload["ok"] else 1
 
-    total = len(structural)
+    total = len(structural) + len(disagreements)
     if structural:
         print("✗ " + t("documents do not parse"))
         for problem in structural:
+            print(problem.render())
+        print()
+
+    # Its own heading: these documents parse perfectly, they disagree with each
+    # other, and calling that a parse error sends the reader hunting for a YAML
+    # mistake that is not there.
+    if disagreements:
+        print("✗ " + t("documents disagree with each other"))
+        for problem in disagreements:
             print(problem.render())
         print()
 
@@ -3131,7 +3160,7 @@ def main_branch_answer(project):
     # Not from ambiguous documents. Closure is read out of commit messages by
     # slug, so a slug two steps share makes every answer here a guess — and the
     # guess it made was "every step is finished" over a step nobody had started.
-    broken = check_structure(project)
+    broken = check_structure(project) + shared_transform_slugs(project)
     if broken:
         return t("the documents do not agree with themselves, so there is no "
                  "saying what is done: {reason}", reason=broken[0].message)
@@ -3876,7 +3905,14 @@ REVIEW_BODY = """\
     python3 keel/keel.py check
 
 The full gate: references, cycles, revisions, scope, scenarios with green tests,
-module exports. Red gets fixed, not explained.
+module exports — and the project's own CI command. Red gets fixed, not explained.
+
+**The CI line is the project's, not Keel's.** When it is red, the project's own
+build, linter or suite is failing and there is nothing here to argue with. When
+the gate says no CI command is named, say so to the operator and ask what the
+project's own run should be — do not invent one, and do not write `none` on
+their behalf: that is their decision to make out loud, not yours to make for
+them.
 
 Then the part no check can see. Reread the step and ask not "what else should be
 true" but **what did we stay silent about**. Most often the silence is about
@@ -4225,7 +4261,8 @@ def approved_files(project, step):
     # bought a second process per write for an answer we already had. The hook
     # runs as its own process for every write, so this is the only saving
     # available — caching between writes is not.
-    text = project.git.out("show", f"{base}:{step.rel}", default=None)
+    text = project.git.out("show", f"{base}:{project.git.in_tree(step.rel)}",
+                           default=None)
     if not text:
         return None
     front, _, _ = split_front_matter(text)

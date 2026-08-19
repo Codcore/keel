@@ -74,13 +74,13 @@ read by Claude and Cursor, not by it.
 |---|---|
 | `keel new step <slug>` | the file skeleton: a header with empty fields and stub sections |
 | `keel new contract <slug>` | the same for a contract: `module` with `exports`, or `verify` |
-| `keel gaps [step]` | what is missing from a step's description: slugs without sections, transforms without files, scenarios without `proves`. And it asks about a forgotten edge: the step touches another's files or contracts while `depends_on` does not name it |
+| `keel gaps [step]` | what is missing from a step's description: slugs without sections, transforms without files, scenarios without `proves`. And it asks about a forgotten edge: the step declares a file another step declares too while `depends_on` does not name it |
 | `keel next` | the **package** for the next move: the transform, its files and boundaries, the scenarios it brings closer, the bodies of the contracts it leans on — and nothing beyond. On the main branch it names instead the step that is ready to be worked and the branch to take. Markdown; `--json` for scripts |
-| `keel check` | the six checks — the full gate. `--fast` leaves those that run nothing, `--no-tests` skips the run, `--branch` names the branch where git does not know it, `--json` for scripts |
+| `keel check` | the six checks — the full gate. `--fast` leaves those that run nothing, `--no-tests` skips the test run and the CI command, `--branch` names the branch where git does not know it, `--json` for scripts |
 | `keel rev` | shows revisions that have drifted apart; `--write` records the new ones |
 | `keel hooks` | shows the state of `pre-commit` and `pre-push`; `--install` installs them, `--force` overwrites somebody else's |
 | `keel skills` | regenerates the skills from the method |
-| `keel init` | installs Keel into a project: directories, a copy of the tool, the references, `AGENTS.md`, CI, hooks. `--docs` and `--lang` set the languages, `--force` overwrites somebody else's hook |
+| `keel init` | installs Keel into a project: directories, a copy of the tool, the references, `AGENTS.md`, CI, hooks. `--docs` and `--lang` set the languages, `--adapter` names the project's language, `--mode` how much installs itself, `--ci` the project's own gate, `--force` overwrites somebody else's hook |
 | `keel hook <event> --agent` | answers an agent hook; called by a config, not by hand |
 | `keel update` | brings the project's copies up to date. `--diff` shows the difference, `--force` overwrites even hand-edited files |
 
@@ -139,6 +139,7 @@ and the two should not be conflated:
 |---|---|---|
 | `docs` | which language the references arrive in | `--docs uk\|en` |
 | `lang` | what the agent writes steps and commits in, and which phrases the skills catch | `--lang uk\|en` |
+| `ci` | the project's own gate — a command, `""` for undecided, `"none"` for a refusal out loud | `--ci "<command>"` |
 
 They are separate because wanting an English reference with Ukrainian triggers is
 a reasonable thing to want. A skill's body depends on neither: it is read by the
@@ -283,11 +284,14 @@ asks a module for its exports both execute somebody else's code, and check 6 is
 what `pre-push` runs. A timeout is a red check naming the command, not silence
 and not a traceback; so is a missing interpreter.
 
-**This executes a command out of a file in the repository, and that is worth
-knowing.** `keel check` runs it through a shell, and `pre-push` runs `keel check`.
+**Two commands now come out of files in the repository, and that is worth
+knowing.** A contract's `verify` and the `ci` key in `keel/keel.json`. The
+second is the wider of the two: `verify` runs only for contracts that declare
+one, while `ci` runs for any project that names one — and `init` proposes
+`mix ci` to every Elixir project it installs into. `keel check` runs it through a shell, and `pre-push` runs `keel check`.
 So cloning somebody's project, or checking out a branch from a pull request and
 running `git push`, means executing whatever its contracts say. Until now every
-subprocess Keel launched was a fixed adapter command; this is the first one set
+subprocess Keel launched was a fixed adapter command; these are the ones set
 by whoever wrote the contract. The practical conclusion is simple: read a
 contract in somebody else's PR as carefully as you read code.
 

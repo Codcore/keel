@@ -321,3 +321,25 @@ class TestSkillQuality(ProjectCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheReviewSkillKnowsTheProjectsOwnGate(ProjectCase):
+    """`/keel-review` ганяє повний `check`, у якому тепер є команда проєкту, а
+    в тексті скіла про неї не було ні слова — тож на «команди CI немає» агент
+    або мовчав би, або вигадав команду."""
+
+    def generate(self):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            keel.cmd_skills(self.project, Args())
+        finally:
+            sys.stdout = saved
+
+    def test_the_review_skill_says_what_a_red_ci_means(self):
+        self.generate()
+        for _, relative in keel.skill_targets(keel.SKILLS[2]):
+            body = self.fixture.read(relative)
+            self.assertIn("CI", body, relative)
+            self.assertIn("do not invent one", body, relative)

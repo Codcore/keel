@@ -423,10 +423,12 @@ transforms:
         self.second_step(depends="[0001-session-loop]")
         self.assertEqual(self.messages("0001-session-loop"), [])
 
-    def test_a_shared_contract_is_asked_about_too(self):
+    def test_a_shared_contract_alone_is_not_asked_about(self):
+        """Спиратись на спільну обіцянку — не те саме, що залежати від кроку,
+        який її написав. Питання про це було майже завжди хибним і давало
+        N×(N−1) рядків на один поширений контракт."""
         self.second_step(files="[lib/nothing_shared.ex]")
-        self.assertTrue(any("session-run" in m for m in self.messages()),
-                        self.messages())
+        self.assertEqual(self.messages(), [])
 
     def test_a_dependency_two_steps_away_still_counts_as_named(self):
         self.second_step(depends="[0001-session-loop]")
