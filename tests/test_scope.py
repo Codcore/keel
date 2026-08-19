@@ -156,6 +156,34 @@ class TestBranchOverride(ProjectCase):
 
 
 
+class TestAFreshRepository(unittest.TestCase):
+    """The first `keel check` a new project ever runs."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-fresh-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        for folder in ("keel/steps", "keel/contracts"):
+            os.makedirs(os.path.join(self.root, folder))
+        subprocess.run(["git", "init", "-q", "-b", "main", self.root], check=True)
+
+    def test_no_commits_is_not_a_detached_head(self):
+        """HEAD вказує на гілку, якої ще немає — rev-parse падав, і порожня
+        відповідь читалась як відчеплена голова."""
+        git = keel.Git(self.root)
+        self.assertEqual(git.branch, "main")
+        self.assertFalse(git.has_commits)
+        self.assertEqual(keel.check_scope(keel.Project(self.root)), [])
+
+    def test_once_there_is_a_commit_the_check_works_as_before(self):
+        for key, value in (("user.email", "t@e"), ("user.name", "t")):
+            subprocess.run(["git", "-C", self.root, "config", key, value], check=True)
+        subprocess.run(["git", "-C", self.root, "commit", "-q", "--allow-empty",
+                        "-m", "base"], check=True)
+        git = keel.Git(self.root)
+        self.assertTrue(git.has_commits)
+        self.assertEqual(git.branch, "main")
+
+
 class TestNestedKeelRoot(unittest.TestCase):
     """A keel root inside a bigger repository — a layout find_root supports."""
 

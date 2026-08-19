@@ -1041,7 +1041,16 @@ class Git:
 
     @functools.cached_property
     def branch(self):
-        return self.out("rev-parse", "--abbrev-ref", "HEAD")
+        # symbolic-ref as well: in a repository with no commits yet, HEAD points
+        # at a branch that does not exist, rev-parse fails, and an empty answer
+        # read as a detached head — the first thing a new project saw was check 4
+        # reporting a detachment that was not there.
+        name = self.out("rev-parse", "--abbrev-ref", "HEAD")
+        return name or self.out("symbolic-ref", "--short", "HEAD")
+
+    @functools.cached_property
+    def has_commits(self):
+        return self.run("rev-parse", "--verify", "--quiet", "HEAD")[0] == 0
 
     ORIGIN = "refs/remotes/origin/"
 
@@ -1913,6 +1922,11 @@ def check_revisions(project):
 def check_scope(project):
     if not project.git.available:
         return [Problem(4, t("this is not a git repository — nothing to check scope against"))]
+    if not project.git.has_commits:
+        # A repository with nothing in it yet: there is no baseline to compare
+        # against and nothing committed to compare. Saying so beats inventing a
+        # detachment, which is what the very first `keel check` used to report.
+        return []
     branch = project.branch
     if branch == project.git.main_short:
         return []
