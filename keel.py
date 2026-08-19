@@ -225,6 +225,24 @@ UK = {
     "clean": "чисто",
     "problems: {count}": "проблем: {count}",
     "(not run: a plan branch has no code)": "(не запускалась: на гілці плану коду немає)",
+    "every step is finished. The next one starts with a plan: keel new step "
+    "<slug>, then the branch plan/<that name>.":
+        "усі кроки завершені. Наступний починається з плану: keel new step "
+        "<слаг>, а тоді гілка plan/<те саме імʼя>.",
+    "{steps}: the plan is not written yet — no transforms, so there is no work "
+    "to hand out. keel gaps says what is missing.":
+        "{steps}: план ще не написаний — трансформ немає, тож і роздавати "
+        "нічого. keel gaps каже, чого бракує.",
+    "every unfinished step is waiting on another that is not done yet: {steps}. "
+    "Finish what they lean on, or plan the step that is missing.":
+        "кожен незавершений крок чекає на інший, який ще не зроблений: {steps}. "
+        "Закінчіть те, на що вони спираються, або заплануйте крок, якого бракує.",
+    "step {step} is approved and {open} of {total} transforms are not closed. "
+    "The work goes on its own branch:\n"
+    "  git checkout -b {step}":
+        "крок {step} схвалений, і {open} з {total} трансформ не закриті. Робота "
+        "йде на власній гілці:\n"
+        "  git checkout -b {step}",
     "{name}: this is {main}, where finished work arrives — it is not where work "
     "is written. Code belongs on a branch named after a step: check out the step "
     "you are working on, or plan a new one with keel new step.":
@@ -1152,6 +1170,13 @@ class Git:
                     files.add(name)
         return files
 
+    def messages_on(self, ref):
+        """Every commit message reachable from a ref, newest first."""
+        code, stdout, _ = self.run("log", "--format=%x1e%B", ref)
+        if code != 0:
+            return []
+        return [chunk.strip() for chunk in stdout.split("\x1e") if chunk.strip()]
+
     def commits_since(self, base):
         """[(sha, message, {files})], oldest first.
 
@@ -1650,13 +1675,65 @@ class Project:
         found = {}
         for sha, message, files in self.git.commits_since(base):
             for slug in step.transforms:
-                # First word of the message, not anywhere in it: otherwise a
-                # commit for `add-more` also closes `add`, and a passing
-                # mention in the body closes whatever it names.
-                named = re.match(rf"\s*{re.escape(slug)}(?![\w-])", message)
-                if named and slug not in found:
+                if message_closes(message, slug) and slug not in found:
                     found[slug] = (sha, files)
         return {slug: found.get(slug, (None, set())) for slug in step.transforms}
+
+    @functools.cached_property
+    def main_messages(self):
+        """Every commit message on the main branch, read once.
+
+        `transform_state` counts closure over `merge_base..HEAD`, which is the
+        right range while a step is being worked. Standing on main that range is
+        empty — main *is* the baseline — so closure has to be read from its own
+        history instead, or every finished step would look untouched.
+        """
+        return self.git.messages_on(self.git.main_branch)
+
+    def unclosed_on_main(self, step):
+        """Transforms of a step that no commit on the main branch closes."""
+        return [slug for slug in step.transforms
+                if not any(message_closes(message, slug)
+                           for message in self.main_messages)]
+
+    def ready_steps(self):
+        """(ready, blocked, unplanned) — where the work stands, read from git.
+
+        The order of work is derived from `depends_on`, never from the numbers
+        in the names, so "what now" is answered by walking the graph rather than
+        taking the next file in the directory. Ready means every step it leans
+        on is finished and its own transforms are not.
+
+        A step with no transforms declares no work, so nothing can close it and
+        it would otherwise count as finished — a skeleton nobody filled in would
+        report the project complete.
+        """
+        done, unfinished, unplanned = {}, [], []
+        for slug, step in sorted(self.steps.items()):
+            if step.error:
+                continue
+            if not step.transforms:
+                unplanned.append(step)
+                done[slug] = False
+                continue
+            done[slug] = not self.unclosed_on_main(step)
+            if not done[slug]:
+                unfinished.append(step)
+        ready, blocked = [], []
+        for step in unfinished:
+            laid = all(done.get(need, False) for need in step.depends_on)
+            (ready if laid else blocked).append(step)
+        return ready, blocked, unplanned
+
+
+def message_closes(message, slug):
+    """Whether this commit message closes that transform.
+
+    The first word of the message, not anywhere in it: otherwise a commit for
+    `add-more` also closes `add`, and a passing mention in the body closes
+    whatever it names.
+    """
+    return bool(re.match(rf"\s*{re.escape(slug)}(?![\w-])", message))
 
 
 def find_root(start):
@@ -2679,10 +2756,42 @@ def next_transform(project, step):
     return None, state
 
 
+def main_branch_answer(project):
+    """What to do while standing where finished work lands.
+
+    The tool knows the state and the agent has the judgement — but this answer
+    used to be "the branch is not named after a step" and nothing more, while
+    the documents and git together plainly said which step is approved, which
+    of its transforms are open, and what its branch has to be called.
+    """
+    ready, blocked, unplanned = project.ready_steps()
+    if not ready and not blocked and not unplanned:
+        return t("every step is finished. The next one starts with a plan: "
+                 "keel new step <slug>, then the branch plan/<that name>.")
+    if not ready:
+        if unplanned:
+            names = ", ".join(step.slug for step in unplanned)
+            return t("{steps}: the plan is not written yet — no transforms, so "
+                     "there is no work to hand out. keel gaps says what is "
+                     "missing.", steps=names)
+        waiting = ", ".join(step.slug for step in blocked)
+        return t("every unfinished step is waiting on another that is not done "
+                 "yet: {steps}. Finish what they lean on, or plan the step that "
+                 "is missing.", steps=waiting)
+    step = ready[0]
+    open_now = project.unclosed_on_main(step)
+    return t("step {step} is approved and {open} of {total} transforms are not "
+             "closed. The work goes on its own branch:\n"
+             "  git checkout -b {step}", step=step.slug,
+             open=len(open_now), total=len(step.transforms))
+
+
 def cmd_next(project, args):
     step = project.step_for_branch()
     branch = project.branch
     if step is None:
+        if branch and branch == project.git.main_short:
+            return emit_next_error(args, main_branch_answer(project))
         message = t("branch {branch} is not named after a step. Work happens on "
                     "a branch named after the step, planning on plan/<step>.",
                     branch=branch)

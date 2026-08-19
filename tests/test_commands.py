@@ -25,7 +25,14 @@ class TestNext(ProjectCase):
             sys.stdout = saved
         return code, stream.getvalue()
 
-    def test_refuses_on_main(self):
+    def test_on_main_it_names_the_step_that_is_ready(self):
+        """Було «гілка не названа за кроком» — правда, але не відповідь."""
+        code, out = self.run_next()
+        self.assertEqual(code, 1)
+        self.assertIn("git checkout -b 0001-session-loop", out)
+
+    def test_a_branch_that_is_neither_main_nor_a_step_still_says_the_rule(self):
+        self.fixture.branch("spike/whatever")
         code, out = self.run_next()
         self.assertEqual(code, 1)
         self.assertIn("is not named after a step", out)
@@ -357,6 +364,56 @@ class TestShow(ProjectCase):
     def test_an_unknown_step_refuses(self):
         with self.assertRaises(SystemExit):
             self.show("0009-nope")
+
+
+class TestNextOnTheMainBranch(ProjectCase):
+    """Інструмент знає стан — і мусить його сказати, а не переказати правило.
+
+    Раніше на головній гілці `next` відповідав «гілка не названа за кроком», хоч
+    із документів і git йому відомо, який крок готовий до роботи.
+    """
+
+    def answer(self):
+        return keel.main_branch_answer(self.project)
+
+    def close_the_only_transform(self):
+        self.fixture.git("commit", "--allow-empty", "-m", "drive-turns: зроблено")
+
+    def add_step(self, slug, body):
+        self.fixture.write(f"keel/steps/{slug}.md", body)
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", f"план {slug}")
+
+    def test_the_ready_step_is_named_with_its_branch(self):
+        answer = self.answer()
+        self.assertIn("0001-session-loop", answer)
+        self.assertIn("git checkout -b 0001-session-loop", answer)
+        self.assertIn("1 of 1", answer)
+
+    def test_when_everything_is_closed_it_says_plan_the_next(self):
+        self.close_the_only_transform()
+        self.assertIn("every step is finished", self.answer())
+
+    def test_a_skeleton_is_not_a_finished_project(self):
+        """Крок без трансформ закривати нічим — і він читався як завершений."""
+        self.close_the_only_transform()
+        self.add_step("0002-empty", keel.step_skeleton("0002-empty"))
+        answer = self.answer()
+        self.assertIn("0002-empty", answer)
+        self.assertIn("the plan is not written yet", answer)
+
+    def test_a_step_whose_ground_is_not_laid_is_not_offered(self):
+        self.close_the_only_transform()
+        # Своя назва трансформи: інакше комміт, що закрив `drive-turns`
+        # у першому кроці, закриває однойменну і в другому.
+        self.add_step("0002-later", self.fixture.read(
+            "keel/steps/0001-session-loop.md")
+            .replace("depends_on: []", "depends_on: [0009-never-planned]")
+            .replace("drive-turns", "later-turns"))
+        answer = self.answer()
+        self.assertIn("waiting on another", answer)
+        self.assertIn("0002-later", answer)
+        self.assertNotIn("git checkout", answer)
 
 
 class TestCheck(ProjectCase):
