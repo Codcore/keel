@@ -498,6 +498,17 @@ class TestUpdate(unittest.TestCase):
     def path(self, name):
         return os.path.join(self.root, name)
 
+    def retire(self, name, body="старий довідник\n"):
+        """Проєкт, оновлений до перейменування: файл на диску, запис у маніфесті,
+        а в методиці такого вже немає."""
+        with open(self.path(name), "w", encoding="utf-8") as handle:
+            handle.write(body)
+        config = json.loads(self.read("keel/keel.json"))
+        config["generated"][name] = keel.digest(body)
+        with open(self.path("keel/keel.json"), "w", encoding="utf-8") as handle:
+            json.dump(config, handle, ensure_ascii=False, indent=2)
+        return name
+
     def read(self, name):
         with open(self.path(name), encoding="utf-8") as handle:
             return handle.read()
@@ -584,6 +595,49 @@ class TestUpdate(unittest.TestCase):
 
 
 
+
+    def test_a_file_the_methodology_dropped_is_taken_back(self):
+        """Перейменований довідник має зникнути, а не лежати поруч із новим:
+        застаріла копія правил гірша за жодну, бо вона відповідає."""
+        name = self.retire("keel/OLD.md")
+        code, out = self.update()
+
+        self.assertEqual(code, 0, out)
+        self.assertFalse(os.path.exists(self.path(name)), out)
+        self.assertIn("keel/OLD.md", out)
+        self.assertNotIn(name, json.loads(self.read("keel/keel.json"))["generated"])
+
+    def test_a_dropped_file_edited_by_hand_is_named_and_left(self):
+        """Та сама відповідь, що й на будь-яку ручну правку: не наша — не чіпаємо."""
+        name = self.retire("keel/OLD.md")
+        with open(self.path(name), "w", encoding="utf-8") as handle:
+            handle.write("тут щось дописали руками\n")
+
+        code, out = self.update()
+
+        self.assertTrue(os.path.exists(self.path(name)), out)
+        self.assertIn("keel/OLD.md", out)
+        # Запис іде однаково: наступний прогін не має говорити про чужий файл.
+        self.assertNotIn(name, json.loads(self.read("keel/keel.json"))["generated"])
+        self.assertEqual(code, 0, out)
+
+    def test_a_dropped_file_already_gone_is_just_forgotten(self):
+        """Хтось прибрав його руками раніше — це не привід падати."""
+        name = self.retire("keel/OLD.md")
+        os.remove(self.path(name))
+
+        code, out = self.update()
+
+        self.assertEqual(code, 0, out)
+        self.assertNotIn(name, json.loads(self.read("keel/keel.json"))["generated"])
+
+    def test_a_file_the_methodology_still_owns_survives(self):
+        """Найважливіше з чотирьох: прибирання не має чіпати живих файлів."""
+        code, out = self.update()
+
+        self.assertEqual(code, 0, out)
+        self.assertTrue(os.path.exists(self.path("keel/METHODOLOGY.md")), out)
+        self.assertTrue(os.path.exists(self.path("keel/keel.py")), out)
 
 class TestTranslationsKeepUp(unittest.TestCase):
     """Справжня охорона двомовності.
