@@ -2,7 +2,9 @@
 """The git hooks, including real commits going through them."""
 
 import os
+import shutil
 import subprocess
+import tempfile
 import sys
 import unittest
 
@@ -104,6 +106,56 @@ class TestHooks(ProjectCase):
 # ─────────────────────────────────────────────────────────────────────────────
 # keel init
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+
+
+class TestHooksLandWhereGitReadsThem(unittest.TestCase):
+    """A hook written where git never looks is the purest silent green."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-hookpath-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        os.makedirs(os.path.join(self.root, "keel", "steps"))
+        os.makedirs(os.path.join(self.root, "keel", "contracts"))
+        subprocess.run(["git", "init", "-q", "-b", "main", self.root], check=True)
+        for key, value in (("user.email", "t@e"), ("user.name", "t")):
+            subprocess.run(["git", "-C", self.root, "config", key, value], check=True)
+
+    def install(self, root):
+        from io import StringIO
+        from tests.support import Args
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            keel.cmd_hooks(keel.Project(root), Args(install=True, force=False))
+        finally:
+            sys.stdout = saved
+        return stream.getvalue()
+
+    def where_git_reads(self, root):
+        return subprocess.run(["git", "-C", root, "rev-parse", "--git-path", "hooks"],
+                              capture_output=True, text=True).stdout.strip()
+
+    def test_core_hookspath_is_honoured(self):
+        """husky-подібний репозиторій: хук у .git/hooks git просто ігнорує."""
+        os.makedirs(os.path.join(self.root, ".husky"))
+        subprocess.run(["git", "-C", self.root, "config", "core.hooksPath", ".husky"],
+                       check=True)
+        self.install(self.root)
+        self.assertTrue(os.path.exists(os.path.join(self.root, ".husky", "pre-commit")))
+
+    def test_a_linked_worktree_gets_its_hooks_where_git_looks(self):
+        subprocess.run(["git", "-C", self.root, "commit", "-q", "--allow-empty",
+                        "-m", "base"], check=True)
+        side = os.path.join(self.root, "..", "side-" + os.path.basename(self.root))
+        subprocess.run(["git", "-C", self.root, "worktree", "add", "-q", side,
+                        "-b", "side"], check=True)
+        self.addCleanup(shutil.rmtree, side, True)
+        os.makedirs(os.path.join(side, "keel", "steps"), exist_ok=True)
+        self.install(side)
+        target = os.path.join(self.where_git_reads(side), "pre-commit")
+        self.assertTrue(os.path.exists(target), target)
 
 
 if __name__ == "__main__":

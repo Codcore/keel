@@ -984,15 +984,55 @@ class TestGitEdges(unittest.TestCase):
         with open(os.path.join(self.root, "f.txt"), "w") as handle:
             handle.write("x\n")
         self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
-        self.git("checkout", "-q", "-b", "other")   # друга гілка = повний клон
-        self.git("checkout", "-q", "trunk")
+        # Повний клон пізнається за wildcard-refspec, а не за числом гілок:
+        # CI регулярно доfetch-ує базу в одногілковий клон.
+        self.git("config", "remote.origin.url", "/dev/null")
+        self.git("config", "remote.origin.fetch",
+                 "+refs/heads/*:refs/remotes/origin/*")
         self.git("update-ref", "refs/remotes/origin/trunk", "HEAD")
-        self.git("update-ref", "refs/remotes/origin/other", "HEAD")
         self.git("symbolic-ref", "refs/remotes/origin/HEAD",
                  "refs/remotes/origin/trunk")
         g = keel.Git(self.root)
         self.assertEqual(g.main_branch, "trunk")
         self.assertEqual(g.main_short, "trunk")
+
+    def test_the_refspec_tells_the_clone_shapes_apart(self):
+        """Не імена й не лічильник гілок: --single-branch звужує саме refspec."""
+        self.repo()
+        with open(os.path.join(self.root, "f.txt"), "w") as handle:
+            handle.write("x\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
+        self.git("config", "remote.origin.url", "/dev/null")
+        g = keel.Git(self.root)
+        self.git("config", "remote.origin.fetch",
+                 "+refs/heads/*:refs/remotes/origin/*")
+        self.assertTrue(keel.Git(self.root).tracks_whole_remote)
+        self.git("config", "remote.origin.fetch",
+                 "+refs/heads/work:refs/remotes/origin/work")
+        self.assertFalse(keel.Git(self.root).tracks_whole_remote)
+
+    def test_no_refspec_at_all_errs_towards_distrust(self):
+        """Невизначеність має схилятись до гучної відмови, не до тихого зеленого."""
+        self.repo()
+        with open(os.path.join(self.root, "f.txt"), "w") as handle:
+            handle.write("x\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
+        self.assertFalse(keel.Git(self.root).tracks_whole_remote)
+
+    def test_a_stale_main_does_not_hijack_a_trunk_default(self):
+        """Повний клон на trunk із залишковим main тримає trunk."""
+        self.repo("trunk")
+        with open(os.path.join(self.root, "f.txt"), "w") as handle:
+            handle.write("x\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "base")
+        self.git("branch", "main", "HEAD")
+        self.git("config", "remote.origin.url", "/dev/null")
+        self.git("config", "remote.origin.fetch",
+                 "+refs/heads/*:refs/remotes/origin/*")
+        self.git("update-ref", "refs/remotes/origin/trunk", "HEAD")
+        self.git("symbolic-ref", "refs/remotes/origin/HEAD",
+                 "refs/remotes/origin/trunk")
+        self.assertEqual(keel.Git(self.root).main_branch, "trunk")
 
     def test_a_ci_base_fetch_does_not_defeat_the_single_branch_guard(self):
         """clone --single-branch + fetch origin main — стандартний CI: дві

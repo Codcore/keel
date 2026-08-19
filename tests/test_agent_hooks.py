@@ -167,6 +167,27 @@ class TestHookReply(unittest.TestCase):
 
 
 
+class TestSessionContextRespectsTheGate(ProjectCase):
+    """The hook may not dictate work the method's own gate refuses."""
+
+    def test_an_unapproved_step_hands_out_no_package(self):
+        """`next` відмовляє, поки крок не на main — хук казав протилежне."""
+        self.fixture.git("checkout", "-q", "-b", "plan/0002-later")
+        self.fixture.write("keel/steps/0002-later.md",
+                           "---\ntransforms:\n  do:\n    files: [lib/b.ex]\n"
+                           "---\n\n## Why\n\nх.\n\n## transform: do\n\nЩось.\n")
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-q", "-m", "план")
+        self.fixture.git("checkout", "-q", "-b", "0002-later")
+        text = keel.session_context(self.project)
+        self.assertIn("is not on", text)
+        self.assertNotIn("keel-work", text)
+
+    def test_an_approved_step_still_hands_out_the_package(self):
+        self.fixture.branch("0001-session-loop")
+        self.assertIn("keel-work", keel.session_context(self.project))
+
+
 class TestSessionContext(ProjectCase):
     def test_the_hook_does_not_contradict_the_skill_on_order(self):
         """Номер зʼявляється після new step, тож гілку заводять після нього."""

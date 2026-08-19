@@ -363,6 +363,26 @@ class TestSectionSplitting(unittest.TestCase):
         self.assertEqual(doc.section_lines["scenario: s"], 6)
 
 
+class TestRewriteTagCaseBlindness(unittest.TestCase):
+    """Case-blind on the slug alone — never on the directive."""
+
+    def test_prose_that_merely_says_proves_is_untouched(self):
+        text = "# Proves: parse is central to this module\n"
+        out, changed = keel.rewrite_tag(text, "parse", "abc123", "python")
+        self.assertEqual((out, changed), (text, 0))
+
+    def test_a_shouted_directive_in_a_fixture_is_untouched(self):
+        text = 'IO.puts("@TAG PROVES: :parse, rev: 1")\n'
+        out, changed = keel.rewrite_tag(text, "parse", "abc123", "elixir")
+        self.assertEqual((out, changed), (text, 0))
+
+    def test_a_capitalised_slug_is_still_restamped(self):
+        out, changed = keel.rewrite_tag('# proves: Parse, rev: "old"\n',
+                                        "parse", "abc123", "python")
+        self.assertEqual(changed, 1)
+        self.assertIn('"abc123"', out)
+
+
 class TestRewriteTag(unittest.TestCase):
     """Restamping one scenario's tag leaves its longer-named sibling alone."""
 

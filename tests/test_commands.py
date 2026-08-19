@@ -396,6 +396,23 @@ class TestCheck(ProjectCase):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+class TestNextDictatesNothingPoisoned(ProjectCase):
+    """A scenario with no body has no revision — so no tag is dictated."""
+
+    def test_a_bodyless_scenario_gets_no_tag_line(self):
+        text = self.fixture.read("keel/steps/0001-session-loop.md")
+        head, _, _ = text.partition("## scenario:")
+        self.fixture.write("keel/steps/0001-session-loop.md", head)
+        self.fixture.branch("0001-session-loop")
+        step = self.project.steps["0001-session-loop"]
+        slug, state = keel.next_transform(self.project, step)
+        package = keel.next_package(self.project, step, slug, state)
+        for item in package["scenarios"]:
+            self.assertIsNone(item["rev"])
+            self.assertIsNone(item["tag"])
+        self.assertNotIn('rev: "None"', keel.render_next(package))
+
+
 class TestCheckOrderIsHonest(unittest.TestCase):
     """Check 4 reads git after 5 and 6 ran: their side effects are in the verdict."""
 

@@ -305,6 +305,10 @@ UK = {
         "поширюється. Чи варто туди писати — вирішуй сам.",
     "step {step} is not on {main} yet: the plan is not approved and there is no work.":
         "кроку {step} ще немає на {main}: план не затверджено, і роботи немає.",
+    "Keel: step {step} is not on {main} yet: the plan is not approved and there "
+    "is no work.":
+        "Keel: кроку {step} ще немає на {main}: план не затверджено, і роботи "
+        "немає.",
     "this is a plan branch: the step is written here, not code. keel gaps says "
     "what is missing.":
         "це гілка плану: тут пишеться крок, а не код. Чого бракує — каже keel gaps.",
@@ -1028,6 +1032,22 @@ class Git:
     ORIGIN = "refs/remotes/origin/"
 
     @functools.cached_property
+    def tracks_whole_remote(self):
+        """Positive evidence that this clone follows the remote's every branch.
+
+        `git clone --single-branch` narrows the fetch refspec to one branch; a
+        full clone keeps the wildcard. Later fetches may add refs, so counting
+        them proves nothing — the refspec is what was narrowed, and it stays
+        narrowed. Absent evidence the answer is no: trusting an origin/HEAD that
+        names the current branch makes that branch its own baseline, and a
+        silent green is the one outcome worth erring away from.
+        """
+        code, spec, _ = self.run("config", "--get-all", "remote.origin.fetch")
+        if code != 0:
+            return False
+        return any("*" in line for line in spec.splitlines())
+
+    @functools.cached_property
     def main_branch(self):
         """The main branch. On CI it is not local — there it is origin/main."""
         head = self.out("symbolic-ref", "--quiet", "refs/remotes/origin/HEAD")
@@ -1035,27 +1055,17 @@ class Git:
         # branch named release/2024 would otherwise become "2024", a ref that
         # does not exist, and the scope check would find no baseline.
         short = head[len(self.ORIGIN):] if head.startswith(self.ORIGIN) else ""
-        # In a single-branch clone origin/HEAD names the branch under test.
-        # Believing it makes a branch its own baseline: the diff covers nothing
-        # and the scope check reports green having compared nothing. But
-        # standing on the default branch of a full clone looks the same from
-        # here, and a default named outside the fallback list (trunk, develop)
-        # would turn into a false red. A branch count alone cannot tell the two
-        # apart — CI routinely fetches the base into a single-branch clone,
-        # which makes it look plural. So the order is: whenever a known main
-        # exists anywhere, it wins over an origin/HEAD that names the current
-        # branch; only when no known main exists at all does the branch count
-        # separate the full clone on trunk from the single-branch clone.
-        if short and short == self.branch:
-            for name in ("main", "master", "origin/main", "origin/master"):
-                if self.run("rev-parse", "--verify", "--quiet", name)[0] == 0:
-                    return name
-            code, refs, _ = self.run("for-each-ref", "refs/remotes/origin",
-                                     "--format=%(refname)")
-            tracked = [line for line in refs.splitlines()
-                       if line and not line.endswith("/HEAD")]
-            if code == 0 and len(tracked) > 1:
-                return short
+        # In a single-branch clone origin/HEAD names the branch under test, and
+        # believing it makes a branch its own baseline: the diff covers nothing
+        # and the scope check reports green having compared nothing. Standing on
+        # the default branch of a full clone looks identical from here, so the
+        # two have to be told apart by something other than the name — guessing
+        # from names cost three attempts. Counting branches fails too: CI
+        # routinely fetches the base into a single-branch clone. The refspec is
+        # the honest signal, because it is what --single-branch narrows:
+        # a wildcard means the clone tracks the whole remote.
+        if short and short == self.branch and self.tracks_whole_remote:
+            return short
         if short and short != self.branch:
             if self.run("rev-parse", "--verify", "--quiet", short)[0] == 0:
                 return short
@@ -1386,6 +1396,10 @@ class PythonAdapter(Adapter):
             "            spec = importlib.util.spec_from_file_location(\n"
             "                os.path.splitext(path)[0].replace(os.sep, '.'), path)\n"
             "            module = importlib.util.module_from_spec(spec)\n"
+            # Registered before it runs: mock.patch('tests.x.thing') resolves
+            # through the import system, and an unregistered module means patch
+            # imports a second copy and patches that one while this copy runs.
+            "            sys.modules[spec.name] = module\n"
             "            spec.loader.exec_module(module)\n"
             "            suite.addTests(loader.loadTestsFromModule(module))\n"
             "result = unittest.TextTestRunner().run(suite)\n"
@@ -2510,9 +2524,13 @@ def next_package(project, step, slug, state):
             "body": (body or "").strip(),
             # The dictated tag in the adapter's own dialect: dictating the
             # Elixir form to a Python project made the operator's obedient tag
-            # invisible to the collector. No adapter — no dictation.
+            # invisible to the collector. No adapter — no dictation. No revision
+            # either: a scenario with no body has none, and interpolating it
+            # dictated the literal `rev: "None"`, which rev_matches can never
+            # accept — a permanent red planted by the tool's own instruction.
             "tag": (project.adapter.tag_example(name, rev)
-                    if project.adapter and hasattr(project.adapter, "tag_example")
+                    if rev and project.adapter
+                    and hasattr(project.adapter, "tag_example")
                     else None),
         })
 
@@ -3357,6 +3375,14 @@ def session_context(project):
     if step.error:
         return t("Keel: {file} does not parse: {reason}",
                  file=step.rel, reason=step.error)
+    # The same gate `next` enforces: a step that has not reached the main branch
+    # is not approved, and there is no work. Without this the hook dictated
+    # exactly the work the method's own gate refuses — the guard arguing with
+    # the tool it was installed to enforce.
+    if not project.git.file_in_branch(project.git.main_branch, step.rel):
+        return t("Keel: step {step} is not on {main} yet: the plan is not "
+                 "approved and there is no work.", step=step.slug,
+                 main=project.git.main_branch)
 
     slug, state = next_transform(project, step)
     if slug is None:
@@ -3911,10 +3937,18 @@ def hook_script(name, baked):
 
 
 def cmd_hooks(project, args):
-    git_dir = project.git.out("rev-parse", "--absolute-git-dir")
-    if not git_dir:
+    # --git-path hooks, not <git-dir>/hooks: git honours core.hooksPath, and a
+    # linked worktree's own git dir is not where hooks are read from. Writing to
+    # the wrong folder and reporting success is the silent green this whole tool
+    # exists against — the commit then passes with no guard at all.
+    folder = project.git.out("rev-parse", "--path-format=absolute",
+                             "--git-path", "hooks")
+    if not folder:
+        folder = project.git.out("rev-parse", "--git-path", "hooks")
+        if folder and not os.path.isabs(folder):
+            folder = os.path.join(project.root, folder)
+    if not folder:
         fail(t("this is not a git repository — there is nowhere to put the hooks"))
-    folder = os.path.join(git_dir, "hooks")
     baked = os.path.abspath(__file__)
 
     problems, missing = 0, 0
@@ -4222,15 +4256,24 @@ def rewrite_tag(text, slug, fresh, dialect):
     happened from one it merely claimed.
     """
     atom = slug.replace("-", "_")
+    # Case-blind on the slug alone, spelled inline — never on the directive.
+    # A whole-pattern re.I matched `# Proves: parse is central to this module`
+    # in prose and `@TAG PROVES:` inside a string fixture, neither of which the
+    # collectors see as tags: rewriting them is the same "changed what was
+    # never reported" this function exists to have stopped doing.
+    def blind(word):
+        return "".join(f"[{ch.lower()}{ch.upper()}]" if ch.isalpha()
+                       else re.escape(ch) for ch in word)
+
     if dialect == "elixir":
         pattern = re.compile(
-            rf"@tag\s+proves:\s*:({re.escape(atom)})(?![\w?!])"
-            rf"(?:\s*,\s*rev:\s*[\"'][^\"']*[\"'])?", re.I)
+            rf"@tag\s+proves:\s*:({blind(atom)})(?![\w?!])"
+            rf"(?:\s*,\s*rev:\s*[\"'][^\"']*[\"'])?")
         return pattern.subn(
             lambda m: f'@tag proves: :{m.group(1)}, rev: "{fresh}"', text)
     pattern = re.compile(
-        rf"#\s*proves:\s*({re.escape(slug)}|{re.escape(atom)})(?![\w-])"
-        rf"(?:\s*,\s*rev:\s*[\"']?[^\"'\s,]*[\"']?)?", re.I)
+        rf"#\s*proves:\s*({blind(slug)}|{blind(atom)})(?![\w-])"
+        rf"(?:\s*,\s*rev:\s*[\"']?[^\"'\s,]*[\"']?)?")
     return pattern.subn(
         lambda m: f'# proves: {m.group(1)}, rev: "{fresh}"', text)
 
