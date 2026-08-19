@@ -381,6 +381,35 @@ class TestCheck(ProjectCase):
         self.assertEqual(code, 1)
         self.assertIn("has no test", out)
 
+    def stray_skeleton(self):
+        """An unfilled skeleton of somebody else's step, left behind untracked."""
+        self.fixture.write("keel/steps/0002-left-behind.md",
+                           keel.step_skeleton("0002-left-behind"))
+
+    def test_a_stray_step_is_named_so_nobody_moves_it(self):
+        self.stray_skeleton()
+        self.fixture.branch("plan/0001-session-loop")
+        code, out = self.capture(Args(fast=True, no_tests=True, json=False))
+        self.assertEqual(code, 1)
+        self.assertIn("0002-left-behind", out)
+        self.assertIn("not moved, renamed or deleted", out)
+
+    def test_the_branch_own_step_earns_no_such_note(self):
+        self.fixture.branch("plan/0001-session-loop")
+        self.fixture.write("keel/steps/0001-session-loop.md",
+                           self.fixture.read("keel/steps/0001-session-loop.md")
+                           + "\n## transform: never-declared\n\nWhat it does.\n")
+        code, out = self.capture(Args(fast=True, no_tests=True, json=False))
+        self.assertEqual(code, 1)
+        self.assertIn("never-declared", out)
+        self.assertNotIn("not moved, renamed or deleted", out)
+
+    def test_on_the_main_branch_the_note_stays_quiet(self):
+        self.stray_skeleton()
+        code, out = self.capture(Args(fast=True, no_tests=True, json=False))
+        self.assertEqual(code, 1)
+        self.assertNotIn("not moved, renamed or deleted", out)
+
     def test_json_shape(self):
         import json as jsonlib
         code, out = self.capture(Args(fast=True, no_tests=True, json=True))

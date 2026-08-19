@@ -148,6 +148,21 @@ class TestSkills(ProjectCase):
             self.assertIn("AskUserQuestion", body, relative)
             self.assertIn("Ask, do not guess", body, relative)
 
+    def test_a_refused_question_is_not_permission_to_guess(self):
+        """Питання перервали — і крок поїхав на здогадах, а PR цього не показав."""
+        self.generate()
+        for _, relative in keel.skill_targets(keel.SKILLS[0]):
+            body = self.fixture.read(relative)
+            self.assertIn("is not permission to", body, relative)
+            self.assertIn("do not commit the plan", body, relative)
+
+    def test_somebody_elses_step_is_not_moved_out_of_the_way(self):
+        """Заслон завалив чужим скелетом — і його відсунули, щоб пройти."""
+        self.generate()
+        for _, relative in keel.skill_targets(keel.SKILLS[0]):
+            body = self.fixture.read(relative)
+            self.assertIn("did not come to write is not yours", body, relative)
+
     def test_thin_skills_name_the_commands(self):
         self.generate()
         self.assertIn("keel.py next", self.fixture.read(

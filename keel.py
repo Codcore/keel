@@ -224,6 +224,12 @@ UK = {
     "documents do not parse": "документи не читаються",
     "clean": "чисто",
     "problems: {count}": "проблем: {count}",
+    "{steps}: this branch did not come to write that step. Somebody else's step "
+    "is not moved, renamed or deleted to get a check green — leave it and say it "
+    "is there.":
+        "{steps}: ця гілка писати той крок не приходила. Чужий крок не пересувають, "
+        "не перейменовують і не видаляють заради зеленої перевірки — лишіть його "
+        "на місці й скажіть, що він там є.",
     "bad slug: {slug}": "поганий слаг: {slug}",
     "already there: {path}": "вже є: {path}",
     "no such step: {step}": "кроку немає: {step}",
@@ -2309,6 +2315,25 @@ def check_headings(project):
     return problems
 
 
+def foreign_steps(project, problems):
+    """Slugs of blamed steps that this branch did not come to write.
+
+    Said out loud because of what happens when it is not: an unfinished skeleton
+    somebody left behind holds `check` red, the agent finds its own plan commit
+    walled off by a file that is not its business, and the shortest way past is
+    to move the operator's step out of the project.
+    """
+    mine = project.step_for_branch()
+    if mine is None:
+        # On the main branch nobody is writing a step, and a repo-wide check is
+        # the operator's own business: every blamed step would be "foreign", and
+        # the advice would be noise on the one branch that has no work to unblock.
+        return []
+    blamed = {problem.where for problem in problems if problem.where}
+    return sorted(step.slug for step in project.steps.values()
+                  if step.rel in blamed and step.rel != mine.rel)
+
+
 def run_checks(project, only=None, run_tests=True):
     only = set(only or CHECK_NAMES)
     results = {}
@@ -2559,6 +2584,14 @@ def cmd_check(project, args):
             print(problem.render())
     print()
     print(t("clean") if total == 0 else t("problems: {count}", count=total))
+
+    everything = list(structural) + [p for found in results.values() if found for p in found]
+    strays = foreign_steps(project, everything)
+    if strays:
+        print("\n" + t("{steps}: this branch did not come to write that step. "
+                       "Somebody else's step is not moved, renamed or deleted to "
+                       "get a check green — leave it and say it is there.",
+                       steps=", ".join(strays)))
     return 0 if total == 0 else 1
 
 
@@ -3151,6 +3184,13 @@ anything `keel gaps` already answers. Questions are for judgement, not for facts
 An open question that blocks nothing does not stop the work: write everything
 that does not depend on the answer, and raise the question where it belongs.
 
+**A question refused, interrupted or left unanswered is not permission to
+guess.** Where the answer decides what gets written, write everything that does
+not depend on it, leave the rest unwritten, and do not commit the plan — say
+which question is still open. A guess committed as a plan reads as a decision to
+whoever opens the pull request, and the chat where you called it a guess is not
+in the diff.
+
 ## Quality cuts
 
 Before treating the list of scenarios as complete, walk `keel/QUALITY.md` — forty
@@ -3200,6 +3240,12 @@ Run this until it comes back clean:
 It reports what is missing mechanically: slugs without sections, transforms
 without files, scenarios without `proves`. If you lean on a contract, a fresh
 revision comes from `python3 keel/keel.py rev --write`.
+
+**A step this branch did not come to write is not yours.** An unfinished
+skeleton somebody left behind holds `check` red and can wall off your own
+commit, and moving, renaming or deleting it is not the way past: leave it where
+it is and tell the operator it is there. The same goes for every other file the
+branch did not come to touch.
 
 Then commit on the `plan/<step>` branch and open the PR. **No code goes in this
 PR** — a plan branch touches only `keel/`, and the scope check enforces it.
