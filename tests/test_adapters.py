@@ -25,18 +25,18 @@ class TestCiStepsWaitForTheirMarker(unittest.TestCase):
     def test_every_adapter_guards_its_install_on_the_marker(self):
         for cls in keel.ADAPTERS:
             adapter = cls()
-            steps = adapter.ci_steps(".")
-            if not steps:
+            waves = adapter.ci_steps(".")
+            if not waves:
                 continue
             guard = adapter.ci_guard()
             for name in adapter.marker:
                 self.assertIn(f"'{name}'", guard, cls.__name__)
-            installs = [line for line in steps
+            installs = [line for line in waves
                         if line.strip().startswith(("- uses:", "- run:"))]
             self.assertTrue(installs, cls.__name__)
             for line in installs:
-                position = steps.index(line)
-                self.assertEqual(steps[position + 1], guard,
+                position = waves.index(line)
+                self.assertEqual(waves[position + 1], guard,
                                  f"{cls.__name__}: {line.strip()} без умови")
 
     def test_the_condition_is_a_yaml_key_at_the_step_indent(self):
@@ -94,8 +94,8 @@ class TestScenarios(ProjectCase):
 
     def test_scenario_text_edited_makes_the_tag_stale(self):
         self.tag(self.fixture.scenario_rev())
-        text = self.fixture.read("keel/steps/0001-session-loop.md")
-        self.fixture.write("keel/steps/0001-session-loop.md",
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
                            text.replace("розмова завершується", "розмова завершується сама"))
         problems = keel.check_scenarios(self.project, run_tests=False)
         self.assertEqual(len(problems), 1)
@@ -131,12 +131,12 @@ class TestScenarios(ProjectCase):
     def test_two_steps_sharing_a_scenario_slug_are_named(self):
         """Тег несе лише слаг — за двох власників він принципово неоднозначний."""
         self.fixture.write(
-            "keel/steps/0002-other.md",
+            "keel/waves/0002-other.md",
             "---\nscenarios:\n  finishes-when-no-tool-called: {}\n---\n\n"
             "## scenario: finishes-when-no-tool-called\n\n**Given** інше.\n")
         self.tag(self.fixture.scenario_rev())
         problems = keel.check_scenarios(self.project, run_tests=False)
-        self.assertTrue(any("more than one step" in x.message for x in problems),
+        self.assertTrue(any("more than one wave" in x.message for x in problems),
                         [x.message for x in problems])
         # і жодного хибного присвоєння тега тому чи тому кроку
         self.assertFalse(any("has no test" in x.message for x in problems),
@@ -149,16 +149,16 @@ class TestScenarios(ProjectCase):
         import tempfile as tf, shutil as sh
         root = tf.mkdtemp(prefix="keel-slug-")
         self.addCleanup(sh.rmtree, root, True)
-        os.makedirs(os.path.join(root, "keel", "steps"))
+        os.makedirs(os.path.join(root, "keel", "waves"))
         os.makedirs(os.path.join(root, "keel", "contracts"))
         for name in ("0001-a", "0002-b"):
-            with open(os.path.join(root, "keel/steps", name + ".md"), "w",
+            with open(os.path.join(root, "keel/waves", name + ".md"), "w",
                       encoding="utf-8") as handle:
                 handle.write("---\nscenarios:\n  same-slug: {}\n---\n\n"
                              "## scenario: same-slug\n\n**Given** х.\n")
         problems = keel.check_scenarios(keel.Project(root), run_tests=False)
         self.assertIsNone(keel.Project(root).adapter)
-        self.assertTrue(any("more than one step" in x.message for x in problems),
+        self.assertTrue(any("more than one wave" in x.message for x in problems),
                         [x.message for x in problems])
 
     def test_slug_dashes_match_atom_underscores(self):
@@ -175,7 +175,7 @@ class TestExports(unittest.TestCase):
         self.root = tempfile.mkdtemp(prefix="keel-py-")
         self.addCleanup(shutil.rmtree, self.root, True)
         os.makedirs(os.path.join(self.root, "keel/contracts"))
-        os.makedirs(os.path.join(self.root, "keel/steps"))
+        os.makedirs(os.path.join(self.root, "keel/waves"))
         self.write("pyproject.toml", "[project]\nname = 'demo'\n")
         self.write("demo.py", "def run(a, b, c):\n    return a\n")
 
@@ -317,9 +317,9 @@ class TestAdapterChoice(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-poly-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        for folder in ("keel/steps", "keel/contracts"):
+        for folder in ("keel/waves", "keel/contracts"):
             os.makedirs(os.path.join(self.root, folder))
-        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+        with open(os.path.join(self.root, "keel/waves/0001-a.md"), "w",
                   encoding="utf-8") as handle:
             handle.write("---\nscenarios:\n  does-a: {}\n---\n\n## Why\n\nх.\n\n"
                          "## scenario: does-a\n\n**Given** щось.\n")
@@ -432,9 +432,9 @@ class TestNothingHangsForever(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-hang-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        os.makedirs(os.path.join(self.root, "keel/steps"))
+        os.makedirs(os.path.join(self.root, "keel/waves"))
         os.makedirs(os.path.join(self.root, "keel/contracts"))
-        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+        with open(os.path.join(self.root, "keel/waves/0001-a.md"), "w",
                   encoding="utf-8") as handle:
             handle.write("---\nscenarios:\n  does-a: {}\n---\n\n"
                          "## scenario: does-a\n\n**Given** щось.\n")
@@ -475,7 +475,7 @@ class TestNothingHangsForever(unittest.TestCase):
         self.assertIn("could not run", probe.stderr)
 
     def test_a_missing_test_runner_is_a_check_problem_not_a_crash(self):
-        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+        with open(os.path.join(self.root, "keel/waves/0001-a.md"), "w",
                   encoding="utf-8") as handle:
             handle.write("---\nscenarios:\n  does-a: {}\n---\n\n"
                          "## scenario: does-a\n\n**Given** щось.\n")
@@ -622,7 +622,7 @@ class TestSpecContracts(unittest.TestCase):
         self.root = tempfile.mkdtemp(prefix="keel-spec-")
         self.addCleanup(shutil.rmtree, self.root, True)
         os.makedirs(os.path.join(self.root, "keel/contracts"))
-        os.makedirs(os.path.join(self.root, "keel/steps"))
+        os.makedirs(os.path.join(self.root, "keel/waves"))
 
     def contract(self, exports):
         path = os.path.join(self.root, "keel/contracts/demo.md")
@@ -724,7 +724,7 @@ class TestSpecsWhereTheLanguageCannot(unittest.TestCase):
         self.root = tempfile.mkdtemp(prefix="keel-nospec-")
         self.addCleanup(shutil.rmtree, self.root, True)
         os.makedirs(os.path.join(self.root, "keel/contracts"))
-        os.makedirs(os.path.join(self.root, "keel/steps"))
+        os.makedirs(os.path.join(self.root, "keel/waves"))
         for name, text in (("pyproject.toml", "[project]\nname = 'demo'\n"),
                            ("demo.py", "def run(a, b, c):\n    return a\n")):
             with open(os.path.join(self.root, name), "w", encoding="utf-8") as handle:
@@ -780,7 +780,7 @@ class TestSpecsAgainstARealMixProject(unittest.TestCase):
                 "  def undeclared(x), do: x\n"
                 "end\n")
         os.makedirs(os.path.join(cls.root, "keel", "contracts"))
-        os.makedirs(os.path.join(cls.root, "keel", "steps"))
+        os.makedirs(os.path.join(cls.root, "keel", "waves"))
 
     @classmethod
     def tearDownClass(cls):
@@ -908,7 +908,7 @@ class TestPythonRunnerRunsWhatTheCollectorCounts(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-runner-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        for folder in ("keel/steps", "keel/contracts", "tests"):
+        for folder in ("keel/waves", "keel/contracts", "tests"):
             os.makedirs(os.path.join(self.root, folder))
         with open(os.path.join(self.root, "pyproject.toml"), "w") as handle:
             handle.write("[project]\nname='d'\n")
@@ -916,11 +916,11 @@ class TestPythonRunnerRunsWhatTheCollectorCounts(unittest.TestCase):
             handle.write("")
 
     def scenario(self):
-        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+        with open(os.path.join(self.root, "keel/waves/0001-a.md"), "w",
                   encoding="utf-8") as handle:
             handle.write("---\nscenarios:\n  does-a: {}\n---\n\n"
                          "## scenario: does-a\n\n**Given** щось.\n")
-        return keel.Project(self.root).steps["0001-a"].scenario_body("does-a")
+        return keel.Project(self.root).waves["0001-a"].scenario_body("does-a")
 
     def test_the_runner_is_handed_the_collectors_own_list(self):
         """Паритет по суті: не два правила, звірені руками, а один список."""
@@ -1197,14 +1197,14 @@ class TestASkippedTestProvesNothing(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-skip-")
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
-        for folder in ("keel/steps", "keel/contracts", "src", "tests"):
+        for folder in ("keel/waves", "keel/contracts", "src", "tests"):
             os.makedirs(os.path.join(self.root, folder))
         self.write("pyproject.toml", "[project]\nname = 'demo'\nversion = '0.1'\n")
         self.write("src/__init__.py", "")
         self.write("src/thing.py", "def run(a):\n    return a\n")
         self.write("keel/contracts/thing.md",
                    "---\nmodule: src.thing\nexports: [run/1]\n---\n\nОбіцянка.\n")
-        self.write("keel/steps/0001-demo.md", """---
+        self.write("keel/waves/0001-demo.md", """---
 depends_on: []
 
 scenarios:
@@ -1240,7 +1240,7 @@ transforms:
 
     def write_test(self, skip):
         project = keel.Project(self.root)
-        rev = project.steps["0001-demo"].scenario_revision("runs-ok")
+        rev = project.waves["0001-demo"].scenario_revision("runs-ok")
         self.write("tests/test_demo.py",
                    "import unittest\n"
                    "from src.thing import run\n\n"
@@ -1270,3 +1270,42 @@ transforms:
         left = [name for _, dirs, _ in os.walk(self.root) for name in dirs
                 if name == "__pycache__"]
         self.assertEqual(left, [])
+
+
+class TestWhatDidNotRunIsNamedPreciselyOrCounted(unittest.TestCase):
+    """Пропущений тест лишає набір успішним. Хто вміє назвати — називає; хто
+    вміє лише порахувати — рахує; мовчати не вміє ніхто."""
+
+    def test_python_names_them(self):
+        names, count = keel.PythonAdapter().not_run(
+            f"{keel.SKIP_MARK}tests.test_demo.T.test_runs_ok\nінший рядок\n")
+        self.assertEqual(names, ["tests.test_demo.T.test_runs_ok"])
+        self.assertEqual(count, 0)
+
+    def test_elixir_counts_them(self):
+        names, count = keel.ElixirAdapter().not_run(
+            "Finished in 0.2 seconds\n5 tests, 0 failures, 1 excluded, 2 skipped\n")
+        self.assertEqual(names, [])
+        self.assertEqual(count, 3)
+
+    def test_elixir_says_nothing_when_everything_ran(self):
+        self.assertEqual(
+            keel.ElixirAdapter().not_run("5 tests, 0 failures\n"), ([], 0))
+
+    def test_the_base_adapter_promises_the_same_shape(self):
+        self.assertEqual(keel.Adapter().not_run("будь-що"), ([], 0))
+
+
+class TestTheSkippedMatchIsAnchored(unittest.TestCase):
+    """Пошук підрядком робив сценарій `ok` власником чужого
+    `test_runs_ok_on_windows` — червоне, з якого не вийти."""
+
+    def test_an_unrelated_skip_does_not_claim_a_short_slug(self):
+        self.assertNotEqual(
+            keel.normalise_slug("test_runs_ok_on_windows".rsplit(".", 1)[-1]),
+            "test-ok")
+
+    def test_the_conventional_name_still_matches(self):
+        self.assertEqual(
+            keel.normalise_slug("tests.test_demo.T.test_runs_ok".rsplit(".", 1)[-1]),
+            "test-runs-ok")

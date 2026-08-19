@@ -29,7 +29,7 @@ class TestFindRoot(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="keel-root-")
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.main = os.path.join(self.tmp, "proj")
-        os.makedirs(os.path.join(self.main, "keel", "steps"))
+        os.makedirs(os.path.join(self.main, "keel", "waves"))
         subprocess.run(["git", "init", "-b", "main", "-q", self.main], check=True)
         for name, value in (("user.email", "t@e.com"), ("user.name", "t")):
             subprocess.run(["git", "-C", self.main, "config", name, value], check=True)
@@ -55,7 +55,7 @@ class TestFindRoot(unittest.TestCase):
 
     def test_a_keel_directory_wins_over_the_repository(self):
         inner = os.path.join(self.main, "sub")
-        os.makedirs(os.path.join(inner, "keel", "steps"))
+        os.makedirs(os.path.join(inner, "keel", "waves"))
         self.assertEqual(keel.find_root(inner), inner)
 
 
@@ -256,7 +256,7 @@ class TestInit(unittest.TestCase):
     def test_creates_the_step_and_contract_folders(self):
         """Дві теки — з часу «двох типів документів»; стара назва казала три."""
         self.init()
-        self.assertEqual(set(keel.INIT_DIRS), {"keel/steps", "keel/contracts"})
+        self.assertEqual(set(keel.INIT_DIRS), {"keel/waves", "keel/contracts"})
         for folder in keel.INIT_DIRS:
             self.assertTrue(os.path.isdir(os.path.join(self.root, folder)), folder)
 
@@ -276,13 +276,13 @@ class TestInit(unittest.TestCase):
         self.init()
         self.assertIn("ISO/IEC 25010", self.read("keel/QUALITY.md"))
         self.assertIn("six checks", self.read("keel/KEEL.md"))
-        self.assertIn("keel new step", self.read("keel/README.md"))
+        self.assertIn("keel new wave", self.read("keel/README.md"))
 
     def test_methodology_and_tool_stay_apart(self):
         """Розділено навмисно: KEEL.md — що і чому, README.md — чим запускати."""
         self.init()
         method, tool = self.read("keel/KEEL.md"), self.read("keel/README.md")
-        self.assertNotIn("| `keel new step", method)
+        self.assertNotIn("| `keel new wave", method)
         self.assertNotIn("mix.exs", method)
         self.assertIn("README.md", method)
         self.assertIn("KEEL.md", tool)
@@ -646,7 +646,7 @@ class TestTranslationCheck(unittest.TestCase):
     def test_source_language_has_nothing_to_check(self):
         root = tempfile.mkdtemp(prefix="keel-tr-")
         self.addCleanup(shutil.rmtree, root, True)
-        os.makedirs(os.path.join(root, "keel/steps"))
+        os.makedirs(os.path.join(root, "keel/waves"))
         project = keel.Project(root)
         project.settings = {"docs": keel.SOURCE_LANG, "lang": keel.SOURCE_LANG}
         self.assertEqual(keel.check_translations(project), [])
@@ -654,7 +654,7 @@ class TestTranslationCheck(unittest.TestCase):
     def test_stale_translation_is_reported(self):
         root = tempfile.mkdtemp(prefix="keel-tr-")
         self.addCleanup(shutil.rmtree, root, True)
-        os.makedirs(os.path.join(root, "keel/steps"))
+        os.makedirs(os.path.join(root, "keel/waves"))
         project = keel.Project(root)
         project.settings = {"docs": "en", "lang": "en"}
         found = {name: "deadbe" for name in keel.REFERENCES}
@@ -666,7 +666,7 @@ class TestTranslationCheck(unittest.TestCase):
     def test_translation_without_a_recorded_revision(self):
         root = tempfile.mkdtemp(prefix="keel-tr-")
         self.addCleanup(shutil.rmtree, root, True)
-        os.makedirs(os.path.join(root, "keel/steps"))
+        os.makedirs(os.path.join(root, "keel/waves"))
         project = keel.Project(root)
         project.settings = {"docs": "en", "lang": "en"}
         with unittest.mock.patch.object(keel, "translations",

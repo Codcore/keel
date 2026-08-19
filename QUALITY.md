@@ -1,6 +1,6 @@
 # Quality model
 
-Forty cuts under nine headings, which every step is walked through, and the file
+Forty cuts under nine headings, which every wave is walked through, and the file
 Keel points at when it says "walk the cuts".
 
 These are the product quality characteristics of **ISO/IEC 25010:2023**, in the
@@ -11,16 +11,16 @@ happened to occur to one particular agent.
 
 ## When this is read
 
-**One pass per step** — where the scenarios are written. Every cut asks about
+**One pass per wave** — where the scenarios are written. Every cut asks about
 what is being planned, and whatever it turns up becomes a scenario or a decision.
-Not at every level and not until it converges: Keel has no levels, it has steps.
+Not at every level and not until it converges: Keel has no levels, it has waves.
 
 Before the pull request the list is **not walked a second time**. The question
 there is narrower and needs no list: not "what else should be true" but "what did
 we stay silent about". Whatever that finds gets closed before the PR, like
 anything else.
 
-Two full passes over the same step produce almost the same answers at twice the
+Two full passes over the same wave produce almost the same answers at twice the
 price, and that is exactly how lists stop being read.
 
 ## How to answer a cut
@@ -36,7 +36,7 @@ One of three answers, and only one:
   scenario that closes it.
 
 **A cut that is relevant, and deliberately answered "no", is a decision.**
-"Backups are not in this step" is recoverability, said out loud. Silence is what
+"Backups are not in this wave" is recoverability, said out loud. Silence is what
 this list ends; refusal is not.
 
 **Check what came with the library before claiming something is missing.** Three
@@ -46,7 +46,7 @@ built in.
 
 **And the same the other way: a boundary is checked against the dependency the
 way a cut is.** "We deliberately do not do this" is also a statement about
-somebody else's code, and it can be false from the moment it is written. A step
+somebody else's code, and it can be false from the moment it is written. A wave
 promised by boundary that there were no retries, while the library kept its own
 counter of three: one turn went out as four requests. Nobody lied — the retries
 arrived as a default. Before saying something is **absent**, look and see that it
@@ -125,7 +125,7 @@ the thing this file exists against.
 - **hazard warning** — does it say so before harm
 - **safe integration** — what does adding it to a running system risk
 
-**Not every cut applies to every step, and pretending otherwise is the shortest
+**Not every cut applies to every wave, and pretending otherwise is the shortest
 road to the list no longer being read.** A cut with nothing to say leaves nothing
 behind: no scenario, no line, no note. The list costs one pass; what it buys is
 that the case nobody thought of can no longer be passed over in silence.

@@ -348,7 +348,7 @@ class TestOwnership(unittest.TestCase):
         self.assertFalse(keel.keel_owns(".claude/settings.json.bak"))
 
     def test_directories_still_match_by_prefix(self):
-        self.assertTrue(keel.keel_owns("keel/steps/0001-a.md"))
+        self.assertTrue(keel.keel_owns("keel/waves/0001-a.md"))
         self.assertTrue(keel.keel_owns(".claude/skills/keel-plan/SKILL.md"))
         self.assertFalse(keel.keel_owns("keeling/x.md"))
 

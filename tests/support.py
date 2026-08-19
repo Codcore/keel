@@ -19,7 +19,7 @@ except ImportError:
     HAS_PYYAML = False
 
 
-STEP = """---
+WAVE = """---
 depends_on: []
 
 scenarios:
@@ -58,16 +58,16 @@ exports: [run/3]
 """
 
 class Fixture:
-    """A project with git, a step, a contract and the Elixir adapter."""
+    """A project with git, a wave, a contract and the Elixir adapter."""
 
     def __init__(self):
         self.root = tempfile.mkdtemp(prefix="keel-test-")
-        for folder in ("keel/steps", "keel/contracts", "lib", "test"):
+        for folder in ("keel/waves", "keel/contracts", "lib", "test"):
             os.makedirs(os.path.join(self.root, folder), exist_ok=True)
         self.write("mix.exs", "defmodule Demo.MixProject do\nend\n")
         self.write("keel/contracts/session-run.md", CONTRACT)
         self.contract_rev = keel.revision(CONTRACT)
-        self.write("keel/steps/0001-session-loop.md", STEP.format(rev=self.contract_rev))
+        self.write("keel/waves/0001-session-loop.md", WAVE.format(rev=self.contract_rev))
         self.write("lib/session.ex", "defmodule Demo.Session do\nend\n")
         self.git("init", "-b", "main")
         self.git("config", "user.email", "test@example.com")
@@ -105,7 +105,7 @@ class Fixture:
         return keel.Project(self.root)
 
     def scenario_rev(self):
-        return self.project().steps["0001-session-loop"].scenario_revision(
+        return self.project().waves["0001-session-loop"].scenario_revision(
             "finishes-when-no-tool-called")
 
     def close(self):

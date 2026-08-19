@@ -30,15 +30,15 @@ class TestDriftFromWhatWasApproved(ProjectCase):
     """
 
     def touch_the_step(self):
-        step = "keel/steps/0001-session-loop.md"
-        self.fixture.write(step, self.fixture.read(step) + "\nЩе абзац.\n")
+        wave = "keel/waves/0001-session-loop.md"
+        self.fixture.write(wave, self.fixture.read(wave) + "\nЩе абзац.\n")
 
     def test_a_work_branch_names_the_difference(self):
         self.fixture.branch("0001-session-loop")
         self.touch_the_step()
         drifted = keel.drifted_from_main(self.project)
         self.assertEqual([name for name, _, _ in drifted],
-                         ["keel/steps/0001-session-loop.md"])
+                         ["keel/waves/0001-session-loop.md"])
 
     def test_an_untouched_step_says_nothing(self):
         self.fixture.branch("0001-session-loop")
@@ -115,7 +115,7 @@ transforms:
 
     def setUp(self):
         super().setUp()
-        self.fixture.write("keel/steps/0002-two-moves.md",
+        self.fixture.write("keel/waves/0002-two-moves.md",
                            self.TWO % {"rev": self.fixture.contract_rev})
         self.fixture.git("add", "-A")
         self.fixture.git("commit", "-m", "план на дві трансформи")
@@ -221,8 +221,8 @@ class TestScope(ProjectCase):
         який його явно змінив."""
         self.fixture.branch("0001-session-loop")
         self.fixture.write("lib/session.ex", "змінено\n")
-        text = self.fixture.read("keel/steps/0001-session-loop.md")
-        self.fixture.write("keel/steps/0001-session-loop.md",
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
                            text.replace("files:      [lib/session.ex]",
                                         "files:      [lib/session.ex, AGENTS.md]"))
         self.fixture.write("AGENTS.md", "змінений блок\n")
@@ -273,7 +273,7 @@ class TestScope(ProjectCase):
     def test_branch_that_is_not_a_step(self):
         self.fixture.branch("random-branch")
         problems = keel.check_scope(self.project)
-        self.assertIn("is not named after a step", problems[0].message)
+        self.assertIn("is not named after a wave", problems[0].message)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -303,7 +303,7 @@ class TestAFreshRepository(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-fresh-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        for folder in ("keel/steps", "keel/contracts"):
+        for folder in ("keel/waves", "keel/contracts"):
             os.makedirs(os.path.join(self.root, folder))
         subprocess.run(["git", "init", "-q", "-b", "main", self.root], check=True)
 
@@ -332,10 +332,10 @@ class TestNestedKeelRoot(unittest.TestCase):
         self.top = tempfile.mkdtemp(prefix="keel-nested-")
         self.addCleanup(shutil.rmtree, self.top, True)
         self.root = os.path.join(self.top, "sub")
-        for folder in ("keel/steps", "keel/contracts", "lib"):
+        for folder in ("keel/waves", "keel/contracts", "lib"):
             os.makedirs(os.path.join(self.root, folder))
         os.makedirs(os.path.join(self.top, "other"))
-        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+        with open(os.path.join(self.root, "keel/waves/0001-a.md"), "w",
                   encoding="utf-8") as handle:
             handle.write("---\ntransforms:\n  do:\n    files: [lib/foo.txt]\n"
                          "---\n\n## Why\n\nх.\n\n## transform: do\n\nЩось.\n")
@@ -390,18 +390,18 @@ class TestDriftIsMeasuredFromTheBranchPoint(ProjectCase):
     def test_somebody_elses_merge_is_not_this_branch_drift(self):
         self.fixture.branch("0001-session-loop")
         self.fixture.git("checkout", "main")
-        step = "keel/steps/0001-session-loop.md"
-        self.fixture.write(step, self.fixture.read(step) + "\nПравка на main.\n")
+        wave = "keel/waves/0001-session-loop.md"
+        self.fixture.write(wave, self.fixture.read(wave) + "\nПравка на main.\n")
         self.fixture.git("commit", "-am", "хтось інший правив свій крок")
         self.fixture.git("checkout", "0001-session-loop")
         self.assertEqual(keel.drifted_from_main(self.project), [])
 
     def test_this_branch_own_change_is_still_named(self):
         self.fixture.branch("0001-session-loop")
-        step = "keel/steps/0001-session-loop.md"
-        self.fixture.write(step, self.fixture.read(step) + "\nПравка тут.\n")
+        wave = "keel/waves/0001-session-loop.md"
+        self.fixture.write(wave, self.fixture.read(wave) + "\nПравка тут.\n")
         drifted = keel.drifted_from_main(self.project)
-        self.assertEqual([name for name, _, _ in drifted], [step])
+        self.assertEqual([name for name, _, _ in drifted], [wave])
 
 
 class TestATransformSlugBelongsToOneStep(ProjectCase):
@@ -414,7 +414,7 @@ class TestATransformSlugBelongsToOneStep(ProjectCase):
 
     def second_step_with(self, transform):
         rev = self.fixture.contract_rev
-        self.fixture.write("keel/steps/0002-other.md", f"""---
+        self.fixture.write("keel/waves/0002-other.md", f"""---
 depends_on: []
 
 scenarios:
@@ -461,7 +461,7 @@ transforms:
         self.second_step_with("drive-turns")
         answer = keel.main_branch_answer(self.project)
         self.assertIn("do not agree with themselves", answer)
-        self.assertNotIn("every step is finished", answer)
+        self.assertNotIn("every wave is finished", answer)
 
 
 class TestAKeelRootNestedInABiggerRepository(unittest.TestCase):
@@ -476,12 +476,12 @@ class TestAKeelRootNestedInABiggerRepository(unittest.TestCase):
         self.top = tempfile.mkdtemp(prefix="keel-nested-")
         self.addCleanup(shutil.rmtree, self.top, ignore_errors=True)
         self.root = os.path.join(self.top, "sub")
-        for folder in ("keel/steps", "keel/contracts", "lib"):
+        for folder in ("keel/waves", "keel/contracts", "lib"):
             os.makedirs(os.path.join(self.root, folder))
         self.write("../README.md", "корінь монорепо\n")
         self.write("keel/contracts/thing.md",
                    "---\nmodule: Demo.Thing\nexports: [run/1]\n---\n\nОбіцянка.\n")
-        self.write("keel/steps/0001-demo.md", """---
+        self.write("keel/waves/0001-demo.md", """---
 depends_on: []
 
 scenarios:
@@ -532,12 +532,12 @@ transforms:
     def test_the_step_is_seen_on_the_main_branch(self):
         project = self.project
         self.assertTrue(project.git.file_in_branch(
-            project.git.main_branch, "keel/steps/0001-demo.md"))
+            project.git.main_branch, "keel/waves/0001-demo.md"))
 
     def test_the_approved_file_list_is_readable(self):
         project = self.project
         self.assertEqual(
-            keel.approved_files(project, project.steps["0001-demo"]),
+            keel.approved_files(project, project.waves["0001-demo"]),
             {"lib/one.ex"})
 
     def test_a_contract_already_on_main_does_not_read_as_arriving(self):
@@ -566,8 +566,8 @@ class TestDeletingSomebodyElsesDocument(ProjectCase):
 
     def setUp(self):
         super().setUp()
-        self.fixture.write("keel/steps/0002-other.md",
-                           self.fixture.read("keel/steps/0001-session-loop.md")
+        self.fixture.write("keel/waves/0002-other.md",
+                           self.fixture.read("keel/waves/0001-session-loop.md")
                            .replace("drive-turns", "other-turns")
                            .replace("finishes-when-no-tool-called", "other-holds"))
         self.fixture.git("add", "-A")
@@ -575,7 +575,7 @@ class TestDeletingSomebodyElsesDocument(ProjectCase):
         self.fixture.branch("0001-session-loop")
 
     def test_removing_another_step_is_named(self):
-        self.fixture.git("rm", "-q", "keel/steps/0002-other.md")
+        self.fixture.git("rm", "-q", "keel/waves/0002-other.md")
         self.fixture.git("commit", "-m", "drive-turns: прибрав те, що заважало")
         problems = keel.check_scope(self.project)
         self.assertTrue(any("0002-other" in p.message for p in problems),

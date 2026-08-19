@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reading steps and contracts; the checks that only read text."""
+"""Reading waves and contracts; the checks that only read text."""
 
 import os
 import shutil
@@ -21,13 +21,13 @@ from tests.support import CONTRACT, ProjectCase  # noqa: E402
 
 class TestDocuments(ProjectCase):
     def test_step_is_read(self):
-        step = self.project.steps["0001-session-loop"]
-        self.assertIsNone(step.error)
-        self.assertEqual(list(step.scenarios), ["finishes-when-no-tool-called"])
-        self.assertEqual(step.transform_files("drive-turns"), ["lib/session.ex"])
-        self.assertEqual(step.transform_implements("drive-turns"),
+        wave = self.project.waves["0001-session-loop"]
+        self.assertIsNone(wave.error)
+        self.assertEqual(list(wave.scenarios), ["finishes-when-no-tool-called"])
+        self.assertEqual(wave.transform_files("drive-turns"), ["lib/session.ex"])
+        self.assertEqual(wave.transform_implements("drive-turns"),
                          ["finishes-when-no-tool-called"])
-        self.assertIn("Одна розмова", step.why)
+        self.assertIn("Одна розмова", wave.why)
 
     def test_contract_is_read(self):
         contract = self.project.contracts["session-run"]
@@ -36,14 +36,14 @@ class TestDocuments(ProjectCase):
         self.assertTrue(contract.rev_ok(self.fixture.contract_rev))
 
     def test_scenario_body_and_revision(self):
-        step = self.project.steps["0001-session-loop"]
-        body = step.scenario_body("finishes-when-no-tool-called")
+        wave = self.project.waves["0001-session-loop"]
+        body = wave.scenario_body("finishes-when-no-tool-called")
         self.assertIn("**Then** розмова завершується.", body)
-        self.assertEqual(step.scenario_revision("finishes-when-no-tool-called"),
+        self.assertEqual(wave.scenario_revision("finishes-when-no-tool-called"),
                          keel.revision(body))
 
     def test_document_without_front_matter_is_broken(self):
-        self.fixture.write("keel/steps/0002-nohead.md", "просто текст\n")
+        self.fixture.write("keel/waves/0002-nohead.md", "просто текст\n")
         project = self.project
         self.assertTrue(any(doc.slug == "0002-nohead" for doc in project.broken))
         self.assertTrue(keel.check_structure(project))
@@ -68,8 +68,8 @@ class TestRefChecks(ProjectCase):
 
     def test_dangling_contract_reference(self):
         self.fixture.write(
-            "keel/steps/0001-session-loop.md",
-            self.fixture.read("keel/steps/0001-session-loop.md").replace(
+            "keel/waves/0001-session-loop.md",
+            self.fixture.read("keel/waves/0001-session-loop.md").replace(
                 "session-run@", "no-such@"))
         problems = keel.check_refs(self.project)
         self.assertEqual(len(problems), 2)
@@ -77,8 +77,8 @@ class TestRefChecks(ProjectCase):
 
     def test_dangling_depends_on(self):
         self.fixture.write(
-            "keel/steps/0001-session-loop.md",
-            self.fixture.read("keel/steps/0001-session-loop.md").replace(
+            "keel/waves/0001-session-loop.md",
+            self.fixture.read("keel/waves/0001-session-loop.md").replace(
                 "depends_on: []", "depends_on: [0000-nowhere]"))
         problems = keel.check_refs(self.project)
         self.assertEqual(len(problems), 1)
@@ -86,15 +86,15 @@ class TestRefChecks(ProjectCase):
 
     def test_transform_implements_unknown_scenario(self):
         self.fixture.write(
-            "keel/steps/0001-session-loop.md",
-            self.fixture.read("keel/steps/0001-session-loop.md").replace(
+            "keel/waves/0001-session-loop.md",
+            self.fixture.read("keel/waves/0001-session-loop.md").replace(
                 "implements: [finishes-when-no-tool-called]", "implements: [ghost]"))
         problems = keel.check_refs(self.project)
         self.assertTrue(any("ghost" in p.message for p in problems))
 
     def test_broken_markdown_link_in_body(self):
-        text = self.fixture.read("keel/steps/0001-session-loop.md")
-        self.fixture.write("keel/steps/0001-session-loop.md",
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
                            text + "\nДив. [контракт](../contracts/none.md).\n")
         problems = keel.check_refs(self.project)
         self.assertTrue(any("none.md" in p.message for p in problems))
@@ -102,16 +102,16 @@ class TestRefChecks(ProjectCase):
     def test_existing_link_to_decision_is_fine(self):
         self.fixture.write("keel/contracts/no-retry.md",
                            "---\nverify: \"true\"\n---\n\nПовторів немає.\n")
-        text = self.fixture.read("keel/steps/0001-session-loop.md")
-        self.fixture.write("keel/steps/0001-session-loop.md",
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
                            text + "\nДив. [контракт](../contracts/no-retry.md).\n")
         self.assertEqual(keel.check_refs(self.project), [])
 
     def test_cycle_is_found(self):
-        first = self.fixture.read("keel/steps/0001-session-loop.md")
-        self.fixture.write("keel/steps/0001-session-loop.md",
+        first = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
                            first.replace("depends_on: []", "depends_on: [0002-other]"))
-        self.fixture.write("keel/steps/0002-other.md",
+        self.fixture.write("keel/waves/0002-other.md",
                            "---\ndepends_on: [0001-session-loop]\n---\n\n## Навіщо\n\nЦикл.\n")
         problems = keel.check_cycles(self.project)
         self.assertEqual(len(problems), 1)
@@ -125,8 +125,8 @@ class TestRefChecks(ProjectCase):
 
     def test_reference_without_revision(self):
         self.fixture.write(
-            "keel/steps/0001-session-loop.md",
-            self.fixture.read("keel/steps/0001-session-loop.md").replace(
+            "keel/waves/0001-session-loop.md",
+            self.fixture.read("keel/waves/0001-session-loop.md").replace(
                 f"session-run@{self.fixture.contract_rev}", "session-run"))
         problems = keel.check_revisions(self.project)
         self.assertEqual(len(problems), 2)
@@ -134,8 +134,8 @@ class TestRefChecks(ProjectCase):
 
     def test_a_repeated_heading_is_reported(self):
         """Читають перший, а редакція рахується з останнього."""
-        step = "keel/steps/0001-session-loop.md"
-        self.fixture.write(step, self.fixture.read(step)
+        wave = "keel/waves/0001-session-loop.md"
+        self.fixture.write(wave, self.fixture.read(wave)
                            + "\n## scenario: finishes-when-no-tool-called\n\n"
                              "**Then** зовсім інше.\n")
         problems = keel.check_headings(self.project)
@@ -143,24 +143,24 @@ class TestRefChecks(ProjectCase):
         self.assertIn("appears twice", problems[0].message)
 
     def test_a_repeated_transform_heading_too(self):
-        step = "keel/steps/0001-session-loop.md"
-        self.fixture.write(step, self.fixture.read(step)
+        wave = "keel/waves/0001-session-loop.md"
+        self.fixture.write(wave, self.fixture.read(wave)
                            + "\n## transform: drive-turns\n\nІнше тіло.\n")
         self.assertTrue(any("appears twice" in p.message
                             for p in keel.check_headings(self.project)))
 
     def test_heading_without_header_entry(self):
-        text = self.fixture.read("keel/steps/0001-session-loop.md")
-        self.fixture.write("keel/steps/0001-session-loop.md",
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
                            text + "\n## scenario: orphan\n\nБез шапки.\n")
         problems = keel.check_headings(self.project)
         self.assertEqual(len(problems), 1)
         self.assertIn("orphan", problems[0].message)
 
     def test_header_entry_without_heading(self):
-        text = self.fixture.read("keel/steps/0001-session-loop.md")
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
         self.fixture.write(
-            "keel/steps/0001-session-loop.md",
+            "keel/waves/0001-session-loop.md",
             text.replace("transforms:\n", "transforms:\n  ghost:\n    files: [a.ex]\n"))
         problems = keel.check_headings(self.project)
         self.assertTrue(any("ghost" in p.message for p in problems))
@@ -181,28 +181,28 @@ class TestHeaderShape(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-shape-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        for folder in ("keel/steps", "keel/contracts"):
+        for folder in ("keel/waves", "keel/contracts"):
             os.makedirs(os.path.join(self.root, folder))
 
     def doc(self, kind, text):
-        name = "0001-a.md" if kind == "step" else "a.md"
+        name = "0001-a.md" if kind == "wave" else "a.md"
         path = os.path.join(self.root, "keel", kind + "s", name)
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
-        cls = keel.Step if kind == "step" else keel.Contract
+        cls = keel.Wave if kind == "wave" else keel.Contract
         return cls(path, self.root)
 
     def test_transforms_as_a_list_is_named(self):
-        doc = self.doc("step", "---\ntransforms:\n  - do-it\n---\n\n## Why\n\nх.\n")
+        doc = self.doc("wave", "---\ntransforms:\n  - do-it\n---\n\n## Why\n\nх.\n")
         self.assertIn("transforms has to be", doc.error)
         self.assertIn("list", doc.error)
 
     def test_scenarios_as_a_list_is_named(self):
-        doc = self.doc("step", "---\nscenarios:\n  - one\n---\n\n## Why\n\nх.\n")
+        doc = self.doc("wave", "---\nscenarios:\n  - one\n---\n\n## Why\n\nх.\n")
         self.assertIn("scenarios has to be", doc.error)
 
     def test_depends_on_as_a_map_is_named(self):
-        doc = self.doc("step", "---\ndepends_on:\n  a: b\n---\n\n## Why\n\nх.\n")
+        doc = self.doc("wave", "---\ndepends_on:\n  a: b\n---\n\n## Why\n\nх.\n")
         self.assertIn("depends_on has to be", doc.error)
 
     def test_exports_as_a_string_is_named(self):
@@ -214,12 +214,12 @@ class TestHeaderShape(unittest.TestCase):
         self.assertIn("module has to be", doc.error)
 
     def test_a_missing_field_is_not_a_wrong_shape(self):
-        doc = self.doc("step", "---\ndepends_on: []\n---\n\n## Why\n\nх.\n")
+        doc = self.doc("wave", "---\ndepends_on: []\n---\n\n## Why\n\nх.\n")
         self.assertIsNone(doc.error)
 
     def test_an_empty_field_is_not_a_wrong_shape(self):
         """`transforms:` без нічого під ним — ще не написано, а не зламано."""
-        doc = self.doc("step", "---\ntransforms:\n---\n\n## Why\n\nх.\n")
+        doc = self.doc("wave", "---\ntransforms:\n---\n\n## Why\n\nх.\n")
         self.assertIsNone(doc.error)
 
     def test_verify_is_left_to_check_six(self):
@@ -229,57 +229,57 @@ class TestHeaderShape(unittest.TestCase):
 
     def test_a_transform_entry_that_is_a_string_is_named(self):
         """Раніше всі читачі віддавали [], і gaps казав «не оголосила файлів»."""
-        doc = self.doc("step", "---\ntransforms:\n  do-it: щось\n---\n\n"
+        doc = self.doc("wave", "---\ntransforms:\n  do-it: щось\n---\n\n"
                                "## Why\n\nх.\n")
         self.assertIn("transform do-it has to be a set of named fields", doc.error)
 
     def test_a_scenario_entry_that_is_a_string_is_named(self):
-        doc = self.doc("step", "---\nscenarios:\n  does-a: текст\n---\n\n"
+        doc = self.doc("wave", "---\nscenarios:\n  does-a: текст\n---\n\n"
                                "## Why\n\nх.\n")
         self.assertIn("scenario does-a has to be a set of named fields", doc.error)
 
     def test_files_as_a_map_is_named(self):
-        doc = self.doc("step", "---\ntransforms:\n  do-it:\n    files: {a: b}\n"
+        doc = self.doc("wave", "---\ntransforms:\n  do-it:\n    files: {a: b}\n"
                                "---\n\n## Why\n\nх.\n")
         self.assertIn("files of transform do-it has to be a list", doc.error)
 
     def test_implements_and_contracts_too(self):
         for field in ("implements", "contracts"):
-            doc = self.doc("step", f"---\ntransforms:\n  do-it:\n    {field}: "
+            doc = self.doc("wave", f"---\ntransforms:\n  do-it:\n    {field}: "
                                    "{a: b}\n---\n\n## Why\n\nх.\n")
             self.assertIn(f"{field} of transform do-it", doc.error)
 
     def test_proves_as_a_map_is_named(self):
-        doc = self.doc("step", "---\nscenarios:\n  does-a:\n    proves: {a: b}\n"
+        doc = self.doc("wave", "---\nscenarios:\n  does-a:\n    proves: {a: b}\n"
                                "---\n\n## Why\n\nх.\n")
         self.assertIn("proves of scenario does-a has to be a list", doc.error)
 
     def test_the_string_shorthand_still_stands(self):
         """files: один-файл і proves: один-контракт — дозволена коротка форма."""
-        doc = self.doc("step", "---\nscenarios:\n  does-a: {proves: c@abcd}\n"
+        doc = self.doc("wave", "---\nscenarios:\n  does-a: {proves: c@abcd}\n"
                                "transforms:\n  do-it:\n    files: lib/a.ex\n"
                                "    implements: does-a\n---\n\n## Why\n\nх.\n")
         self.assertIsNone(doc.error)
         self.assertEqual(doc.transform_files("do-it"), ["lib/a.ex"])
 
     def test_an_empty_transform_is_still_a_skeleton_not_an_error(self):
-        doc = self.doc("step", "---\ntransforms:\n  do-it:\n---\n\n"
+        doc = self.doc("wave", "---\ntransforms:\n  do-it:\n---\n\n"
                                "## Why\n\nх.\n")
         self.assertIsNone(doc.error)
 
     def test_a_bom_does_not_hide_the_header(self):
         """utf-8-sig від Windows-редактора давав «немає шапки»."""
-        path = os.path.join(self.root, "keel/steps/0001-a.md")
+        path = os.path.join(self.root, "keel/waves/0001-a.md")
         with open(path, "w", encoding="utf-8-sig") as handle:
             handle.write("---\ndepends_on: []\n---\n\n## Why\n\nх.\n")
-        doc = keel.Step(path, self.root)
+        doc = keel.Wave(path, self.root)
         self.assertIsNone(doc.error)
         self.assertEqual(doc.front["depends_on"], [])
 
     def test_a_file_that_cannot_be_read_is_named(self):
-        path = os.path.join(self.root, "keel/steps/0002-gone.md")
+        path = os.path.join(self.root, "keel/waves/0002-gone.md")
         os.symlink("/немає/такого", path)
-        doc = keel.Step(path, self.root)
+        doc = keel.Wave(path, self.root)
         self.assertIn("cannot be read", doc.error)
 
 
@@ -289,23 +289,23 @@ class TestLinksLeadSomewhere(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-links-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        for folder in ("keel/steps", "keel/contracts", "docs"):
+        for folder in ("keel/waves", "keel/contracts", "docs"):
             os.makedirs(os.path.join(self.root, folder))
 
-    def step(self, body):
-        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+    def wave(self, body):
+        with open(os.path.join(self.root, "keel/waves/0001-a.md"), "w",
                   encoding="utf-8") as handle:
             handle.write("---\ndepends_on: []\n---\n\n## Why\n\n" + body + "\n")
         return keel.check_refs(keel.Project(self.root))
 
     def test_a_broken_link_inside_keel(self):
-        problems = self.step("Див. [сусід](../contracts/nope.md).")
+        problems = self.wave("Див. [сусід](../contracts/nope.md).")
         self.assertEqual(len(problems), 1)
         self.assertIn("nope.md", problems[0].message)
 
     def test_a_broken_link_outside_keel_is_caught_too(self):
         """Раніше все, що виходило за keel/, не перевірялось узагалі."""
-        problems = self.step("Див. [задум](../../docs/design.md).")
+        problems = self.wave("Див. [задум](../../docs/design.md).")
         self.assertEqual(len(problems), 1)
         self.assertIn("design.md", problems[0].message)
 
@@ -313,15 +313,15 @@ class TestLinksLeadSomewhere(unittest.TestCase):
         with open(os.path.join(self.root, "docs/design.md"), "w",
                   encoding="utf-8") as handle:
             handle.write("задум\n")
-        self.assertEqual(self.step("Див. [задум](../../docs/design.md)."), [])
+        self.assertEqual(self.wave("Див. [задум](../../docs/design.md)."), [])
 
     def test_a_link_beyond_the_repository_is_named_differently(self):
-        problems = self.step("Див. [чуже](../../../elsewhere/x.md).")
+        problems = self.wave("Див. [чуже](../../../elsewhere/x.md).")
         self.assertEqual(len(problems), 1)
         self.assertIn("leaves the repository", problems[0].message)
 
     def test_an_http_link_is_left_alone(self):
-        self.assertEqual(self.step("Див. [доки](https://example.com/x.md)."), [])
+        self.assertEqual(self.wave("Див. [доки](https://example.com/x.md)."), [])
 
 
 
@@ -332,16 +332,16 @@ class TestSectionSplitting(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-sec-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        os.makedirs(os.path.join(self.root, "keel", "steps"))
+        os.makedirs(os.path.join(self.root, "keel", "waves"))
 
-    def step(self, body):
-        path = os.path.join(self.root, "keel/steps/0001-a.md")
+    def wave(self, body):
+        path = os.path.join(self.root, "keel/waves/0001-a.md")
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(body)
-        return keel.Step(path, self.root)
+        return keel.Wave(path, self.root)
 
     def test_a_heading_in_a_fence_is_not_a_section(self):
-        doc = self.step("---\ntransforms:\n  do-it: {files: [a.ex]}\n---\n\n"
+        doc = self.wave("---\ntransforms:\n  do-it: {files: [a.ex]}\n---\n\n"
                         "## transform: do-it\n\nтіло\n```\n## scenario: fake\n```\nхвіст\n")
         self.assertEqual(list(doc.sections), ["transform: do-it"])
         self.assertIn("## scenario: fake", doc.transform_body("do-it"))
@@ -349,17 +349,17 @@ class TestSectionSplitting(unittest.TestCase):
 
     def test_a_case_variant_duplicate_is_flagged(self):
         """`## scenario: s` і `## Scenario:  s` — той самий сценарій для читача."""
-        doc = self.step("---\nscenarios:\n  s: {}\n---\n\n## scenario: s\n\n"
+        doc = self.wave("---\nscenarios:\n  s: {}\n---\n\n## scenario: s\n\n"
                         "ПЕРШЕ.\n\n## Scenario:  s\n\nДРУГЕ.\n")
         self.assertTrue(doc.repeated)
 
     def test_a_true_distinct_heading_is_not_flagged(self):
-        doc = self.step("---\nscenarios:\n  a: {}\n  b: {}\n---\n\n"
+        doc = self.wave("---\nscenarios:\n  a: {}\n  b: {}\n---\n\n"
                         "## scenario: a\n\nх.\n\n## scenario: b\n\nх.\n")
         self.assertEqual(doc.repeated, [])
 
     def test_the_line_number_points_at_the_heading(self):
-        doc = self.step("---\nscenarios:\n  s: {}\n---\n\n## scenario: s\n\nтіло\n")
+        doc = self.wave("---\nscenarios:\n  s: {}\n---\n\n## scenario: s\n\nтіло\n")
         self.assertEqual(doc.section_lines["scenario: s"], 6)
 
 
@@ -441,14 +441,14 @@ class TestRefLinesPairCorrectly(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-lines-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        for folder in ("keel/steps", "keel/contracts"):
+        for folder in ("keel/waves", "keel/contracts"):
             os.makedirs(os.path.join(self.root, folder))
         with open(os.path.join(self.root, "keel/contracts/c.md"), "w",
                   encoding="utf-8") as handle:
             handle.write('---\nverify: "true"\n---\n\nх.\n')
 
     def problems(self, header):
-        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+        with open(os.path.join(self.root, "keel/waves/0001-a.md"), "w",
                   encoding="utf-8") as handle:
             handle.write(f"---\n{header}---\n\n## Why\n\nх.\n")
         return keel.check_revisions(keel.Project(self.root))

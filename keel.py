@@ -2,16 +2,22 @@
 """keel — the tool behind the Keel method.
 
 One file, standard library only. It knows state; it writes no prose.
-Messages printed to the human stay in Ukrainian: they are prose, not code.
+What it says to a person follows `lang` in the project's config, which defaults
+to English: the messages are prose, not code, so they are translatable, and the
+catalogue is keyed by the English text.
 
-    keel new step <slug>       skeleton of a step
+    keel new wave <slug>       skeleton of a wave
     keel new contract <slug>   skeleton of a contract
-    keel gaps                  what the step description is missing
+    keel gaps                  what the wave description is missing
     keel next                  package for the next move
-    keel check                 the six checks
+    keel check                 the six checks and the project's own gate
     keel rev                   revisions that have drifted apart
+    keel show                  a wave as a person reads it
     keel hooks                 git hooks: pre-commit and pre-push
+    keel skills                regenerate the skills from the methodology
     keel init                  put Keel into a project
+    keel update                bring a project's copies up to date
+    keel hook <event>          answer an agent hook; called by a config
 """
 
 import argparse
@@ -23,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -92,9 +98,9 @@ UK = {
         "це посилання виходить за межі репозиторію: {target}",
     "keel: {file} does not parse, so scope is not being checked: {reason}":
         "keel: {file} не розбирається, тож обсяг не перевіряється: {reason}",
-    "keel: step {step} declares no transforms, so nothing says which files "
+    "keel: wave {wave} declares no transforms, so nothing says which files "
     "belong to this work.":
-        "keel: крок {step} не оголошує трансформ, тож ніщо не каже, які файли "
+        "keel: хвиля {wave} не оголошує трансформ, тож ніщо не каже, які файли "
         "належать цій роботі.",
     "{field} has to be {kind}, and this is {actual}":
         "{field} має бути {kind}, а це {actual}",
@@ -115,8 +121,8 @@ UK = {
     # перевірки
     "scenario {slug}": "сценарій {slug}",
     "transform {slug}": "трансформа {slug}",
-    "depends_on points at a step that does not exist: {slug}":
-        "depends_on показує на крок, якого немає: {slug}",
+    "depends_on points at a wave that does not exist: {slug}":
+        "depends_on показує на хвилю, якої немає: {slug}",
     "scenario {scenario} proves a contract that does not exist: {slug}":
         "сценарій {scenario} доводить контракт, якого немає: {slug}",
     "transform {transform} implements a scenario that does not exist: {scenario}":
@@ -140,17 +146,17 @@ UK = {
         "не знайшов, від чого відійшла гілка: {main} немає або історія обрізана. "
         "Межі не звірено — це не означає, що вони цілі.",
     "a plan branch is touching code: {name}": "гілка плану чіпає код: {name}",
-    "branch {branch} is not named after a step — there is nothing to compare "
+    "branch {branch} is not named after a wave — there is nothing to compare "
     "scope against":
-        "гілка {branch} не називається кроком — немає з чим звіряти межі",
+        "гілка {branch} не називається хвилею — немає з чим звіряти межі",
     "changed but not declared: {name}": "файл змінено, але не оголошено: {name}",
     "declared but not changed: {name}": "файл оголошено, але не змінено: {name}",
     "nothing to run the tests with: the root has none of {markers}":
         "не знайшов, чим запускати тести: у корені немає жодного з {markers}",
     "scenario {slug} has no test": "сценарій {slug} не має тесту",
-    "scenario {slug} is declared by more than one step ({steps}), and a test "
+    "scenario {slug} is declared by more than one wave ({waves}), and a test "
     "tag names only the slug — it cannot say which":
-        "сценарій {slug} оголошено більш ніж одним кроком ({steps}), а тег "
+        "сценарій {slug} оголошено більш ніж однією хвилею ({waves}), а тег "
         "тесту називає лише слаг — він не може сказати, котрий",
     "the test for {slug} carries no revision; it is now {now}":
         "тест сценарію {slug} без редакції; зараз {now}",
@@ -191,10 +197,10 @@ UK = {
 
     # вивід команд
     '<what was done>': '<що зроблено>',
-    'Step {id} · {file}': 'Крок {id} · {file}',
+    'Wave {id} · {file}': 'Крок {id} · {file}',
     'Closed: {names}': 'Закрито: {names}',
     'After this one: {names}': 'Після цієї: {names}',
-    'Why the step': 'Навіщо крок',
+    'Why the wave': 'Навіщо хвиля',
     'This transform': 'Ця трансформа',
     'The files, and only these': 'Файли, і тільки вони',
     '(none declared — the plan is incomplete)': '(не оголошено — план неповний)',
@@ -218,8 +224,8 @@ UK = {
     'missing': 'немає',
     'none': 'жодного',
     '(block between the markers)': '(блок між маркерами)',
-    'step {slug}': 'крок {slug}',
-    'there is no step file for {branch} yet': 'файла кроку для {branch} ще немає',
+    'wave {slug}': 'хвиля {slug}',
+    'there is no wave file for {branch} yet': 'файла хвилі для {branch} ще немає',
     "(not run)": "(не запускалась)",
     "documents do not parse": "документи не читаються",
     "documents disagree with each other": "документи суперечать одне одному",
@@ -239,22 +245,26 @@ UK = {
     "CI is not set up: {command} — there is no such command":
         "CI не налаштований: {command} — такої команди немає",
     "CI is red: {command}": "CI червоний: {command}",
+    "{count} tests did not run — skipped or excluded. The runner does not say "
+    "which, so any scenario among them is unproven.":
+        "{count} тестів не виконувались — пропущені або виключені. Раннер не "
+        "каже, які саме, тож будь-який сценарій серед них недоведений.",
     "the whole hooks key": "весь ключ hooks",
     "{file}: {what} is somebody else's shape, so the write guard was not "
     "installed there — put it in by hand or move what is in the way":
         "{file}: {what} має чужу форму, тож заслон перед записом туди не "
         "встановлено — впишіть руками або приберіть те, що заважає",
-    "{name} was deleted on this branch. A step or a contract outlives the "
+    "{name} was deleted on this branch. A wave or a contract outlives the "
     "branch that removes it — say so in the pull request, or put it back.":
         "{name} видалено на цій гілці. Крок і контракт живуть довше за гілку, "
         "яка їх прибирає — скажіть про це в PR або поверніть на місце.",
-    "step {step} has two scenarios that read as {slug} once dashes and "
+    "wave {wave} has two scenarios that read as {slug} once dashes and "
     "underscores are levelled, and a tag names only that — rename one":
-        "у кроці {step} два сценарії читаються як {slug}, щойно зрівняти дефіси "
+        "у кроці {wave} два сценарії читаються як {slug}, щойно зрівняти дефіси "
         "з підкресленнями, а тег називає тільки це — перейменуйте один",
-    "keel: the head is detached, so there is no step to judge this write "
+    "keel: the head is detached, so there is no wave to judge this write "
     "against. Scope is not being checked.":
-        "keel: голова відчеплена, тож немає кроку, за яким судити цей запис. "
+        "keel: голова відчеплена, тож немає хвилі, за якою судити цей запис. "
         "Межі не перевіряються.",
     "contract {slug} promises nothing that can be checked: no exports to compare "
     "and no verify to run":
@@ -275,60 +285,60 @@ UK = {
         "{reason}",
     "transform {name} is declared by {others} as well, and a commit naming it "
     "would close both. A slug is the only link between a commit and its "
-    "transform, so it belongs to one step.":
+    "transform, so it belongs to one wave.":
         "трансформу {name} оголошує ще й {others}, і комміт із цим імʼям закрив "
         "би обидві. Слаг — єдиний звʼязок між коммітом і трансформою, тож він "
-        "належить одному крокові.",
-    "{name} was added to step {step} on this branch, not in the plan that was "
+        "належить одній хвилі.",
+    "{name} was added to wave {wave} on this branch, not in the plan that was "
     "approved. Allowed — say in the pull request what widened and why.":
-        "{name} додано до кроку {step} на цій гілці, а не в схваленому плані. "
+        "{name} додано до хвилі {wave} на цій гілці, а не в схваленому плані. "
         "Дозволено — скажіть у PR, що саме розширили й чому.",
-    "contract {slug} arrives with this step, and no transform or scenario leans "
+    "contract {slug} arrives with this wave, and no transform or scenario leans "
     "on it — deliberate?":
-        "контракт {slug} приходить із цим кроком, і жодна трансформа чи "
+        "контракт {slug} приходить із цією хвилею, і жодна трансформа чи "
         "сценарій на нього не спираються — це навмисно?",
     "{file} differs from what was approved: +{added} -{removed}. Allowed, and "
     "it stays a line in the diff — say in the pull request what changed and why.":
         "{file} відрізняється від схваленого: +{added} -{removed}. Дозволено, і "
         "воно лишається рядком у diff — скажіть у PR, що змінилось і чому.",
-    "step {other} declares {name} too, and depends_on does not name it — "
+    "wave {other} declares {name} too, and depends_on does not name it — "
     "deliberate?":
-        "крок {other} теж оголошує {name}, а depends_on його не називає — "
+        "хвиля {other} теж оголошує {name}, а depends_on його не називає — "
         "це навмисно?",
-    "every step is finished. The next one starts with a plan: keel new step "
+    "every wave is finished. The next one starts with a plan: keel new wave "
     "<slug>, then the branch plan/<that name>.":
-        "усі кроки завершені. Наступний починається з плану: keel new step "
+        "усі хвилі завершені. Наступний починається з плану: keel new wave "
         "<слаг>, а тоді гілка plan/<те саме імʼя>.",
-    "{steps}: the plan is not written yet — no transforms, so there is no work "
+    "{waves}: the plan is not written yet — no transforms, so there is no work "
     "to hand out. keel gaps says what is missing.":
-        "{steps}: план ще не написаний — трансформ немає, тож і роздавати "
+        "{waves}: план ще не написаний — трансформ немає, тож і роздавати "
         "нічого. keel gaps каже, чого бракує.",
-    "every unfinished step is waiting on another that is not done yet: {steps}. "
-    "Finish what they lean on, or plan the step that is missing.":
-        "кожен незавершений крок чекає на інший, який ще не зроблений: {steps}. "
-        "Закінчіть те, на що вони спираються, або заплануйте крок, якого бракує.",
-    "step {step} is approved and {open} of {total} transforms are not closed. "
+    "every unfinished wave is waiting on another that is not done yet: {waves}. "
+    "Finish what they lean on, or plan the wave that is missing.":
+        "кожна незавершена хвиля чекає на іншу, яка ще не зроблена: {waves}. "
+        "Закінчіть те, на що вони спираються, або заплануйте хвилю, якої бракує.",
+    "wave {wave} is approved and {open} of {total} transforms are not closed. "
     "The work goes on its own branch:\n"
-    "  git checkout -b {step}":
-        "крок {step} схвалений, і {open} з {total} трансформ не закриті. Робота "
+    "  git checkout -b {wave}":
+        "хвиля {wave} схвалена, і {open} з {total} трансформ не закриті. Робота "
         "йде на власній гілці:\n"
-        "  git checkout -b {step}",
+        "  git checkout -b {wave}",
     "{name}: this is {main}, where finished work arrives — it is not where work "
-    "is written. Code belongs on a branch named after a step: check out the step "
-    "you are working on, or plan a new one with keel new step.":
+    "is written. Code belongs on a branch named after a wave: check out the wave "
+    "you are working on, or plan a new one with keel new wave.":
         "{name}: це {main}, куди готова робота приїжджає, — а не там, де її "
-        "пишуть. Кодові місце на гілці, названій за кроком: перейдіть на крок, "
-        "над яким працюєте, або заплануйте новий через keel new step.",
+        "пишуть. Кодові місце на гілці, названій за хвилею: перейдіть на хвилю, "
+        "над яким працюєте, або заплануйте новий через keel new wave.",
     "the plan is missing things": "планові дечого бракує",
-    "{steps}: this branch did not come to write that step. Somebody else's step "
+    "{waves}: this branch did not come to write that wave. Somebody else's wave "
     "is not moved, renamed or deleted to get a check green — leave it and say it "
     "is there.":
-        "{steps}: ця гілка писати той крок не приходила. Чужий крок не пересувають, "
+        "{waves}: ця гілка писати ту хвилю не приходила. Чужу хвилю не пересувають, "
         "не перейменовують і не видаляють заради зеленої перевірки — лишіть його "
         "на місці й скажіть, що він там є.",
     "bad slug: {slug}": "поганий слаг: {slug}",
     "already there: {path}": "вже є: {path}",
-    "no such step: {step}": "кроку немає: {step}",
+    "no such wave: {wave}": "хвилі немає: {wave}",
     "branch {branch}": "гілка {branch}",
     "the Why section is empty": "секція «Навіщо» порожня",
     "no scenarios at all": "жодного сценарію",
@@ -363,8 +373,8 @@ UK = {
     "path/to/file": "шлях/до/файлу",
     "What exactly is promised, and to whom.": "Що саме обіцяно й кому.",
     "Why": "Навіщо",
-    "why this step exists and what is missing without it":
-        "навіщо цей крок і чого без нього бракує",
+    "why this wave exists and what is missing without it":
+        "навіщо ця хвиля і чого без неї бракує",
     "What it does.": "Що робить.",
     "Boundaries": "Межі",
     "what it does not do.": "чого не робить.",
@@ -396,42 +406,42 @@ UK = {
         "/clear теки не реєструє.",
     "The transform slug in the message is the only link between the work and the plan.":
         "Слаг трансформа в повідомленні — єдиний звʼязок роботи з планом.",
-    "branch {branch} is not named after a step. Work happens on a branch named "
-    "after the step, planning on plan/<step>.":
-        "гілка {branch} не названа за кроком. Робота йде на гілці, названій за "
-        "кроком, планування — на plan/<крок>.",
-    "every transform of step {step} is closed by a commit. Next: keel check, "
+    "branch {branch} is not named after a wave. Work happens on a branch named "
+    "after the wave, planning on plan/<wave>.":
+        "гілка {branch} не названа за хвилею. Робота йде на гілці, названій за "
+        "хвилею, планування — на plan/<хвиля>.",
+    "every transform of wave {wave} is closed by a commit. Next: keel check, "
     "then the PR.":
-        "кожен трансформ кроку {step} закрито комітом. Далі: keel check, потім PR.",
+        "кожен трансформ хвилі {wave} закрито комітом. Далі: keel check, потім PR.",
     "keel: the hook payload carried no file path, so scope was not checked. "
-    "Files the step declares: {declared}":
+    "Files the wave declares: {declared}":
         "keel: у виклику хука не було шляху до файла, тож обсяг не перевірено. "
-        "Файли, які оголошує крок: {declared}",
-    "keel: {target} is outside the repository, so the step's scope does not "
+        "Файли, які оголошує хвиля: {declared}",
+    "keel: {target} is outside the repository, so the wave's scope does not "
     "apply to it. Judge for yourself whether it should be written to.":
-        "keel: {target} лежить поза репозиторієм, тож обсяг кроку на нього не "
+        "keel: {target} лежить поза репозиторієм, тож обсяг хвилі на нього не "
         "поширюється. Чи варто туди писати — вирішуй сам.",
-    "step {step} is not on {main} yet: the plan is not approved and there is no work.":
-        "кроку {step} ще немає на {main}: план не затверджено, і роботи немає.",
-    "Keel: step {step} is not on {main} yet: the plan is not approved and there "
+    "wave {wave} is not on {main} yet: the plan is not approved and there is no work.":
+        "хвилі {wave} ще немає на {main}: план не затверджено, і роботи немає.",
+    "Keel: wave {wave} is not on {main} yet: the plan is not approved and there "
     "is no work.":
-        "Keel: кроку {step} ще немає на {main}: план не затверджено, і роботи "
+        "Keel: хвилі {wave} ще немає на {main}: план не затверджено, і роботи "
         "немає.",
-    "this is a plan branch: the step is written here, not code. keel gaps says "
+    "this is a plan branch: the wave is written here, not code. keel gaps says "
     "what is missing.":
-        "це гілка плану: тут пишеться крок, а не код. Чого бракує — каже keel gaps.",
+        "це гілка плану: тут пишеться хвиля, а не код. Чого бракує — каже keel gaps.",
     "Keel files with uncommitted changes: {count}. Commit them separately from "
     "the work:\n  git add {paths}\n  git commit -m \"Keel in the project\"":
         "Файли Keel із незакоміченими змінами: {count}. Закоміть їх окремо від "
         "роботи:\n  git add {paths}\n  git commit -m \"Keel у проєкті\"",
-    "{name} is not declared in step {step}. Declared: {declared}. If this file "
+    "{name} is not declared in wave {wave}. Declared: {declared}. If this file "
     "is the one you need, add it to the transform in {file}: drift is not "
     "forbidden, it has to stay a line in the diff.":
-        "{name} не оголошено в кроці {step}. Оголошено: {declared}. Якщо потрібен "
+        "{name} не оголошено в кроці {wave}. Оголошено: {declared}. Якщо потрібен "
         "саме цей файл, додай його до трансформа в {file}: відхилення не "
         "заборонене, воно має лишитись рядком у diff.",
-    "⚠ the step holds {held}, the contract is now {now} — keel rev first":
-        "⚠ крок тримає {held}, контракт тепер {now} — спершу keel rev",
+    "⚠ the wave holds {held}, the contract is now {now} — keel rev first":
+        "⚠ хвиля тримає {held}, контракт тепер {now} — спершу keel rev",
     "Take the {name} skill.": "Візьми скіл {name}.",
     "Keel is in manual mode: ask the person to type /{name}.":
         "Keel у ручному режимі: попроси людину набрати /{name}.",
@@ -440,18 +450,18 @@ UK = {
     "{take} What is missing is what `python3 {tool} gaps` says.":
         "Keel: гілка плану {branch}, {where}. Тут пишеться план, а не код.\n"
         "{take} Чого бракує — каже `python3 {tool} gaps`.",
-    "Keel: branch {branch} is not named after a step, so there is no planned "
-    "work here.\nA new step: first `python3 {tool} new step <slug>` — it prints "
+    "Keel: branch {branch} is not named after a wave, so there is no planned "
+    "work here.\nA new wave: first `python3 {tool} new wave <slug>` — it prints "
     "the file name with its number — and only then the branch "
     "`plan/<that same name>`. {take}":
-        "Keel: гілка {branch} не названа за кроком, тож запланованої роботи тут "
-        "немає.\nНовий крок: спершу `python3 {tool} new step <слаг>` — він друкує "
+        "Keel: гілка {branch} не названа за хвилею, тож запланованої роботи тут "
+        "немає.\nНова хвиля: спершу `python3 {tool} new wave <слаг>` — він друкує "
         "імʼя файла з номером — і аж тоді гілка `plan/<те саме імʼя>`. {take}",
     "Keel: {file} does not parse: {reason}":
         "Keel: {file} не розбирається: {reason}",
-    "Keel: every transform of step {slug} is closed by a commit.\n{take} Then "
+    "Keel: every transform of wave {slug} is closed by a commit.\n{take} Then "
     "`python3 {tool} check` and the PR.":
-        "Keel: кожен трансформ кроку {slug} закрито комітом.\n{take} Тоді "
+        "Keel: кожен трансформ хвилі {slug} закрито комітом.\n{take} Тоді "
         "`python3 {tool} check` і PR.",
     "Keel: {take} Here is the package for the next move — work from it, nothing "
     "around it needs opening.":
@@ -669,7 +679,7 @@ def _list_item(text, line):
     """One element of a list. A map here is valid YAML we do not read."""
     stripped = text.strip()
     # Both spellings: `- a: b` and `- {a: b}`. The braced form parsed into a
-    # dict, and Ref(dict) later surfaced as a bogus "step that does not exist"
+    # dict, and Ref(dict) later surfaced as a bogus "wave that does not exist"
     # far from the line that caused it.
     if MAP_ITEM.match(stripped) or stripped.startswith("{"):
         raise YamlError(line, t("a map inside a list is not supported: {item}", item=repr(stripped)))
@@ -702,7 +712,7 @@ def _flow(text, line):
                 # silently dropped entry reads as never declared.
                 raise YamlError(line, t("duplicate key {key}", key=repr(key)))
             # `{s1: }` — the block spelling of the same thing yields None, and
-            # the shape checks exempt None only, so one spelling killed the step
+            # the shape checks exempt None only, so one spelling killed the wave
             # while the other passed.
             out[key] = _flow(value, line) if value.strip() else None
         return out
@@ -724,7 +734,7 @@ def parse_yaml(text):
     if index != len(lines):
         raise YamlError(lines[index][0], t("unexpected indent"))
     if not isinstance(value, dict):
-        # Returning {} here would turn a malformed header into a step with no
+        # Returning {} here would turn a malformed header into a wave with no
         # transforms — which reads as "nothing declared" and switches the write
         # hook off without a word.
         raise YamlError(1, t("a header has to be a set of keys, not a list"))
@@ -895,7 +905,7 @@ class Doc:
 
     # A field of the wrong shape used to fall back to an empty default, and an
     # empty default reads as "nothing declared" — which is what disarms the
-    # write hook and leaves every check green over a step that guards nothing.
+    # write hook and leaves every check green over a wave that guards nothing.
     # The reader was hardened against this one level up; this is the same rule
     # one level down.
     SHAPES = {}
@@ -1009,7 +1019,7 @@ class Contract(Doc):
         return rev_matches(recorded, self.text)
 
 
-class Step(Doc):
+class Wave(Doc):
     SHAPES = {"depends_on": list, "scenarios": dict, "transforms": dict}
 
     def _wrong_shape(self):
@@ -1075,7 +1085,7 @@ class Step(Doc):
         return []
 
     def declared_files(self):
-        """Every file the step's transforms declare — the fact check 4 and the
+        """Every file the wave's transforms declare — the fact check 4 and the
         write hook must agree on, so it is computed in exactly one place."""
         declared = set()
         for slug in self.transforms:
@@ -1296,7 +1306,7 @@ class Git:
         """A top-level-relative git path, seen from the project root.
 
         None when it falls outside — a sibling directory in the same repository
-        belongs to whoever owns it, not to this step.
+        belongs to whoever owns it, not to this wave.
         """
         if not self.top_level:
             return name
@@ -1313,7 +1323,7 @@ class Git:
         from the repository root. The two coincide only when the keel root is
         the repository root, and a keel root nested in a bigger repository is a
         layout find_root supports on purpose. Without this, every lookup of the
-        form `main:keel/steps/x.md` answered false there, and `next` refused all
+        form `main:keel/waves/x.md` answered false there, and `next` refused all
         work with "the plan is not approved" while the plan sat on main.
         """
         if not self.top_level:
@@ -1436,12 +1446,23 @@ class Adapter:
     # operator would inherit a command that was never true.
     ci_command = ""
 
+    def not_run(self, output):
+        """(names, count) — tests the run did not execute.
+
+        Names where the runner can say which, a bare count where it can only
+        say how many. A skipped test leaves the suite successful, so without
+        this check 5 says "every scenario has a green test" over one that never
+        ran; and a language whose runner will not name them still must not
+        report the silence as proof.
+        """
+        return [], 0
+
     def ci_guard(self):
-        """The condition under which this language's steps make sense at all.
+        """The condition under which this language's waves make sense at all.
 
         The settings may name a language before its marker file exists — an
         adapter written into keel.json ahead of the work, or `init --adapter`
-        in a repository that has no code yet. Then the install step runs on a
+        in a repository that has no code yet. Then the install wave runs on a
         branch with no marker, which is every plan branch by design, and CI
         goes red for a reason that has nothing to do with what is on the
         branch. Found live: the agent had to work out on its own that the
@@ -1488,6 +1509,16 @@ class ElixirAdapter(Adapter):
 
     def test_command(self, root):
         return ["mix", "test"]
+
+    # `mix test` prints "5 tests, 0 failures, 1 excluded, 2 skipped" and names
+    # none of them. A count is all this runner will say, and a count is still
+    # better than reporting the silence as proof — which is what happened while
+    # only the Python side reported anything, on the very language this method
+    # is developed against.
+    not_run_re = re.compile(r"(\d+)\s+(?:excluded|skipped|invalid)")
+
+    def not_run(self, output):
+        return [], sum(int(number) for number in self.not_run_re.findall(output))
 
     def ci_steps(self, root):
         elixir, otp = self.versions()
@@ -1585,7 +1616,7 @@ class PythonAdapter(Adapter):
     def test_command(self, root):
         # The runner is handed the collector's own list, so "the files the tags
         # were read from" and "the files that run" are one fact, not two rules
-        # kept in step by hand — they drifted apart twice when they were two.
+        # kept in wave by hand — they drifted apart twice when they were two.
         # Loading by path also reaches a nested directory that is not a package,
         # which unittest discover silently skips.
         paths = [os.path.relpath(path, root).replace(os.sep, "/")
@@ -1619,6 +1650,10 @@ class PythonAdapter(Adapter):
         # runner imports every test file, and the bytecode it would leave
         # behind is what check 4 blamed the branch for a moment later.
         return [sys.executable, "-B", "-c", script]
+
+    def not_run(self, output):
+        return ([line[len(SKIP_MARK):].strip() for line in output.splitlines()
+                 if line.startswith(SKIP_MARK)], 0)
 
     def test_label(self, root):
         count = len(self.test_files(root))
@@ -1775,7 +1810,7 @@ class Project:
         self.adapter_candidates = matching_adapters(root)
         self.adapter = detect_adapter(root, self.settings["adapter"],
                                       self.adapter_candidates)
-        self.steps = {}
+        self.waves = {}
         self.contracts = {}
         self.broken = []
         # On CI the head is detached and git cannot name the branch — there the
@@ -1788,7 +1823,7 @@ class Project:
         return self.branch_override or self.git.branch
 
     def _load(self):
-        for folder, cls in (("steps", Step), ("contracts", Contract)):
+        for folder, cls in (("waves", Wave), ("contracts", Contract)):
             target = getattr(self, folder)
             base = os.path.join(self.keel, folder)
             if not os.path.isdir(base):
@@ -1811,40 +1846,40 @@ class Project:
         if not branch or branch in ("HEAD", self.git.main_short):
             return None
         name = branch.split("/", 1)[1] if branch.startswith("plan/") else branch
-        return self.steps.get(name)
+        return self.waves.get(name)
 
     def is_plan_branch(self, branch=None):
         return (branch or self.branch or "").startswith("plan/")
 
-    def transform_state(self, step):
+    def transform_state(self, wave):
         """{transform -> (commit sha or None, {files of that commit})}.
 
-        Cached per step: check 4, `next` and the session hook each ask within
+        Cached per wave: check 4, `next` and the session hook each ask within
         one run, and every ask used to resolve the merge base and walk the
         branch's commits again.
         """
-        if step.slug in self._transform_state:
-            return self._transform_state[step.slug]
-        state = self._transform_state[step.slug] = self._transform_state_of(step)
+        if wave.slug in self._transform_state:
+            return self._transform_state[wave.slug]
+        state = self._transform_state[wave.slug] = self._transform_state_of(wave)
         return state
 
-    def _transform_state_of(self, step):
+    def _transform_state_of(self, wave):
         base = self.git.merge_base(self.git.main_branch)
         found = {}
         for sha, message, files in self.git.commits_since(base):
-            for slug in step.transforms:
+            for slug in wave.transforms:
                 if message_closes(message, slug) and slug not in found:
                     found[slug] = (sha, files)
-        return {slug: found.get(slug, (None, set())) for slug in step.transforms}
+        return {slug: found.get(slug, (None, set())) for slug in wave.transforms}
 
     @functools.cached_property
     def arriving_contracts(self):
-        """Contracts not yet on the main branch — the ones a step is bringing.
+        """Contracts not yet on the main branch — the ones a wave is bringing.
 
         One `ls-tree` for the whole directory rather than a `cat-file` per
-        contract per step: the old shape spawned a git process for every
-        contract of every step `gaps` looked at, and reported the same orphan
-        once per step on top of it.
+        contract per wave: the old shape spawned a git process for every
+        contract of every wave `gaps` looked at, and reported the same orphan
+        once per wave on top of it.
         """
         if not self.git.available or not self.git.has_commits:
             return set()
@@ -1864,15 +1899,15 @@ class Project:
         """Every commit message on the main branch, read once.
 
         `transform_state` counts closure over `merge_base..HEAD`, which is the
-        right range while a step is being worked. Standing on main that range is
+        right range while a wave is being worked. Standing on main that range is
         empty — main *is* the baseline — so closure has to be read from its own
-        history instead, or every finished step would look untouched.
+        history instead, or every finished wave would look untouched.
         """
         return self.git.messages_on(self.git.main_branch)
 
-    def unclosed_on_main(self, step):
-        """Transforms of a step that no commit on the main branch closes."""
-        return [slug for slug in step.transforms
+    def unclosed_on_main(self, wave):
+        """Transforms of a wave that no commit on the main branch closes."""
+        return [slug for slug in wave.transforms
                 if not any(message_closes(message, slug)
                            for message in self.main_messages)]
 
@@ -1881,29 +1916,29 @@ class Project:
 
         The order of work is derived from `depends_on`, never from the numbers
         in the names, so "what now" is answered by walking the graph rather than
-        taking the next file in the directory. Ready means every step it leans
+        taking the next file in the directory. Ready means every wave it leans
         on is finished and its own transforms are not.
 
-        A step with no transforms declares no work, so nothing can close it and
+        A wave with no transforms declares no work, so nothing can close it and
         it would otherwise count as finished — a skeleton nobody filled in would
         report the project complete.
         """
         done, unfinished, unplanned = {}, [], []
-        for slug, step in sorted(self.steps.items()):
-            if step.error:
+        for slug, wave in sorted(self.waves.items()):
+            if wave.error:
                 continue
-            if not step.transforms:
-                unplanned.append(step)
+            if not wave.transforms:
+                unplanned.append(wave)
                 done[slug] = False
                 continue
-            open_now = self.unclosed_on_main(step)
+            open_now = self.unclosed_on_main(wave)
             done[slug] = not open_now
             if open_now:
-                unfinished.append((step, len(open_now)))
+                unfinished.append((wave, len(open_now)))
         ready, blocked = [], []
-        for step, open_count in unfinished:
-            laid = all(done.get(need, False) for need in step.depends_on)
-            (ready if laid else blocked).append((step, open_count))
+        for wave, open_count in unfinished:
+            laid = all(done.get(need, False) for need in wave.depends_on)
+            (ready if laid else blocked).append((wave, open_count))
         return ready, blocked, unplanned
 
 
@@ -1920,7 +1955,7 @@ def message_closes(message, slug):
 def find_root(start):
     current = os.path.abspath(start)
     while True:
-        if os.path.isdir(os.path.join(current, "keel", "steps")):
+        if os.path.isdir(os.path.join(current, "keel", "waves")):
             return current
         if os.path.exists(os.path.join(current, ".git")):
             # A file, not a directory, in a linked worktree and in a submodule.
@@ -1976,65 +2011,65 @@ def check_structure(project):
 
 
 def shared_transform_slugs(project):
-    """A transform slug used by two steps at once.
+    """A transform slug used by two waves at once.
 
     The slug in a commit message is the only link between the work and the
     plan — no hash is recorded anywhere, precisely so that nobody writes a
     status by hand. That makes the slug an identifier, and an identifier two
-    steps share identifies neither: a commit closing one step's `setup` closes
+    waves share identifies neither: a commit closing one wave's `setup` closes
     the other's as well, and the tool reports work as done that nobody did.
-    Found by review after `next` announced a finished project with a step whose
+    Found by review after `next` announced a finished project with a wave whose
     every transform was untouched.
     """
     owners = {}
-    for slug, step in sorted(project.steps.items()):
-        if step.error:
+    for slug, wave in sorted(project.waves.items()):
+        if wave.error:
             continue
-        for name in step.transforms:
-            owners.setdefault(name, []).append(step)
+        for name in wave.transforms:
+            owners.setdefault(name, []).append(wave)
     problems = []
-    for name, steps in sorted(owners.items()):
-        if len(steps) < 2:
+    for name, waves in sorted(owners.items()):
+        if len(waves) < 2:
             continue
-        others = ", ".join(step.slug for step in steps[1:])
+        others = ", ".join(wave.slug for wave in waves[1:])
         problems.append(Problem(
             0, t("transform {name} is declared by {others} as well, and a "
                  "commit naming it would close both. A slug is the only link "
                  "between a commit and its transform, so it belongs to one "
-                 "step.", name=name, others=others), steps[0].rel,
-            steps[0].line_of(name)))
+                 "wave.", name=name, others=others), waves[0].rel,
+            waves[0].line_of(name)))
     return problems
 
 
 def check_refs(project):
     problems = []
-    for step in project.steps.values():
-        if step.error:
+    for wave in project.waves.values():
+        if wave.error:
             continue
-        for ref in step.depends_on:
-            if ref.slug not in project.steps:
+        for ref in wave.depends_on:
+            if ref.slug not in project.waves:
                 problems.append(Problem(
-                    1, t("depends_on points at a step that does not exist: {slug}", slug=ref.slug),
-                    step.rel, step.line_of(ref.slug)))
-        for slug in step.scenarios:
-            for ref in step.proves(slug):
+                    1, t("depends_on points at a wave that does not exist: {slug}", slug=ref.slug),
+                    wave.rel, wave.line_of(ref.slug)))
+        for slug in wave.scenarios:
+            for ref in wave.proves(slug):
                 if ref.slug not in project.contracts:
                     problems.append(Problem(
                         1, t("scenario {scenario} proves a contract that does not exist: {slug}", scenario=slug, slug=ref.slug),
-                        step.rel, step.line_of(ref.raw)))
-        for slug in step.transforms:
-            for name in step.transform_implements(slug):
-                if name not in step.scenarios:
+                        wave.rel, wave.line_of(ref.raw)))
+        for slug in wave.transforms:
+            for name in wave.transform_implements(slug):
+                if name not in wave.scenarios:
                     problems.append(Problem(
                         1, t("transform {transform} implements a scenario that does not exist: {scenario}", transform=slug, scenario=name),
-                        step.rel, step.line_of(name)))
-            for ref in step.transform_contracts(slug):
+                        wave.rel, wave.line_of(name)))
+            for ref in wave.transform_contracts(slug):
                 if ref.slug not in project.contracts:
                     problems.append(Problem(
                         1, t("transform {transform} implements a contract that does not exist: {slug}", transform=slug, slug=ref.slug),
-                        step.rel, step.line_of(ref.raw)))
+                        wave.rel, wave.line_of(ref.raw)))
 
-    for doc in list(project.steps.values()) + list(project.contracts.values()):
+    for doc in list(project.waves.values()) + list(project.contracts.values()):
         for match in LINK_RE.finditer(doc.body):
             if doc._in_fence(match.start()):
                 # The section splitter already treats fenced `## ` as content
@@ -2068,24 +2103,24 @@ def check_cycles(project):
         if state.get(slug) == "open":
             cycle = " → ".join(trail[trail.index(slug):] + [slug])
             problems.append(Problem(2, t("cycle in depends_on: {cycle}", cycle=cycle),
-                                    project.steps[slug].rel))
+                                    project.waves[slug].rel))
             return
         state[slug] = "open"
-        step = project.steps.get(slug)
-        if step and not step.error:
-            for ref in step.depends_on:
-                if ref.slug in project.steps:
+        wave = project.waves.get(slug)
+        if wave and not wave.error:
+            for ref in wave.depends_on:
+                if ref.slug in project.waves:
                     walk(ref.slug, trail + [slug])
         state[slug] = "done"
 
-    for slug in sorted(project.steps):
+    for slug in sorted(project.waves):
         walk(slug, [])
     seen = set()
     return [p for p in problems if not (p.message in seen or seen.add(p.message))]
 
 
-def contract_refs(step):
-    """Everything in a step that leans on a contract: (who leans, reference).
+def contract_refs(wave):
+    """Everything in a wave that leans on a contract: (who leans, reference).
 
     Yielded in the file's own order — the parser keeps key order, so iterating
     the header keeps scenarios and transforms in whichever sequence they were
@@ -2093,87 +2128,87 @@ def contract_refs(step):
     and a fixed scenarios-first order handed the transform's line to the
     scenario whenever the file was written transforms-first.
     """
-    for key in step.front:
+    for key in wave.front:
         if key == "scenarios":
-            for slug in step.scenarios:
-                for ref in step.proves(slug):
+            for slug in wave.scenarios:
+                for ref in wave.proves(slug):
                     yield t("scenario {slug}", slug=slug), ref
         elif key == "transforms":
-            for slug in step.transforms:
-                for ref in step.transform_contracts(slug):
+            for slug in wave.transforms:
+                for ref in wave.transform_contracts(slug):
                     yield t("transform {slug}", slug=slug), ref
 
 
 def ambiguous_scenarios(project):
-    """Scenario slugs declared by more than one step.
+    """Scenario slugs declared by more than one wave.
 
-    A test tag names the slug and nothing else, so it cannot say which step's
-    scenario it proves. Sharing the pool between them suppressed one step's
-    "has no test" and reddened the other step's correct tag — and `rev --write`
-    would then restamp the good tag to the other step's revision, moving the
+    A test tag names the slug and nothing else, so it cannot say which wave's
+    scenario it proves. Sharing the pool between them suppressed one wave's
+    "has no test" and reddened the other wave's correct tag — and `rev --write`
+    would then restamp the good tag to the other wave's revision, moving the
     red rather than clearing it. Named instead of guessed.
     """
     seen = {}
-    for step in project.steps.values():
-        if step.error:
+    for wave in project.waves.values():
+        if wave.error:
             continue
-        for slug in step.scenarios:
-            # Counted per scenario, not per step: two scenarios in one step
+        for slug in wave.scenarios:
+            # Counted per scenario, not per wave: two scenarios in one wave
             # that normalise alike collide exactly as hard — the tags get
             # swapped, both read as drifted, and `rev --write` cannot fix it
             # because each is already stamped with what the other now hashes to.
-            seen.setdefault(normalise_slug(slug), []).append((step.slug, slug))
-    return {flat: sorted({step for step, _ in owners})
+            seen.setdefault(normalise_slug(slug), []).append((wave.slug, slug))
+    return {flat: sorted({wave for wave, _ in owners})
             for flat, owners in seen.items() if len(owners) > 1}
 
 
 def scenario_tags(project, tags=None, shared=None):
-    """(step, scenario, body, [(file, line, revision)]) — scenarios and their tags."""
+    """(wave, scenario, body, [(file, line, revision)]) — scenarios and their tags."""
     if tags is None:
         tags = project.adapter.tags(project.root) if project.adapter else {}
     if shared is None:
         shared = ambiguous_scenarios(project)
-    for step in project.steps.values():
-        if step.error:
+    for wave in project.waves.values():
+        if wave.error:
             continue
-        for slug in step.scenarios:
-            body = step.scenario_body(slug)
+        for slug in wave.scenarios:
+            body = wave.scenario_body(slug)
             if body is None:
                 continue  # check 7 catches this
             if normalise_slug(slug) in shared:
                 continue  # the collision is reported; attribution is not guessed
-            yield step, slug, body, tags.get(normalise_slug(slug), [])
+            yield wave, slug, body, tags.get(normalise_slug(slug), [])
 
 
 def drifted_contract_refs(project):
-    """(step, who, ref, contract) for every reference not matching its contract.
+    """(wave, who, ref, contract) for every reference not matching its contract.
 
     One definition of "drifted", consumed by check 3 to report and by `rev` to
     restamp: two hand-kept copies of this loop could disagree about what needs
     fixing and what got fixed.
     """
-    for step in project.steps.values():
-        if step.error:
+    for wave in project.waves.values():
+        if wave.error:
             continue
-        for who, ref in contract_refs(step):
+        for who, ref in contract_refs(wave):
             contract = project.contracts.get(ref.slug)
             if contract is None or contract.error:
                 continue
             if ref.rev and contract.rev_ok(ref.rev):
                 continue
-            yield step, who, ref, contract
+            yield wave, who, ref, contract
 
 
 def drifted_tags(project, tags=None, shared=None):
-    """(step, slug, body, path, line, rev) for every tag not matching its scenario."""
-    for step, slug, body, found in scenario_tags(project, tags, shared):
+    """(wave, slug, body, path, line, rev) for every tag not matching its scenario."""
+    for wave, slug, body, found in scenario_tags(project, tags, shared):
         for path, line, rev in found:
             if rev and rev_matches(rev, body):
                 continue
-            yield step, slug, body, path, line, rev
+            yield wave, slug, body, path, line, rev
 
 
-def ref_line(step, raw, skip=0):
+def ref_line(wave, raw, skip=0):
     """The line holding this exact reference, not a longer one it prefixes.
 
     A bare `auth` substring-matches the stamped `auth@d0c229` line, so the
@@ -2182,9 +2217,9 @@ def ref_line(step, raw, skip=0):
     """
     token = re.compile(rf"(?<![\w@./-]){re.escape(raw)}(?![\w@./-])")
     found, in_block, block_indent = 1, False, 0
-    for number, line in enumerate(step.text.splitlines(), 1):
+    for number, line in enumerate(wave.text.splitlines(), 1):
         # Only where a contract reference can live. `depends_on: [auth]` names a
-        # STEP that may share the contract's slug, and counting it sent the
+        # WAVE that may share the contract's slug, and counting it sent the
         # report to the depends_on line. Same reading rewrite_ref uses when it
         # writes: inline values, and items of a block list under one of the two
         # keys.
@@ -2208,39 +2243,39 @@ def ref_line(step, raw, skip=0):
 
 def check_revisions(project):
     problems, seen = [], {}
-    for step, who, ref, contract in drifted_contract_refs(project):
+    for wave, who, ref, contract in drifted_contract_refs(project):
         # Identical references share their drift status, so counting only the
         # drifted ones still lands each report on its own line.
-        key = (step.rel, ref.raw)
-        line = ref_line(step, ref.raw, skip=seen.get(key, 0))
+        key = (wave.rel, ref.raw)
+        line = ref_line(wave, ref.raw, skip=seen.get(key, 0))
         seen[key] = seen.get(key, 0) + 1
         if not ref.rev:
             problems.append(Problem(
                 3, t("{who} leans on {slug} without a revision; it is now {now}",
                   who=who, slug=ref.slug, now=contract.revision),
-                step.rel, line))
+                wave.rel, line))
         else:
             problems.append(Problem(
                 3, t("{who} holds {slug}@{held}, and the contract is now {now}",
                   who=who, slug=ref.slug, held=ref.rev, now=contract.revision),
-                step.rel, line))
+                wave.rel, line))
     return problems
 
 
 def deleted_documents(project, base):
-    """Steps and contracts this branch removed.
+    """Waves and contracts this branch removed.
 
     Not covered by anything else: the scope check waves all of `keel/` through
     so that `update` can refresh our own files mid-work, and the drift note
-    reads only modifications. So `git rm keel/steps/0002-other.md` left every
+    reads only modifications. So `git rm keel/waves/0002-other.md` left every
     gate green — the quietest way past the guard written to stop exactly that,
     because a document that is gone is in no list the checks walk.
     """
     if not base:
         return []
     listing = project.git.out("diff", "--name-only", "--diff-filter=D", base,
-                             "--", "keel/steps", "keel/contracts")
-    return [Problem(4, t("{name} was deleted on this branch. A step or a "
+                             "--", "keel/waves", "keel/contracts")
+    return [Problem(4, t("{name} was deleted on this branch. A wave or a "
                          "contract outlives the branch that removes it — say so "
                          "in the pull request, or put it back.", name=name))
             for name in sorted(listing.splitlines()) if name.strip()]
@@ -2274,7 +2309,7 @@ def check_scope(project):
     # find_root explicitly supports — made every file fail scope in both
     # directions at once, and the write hook allowed exactly what check 4 then
     # condemned. Rebase git's answers onto the keel root, and drop what lies
-    # outside it: another team's directory is not this step's business.
+    # outside it: another team's directory is not this wave's business.
     changed = set()
     for name in project.git.changed_files(base):
         inside = project.git.relative_to_root(name, project.root)
@@ -2291,7 +2326,7 @@ def check_scope(project):
     # refresh a skill in the middle of the work, and telling the person to
     # declare our own generated file in their transform is the same mine the
     # plan branch was cleared of.
-    # Before the exemption: a deleted step or contract is not drift and not
+    # Before the exemption: a deleted wave or contract is not drift and not
     # furniture. Keel's own files are waved through so that `update` may refresh
     # them mid-work, and removing somebody's approved plan slipped through the
     # same door — quieter than moving it, because what is gone cannot be named
@@ -2299,70 +2334,70 @@ def check_scope(project):
     problems = deleted_documents(project, base)
     changed = {name for name in changed if not keel_owns(name)}
 
-    step = project.step_for_branch(branch)
-    if step is None:
-        return [Problem(4, t("branch {branch} is not named after a step — there is nothing "
+    wave = project.step_for_branch(branch)
+    if wave is None:
+        return [Problem(4, t("branch {branch} is not named after a wave — there is nothing "
                         "to compare scope against", branch=branch))]
-    if step.error:
+    if wave.error:
         return []
 
     # The same exemption on both sides: keel_owns is filtered out of changed,
     # and a declared AGENTS.md would otherwise earn "declared but not changed"
     # over a diff that plainly changed it — a message stating a falsehood.
-    declared = {name for name in step.declared_files() if not keel_owns(name)}
+    declared = {name for name in wave.declared_files() if not keel_owns(name)}
 
     # The two directions do not read the same list, and that is the whole point.
     #
-    # "Changed but not declared" asks about every transform of the step: reach
-    # outside the step's files and it shows, whichever transform you are on.
+    # "Changed but not declared" asks about every transform of the wave: reach
+    # outside the wave's files and it shows, whichever transform you are on.
     #
     # "Declared but not changed" may only ask about transforms already closed by
-    # a commit. A step is worked one transform at a time — that is what `next`
+    # a commit. A wave is worked one transform at a time — that is what `next`
     # hands out — so on the first of five commits the other four have touched
     # nothing yet, by design. Asking about them there made pre-commit refuse
     # every commit until each declared file had been touched at least once —
-    # that is, the early ones, exactly when the step is least finished. An agent
+    # that is, the early ones, exactly when the wave is least finished. An agent
     # that meets a gate it cannot pass honestly learns `--no-verify`, which is
     # worse than no gate at all. Verified live: it took one refusal.
     #
     # Nothing is lost at the end: once every transform is closed the two lists
     # are the same, so the branch is still held to everything it declared.
-    closed = project.transform_state(step)
+    closed = project.transform_state(wave)
     promised = set()
-    for slug in step.transforms:
+    for slug in wave.transforms:
         if closed[slug][0] is not None:
-            promised.update(step.transform_files(slug))
+            promised.update(wave.transform_files(slug))
     promised = {name for name in promised if not keel_owns(name)}
 
     for name in sorted(changed - declared):
-        problems.append(Problem(4, t("changed but not declared: {name}", name=name), step.rel))
+        problems.append(Problem(4, t("changed but not declared: {name}", name=name), wave.rel))
     for name in sorted(promised - changed):
         problems.append(Problem(4, t("declared but not changed: {name}", name=name),
-                                step.rel, step.line_of(name)))
+                                wave.rel, wave.line_of(name)))
     return problems
 
 
 def check_scenarios(project, run_tests=True):
-    steps = [step for step in project.steps.values() if not step.error and step.scenarios]
-    if not steps:
+    waves = [wave for wave in project.waves.values() if not wave.error and wave.scenarios]
+    if not waves:
         return []
     problems = adapter_problem(project, 5)
     # Before the adapter guard: which slugs are ambiguous is a fact about the
-    # step documents, knowable from keel/steps alone. Behind the guard, a
-    # project would set its steps up, add a language marker months later, and
+    # wave documents, knowable from keel/waves alone. Behind the guard, a
+    # project would set its waves up, add a language marker months later, and
     # only then learn the slugs were never distinguishable.
     shared = ambiguous_scenarios(project)
     for slug, owners in sorted(shared.items()):
         if len(owners) > 1:
             problems.append(Problem(
-                5, t("scenario {slug} is declared by more than one step ({steps}), "
+                5, t("scenario {slug} is declared by more than one wave ({waves}), "
                      "and a test tag names only the slug — it cannot say which",
-                     slug=slug, steps=", ".join(owners))))
+                     slug=slug, waves=", ".join(owners))))
         else:
             problems.append(Problem(
-                5, t("step {step} has two scenarios that read as {slug} once "
+                5, t("wave {wave} has two scenarios that read as {slug} once "
                      "dashes and underscores are levelled, and a tag names only "
-                     "that — rename one", step=owners[0], slug=slug)))
+                     "that — rename one", wave=owners[0], slug=slug)))
     if project.adapter is None:
         return problems + [Problem(
             5, t("nothing to run the tests with: the root has none of {markers}",
@@ -2373,11 +2408,11 @@ def check_scenarios(project, run_tests=True):
     # adapter.tags re-walks and re-reads every test file, and this runs in the
     # pre-commit hook.
     tags = project.adapter.tags(project.root)
-    for step, slug, body, found in scenario_tags(project, tags, shared):
+    for wave, slug, body, found in scenario_tags(project, tags, shared):
         if not found:
             problems.append(Problem(
-                5, t("scenario {slug} has no test", slug=slug), step.rel,
-                step.section_lines.get(f"scenario: {slug}")))
+                5, t("scenario {slug} has no test", slug=slug), wave.rel,
+                wave.section_lines.get(f"scenario: {slug}")))
     for _, slug, body, path, line, rev in drifted_tags(project, tags, shared):
         if not rev:
             problems.append(Problem(
@@ -2430,24 +2465,32 @@ def skipped_proofs(project, output):
     A skipped test that names no scenario says nothing here — a platform test
     that cannot run on this machine is not a broken promise.
     """
-    skipped = [line[len(SKIP_MARK):].strip() for line in output.splitlines()
-               if line.startswith(SKIP_MARK)]
+    skipped, count = project.adapter.not_run(output)
     if not skipped:
-        return []
-    flattened = [normalise_slug(name) for name in skipped]
+        # No names, only a number: say what is unproven without pretending to
+        # know which promise it was.
+        return [Problem(5, t("{count} tests did not run — skipped or excluded. "
+                             "The runner does not say which, so any scenario "
+                             "among them is unproven.", count=count))] if count else []
+    # Anchored to the whole method name, not searched for inside it. A substring
+    # match made a scenario called `ok` claim an unrelated `test_runs_ok_on_windows`
+    # — the scenario proved, the skip irrelevant, and the branch red with no way
+    # out. Under-matching here costs less than a red nobody can clear: the tag
+    # scan still requires a test to exist, this only asks whether it ran.
+    flattened = [normalise_slug(name.rsplit(".", 1)[-1]) for name in skipped]
     problems = []
-    for step in project.steps.values():
-        if step.error:
+    for wave in project.waves.values():
+        if wave.error:
             continue
-        for slug in step.scenarios:
+        for slug in wave.scenarios:
             wanted = normalise_slug(slug)
             for name, flat in zip(skipped, flattened):
-                if wanted and wanted in flat:
+                if wanted and flat in (wanted, f"test-{wanted}"):
                     problems.append(Problem(
                         5, t("the test for {slug} did not run: {name} is "
                              "skipped. A test that does not run proves nothing.",
-                             slug=slug, name=name), step.rel,
-                        step.section_lines.get(f"scenario: {slug}")))
+                             slug=slug, name=name), wave.rel,
+                        wave.section_lines.get(f"scenario: {slug}")))
                     break
     return problems
 
@@ -2701,55 +2744,55 @@ def check_exports(project, run_tests=True):
 
 def check_headings(project):
     problems = []
-    for doc in list(project.steps.values()) + list(project.contracts.values()):
+    for doc in list(project.waves.values()) + list(project.contracts.values()):
         for title in sorted(set(doc.repeated)):
             problems.append(Problem(
                 7, t("the heading ## {title} appears twice — the first is read and the "
                      "last is counted", title=title),
                 doc.rel, doc.section_lines.get(title)))
-    for step in project.steps.values():
-        if step.error:
+    for wave in project.waves.values():
+        if wave.error:
             continue
-        for kind, declared in (("scenario", step.scenarios), ("transform", step.transforms)):
-            in_body = set(step.named_sections(kind))
+        for kind, declared in (("scenario", wave.scenarios), ("transform", wave.transforms)):
+            in_body = set(wave.named_sections(kind))
             in_head = set(declared)
             for slug in sorted(in_head - in_body):
                 problems.append(Problem(
                     7, t("the header has {kind} {slug} and the body has no "
                          "section for it", kind=kind, slug=slug),
-                    step.rel, step.line_of(slug)))
+                    wave.rel, wave.line_of(slug)))
             for slug in sorted(in_body - in_head):
                 problems.append(Problem(
                     7, t("the body has ## {kind}: {slug} and the header does not",
                          kind=kind, slug=slug),
-                    step.rel, step.section_lines.get(f"{kind}: {slug}")))
+                    wave.rel, wave.section_lines.get(f"{kind}: {slug}")))
     return problems
 
 
 def foreign_steps(project, problems):
-    """Slugs of blamed steps that this branch did not come to write.
+    """Slugs of blamed waves that this branch did not come to write.
 
     Said out loud because of what happens when it is not: an unfinished skeleton
     somebody left behind holds `check` red, the agent finds its own plan commit
     walled off by a file that is not its business, and the shortest way past is
-    to move the operator's step out of the project.
+    to move the operator's wave out of the project.
     """
     mine = project.step_for_branch()
     if mine is None:
-        # On the main branch nobody is writing a step, and a repo-wide check is
-        # the operator's own business: every blamed step would be "foreign", and
+        # On the main branch nobody is writing a wave, and a repo-wide check is
+        # the operator's own business: every blamed wave would be "foreign", and
         # the advice would be noise on the one branch that has no work to unblock.
         return []
     blamed = {problem.where for problem in problems if problem.where}
-    return sorted(step.slug for step in project.steps.values()
-                  if step.rel in blamed and step.rel != mine.rel)
+    return sorted(wave.slug for wave in project.waves.values()
+                  if wave.rel in blamed and wave.rel != mine.rel)
 
 
 PLAN_BLIND = (5, 6)
 
 
 def plan_step(project):
-    """The step this plan branch came to write, or None where it is not one.
+    """The wave this plan branch came to write, or None where it is not one.
 
     Checks 5 and 6 want a green test for every scenario and a module that
     exports what was promised. A plan branch carries neither, deliberately —
@@ -2765,10 +2808,10 @@ def plan_step(project):
 def drifted_from_main(project):
     """[(file, added, removed)] — documents this branch changed after approval.
 
-    Approval is derived rather than written: the step reached the main branch,
+    Approval is derived rather than written: the wave reached the main branch,
     so a person read it and let it through. Nothing then stopped the branch from
     rewriting it — `keel/` is out of scope by design, so that `update` may
-    refresh our own files mid-work — and walking the cycle produced a step
+    refresh our own files mid-work — and walking the cycle produced a wave
     amended three times after it was approved. Every amendment was right, and
     every one was named only because the agent chose to name it.
 
@@ -2793,7 +2836,7 @@ def drifted_from_main(project):
     if not base:
         return []
     stdout = project.git.out("diff", "--numstat", "--diff-filter=M",
-                             base, "--", "keel/steps", "keel/contracts")
+                             base, "--", "keel/waves", "keel/contracts")
     drifted = []
     for line in (stdout or "").splitlines():
         parts = line.split("\t")
@@ -2897,7 +2940,7 @@ def run_checks(project, only=None, run_tests=True):
 # The skeletons are written into somebody's project, so they follow `lang` like
 # every other line the tool produces. The heading is the one structural word in
 # them, and the reader accepts either spelling — a project may change language
-# without its existing steps becoming unreadable.
+# without its existing waves becoming unreadable.
 STEP_SKELETON = """---
 depends_on: []
 
@@ -2968,19 +3011,19 @@ def contract_skeleton():
         prose=t("What exactly is promised, and to whom."))
 
 
-WHY_HINT = "why this step exists and what is missing without it"
+WHY_HINT = "why this wave exists and what is missing without it"
 
 
-def unfilled_why(step):
+def unfilled_why(wave):
     """The skeleton's own placeholder, in whatever language it was written in.
 
     Derived from the catalogue entry the skeleton writes, not restated: reword
     the hint and this recogniser follows, instead of silently going blind.
     """
-    text = step.why.strip()
-    if not text.startswith(f"{step.slug}:"):
+    text = wave.why.strip()
+    if not text.startswith(f"{wave.slug}:"):
         return False
-    tail = text[len(step.slug) + 1:].strip().lower()
+    tail = text[len(wave.slug) + 1:].strip().lower()
     hints = (WHY_HINT, UK.get(WHY_HINT, WHY_HINT))
     return any(tail.startswith(hint.lower()) for hint in hints)
 
@@ -2991,15 +3034,15 @@ def cmd_new(project, args):
     if not clean:
         fail(t("bad slug: {slug}", slug=repr(slug)))
 
-    if kind == "step":
-        folder = os.path.join(project.keel, "steps")
+    if kind == "wave":
+        folder = os.path.join(project.keel, "waves")
         numbers = [int(m.group(1)) for name in os.listdir(folder)
                    if (m := re.match(r"(\d{4})-", name))] if os.path.isdir(folder) else []
         number = max(numbers, default=0) + 1
         name = f"{number:04d}-{clean}.md"
         # The numbered name, as the file is called: the Why placeholder starts
-        # with the slug, and the recogniser compares against step.slug — the
-        # unnumbered form made unfilled_why blind to every tool-created step.
+        # with the slug, and the recogniser compares against wave.slug — the
+        # unnumbered form made unfilled_why blind to every tool-created wave.
         text = step_skeleton(os.path.splitext(name)[0])
     else:
         folder = os.path.join(project.keel, "contracts")
@@ -3016,46 +3059,46 @@ def cmd_new(project, args):
     return 0
 
 
-def depends_closure(project, step):
-    """Every step this one reaches through depends_on, however far."""
-    seen, queue = set(), [ref.slug for ref in step.depends_on]
+def depends_closure(project, wave):
+    """Every wave this one reaches through depends_on, however far."""
+    seen, queue = set(), [ref.slug for ref in wave.depends_on]
     while queue:
         slug = queue.pop()
         if slug in seen:
             continue
         seen.add(slug)
-        other = project.steps.get(slug)
+        other = project.waves.get(slug)
         if other and not other.error:
             queue.extend(ref.slug for ref in other.depends_on)
     return seen
 
 
-def missing_edges(project, step):
-    """Steps this one leans on without saying so.
+def missing_edges(project, wave):
+    """Waves this one leans on without saying so.
 
     `depends_on` is the only order there is — the numbers in the names are
     unique prefixes and nothing more — so an empty list reads the same whether
     the dependency is absent or forgotten. Check 2 looks for cycles, and an
     empty graph has none, so nothing ever noticed.
 
-    Asked, never demanded: two steps may legitimately touch one file without
+    Asked, never demanded: two waves may legitimately touch one file without
     either leaning on the other, and a fabricated failure is worse than silence.
 
     Files only. A shared contract was asked about too and had to go: leaning on
-    a common promise is not depending on the step that first wrote it, so a
-    logger or a config contract produced a question in every step naming every
-    other — N steps, N×(N−1) questions, none of them a missing edge. A question
+    a common promise is not depending on the wave that first wrote it, so a
+    logger or a config contract produced a question in every wave naming every
+    other — N waves, N×(N−1) questions, none of them a missing edge. A question
     that is usually wrong is one an agent learns to answer "deliberate" without
     reading it, which costs more than the silence it replaced.
     """
-    known = depends_closure(project, step)
-    files = step.declared_files()
+    known = depends_closure(project, wave)
+    files = wave.declared_files()
 
     problems = []
-    for slug, other in sorted(project.steps.items()):
-        if slug == step.slug or slug in known or other.error:
+    for slug, other in sorted(project.waves.items()):
+        if slug == wave.slug or slug in known or other.error:
             continue
-        if step.slug in depends_closure(project, other):
+        if wave.slug in depends_closure(project, other):
             # It leans on us, so we do not lean on it. The direction is not
             # guessed from the numbers in the names — those are unique
             # prefixes, not an order — it is read from the graph itself.
@@ -3063,38 +3106,38 @@ def missing_edges(project, step):
         shared = sorted(files & other.declared_files())
         if shared:
             problems.append(Problem(
-                0, t("step {other} declares {name} too, and depends_on does not "
-                     "name it — deliberate?", other=slug, name=shared[0]), step.rel))
+                0, t("wave {other} declares {name} too, and depends_on does not "
+                     "name it — deliberate?", other=slug, name=shared[0]), wave.rel))
     return problems
 
 
-def unclaimed_contracts(project, step):
-    """Contracts this step brought that none of its transforms leans on.
+def unclaimed_contracts(project, wave):
+    """Contracts this wave brought that none of its transforms leans on.
 
     Check 1 asks the one direction — every slug named in a header has its file.
     Nothing asked the other, so a contract could be written, referenced by
     nobody, its `verify` file declared in no transform, and `gaps` would still
-    say the plan is complete. Seen live in step 0003; the agent noticed and
+    say the plan is complete. Seen live in wave 0003; the agent noticed and
     wired it up itself, which is not a guard.
 
-    Only contracts this step is bringing: one that already lives on the main
-    branch belongs to whoever put it there, and a step is free to leave it
+    Only contracts this wave is bringing: one that already lives on the main
+    branch belongs to whoever put it there, and a wave is free to leave it
     alone. A question, like the forgotten edge — a contract may honestly be
-    written a step ahead of the work that leans on it.
+    written a wave ahead of the work that leans on it.
     """
     if not project.git.available or not project.git.has_commits:
         return []
-    leaned_on = {ref.slug for slug in step.transforms
-                 for ref in step.transform_contracts(slug)}
-    leaned_on |= {ref.slug for slug in step.scenarios
-                  for ref in step.proves(slug)}
+    leaned_on = {ref.slug for slug in wave.transforms
+                 for ref in wave.transform_contracts(slug)}
+    leaned_on |= {ref.slug for slug in wave.scenarios
+                  for ref in wave.proves(slug)}
     return [Problem(
-        0, t("contract {slug} arrives with this step, and no transform or "
-             "scenario leans on it — deliberate?", slug=slug), step.rel)
+        0, t("contract {slug} arrives with this wave, and no transform or "
+             "scenario leans on it — deliberate?", slug=slug), wave.rel)
         for slug in sorted(project.arriving_contracts - leaned_on)]
 
 
-def gaps_problems(project, steps):
+def gaps_problems(project, waves):
     """What a plan is missing mechanically. Read by `gaps` and by `check`.
 
     One body, because the plan branch is gated by both: `gaps` while it is being
@@ -3102,66 +3145,66 @@ def gaps_problems(project, steps):
     list would drift, and the half that drifted would be the gate.
     """
     problems = []
-    for step in steps:
-        if step.error:
-            problems.append(Problem(0, step.error, step.rel))
+    for wave in waves:
+        if wave.error:
+            problems.append(Problem(0, wave.error, wave.rel))
             continue
-        if not step.why.strip() or unfilled_why(step):
-            problems.append(Problem(0, t("the Why section is empty"), step.rel))
-        if not step.scenarios:
-            problems.append(Problem(0, t("no scenarios at all"), step.rel))
-        if not step.transforms:
-            problems.append(Problem(0, t("no transforms at all"), step.rel))
+        if not wave.why.strip() or unfilled_why(wave):
+            problems.append(Problem(0, t("the Why section is empty"), wave.rel))
+        if not wave.scenarios:
+            problems.append(Problem(0, t("no scenarios at all"), wave.rel))
+        if not wave.transforms:
+            problems.append(Problem(0, t("no transforms at all"), wave.rel))
 
         implemented = set()
-        for slug in step.transforms:
-            implemented.update(step.transform_implements(slug))
-            if not step.transform_files(slug):
+        for slug in wave.transforms:
+            implemented.update(wave.transform_implements(slug))
+            if not wave.transform_files(slug):
                 problems.append(Problem(
-                    0, t("transform {slug} declared no files", slug=slug), step.rel,
-                    step.line_of(slug)))
-            if not step.transform_implements(slug):
+                    0, t("transform {slug} declared no files", slug=slug), wave.rel,
+                    wave.line_of(slug)))
+            if not wave.transform_implements(slug):
                 problems.append(Problem(
-                    0, t("transform {slug} implements no scenario", slug=slug), step.rel,
-                    step.line_of(slug)))
-            if not (step.transform_body(slug) or "").strip():
+                    0, t("transform {slug} implements no scenario", slug=slug), wave.rel,
+                    wave.line_of(slug)))
+            if not (wave.transform_body(slug) or "").strip():
                 problems.append(Problem(
-                    0, t("transform {slug} has no body: what it does and where its edges are", slug=slug), step.rel))
-        for slug in step.scenarios:
-            if not step.proves(slug):
+                    0, t("transform {slug} has no body: what it does and where its edges are", slug=slug), wave.rel))
+        for slug in wave.scenarios:
+            if not wave.proves(slug):
                 problems.append(Problem(
-                    0, t("scenario {slug} has no proves", slug=slug), step.rel, step.line_of(slug)))
+                    0, t("scenario {slug} has no proves", slug=slug), wave.rel, wave.line_of(slug)))
             if slug not in implemented:
                 problems.append(Problem(
-                    0, t("no transform implements scenario {slug}", slug=slug), step.rel,
-                    step.line_of(slug)))
-            if not (step.scenario_body(slug) or "").strip():
+                    0, t("no transform implements scenario {slug}", slug=slug), wave.rel,
+                    wave.line_of(slug)))
+            if not (wave.scenario_body(slug) or "").strip():
                 problems.append(Problem(
-                    0, t("scenario {slug} has no body: given/when/then", slug=slug), step.rel))
+                    0, t("scenario {slug} has no body: given/when/then", slug=slug), wave.rel))
 
-        problems += missing_edges(project, step)
-        problems += unclaimed_contracts(project, step)
+        problems += missing_edges(project, wave)
+        problems += unclaimed_contracts(project, wave)
 
-    mine = {step.rel for step in steps}
+    mine = {wave.rel for wave in waves}
     problems += [p for p in check_headings(project) if p.where in mine]
     problems += [p for p in check_refs(project) if p.where in mine]
     return problems
 
 
 def cmd_gaps(project, args):
-    steps = ([project.steps[args.step]] if args.step and args.step in project.steps
-             else [project.step_for_branch()] if not args.step and project.step_for_branch()
-             else list(project.steps.values()))
-    if args.step and args.step not in project.steps:
-        fail(t("no such step: {step}", step=args.step))
-    steps = [step for step in steps if step]
+    waves = ([project.waves[args.wave]] if args.wave and args.wave in project.waves
+             else [project.step_for_branch()] if not args.wave and project.step_for_branch()
+             else list(project.waves.values()))
+    if args.wave and args.wave not in project.waves:
+        fail(t("no such wave: {wave}", wave=args.wave))
+    waves = [wave for wave in waves if wave]
 
     # The same disagreement `check` refuses: gaps is what the planning skill
-    # runs until it comes back clean, so a slug two steps share must not slip
+    # runs until it comes back clean, so a slug two waves share must not slip
     # through the plan and surface on a work branch, where fixing it means
     # amending an approved plan.
-    problems = shared_transform_slugs(project) + gaps_problems(project, steps)
-    names = ", ".join(step.slug for step in steps) or t("nothing")
+    problems = shared_transform_slugs(project) + gaps_problems(project, waves)
+    names = ", ".join(wave.slug for wave in waves) or t("nothing")
     if not problems:
         print(t("the plan is complete: {names}", names=names))
         return 0
@@ -3286,16 +3329,16 @@ def cmd_check(project, args):
                   + [p for found in results.values() if found for p in found])
     strays = foreign_steps(project, everything)
     if strays:
-        print("\n" + t("{steps}: this branch did not come to write that step. "
-                       "Somebody else's step is not moved, renamed or deleted to "
+        print("\n" + t("{waves}: this branch did not come to write that wave. "
+                       "Somebody else's wave is not moved, renamed or deleted to "
                        "get a check green — leave it and say it is there.",
-                       steps=", ".join(strays)))
+                       waves=", ".join(strays)))
     return 0 if total == 0 else 1
 
 
-def next_transform(project, step):
-    state = project.transform_state(step)
-    for slug in step.transforms:
+def next_transform(project, wave):
+    state = project.transform_state(wave)
+    for slug in wave.transforms:
         if state[slug][0] is None:
             return slug, state
     return None, state
@@ -3305,67 +3348,67 @@ def main_branch_answer(project):
     """What to do while standing where finished work lands.
 
     The tool knows the state and the agent has the judgement — but this answer
-    used to be "the branch is not named after a step" and nothing more, while
-    the documents and git together plainly said which step is approved, which
+    used to be "the branch is not named after a wave" and nothing more, while
+    the documents and git together plainly said which wave is approved, which
     of its transforms are open, and what its branch has to be called.
     """
     # Not from ambiguous documents. Closure is read out of commit messages by
-    # slug, so a slug two steps share makes every answer here a guess — and the
-    # guess it made was "every step is finished" over a step nobody had started.
+    # slug, so a slug two waves share makes every answer here a guess — and the
+    # guess it made was "every wave is finished" over a wave nobody had started.
     broken = check_structure(project) + shared_transform_slugs(project)
     if broken:
         return t("the documents do not agree with themselves, so there is no "
                  "saying what is done: {reason}", reason=broken[0].message)
     ready, blocked, unplanned = project.ready_steps()
     if not ready and not blocked and not unplanned:
-        return t("every step is finished. The next one starts with a plan: "
-                 "keel new step <slug>, then the branch plan/<that name>.")
+        return t("every wave is finished. The next one starts with a plan: "
+                 "keel new wave <slug>, then the branch plan/<that name>.")
     if not ready:
         if unplanned:
-            names = ", ".join(step.slug for step in unplanned)
-            return t("{steps}: the plan is not written yet — no transforms, so "
+            names = ", ".join(wave.slug for wave in unplanned)
+            return t("{waves}: the plan is not written yet — no transforms, so "
                      "there is no work to hand out. keel gaps says what is "
-                     "missing.", steps=names)
-        waiting = ", ".join(step.slug for step, _ in blocked)
-        return t("every unfinished step is waiting on another that is not done "
-                 "yet: {steps}. Finish what they lean on, or plan the step that "
-                 "is missing.", steps=waiting)
-    step, open_count = ready[0]
-    return t("step {step} is approved and {open} of {total} transforms are not "
+                     "missing.", waves=names)
+        waiting = ", ".join(wave.slug for wave, _ in blocked)
+        return t("every unfinished wave is waiting on another that is not done "
+                 "yet: {waves}. Finish what they lean on, or plan the wave that "
+                 "is missing.", waves=waiting)
+    wave, open_count = ready[0]
+    return t("wave {wave} is approved and {open} of {total} transforms are not "
              "closed. The work goes on its own branch:\n"
-             "  git checkout -b {step}", step=step.slug,
-             open=open_count, total=len(step.transforms))
+             "  git checkout -b {wave}", wave=wave.slug,
+             open=open_count, total=len(wave.transforms))
 
 
 def cmd_next(project, args):
-    step = project.step_for_branch()
+    wave = project.step_for_branch()
     branch = project.branch
-    if step is None:
+    if wave is None:
         if branch and branch == project.git.main_short:
             return emit_next_error(args, main_branch_answer(project))
-        message = t("branch {branch} is not named after a step. Work happens on "
-                    "a branch named after the step, planning on plan/<step>.",
+        message = t("branch {branch} is not named after a wave. Work happens on "
+                    "a branch named after the wave, planning on plan/<wave>.",
                     branch=branch)
         return emit_next_error(args, message)
     if project.is_plan_branch(branch):
-        return emit_next_error(args, t("this is a plan branch: the step is written "
+        return emit_next_error(args, t("this is a plan branch: the wave is written "
                                        "here, not code. keel gaps says what is "
                                        "missing."))
-    if not project.git.file_in_branch(project.git.main_branch, step.rel):
+    if not project.git.file_in_branch(project.git.main_branch, wave.rel):
         return emit_next_error(
-            args, t("step {step} is not on {main} yet: the plan is not approved "
-                    "and there is no work.", step=step.slug,
+            args, t("wave {wave} is not on {main} yet: the plan is not approved "
+                    "and there is no work.", wave=wave.slug,
                     main=project.git.main_branch))
-    if step.error:
-        return emit_next_error(args, f"{step.rel}: {step.error}")
+    if wave.error:
+        return emit_next_error(args, f"{wave.rel}: {wave.error}")
 
-    slug, state = next_transform(project, step)
+    slug, state = next_transform(project, wave)
     if slug is None:
-        message = t("every transform of step {step} is closed by a commit. "
-                    "Next: keel check, then the PR.", step=step.slug)
+        message = t("every transform of wave {wave} is closed by a commit. "
+                    "Next: keel check, then the PR.", wave=wave.slug)
         return emit_next_error(args, message, code=0)
 
-    package = next_package(project, step, slug, state)
+    package = next_package(project, wave, slug, state)
     if args.json:
         print(json.dumps(package, ensure_ascii=False, indent=2))
     else:
@@ -3373,10 +3416,10 @@ def cmd_next(project, args):
     return 0
 
 
-def next_package(project, step, slug, state):
+def next_package(project, wave, slug, state):
     """Everything needed for one move, and nothing beyond it."""
     contracts = []
-    for ref in step.transform_contracts(slug):
+    for ref in wave.transform_contracts(slug):
         contract = project.contracts.get(ref.slug)
         contracts.append({
             "slug": ref.slug,
@@ -3389,13 +3432,13 @@ def next_package(project, step, slug, state):
         })
 
     scenarios = []
-    for name in step.transform_implements(slug):
-        body = step.scenario_body(name)
-        rev = step.scenario_revision(name)
+    for name in wave.transform_implements(slug):
+        body = wave.scenario_body(name)
+        rev = wave.scenario_revision(name)
         scenarios.append({
             "slug": name,
             "rev": rev,
-            "proves": [ref.raw for ref in step.proves(name)],
+            "proves": [ref.raw for ref in wave.proves(name)],
             "body": (body or "").strip(),
             # The dictated tag in the adapter's own dialect: dictating the
             # Elixir form to a Python project made the operator's obedient tag
@@ -3410,16 +3453,16 @@ def next_package(project, step, slug, state):
         })
 
     return {
-        "step": {"id": step.slug, "file": step.rel, "why": step.why.strip()},
+        "wave": {"id": wave.slug, "file": wave.rel, "why": wave.why.strip()},
         "transform": {
             "slug": slug,
-            "body": (step.transform_body(slug) or "").strip(),
-            "files": step.transform_files(slug),
+            "body": (wave.transform_body(slug) or "").strip(),
+            "files": wave.transform_files(slug),
         },
         "scenarios": scenarios,
         "contracts": contracts,
         "done": [name for name, (sha, _) in state.items() if sha],
-        "left": [name for name in step.transforms
+        "left": [name for name in wave.transforms
                  if state[name][0] is None and name != slug],
         "commit": f"{slug}: " + t("<what was done>"),
         "tag_hint": [
@@ -3437,16 +3480,16 @@ def emit_next_error(args, message, code=1):
 
 
 def render_next(package):
-    step, transform = package["step"], package["transform"]
+    wave, transform = package["wave"], package["transform"]
     out = [f"# {transform['slug']}", ""]
-    out.append(t("Step {id} · {file}", id=step["id"], file=step["file"]))
+    out.append(t("Wave {id} · {file}", id=wave["id"], file=wave["file"]))
     if package["done"]:
         out.append(t("Closed: {names}", names=", ".join(package["done"])))
     if package["left"]:
         out.append(t("After this one: {names}", names=", ".join(package["left"])))
     out.append("")
-    if step["why"]:
-        out += ["## " + t("Why the step"), "", step["why"], ""]
+    if wave["why"]:
+        out += ["## " + t("Why the wave"), "", wave["why"], ""]
     if transform["body"]:
         out += ["## " + t("This transform"), "", transform["body"], ""]
     out += ["## " + t("The files, and only these"), ""]
@@ -3478,7 +3521,7 @@ def render_next(package):
             out.append(item["body"] or t("(no such contract)"))
             out.append("")
             if not item["rev_ok"]:
-                out.append(t("⚠ the step holds {held}, the contract is now "
+                out.append(t("⚠ the wave holds {held}, the contract is now "
                              "{now} — keel rev first",
                              held=item["rev"], now=item["rev_now"]))
                 out.append("")
@@ -3489,7 +3532,7 @@ def render_next(package):
     return "\n".join(out)
 
 
-INIT_DIRS = ("keel/steps", "keel/contracts")
+INIT_DIRS = ("keel/waves", "keel/contracts")
 AGENTS_START = "<!-- keel:start -->"
 AGENTS_END = "<!-- keel:end -->"
 VENDORED = "keel/keel.py"
@@ -3501,7 +3544,7 @@ REFERENCES = ("KEEL.md", "README.md", "QUALITY.md")
 # reference in English while the agent writes and listens in their own language.
 #
 #   docs — which translation of the references lands in the project
-#   lang — what the agent writes (steps, commits) and what phrases the skills catch
+#   lang — what the agent writes (waves, commits) and what phrases the skills catch
 #
 # Neither can be guessed, so they are the one thing Keel keeps in a config file.
 CONFIG_FILE = "keel/keel.json"
@@ -3775,8 +3818,8 @@ def check_translations(project):
 AGENTS_BLOCK_EN = """{start}
 ## Keel
 
-This project's method: two kinds of document — step and contract — and six
-checks. Steps live in `keel/steps/`, contracts in `keel/contracts/`.
+This project's method: two kinds of document — wave and contract — and six
+checks. Waves live in `keel/waves/`, contracts in `keel/contracts/`.
 
 {principles}
 
@@ -3788,11 +3831,11 @@ Two commands:
 
 Three references — open them when something is unclear:
 
-- `keel/KEEL.md` — the method: what goes in a step's header, how revisions work,
+- `keel/KEEL.md` — the method: what goes in a wave's header, how revisions work,
   what each of the six checks looks at.
 - `keel/README.md` — the tool: every command with its flags, language adapters,
   hooks, skills.
-- `keel/QUALITY.md` — forty quality cuts. Walked once per step, where the
+- `keel/QUALITY.md` — forty quality cuts. Walked once per wave, where the
   scenarios are written.
 
 This block is generated; edits between the markers are overwritten on the next update.
@@ -3801,8 +3844,8 @@ This block is generated; edits between the markers are overwritten on the next u
 AGENTS_BLOCK = """{start}
 ## Keel
 
-Методика цього проєкту: два типи документів — крок і контракт — і шість
-перевірок. Кроки лежать у `keel/steps/`, контракти в `keel/contracts/`.
+Методика цього проєкту: два типи документів — хвиля і контракт — і шість
+перевірок. Хвилі лежать у `keel/waves/`, контракти в `keel/contracts/`.
 
 {principles}
 
@@ -3814,11 +3857,11 @@ AGENTS_BLOCK = """{start}
 
 Три довідники — відкривай, коли не ясно:
 
-- `keel/KEEL.md` — методика: що йде в шапку кроку, як влаштовані редакції,
+- `keel/KEEL.md` — методика: що йде в шапку хвилі, як влаштовані редакції,
   що саме перевіряє кожна з шести перевірок.
 - `keel/README.md` — інструмент: усі команди з прапорцями, адаптери мов,
   хуки, скіли.
-- `keel/QUALITY.md` — сорок розрізів якості. Проходяться раз на крок, там,
+- `keel/QUALITY.md` — сорок розрізів якості. Проходяться раз на хвилю, там,
   де пишуться сценарії.
 
 Цей блок породжений; правки між маркерами затре наступне оновлення.
@@ -3831,7 +3874,7 @@ on: [push, pull_request]
 jobs:
   check:
     runs-on: ubuntu-latest
-    steps:
+    waves:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0   # the scope check compares the branch against main
@@ -3854,36 +3897,36 @@ DESCRIPTION_CAP = 1536      # Claude truncates the skill listing at this
 PLAN_BODY = """\
 ## Start here
 
-Planning and work are separate on purpose: this branch writes the step and not a
-line of code. A person reads the step and lets it through, which is why it is its
+Planning and work are separate on purpose: this branch writes the wave and not a
+line of code. A person reads the wave and lets it through, which is why it is its
 own pull request.
 
 Create the branch and the skeleton:
 
-    python3 keel/keel.py new step <slug>
+    python3 keel/keel.py new wave <slug>
 
-It prints the file it made, and the number in that name is part of the step's
+It prints the file it made, and the number in that name is part of the wave's
 identity. Branch after the file, not after the slug you typed:
 
     git checkout -b plan/0007-session-loop
 
-Get this the wrong way round and nothing links the branch to the step: the tool
-looks the step up by branch name, finds nothing, and the session hook will tell
-you the step does not exist while you are looking straight at it.
+Get this the wrong way round and nothing links the branch to the wave: the tool
+looks the wave up by branch name, finds nothing, and the session hook will tell
+you the wave does not exist while you are looking straight at it.
 
 The slug may arrive as an argument to `/keel-plan`. If it did not, ask in one
-sentence which step we are writing rather than inventing it for the person.
+sentence which wave we are writing rather than inventing it for the person.
 
 **Header fields are English; the prose is the project's own language.** The
 fields become code, test tags and file names, so they stay English everywhere.
 The prose is read and approved by a person, so it follows whatever language the
-existing steps in `keel/steps/` are written in. If there are none yet, ask which
+existing waves in `keel/waves/` are written in. If there are none yet, ask which
 language this project writes in — and write commit messages the same way.
 
 ## Order
 
-**The Why section** — the heading `keel new step` wrote, one or two sentences on
-what is missing without this step. Not a retelling of what you will do: the
+**The Why section** — the heading `keel new wave` wrote, one or two sentences on
+what is missing without this wave. Not a retelling of what you will do: the
 reason it is worth doing.
 
 **Scenarios** — what we promise. Each one becomes a test, so word them so that it
@@ -3901,7 +3944,7 @@ skeleton shows the bones; the reference explains the fields.
 
 ## Ask, do not guess
 
-A person will read and approve this step, so a guess written into the plan costs
+A person will read and approve this wave, so a guess written into the plan costs
 more than a question. When you reach a fork, ask through the **question tool** if
 there is one — in Claude Code that is `AskUserQuestion` — and offer ready options
 with the consequence of each. Without such a tool, ask in chat and stop until
@@ -3910,13 +3953,13 @@ there is an answer.
 Ask about:
 
 - **the choice of approach**, when several exist and they lead to different work;
-- **the edges of the step** — does the neighbouring thing belong here or in the
-  next step;
+- **the edges of the wave** — does the neighbouring thing belong here or in the
+  next wave;
 - **a quality cut you were silent on** — do we write a scenario, or say "no" out
   loud;
 - **a promise something makes to us** — a library, a service, a binary: does it
   earn a contract of its own;
-- **contract names**, when the step draws a new boundary between modules.
+- **contract names**, when the wave draws a new boundary between modules.
 
 Write every question so it stands on its own, as if the person had just walked in
 with no context.
@@ -3937,7 +3980,7 @@ in the diff.
 ## Quality cuts
 
 Before treating the list of scenarios as complete, walk `keel/QUALITY.md` — forty
-questions under nine headings. One pass per step, here, while the scenarios are
+questions under nine headings. One pass per wave, here, while the scenarios are
 being written.
 
 Every cut gets exactly one of three answers:
@@ -3965,12 +4008,12 @@ honest; a scenario without a test is not.
 is not a reason to write a glob, it is a reason to cut further. The other tell:
 you want to write the commit message with an "and" in it.
 
-**A contract appears** when a promise outlives the step that created it. Ours:
+**A contract appears** when a promise outlives the wave that created it. Ours:
 module, exported functions, meaning. Somebody else's — a library, a service, a
 binary — is the same thing, and it carries `verify`, a command whose success is
 the proof. A promise nothing can check is not a contract; it is a boundary.
 
-**There are no decision files.** What outlives a step and promises something is a
+**There are no decision files.** What outlives a wave and promises something is a
 contract; "we deliberately do not do this" is the boundaries paragraph; a rule
 about architecture belongs to the linter's config.
 
@@ -3984,19 +4027,19 @@ It reports what is missing mechanically: slugs without sections, transforms
 without files, scenarios without `proves`. If you lean on a contract, a fresh
 revision comes from `python3 keel/keel.py rev --write`.
 
-**A step this branch did not come to write is not yours.** An unfinished
+**A wave this branch did not come to write is not yours.** An unfinished
 skeleton somebody left behind holds `check` red and can wall off your own
 commit, and moving, renaming or deleting it is not the way past: leave it where
 it is and tell the operator it is there. The same goes for every other file the
 branch did not come to touch.
 
-Then commit on the `plan/<step>` branch and open the PR. **No code goes in this
+Then commit on the `plan/<wave>` branch and open the PR. **No code goes in this
 PR** — a plan branch touches Keel's own files and nothing else: `keel/`, the
 skills, `AGENTS.md`, the CI file and the hook configs. Anything the project
 itself owns is code, and the scope check refuses it here.
 
 **Whoever decided what goes in the commit message, in its own paragraph.** The
-documents say what the step promises; they do not say which fork you stood at,
+documents say what the wave promises; they do not say which fork you stood at,
 what the choices were, and who picked. Git records who and when, the diff
 records what — why and on whose call is recorded nowhere, and the chat where it
 was settled does not travel with the repository. So write it down: the question,
@@ -4004,7 +4047,7 @@ the options, the answer, and whether the answer came from the operator or from
 you. Two or three lines. A guess and a decision look identical six months later,
 and the difference is the whole of it.
 
-Approval is written nowhere: it is the fact that the step file reached the main
+Approval is written nowhere: it is the fact that the wave file reached the main
 branch. Until then `keel next` hands out no work, and that is deliberate.
 """
 
@@ -4020,7 +4063,7 @@ This hands over one transform — what it does, which files, where its boundarie
 run, which scenarios it brings closer, and the bodies of the contracts it leans
 on. It is the whole slice for one move; nothing around it needs opening.
 
-If `next` refuses, it says why: the branch is not named after a step, or the plan
+If `next` refuses, it says why: the branch is not named after a wave, or the plan
 has not reached the main branch yet. Neither is a reason to start by hand — both
 are a reason to go back to `/keel-plan`.
 
@@ -4032,18 +4075,18 @@ and commit with the **transform slug as the first word** of the message:
 
     drive-turns-on-reqllm: keep turning while the model calls tools
 
-The slug is English because it comes from the step header; the rest of the
-message follows the project's prose language, like the step files do. The slug is
+The slug is English because it comes from the wave header; the rest of the
+message follows the project's prose language, like the wave files do. The slug is
 the only link between the work and the plan — without it the transform stays open
 no matter what the code says.
 
-Repeat until `next` reports nothing open. The step is then ready for review —
+Repeat until `next` reports nothing open. The wave is then ready for review —
 that is `/keel-review`.
 
 ## Boundaries
 
 The files on the list, and only those. If you need a file that is not there, add
-it to the transform in the step file. Drift is not forbidden — it is named, and
+it to the transform in the wave file. Drift is not forbidden — it is named, and
 it shows up as a line in the diff. Leaving the list silently is what is
 forbidden, and the write hook will refuse it.
 
@@ -4068,7 +4111,7 @@ project's own run should be — do not invent one, and do not write `none` on
 their behalf: that is their decision to make out loud, not yours to make for
 them.
 
-Then the part no check can see. Reread the step and ask not "what else should be
+Then the part no check can see. Reread the wave and ask not "what else should be
 true" but **what did we stay silent about**. Most often the silence is about
 failure: what happens when a dependency does not answer, when there is more data
 than anyone expected, when the thing is called twice. Whatever you find gets
@@ -4085,7 +4128,7 @@ the work was forgotten.
 
 ## After that
 
-When it is clean, push and open the PR. The step stands whole: every transform
+When it is clean, push and open the PR. The wave stands whole: every transform
 closed by a commit, every scenario proved by a test, six checks green. Nothing
 else needs marking — the statuses are derived.
 """
@@ -4093,38 +4136,38 @@ else needs marking — the statuses are derived.
 SKILLS = (
     {
         "name": "keel-plan",
-        "description": ("Write a Keel step: why it exists, scenarios drawn through "
+        "description": ("Write a Keel wave: why it exists, scenarios drawn through "
                         "the quality cuts, transforms with exact file lists. In a "
                         "project that has a keel/ directory, use this skill "
                         "whenever any new work begins — even when nobody says the "
-                        "word step and the request is {triggers}, or just a "
+                        "word wave and the request is {triggers}, or just a "
                         "description of what is missing. Use it as well when "
-                        "keel/steps/*.md is being edited, when asked how to split "
+                        "keel/waves/*.md is being edited, when asked how to split "
                         "work into transforms or how a scenario differs from a "
-                        "boundary, and when keel gaps reports an incomplete step."),
+                        "boundary, and when keel gaps reports an incomplete wave."),
         "triggers": {
             "uk": "«додай», «зроби це», «реалізуй», «давай спланую»",
             "en": "\"add\", \"build\", \"implement\", \"let's plan this\"",
         },
         # No paths. It scopes a skill to the files it is about, and the
-        # skill that writes the FIRST step would be scoped to step files
-        # that do not exist yet — verified live: with keel/steps/ empty,
+        # skill that writes the FIRST wave would be scoped to wave files
+        # that do not exist yet — verified live: with keel/waves/ empty,
         # /keel-plan was absent from the menu entirely, while its two
         # unscoped siblings were there. The field hides a skill, not just
         # its auto-loading, so nothing that bootstraps may carry it.
         "paths": None,
-        "argument_hint": {"uk": "[слаг нового кроку]",
-                          "en": "[slug of the new step]"},
+        "argument_hint": {"uk": "[слаг нової хвилі]",
+                          "en": "[slug of the new wave]"},
         "body": PLAN_BODY,
     },
     {
         "name": "keel-work",
-        "description": ("Do the next transform of a Keel step: keel next, work "
+        "description": ("Do the next transform of a Keel wave: keel next, work "
                         "strictly inside the named files, keel check, commit "
                         "carrying the transform slug. In a project with a keel/ "
                         "directory, use this skill whenever the request is to write "
                         "code, continue the work, {triggers} — and whenever the "
-                        "branch is named after a step, even if Keel was never "
+                        "branch is named after a wave, even if Keel was never "
                         "mentioned. Use it before committing too: the message has "
                         "to carry the transform slug or the transform stays open."),
         "triggers": {
@@ -4137,11 +4180,11 @@ SKILLS = (
     },
     {
         "name": "keel-review",
-        "description": ("Check a Keel step before the pull request: the full keel "
+        "description": ("Check a Keel wave before the pull request: the full keel "
                         "check plus the question of what we stayed silent about. In "
                         "a project with a keel/ directory, use this skill when asked "
                         "to open a PR or merge a branch, and when the question is "
-                        "{triggers} — and whenever every transform of the step is "
+                        "{triggers} — and whenever every transform of the wave is "
                         "already closed by a commit. Use it before claiming the work "
                         "is finished."),
         "triggers": {
@@ -4293,52 +4336,52 @@ def session_context(project):
     """What the agent needs at session start — and which skill answers it."""
     branch = project.branch or "?"
     if project.is_plan_branch(branch):
-        step = project.step_for_branch(branch)
-        where = (t("step {slug}", slug=step.slug) if step
-                 else t("there is no step file for {branch} yet", branch=branch))
+        wave = project.step_for_branch(branch)
+        where = (t("wave {slug}", slug=wave.slug) if wave
+                 else t("there is no wave file for {branch} yet", branch=branch))
         return t("Keel: plan branch {branch}, {where}. The plan is written here, "
                  "not code.\n{take} What is missing is what "
                  "`python3 {tool} gaps` says.",
                  branch=branch, where=where, tool=VENDORED,
                  take=take(project, "keel-plan"))
 
-    step = project.step_for_branch(branch)
-    if step is None:
+    wave = project.step_for_branch(branch)
+    if wave is None:
         # On the main branch, the same answer `next` gives — it walks the graph
-        # and names the step waiting to be worked. The hook used to say "there
+        # and names the wave waiting to be worked. The hook used to say "there
         # is no planned work here" while `next`, in the same repository at the
-        # same moment, named an approved step with every transform open. The
+        # same moment, named an approved wave with every transform open. The
         # hook is what a fresh agent reads first, so the wrong answer was the
         # one that arrived first.
         if branch == project.git.main_short:
             return "Keel: " + main_branch_answer(project) + " " + take(
                 project, "keel-plan")
         # Order matters and is easy to get backwards: the number only exists
-        # after `new step`, and a branch named before it never links to the step.
-        return t("Keel: branch {branch} is not named after a step, so there is no "
-                 "planned work here.\nA new step: first `python3 {tool} new step "
+        # after `new wave`, and a branch named before it never links to the wave.
+        return t("Keel: branch {branch} is not named after a wave, so there is no "
+                 "planned work here.\nA new wave: first `python3 {tool} new wave "
                  "<slug>` — it prints the file name with its number — and only then "
                  "the branch `plan/<that same name>`. {take}",
                  branch=branch, tool=VENDORED, take=take(project, "keel-plan"))
-    if step.error:
+    if wave.error:
         return t("Keel: {file} does not parse: {reason}",
-                 file=step.rel, reason=step.error)
-    # The same gate `next` enforces: a step that has not reached the main branch
+                 file=wave.rel, reason=wave.error)
+    # The same gate `next` enforces: a wave that has not reached the main branch
     # is not approved, and there is no work. Without this the hook dictated
     # exactly the work the method's own gate refuses — the guard arguing with
     # the tool it was installed to enforce.
-    if not project.git.file_in_branch(project.git.main_branch, step.rel):
-        return t("Keel: step {step} is not on {main} yet: the plan is not "
-                 "approved and there is no work.", step=step.slug,
+    if not project.git.file_in_branch(project.git.main_branch, wave.rel):
+        return t("Keel: wave {wave} is not on {main} yet: the plan is not "
+                 "approved and there is no work.", wave=wave.slug,
                  main=project.git.main_branch)
 
-    slug, state = next_transform(project, step)
+    slug, state = next_transform(project, wave)
     if slug is None:
-        return t("Keel: every transform of step {slug} is closed by a commit.\n"
+        return t("Keel: every transform of wave {slug} is closed by a commit.\n"
                  "{take} Then `python3 {tool} check` and the PR.",
-                 slug=step.slug, tool=VENDORED, take=take(project, "keel-review"))
+                 slug=wave.slug, tool=VENDORED, take=take(project, "keel-review"))
 
-    package = next_package(project, step, slug, state)
+    package = next_package(project, wave, slug, state)
     return (t("Keel: {take} Here is the package for the next "
               "move — work from it, nothing around it needs opening.",
               take=take(project, "keel-work")) + "\n\n"
@@ -4407,8 +4450,8 @@ def repo_relative(project, target):
     return relative
 
 
-def approved_files(project, step):
-    """The files the step declared when it reached the main branch, or None.
+def approved_files(project, wave):
+    """The files the wave declared when it reached the main branch, or None.
 
     Read out of git rather than through a Doc: this is the text as it was
     approved, not as it sits on disk now, and there is no file to open.
@@ -4424,7 +4467,7 @@ def approved_files(project, step):
     # bought a second process per write for an answer we already had. The hook
     # runs as its own process for every write, so this is the only saving
     # available — caching between writes is not.
-    text = project.git.out("show", f"{base}:{project.git.in_tree(step.rel)}",
+    text = project.git.out("show", f"{base}:{project.git.in_tree(wave.rel)}",
                            default=None)
     if not text:
         return None
@@ -4446,16 +4489,16 @@ def approved_files(project, step):
     return files
 
 
-def widened_here(project, step, relative):
-    """Whether this file entered the step's scope after the plan was approved.
+def widened_here(project, wave, relative):
+    """Whether this file entered the wave's scope after the plan was approved.
 
     Extending the list is allowed — KEEL.md says so, and it stays a line in the
     diff. But the hook used to wave such a write through in silence: amend the
-    step, then write anything, and nothing said a word until `check` ran, which
+    wave, then write anything, and nothing said a word until `check` ran, which
     is three moves later and somewhere else. Said here instead, at the moment
     the judgement is actually made.
     """
-    approved = approved_files(project, step)
+    approved = approved_files(project, wave)
     return approved is not None and relative not in approved
 
 
@@ -4467,15 +4510,15 @@ def main_branch_verdict(project, payload):
     early — leaving the one branch with no planned work as the one branch where
     anything could be written. Found by walking the cycle, not by a test.
 
-    Only once a step exists: a repository still being set up, or one that has
+    Only once a wave exists: a repository still being set up, or one that has
     just taken Keel and planned nothing yet, has no plan to work from and no
     business being walled in.
     """
-    if not project.steps:
+    if not project.waves:
         return None
     target = find_path(payload)
     if target is None:
-        # The same unknown is loud on a step branch and used to be silent here,
+        # The same unknown is loud on a wave branch and used to be silent here,
         # on the one branch where code is not supposed to be written at all.
         return ("note", t("keel: the hook payload carried no file path, so this "
                           "write was not judged. This is {main}, where finished "
@@ -4485,8 +4528,8 @@ def main_branch_verdict(project, payload):
         return None
     return ("deny", t("{name}: this is {main}, where finished work arrives — it "
                       "is not where work is written. Code belongs on a branch "
-                      "named after a step: check out the step you are working "
-                      "on, or plan a new one with keel new step.",
+                      "named after a wave: check out the wave you are working "
+                      "on, or plan a new one with keel new wave.",
                       name=relative, main=project.git.main_short))
 
 
@@ -4497,55 +4540,55 @@ def write_verdict(project, payload):
         # Every other unknown here is loud, and check 4 reports this same state
         # loudly too. A detached head — an interrupted rebase, a bisect, a
         # checkout by sha — used to turn the guard off without a word.
-        return ("note", t("keel: the head is detached, so there is no step to "
+        return ("note", t("keel: the head is detached, so there is no wave to "
                           "judge this write against. Scope is not being checked."))
     if branch == project.git.main_short:
         return main_branch_verdict(project, payload)
     if project.is_plan_branch(branch):
         return None
-    step = project.step_for_branch(branch)
-    if step is None:
+    wave = project.step_for_branch(branch)
+    if wave is None:
         return None
-    if step.error:
+    if wave.error:
         # Unreadable is not the same as unrestricted. Waving the write through
         # in silence is how a broken header turns the guard off without a word.
         return ("note", t("keel: {file} does not parse, so scope is not being "
-                          "checked: {reason}", file=step.rel, reason=step.error))
-    if not step.transforms:
-        return ("note", t("keel: step {step} declares no transforms, so nothing "
-                          "says which files belong to this work.", step=step.slug))
+                          "checked: {reason}", file=wave.rel, reason=wave.error))
+    if not wave.transforms:
+        return ("note", t("keel: wave {wave} declares no transforms, so nothing "
+                          "says which files belong to this work.", wave=wave.slug))
 
-    declared = step.declared_files()
+    declared = wave.declared_files()
 
     target = find_path(payload)
     if target is None:
         return ("note", t("keel: the hook payload carried no file path, so scope "
-                          "was not checked. Files the step declares: {declared}",
+                          "was not checked. Files the wave declares: {declared}",
                           declared=", ".join(sorted(declared)) or t("none")))
 
     relative = repo_relative(project, target)
     if relative is None:
         return ("note", t("keel: {target} is outside the repository, so the "
-                          "step's scope does not apply to it. Judge for yourself "
+                          "wave's scope does not apply to it. Judge for yourself "
                           "whether it should be written to.", target=target))
     if keel_owns(relative):
         return None      # the same exemption check 4 applies, so the hook is
                          # never stricter than the gate
     if relative in declared:
-        if widened_here(project, step, relative):
-            return ("note", t("{name} was added to step {step} on this branch, "
+        if widened_here(project, wave, relative):
+            return ("note", t("{name} was added to wave {wave} on this branch, "
                               "not in the plan that was approved. Allowed — say "
                               "in the pull request what widened and why.",
-                              name=relative, step=step.slug))
+                              name=relative, wave=wave.slug))
         return None
 
-    return ("deny", t("{name} is not declared in step {step}. Declared: "
+    return ("deny", t("{name} is not declared in wave {wave}. Declared: "
                       "{declared}. If this file is the one you need, add it to the "
                       "transform in {file}: drift is not forbidden, it has to stay "
                       "a line in the diff.",
-                      name=relative, step=step.slug,
+                      name=relative, wave=wave.slug,
                       declared=", ".join(sorted(declared)) or t("none"),
-                      file=step.rel))
+                      file=wave.rel))
 
 
 def remove_hook_configs(root, done):
@@ -5048,35 +5091,35 @@ def cmd_hooks(project, args):
 
 
 def cmd_show(project, args):
-    """A step as a person reads it: links that resolve, and derived state.
+    """A wave as a person reads it: links that resolve, and derived state.
 
     The header is YAML because a machine reads it, and a preview renders that
     badly. Rather than split the file — which would let the slug and its text
     drift apart in two places — this view is built on the fly and stored nowhere.
     """
-    step = project.steps.get(args.step) if args.step else project.step_for_branch()
-    if step is None:
-        fail(t("no such step: {step}",
-               step=args.step or t("branch {branch}", branch=project.branch)))
-    if step.error:
-        fail(f"{step.rel}: {step.error}")
+    wave = project.waves.get(args.wave) if args.wave else project.step_for_branch()
+    if wave is None:
+        fail(t("no such wave: {wave}",
+               wave=args.wave or t("branch {branch}", branch=project.branch)))
+    if wave.error:
+        fail(f"{wave.rel}: {wave.error}")
 
-    state = project.transform_state(step) if project.git.available else {}
-    # Every link is relative to the step file, so they resolve wherever the
+    state = project.transform_state(wave) if project.git.available else {}
+    # Every link is relative to the wave file, so they resolve wherever the
     # rendered text is read from — including the file's own directory.
-    out = [f"# {step.slug}", "",
-           f"[{step.rel}]({os.path.basename(step.path)})", ""]
-    if step.why.strip():
-        out += [step.why.strip(), ""]
+    out = [f"# {wave.slug}", "",
+           f"[{wave.rel}]({os.path.basename(wave.path)})", ""]
+    if wave.why.strip():
+        out += [wave.why.strip(), ""]
 
-    depends = [f"[{ref.slug}](../steps/{ref.slug}.md)" for ref in step.depends_on]
+    depends = [f"[{ref.slug}](../waves/{ref.slug}.md)" for ref in wave.depends_on]
     if depends:
         out += ["**" + t("Depends on:") + "** " + ", ".join(depends), ""]
 
     out += ["## " + t("Scenarios"), ""]
-    for slug in step.scenarios:
+    for slug in wave.scenarios:
         proves = []
-        for ref in step.proves(slug):
+        for ref in wave.proves(slug):
             contract = project.contracts.get(ref.slug)
             ok = contract and not contract.error and contract.rev_ok(ref.rev)
             proves.append(f"[{ref.slug}](../contracts/{ref.slug}.md)"
@@ -5085,30 +5128,30 @@ def cmd_show(project, args):
         out.append("")
         out.append(t("Proves: {proves} · revision `{rev}`",
                      proves=", ".join(proves) or "—",
-                     rev=step.scenario_revision(slug) or "—"))
+                     rev=wave.scenario_revision(slug) or "—"))
         out.append("")
-        out.append((step.scenario_body(slug) or "_" + t("no body") + "_").strip())
+        out.append((wave.scenario_body(slug) or "_" + t("no body") + "_").strip())
         out.append("")
 
     out += ["## " + t("Transforms"), ""]
-    for slug in step.transforms:
+    for slug in wave.transforms:
         sha = state.get(slug, (None, set()))[0]
         out.append(f"### {slug} — " + (t("closed {sha}", sha=sha[:7]) if sha
                                        else t("open")))
         out.append("")
         near = ", ".join(f"[{name}](#{name})"
-                         for name in step.transform_implements(slug))
+                         for name in wave.transform_implements(slug))
         out.append(t("Brings closer: {names}", names=near or "—"))
-        for ref in step.transform_contracts(slug):
+        for ref in wave.transform_contracts(slug):
             out.append(t("Implements: [{slug}](../contracts/{slug}.md)@{rev}",
                          slug=ref.slug, rev=ref.rev or "—"))
         out.append("")
-        for name in step.transform_files(slug):
+        for name in wave.transform_files(slug):
             here = os.path.exists(os.path.join(project.root, name))
             out.append(f"- [{name}](../../{name})"
                        + ("" if here else " — " + t("not there yet")))
         out.append("")
-        out.append((step.transform_body(slug) or "_" + t("no body") + "_").strip())
+        out.append((wave.transform_body(slug) or "_" + t("no body") + "_").strip())
         out.append("")
 
     print("\n".join(out).rstrip() + "\n")
@@ -5211,11 +5254,11 @@ def cmd_rev(project, args):
     edits = {}   # path -> [(old, new)]
     report = []
 
-    for step, who, ref, contract in drifted_contract_refs(project):
+    for wave, who, ref, contract in drifted_contract_refs(project):
         fresh = contract.revision
-        report.append((step.rel, who, f"{ref.slug}@{ref.rev or '—'}",
+        report.append((wave.rel, who, f"{ref.slug}@{ref.rev or '—'}",
                        f"{ref.slug}@{fresh}"))
-        edits.setdefault(step.path, []).append((ref.raw, f"{ref.slug}@{fresh}"))
+        edits.setdefault(wave.path, []).append((ref.raw, f"{ref.slug}@{fresh}"))
 
     for _, slug, body, path, line, rev in drifted_tags(project):
         fresh = revision(body)
@@ -5358,12 +5401,12 @@ def build_parser():
                         help="work in this directory")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    new = sub.add_parser("new", help="skeleton of a step or a contract")
-    new.add_argument("kind", choices=("step", "contract"))
+    new = sub.add_parser("new", help="skeleton of a wave or a contract")
+    new.add_argument("kind", choices=("wave", "contract"))
     new.add_argument("slug")
 
-    gaps = sub.add_parser("gaps", help="what is missing from a step")
-    gaps.add_argument("step", nargs="?", help="a step; without it, the branch's step")
+    gaps = sub.add_parser("gaps", help="what is missing from a wave")
+    gaps.add_argument("wave", nargs="?", help="a wave; without it, the branch's wave")
 
     check = sub.add_parser("check", help="the six checks")
     check.add_argument("--fast", action="store_true",
@@ -5417,8 +5460,8 @@ def build_parser():
 
     sub.add_parser("skills", help="regenerate the skills from the methodology")
 
-    show = sub.add_parser("show", help="a step as a person reads it")
-    show.add_argument("step", nargs="?", help="a step; without it, the branch's step")
+    show = sub.add_parser("show", help="a wave as a person reads it")
+    show.add_argument("wave", nargs="?", help="a wave; without it, the branch's wave")
 
     update = sub.add_parser("update", help="update the copies in a project")
     update.add_argument("--diff", action="store_true", help="show the difference")
@@ -5454,7 +5497,7 @@ def main(argv=None):
         # A leftover hook entry after keel/ was removed. Failing here exits 2,
         # and for a PreToolUse hook exit 2 means deny — every write in the
         # repository would be blocked by a tool that is not even installed.
-        # Answer nothing and step aside.
+        # Answer nothing and wave aside.
         return 0
     if args.command not in ("new", "init") and not project.ready:
         fail(t("{root} has no keel/ directory — Keel is not installed here", root=root))

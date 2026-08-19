@@ -78,8 +78,8 @@ class TestScopeWidenedAfterApproval(ProjectCase):
             self.project, {"tool_input": {"file_path": self.fixture.path(path)}})
 
     def widen(self, name):
-        step = "keel/steps/0001-session-loop.md"
-        self.fixture.write(step, self.fixture.read(step).replace(
+        wave = "keel/waves/0001-session-loop.md"
+        self.fixture.write(wave, self.fixture.read(wave).replace(
             "files:      [lib/session.ex]", f"files:      [lib/session.ex, {name}]"))
 
     def test_a_file_from_the_approved_plan_passes_in_silence(self):
@@ -102,10 +102,10 @@ class TestScopeWidenedAfterApproval(ProjectCase):
     def test_a_step_that_never_reached_main_has_nothing_to_compare_with(self):
         """Крок, якого на головній гілці немає, ще ніхто не схвалював."""
         self.fixture.branch("0002-fresh")
-        self.fixture.write("keel/steps/0002-fresh.md", self.fixture.read(
-            "keel/steps/0001-session-loop.md"))
+        self.fixture.write("keel/waves/0002-fresh.md", self.fixture.read(
+            "keel/waves/0001-session-loop.md"))
         self.assertIsNone(keel.approved_files(
-            self.project, self.project.steps["0002-fresh"]))
+            self.project, self.project.waves["0002-fresh"]))
 
 
 class TestTheMainBranchIsNotAWorkbench(ProjectCase):
@@ -127,13 +127,13 @@ class TestTheMainBranchIsNotAWorkbench(ProjectCase):
         self.assertIn("lib/whatever.ex", message)
 
     def test_keels_own_furniture_stays_free(self):
-        for name in ("keel/steps/0001-session-loop.md", "AGENTS.md",
+        for name in ("keel/waves/0001-session-loop.md", "AGENTS.md",
                      "keel/keel.json"):
             self.assertIsNone(self.verdict(name), name)
 
     def test_a_project_with_no_steps_is_not_walled_in(self):
         """Проєкт, який щойно взяв Keel, ще не має плану, з якого працювати."""
-        os.remove(self.fixture.path("keel/steps/0001-session-loop.md"))
+        os.remove(self.fixture.path("keel/waves/0001-session-loop.md"))
         self.assertIsNone(self.verdict("lib/whatever.ex"))
 
     def test_a_step_branch_is_judged_by_its_scope_as_before(self):
@@ -176,7 +176,7 @@ class TestWriteVerdict(ProjectCase):
     def test_keel_documents_pass(self):
         self.fixture.branch("0001-session-loop")
         self.assertIsNone(keel.write_verdict(
-            self.project, self.payload("keel/steps/0001-session-loop.md")))
+            self.project, self.payload("keel/waves/0001-session-loop.md")))
 
     def test_file_outside_the_repository_is_named_not_ignored(self):
         self.fixture.branch("0001-session-loop")
@@ -253,7 +253,7 @@ class TestSessionContextRespectsTheGate(ProjectCase):
     def test_an_unapproved_step_hands_out_no_package(self):
         """`next` відмовляє, поки крок не на main — хук казав протилежне."""
         self.fixture.git("checkout", "-q", "-b", "plan/0002-later")
-        self.fixture.write("keel/steps/0002-later.md",
+        self.fixture.write("keel/waves/0002-later.md",
                            "---\ntransforms:\n  do:\n    files: [lib/b.ex]\n"
                            "---\n\n## Why\n\nх.\n\n## transform: do\n\nЩось.\n")
         self.fixture.git("add", "-A")
@@ -270,10 +270,10 @@ class TestSessionContextRespectsTheGate(ProjectCase):
 
 class TestSessionContext(ProjectCase):
     def test_the_hook_does_not_contradict_the_skill_on_order(self):
-        """Номер зʼявляється після new step, тож гілку заводять після нього."""
+        """Номер зʼявляється після new wave, тож гілку заводять після нього."""
         self.fixture.git("commit", "--allow-empty", "-m", "drive-turns: зроблено")
         text = keel.session_context(self.project)
-        self.assertLess(text.index("new step"), text.index("plan/"), text)
+        self.assertLess(text.index("new wave"), text.index("plan/"), text)
 
     def test_on_main_the_hook_says_what_next_says(self):
         """Хук читають першим, і він казав «роботи тут немає» над схваленим
@@ -455,7 +455,7 @@ class TestTheHookSpeaksWhenItCannotJudge(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-mute-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        for folder in ("keel/steps", "keel/contracts"):
+        for folder in ("keel/waves", "keel/contracts"):
             os.makedirs(os.path.join(self.root, folder))
         subprocess.run(["git", "init", "-b", "main", "-q", self.root], check=True)
         for name, value in (("user.email", "t@e.com"), ("user.name", "t")):
@@ -465,8 +465,8 @@ class TestTheHookSpeaksWhenItCannotJudge(unittest.TestCase):
         subprocess.run(["git", "-C", self.root, "checkout", "-q", "-b",
                         "0001-a"], check=True)
 
-    def step(self, text):
-        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+    def wave(self, text):
+        with open(os.path.join(self.root, "keel/waves/0001-a.md"), "w",
                   encoding="utf-8") as handle:
             handle.write(text)
 
@@ -476,20 +476,20 @@ class TestTheHookSpeaksWhenItCannotJudge(unittest.TestCase):
 
     def test_a_step_that_does_not_parse_is_said_out_loud(self):
         """Раніше зламана шапка вимикала охорону без жодного слова."""
-        self.step("---\ntransforms:\n  - do-it\n---\n\n## Why\n\nх.\n")
+        self.wave("---\ntransforms:\n  - do-it\n---\n\n## Why\n\nх.\n")
         kind, message = self.verdict()
         self.assertEqual(kind, "note")
         self.assertIn("scope is not being checked", message)
 
     def test_a_step_with_no_transforms_is_said_too(self):
-        self.step("---\ndepends_on: []\n---\n\n## Why\n\nх.\n")
+        self.wave("---\ndepends_on: []\n---\n\n## Why\n\nх.\n")
         kind, message = self.verdict()
         self.assertEqual(kind, "note")
         self.assertIn("declares no transforms", message)
 
     def test_keels_own_furniture_is_not_denied(self):
         """Хук навмисно не суворіший за гейт: що звільняє перевірка 4, те й він."""
-        self.step("---\ntransforms:\n  do-it:\n    files: [lib/a.ex]\n---\n\n"
+        self.wave("---\ntransforms:\n  do-it:\n    files: [lib/a.ex]\n---\n\n"
                   "## Why\n\nх.\n\n## transform: do-it\n\nЩось.\n")
         for name in ("AGENTS.md", ".claude/skills/keel-plan/SKILL.md",
                      ".github/workflows/keel.yml"):
@@ -498,7 +498,7 @@ class TestTheHookSpeaksWhenItCannotJudge(unittest.TestCase):
             self.assertIsNone(verdict, name)
 
     def test_a_readable_step_still_denies_an_undeclared_file(self):
-        self.step("---\ntransforms:\n  do-it:\n    files: [lib/a.ex]\n---\n\n"
+        self.wave("---\ntransforms:\n  do-it:\n    files: [lib/a.ex]\n---\n\n"
                   "## Why\n\nх.\n\n## transform: do-it\n\nЩось.\n")
         kind, message = self.verdict()
         self.assertEqual(kind, "deny")
@@ -531,13 +531,13 @@ class TestApprovedFilesComeFromTheBranchPoint(ProjectCase):
     def test_an_amendment_made_on_main_is_not_this_branch_widening(self):
         self.fixture.branch("0001-session-loop")
         self.fixture.git("checkout", "main")
-        step = "keel/steps/0001-session-loop.md"
-        self.fixture.write(step, self.fixture.read(step).replace(
+        wave = "keel/waves/0001-session-loop.md"
+        self.fixture.write(wave, self.fixture.read(wave).replace(
             "files:      [lib/session.ex]", "files:      [lib/elsewhere.ex]"))
         self.fixture.git("commit", "-am", "хтось інший переписав список")
         self.fixture.git("checkout", "0001-session-loop")
         self.assertFalse(keel.widened_here(
-            self.project, self.project.steps["0001-session-loop"], "lib/session.ex"))
+            self.project, self.project.waves["0001-session-loop"], "lib/session.ex"))
 
 
 class TestTheHookSpeaksOnADetachedHead(ProjectCase):

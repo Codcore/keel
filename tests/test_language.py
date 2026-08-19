@@ -158,72 +158,72 @@ class TestTheTemplatesFollowTheLanguage(unittest.TestCase):
         return keel.step_skeleton("0001-thing"), keel.contract_skeleton()
 
     def test_english_by_default(self):
-        step, contract = self.render("en")
-        self.assertIn("## Why", step)
-        self.assertIn("Boundaries:", step)
-        self.assertNotRegex(step, "[\u0400-\u04FF]")
+        wave, contract = self.render("en")
+        self.assertIn("## Why", wave)
+        self.assertIn("Boundaries:", wave)
+        self.assertNotRegex(wave, "[\u0400-\u04FF]")
         self.assertNotRegex(contract, "[\u0400-\u04FF]")
 
     def test_ukrainian_when_asked(self):
-        step, contract = self.render("uk")
-        self.assertIn("## Навіщо", step)
-        self.assertIn("Межі:", step)
+        wave, contract = self.render("uk")
+        self.assertIn("## Навіщо", wave)
+        self.assertIn("Межі:", wave)
         self.assertIn("Модуль", contract)
 
     def test_the_header_shape_is_the_same_in_both(self):
         """Поля стають кодом — мова їх не чіпає."""
         for lang in keel.LANGS:
-            step, contract = self.render(lang)
+            wave, contract = self.render(lang)
             for field in ("depends_on:", "scenarios:", "transforms:",
                           "implements:", "contracts:", "files:"):
-                self.assertIn(field, step, f"{lang}: {field}")
+                self.assertIn(field, wave, f"{lang}: {field}")
             for field in ("module:", "exports:", "verify:"):
                 self.assertIn(field, contract, f"{lang}: {field}")
 
     def test_both_skeletons_parse(self):
         """Шаблон, що не читається власним читачем, — зламаний старт."""
         for lang in keel.LANGS:
-            step, contract = self.render(lang)
-            for text in (step, contract):
+            wave, contract = self.render(lang)
+            for text in (wave, contract):
                 front, _, _ = keel.split_front_matter(text)
                 self.assertIsNotNone(front, lang)
                 keel.parse_yaml(front)
 
-    def step(self, text):
+    def wave(self, text):
         root = tempfile.mkdtemp(prefix="keel-skel-")
         self.addCleanup(shutil.rmtree, root, True)
-        folder = os.path.join(root, "keel", "steps")
+        folder = os.path.join(root, "keel", "waves")
         os.makedirs(folder)
         path = os.path.join(folder, "0001-thing.md")
         with open(path, "w", encoding="utf-8") as handle:
             handle.write(text)
-        return keel.Step(path, "keel/steps/0001-thing.md")
+        return keel.Wave(path, "keel/waves/0001-thing.md")
 
     def test_the_why_heading_is_read_in_either_language(self):
         """Проєкт може змінити мову — наявні кроки лишаються читаними."""
         for lang in keel.LANGS:
             text, _ = self.render(lang)
             keel.OUTPUT_LANG = "en"
-            self.assertTrue(self.step(text).why.strip(), lang)
+            self.assertTrue(self.wave(text).why.strip(), lang)
 
     def test_the_untouched_placeholder_is_caught_in_either_language(self):
         """gaps має бачити незаповнене «навіщо», хоч якою мовою його написано."""
         for lang in keel.LANGS:
             text, _ = self.render(lang)
-            self.assertTrue(keel.unfilled_why(self.step(text)), lang)
+            self.assertTrue(keel.unfilled_why(self.wave(text)), lang)
 
     def test_a_tool_created_step_with_an_untouched_why_is_flagged(self):
         """Каркас пише слаг без номера, файл зветься з номером — розпізнавач
         не спрацьовував на жодному створеному інструментом кроці."""
         text, _ = self.render("en")
-        self.assertTrue(keel.unfilled_why(self.step(
+        self.assertTrue(keel.unfilled_why(self.wave(
             keel.step_skeleton("0001-thing"))))
 
     def test_a_filled_in_why_is_not_mistaken_for_the_placeholder(self):
         text, _ = self.render("en")
-        filled = text.replace("why this step exists and what is missing without it",
+        filled = text.replace("why this wave exists and what is missing without it",
                               "the loop cannot end without it")
-        self.assertFalse(keel.unfilled_why(self.step(filled)))
+        self.assertFalse(keel.unfilled_why(self.wave(filled)))
 
 
 class TestSpokenLanguage(unittest.TestCase):
@@ -232,7 +232,7 @@ class TestSpokenLanguage(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-lang-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        os.makedirs(os.path.join(self.root, "keel", "steps"))
+        os.makedirs(os.path.join(self.root, "keel", "waves"))
         os.makedirs(os.path.join(self.root, "keel", "contracts"))
         subprocess.run(["git", "init", "-b", "main", "-q", self.root], check=True)
         subprocess.run(["git", "-C", self.root, "-c", "user.email=t@e.com",
@@ -266,7 +266,7 @@ class TestSpokenLanguage(unittest.TestCase):
 
     def test_a_broken_document_speaks_it_too(self):
         """Помилка складається при читанні файла — тобто до того, як мова відома."""
-        with open(os.path.join(self.root, "keel", "steps", "0001-a.md"), "w",
+        with open(os.path.join(self.root, "keel", "waves", "0001-a.md"), "w",
                   encoding="utf-8") as handle:
             handle.write("---\na: b: c\n---\n\nтекст\n")
         self.assertIn("header does not parse", self.speak("en", "check", "--fast"))
@@ -275,8 +275,8 @@ class TestSpokenLanguage(unittest.TestCase):
         self.assertNotIn("header does not parse", ukrainian)
 
     def test_errors_speak_it_too(self):
-        self.assertIn("no such step", self.speak("en", "show", "0009-nope"))
-        self.assertIn("кроку немає", self.speak("uk", "show", "0009-nope"))
+        self.assertIn("no such wave", self.speak("en", "show", "0009-nope"))
+        self.assertIn("хвилі немає", self.speak("uk", "show", "0009-nope"))
 
     def test_init_speaks_the_language_it_establishes(self):
         """Команда, що вписує lang: uk, сама говорила англійською."""
@@ -294,8 +294,8 @@ class TestSpokenLanguage(unittest.TestCase):
 
     def test_the_argument_hint_follows_the_language(self):
         """Підказка аргументу — для оператора, як і тригери."""
-        for lang, expected in (("en", "[slug of the new step]"),
-                               ("uk", "[слаг нового кроку]")):
+        for lang, expected in (("en", "[slug of the new wave]"),
+                               ("uk", "[слаг нової хвилі]")):
             text = keel.render_skill(keel.SKILLS[0], "claude", lang)
             self.assertIn(expected, text, lang)
 

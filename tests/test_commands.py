@@ -9,7 +9,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import keel  # noqa: E402
-from tests.support import Args, CONTRACT, ProjectCase, STEP  # noqa: E402
+from tests.support import Args, CONTRACT, ProjectCase, WAVE  # noqa: E402
 
 
 
@@ -35,7 +35,7 @@ class TestNext(ProjectCase):
         self.fixture.branch("spike/whatever")
         code, out = self.run_next()
         self.assertEqual(code, 1)
-        self.assertIn("is not named after a step", out)
+        self.assertIn("is not named after a wave", out)
 
     def test_refuses_on_plan_branch(self):
         self.fixture.branch("plan/0001-session-loop")
@@ -45,7 +45,7 @@ class TestNext(ProjectCase):
 
     def test_refuses_while_plan_is_not_in_main(self):
         self.fixture.branch("plan/0002-later")
-        self.fixture.write("keel/steps/0002-later.md", STEP.format(rev=self.fixture.contract_rev))
+        self.fixture.write("keel/waves/0002-later.md", WAVE.format(rev=self.fixture.contract_rev))
         self.fixture.git("add", "-A")
         self.fixture.git("commit", "-m", "план кроку 2")
         self.fixture.git("checkout", "-b", "0002-later")
@@ -144,7 +144,7 @@ class TestRev(ProjectCase):
         code, out = self.run_rev()
         self.assertEqual(code, 1)
         self.assertIn("→", out)
-        self.assertIn(self.fixture.contract_rev, self.fixture.read("keel/steps/0001-session-loop.md"))
+        self.assertIn(self.fixture.contract_rev, self.fixture.read("keel/waves/0001-session-loop.md"))
 
     def test_writes_fresh_contract_revision(self):
         self.fixture.write("keel/contracts/session-run.md", CONTRACT + "\nІ ще речення.\n")
@@ -181,13 +181,13 @@ class TestRev(ProjectCase):
 
     def test_write_touches_the_header_and_nothing_else(self):
         """Гола заміна підрядком нівечила імена трансформ, файли й прозу."""
-        step = "keel/steps/0001-session-loop.md"
-        text = self.fixture.read(step).replace(
+        wave = "keel/waves/0001-session-loop.md"
+        text = self.fixture.read(wave).replace(
             f"session-run@{self.fixture.contract_rev}", "session-run")
         text = text.replace("Крутити ходи", "Крутити ходи session-run")
-        self.fixture.write(step, text)
+        self.fixture.write(wave, text)
         self.run_rev(write=True)
-        after = self.fixture.read(step)
+        after = self.fixture.read(wave)
         self.assertNotIn("@@", after)
         self.assertIn("Крутити ходи session-run", after)
         self.assertIn("files:      [lib/session.ex]", after)
@@ -228,15 +228,15 @@ class TestNewAndPlan(ProjectCase):
 
     def test_new_step_takes_the_next_number(self):
         code, out = self.capture(keel.cmd_new, self.project,
-                                 Args(kind="step", slug="Tool Calls"))
+                                 Args(kind="wave", slug="Tool Calls"))
         self.assertEqual(code, 0)
         self.assertIn("0002-tool-calls.md", out)
-        self.assertTrue(os.path.exists(self.fixture.path("keel/steps/0002-tool-calls.md")))
+        self.assertTrue(os.path.exists(self.fixture.path("keel/waves/0002-tool-calls.md")))
 
     def test_new_step_skeleton_parses(self):
-        self.capture(keel.cmd_new, self.project, Args(kind="step", slug="tool-calls"))
-        step = self.project.steps["0002-tool-calls"]
-        self.assertIsNone(step.error)
+        self.capture(keel.cmd_new, self.project, Args(kind="wave", slug="tool-calls"))
+        wave = self.project.waves["0002-tool-calls"]
+        self.assertIsNone(wave.error)
 
     def test_new_contract(self):
         code, out = self.capture(keel.cmd_new, self.project,
@@ -249,43 +249,43 @@ class TestNewAndPlan(ProjectCase):
             self.capture(keel.cmd_new, self.project, Args(kind="contract", slug="session-run"))
 
     def test_plan_is_complete(self):
-        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(wave="0001-session-loop"))
         self.assertEqual(code, 0)
         self.assertIn("the plan is complete", out)
 
     def test_gaps_without_an_argument_names_only_its_own_step(self):
         """Заголовок казав один крок, а список — інший."""
-        self.fixture.write("keel/steps/0009-other.md",
+        self.fixture.write("keel/waves/0009-other.md",
                            "---\ndepends_on: []\nscenarios:\n  zzz: {proves: session-run}\n"
                            "transforms: {}\n---\n\n## Навіщо\n\nx\n")
         self.fixture.branch("0001-session-loop")
-        code, out = self.capture(keel.cmd_gaps, self.project, Args(step=None))
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(wave=None))
         self.assertNotIn("0009-other", out)
 
     def test_plan_finds_a_transform_without_files(self):
         self.fixture.write(
-            "keel/steps/0001-session-loop.md",
-            self.fixture.read("keel/steps/0001-session-loop.md").replace(
+            "keel/waves/0001-session-loop.md",
+            self.fixture.read("keel/waves/0001-session-loop.md").replace(
                 "    files:      [lib/session.ex]\n", ""))
-        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(wave="0001-session-loop"))
         self.assertEqual(code, 1)
         self.assertIn("declared no files", out)
 
     def test_plan_finds_a_scenario_nobody_implements(self):
-        text = self.fixture.read("keel/steps/0001-session-loop.md")
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
         text = text.replace(
             "  finishes-when-no-tool-called: ",
             "  only-handed-tools-are-callable: {proves: session-run@%s}\n  finishes-when-no-tool-called: "
             % self.fixture.contract_rev)
         text += "\n## scenario: only-handed-tools-are-callable\n\n**Then** інших немає.\n"
-        self.fixture.write("keel/steps/0001-session-loop.md", text)
-        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0001-session-loop"))
+        self.fixture.write("keel/waves/0001-session-loop.md", text)
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(wave="0001-session-loop"))
         self.assertEqual(code, 1)
         self.assertIn("no transform implements scenario", out)
 
     def test_new_skeleton_is_not_a_complete_plan(self):
-        self.capture(keel.cmd_new, self.project, Args(kind="step", slug="tool-calls"))
-        code, out = self.capture(keel.cmd_gaps, self.project, Args(step="0002-tool-calls"))
+        self.capture(keel.cmd_new, self.project, Args(kind="wave", slug="tool-calls"))
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(wave="0002-tool-calls"))
         self.assertEqual(code, 1)
         self.assertIn("no scenarios at all", out)
 
@@ -304,12 +304,12 @@ class TestNewAndPlan(ProjectCase):
 class TestShow(ProjectCase):
     """Читальний вигляд: посилання ведуть кудись, стан виводиться."""
 
-    def show(self, step=None):
+    def show(self, wave=None):
         from io import StringIO
         stream, saved = StringIO(), sys.stdout
         sys.stdout = stream
         try:
-            code = keel.cmd_show(self.project, Args(step=step))
+            code = keel.cmd_show(self.project, Args(wave=wave))
         finally:
             sys.stdout = saved
         return code, stream.getvalue()
@@ -317,7 +317,7 @@ class TestShow(ProjectCase):
     def test_links_resolve_from_the_step_file(self):
         code, out = self.show("0001-session-loop")
         self.assertEqual(code, 0)
-        base = os.path.dirname(self.fixture.path("keel/steps/0001-session-loop.md"))
+        base = os.path.dirname(self.fixture.path("keel/waves/0001-session-loop.md"))
         for target in re.findall(r"\]\(([^)#]+)\)", out):
             self.assertTrue(os.path.exists(os.path.normpath(
                 os.path.join(base, target))), target)
@@ -353,8 +353,8 @@ class TestShow(ProjectCase):
 
     def test_a_file_that_does_not_exist_yet_says_so(self):
         """Видно, що з оголошеного вже лежить, а чого ще нема."""
-        step = "keel/steps/0001-session-loop.md"
-        self.fixture.write(step, self.fixture.read(step).replace(
+        wave = "keel/waves/0001-session-loop.md"
+        self.fixture.write(wave, self.fixture.read(wave).replace(
             "files:      [lib/session.ex]",
             "files:      [lib/session.ex, lib/поки_немає.ex]"))
         _, out = self.show("0001-session-loop")
@@ -377,7 +377,7 @@ class TestGapsAsksAboutAForgottenEdge(ProjectCase):
     def second_step(self, depends="[]", files="[lib/session.ex]",
                     contracts="[session-run@%s]"):
         rev = self.fixture.contract_rev
-        self.fixture.write("keel/steps/0002-later.md", f"""---
+        self.fixture.write("keel/waves/0002-later.md", f"""---
 depends_on: {depends}
 
 scenarios:
@@ -407,7 +407,7 @@ transforms:
 
     def messages(self, slug="0002-later"):
         return [p.message for p in
-                keel.missing_edges(self.project, self.project.steps[slug])]
+                keel.missing_edges(self.project, self.project.waves[slug])]
 
     def test_a_shared_file_without_an_edge_is_asked_about(self):
         self.second_step()
@@ -432,8 +432,8 @@ transforms:
 
     def test_a_dependency_two_steps_away_still_counts_as_named(self):
         self.second_step(depends="[0001-session-loop]")
-        self.fixture.write("keel/steps/0003-last.md",
-                           self.fixture.read("keel/steps/0002-later.md")
+        self.fixture.write("keel/waves/0003-last.md",
+                           self.fixture.read("keel/waves/0002-later.md")
                            .replace("depends_on: [0001-session-loop]",
                                     "depends_on: [0002-later]")
                            .replace("later-", "last-"))
@@ -453,8 +453,8 @@ class TestGapsAsksAboutAContractNobodyLeansOn(ProjectCase):
                            "---\nmodule: Demo.New\nexports: [run/1]\n---\n\nНове.\n")
 
     def messages(self):
-        step = self.project.steps["0001-session-loop"]
-        return [p.message for p in keel.unclaimed_contracts(self.project, step)]
+        wave = self.project.waves["0001-session-loop"]
+        return [p.message for p in keel.unclaimed_contracts(self.project, wave)]
 
     def test_a_contract_this_step_brings_and_nobody_names_is_asked_about(self):
         self.new_contract()
@@ -485,7 +485,7 @@ class TestNextOnTheMainBranch(ProjectCase):
         self.fixture.git("commit", "--allow-empty", "-m", "drive-turns: зроблено")
 
     def add_step(self, slug, body):
-        self.fixture.write(f"keel/steps/{slug}.md", body)
+        self.fixture.write(f"keel/waves/{slug}.md", body)
         self.fixture.git("add", "-A")
         self.fixture.git("commit", "-m", f"план {slug}")
 
@@ -497,7 +497,7 @@ class TestNextOnTheMainBranch(ProjectCase):
 
     def test_when_everything_is_closed_it_says_plan_the_next(self):
         self.close_the_only_transform()
-        self.assertIn("every step is finished", self.answer())
+        self.assertIn("every wave is finished", self.answer())
 
     def test_a_skeleton_is_not_a_finished_project(self):
         """Крок без трансформ закривати нічим — і він читався як завершений."""
@@ -512,7 +512,7 @@ class TestNextOnTheMainBranch(ProjectCase):
         # Своя назва трансформи: інакше комміт, що закрив `drive-turns`
         # у першому кроці, закриває однойменну і в другому.
         self.add_step("0002-later", self.fixture.read(
-            "keel/steps/0001-session-loop.md")
+            "keel/waves/0001-session-loop.md")
             .replace("depends_on: []", "depends_on: [0009-never-planned]")
             .replace("drive-turns", "later-turns"))
         answer = self.answer()
@@ -544,8 +544,8 @@ class TestCheck(ProjectCase):
         self.assertIn("has no test", out)
 
     def stray_skeleton(self):
-        """An unfilled skeleton of somebody else's step, left behind untracked."""
-        self.fixture.write("keel/steps/0002-left-behind.md",
+        """An unfilled skeleton of somebody else's wave, left behind untracked."""
+        self.fixture.write("keel/waves/0002-left-behind.md",
                            keel.step_skeleton("0002-left-behind"))
 
     def test_a_stray_step_is_named_so_nobody_moves_it(self):
@@ -558,8 +558,8 @@ class TestCheck(ProjectCase):
 
     def test_the_branch_own_step_earns_no_such_note(self):
         self.fixture.branch("plan/0001-session-loop")
-        self.fixture.write("keel/steps/0001-session-loop.md",
-                           self.fixture.read("keel/steps/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
+                           self.fixture.read("keel/waves/0001-session-loop.md")
                            + "\n## transform: never-declared\n\nWhat it does.\n")
         code, out = self.capture(Args(fast=True, no_tests=True, json=False))
         self.assertEqual(code, 1)
@@ -574,8 +574,8 @@ class TestCheck(ProjectCase):
 
     def fileless_transform(self):
         """A plan that says nothing about which files the work will touch."""
-        step = "keel/steps/0001-session-loop.md"
-        self.fixture.write(step, self.fixture.read(step).replace(
+        wave = "keel/waves/0001-session-loop.md"
+        self.fixture.write(wave, self.fixture.read(wave).replace(
             "    files:      [lib/session.ex]", "    files:      []"))
 
     def test_a_plan_branch_is_not_asked_for_code_it_has_none_of(self):
@@ -638,13 +638,13 @@ class TestNextDictatesNothingPoisoned(ProjectCase):
     """A scenario with no body has no revision — so no tag is dictated."""
 
     def test_a_bodyless_scenario_gets_no_tag_line(self):
-        text = self.fixture.read("keel/steps/0001-session-loop.md")
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
         head, _, _ = text.partition("## scenario:")
-        self.fixture.write("keel/steps/0001-session-loop.md", head)
+        self.fixture.write("keel/waves/0001-session-loop.md", head)
         self.fixture.branch("0001-session-loop")
-        step = self.project.steps["0001-session-loop"]
-        slug, state = keel.next_transform(self.project, step)
-        package = keel.next_package(self.project, step, slug, state)
+        wave = self.project.waves["0001-session-loop"]
+        slug, state = keel.next_transform(self.project, wave)
+        package = keel.next_package(self.project, wave, slug, state)
         for item in package["scenarios"]:
             self.assertIsNone(item["rev"])
             self.assertIsNone(item["tag"])
@@ -659,14 +659,14 @@ class TestCheckOrderIsHonest(unittest.TestCase):
         import tempfile, shutil, subprocess
         root = tempfile.mkdtemp(prefix="keel-order-")
         self.addCleanup(shutil.rmtree, root, True)
-        for folder in ("keel/steps", "keel/contracts", "tests"):
+        for folder in ("keel/waves", "keel/contracts", "tests"):
             os.makedirs(os.path.join(root, folder))
         with open(os.path.join(root, "pyproject.toml"), "w") as handle:
             handle.write("[project]\nname='d'\n")
         subprocess.run(["git", "init", "-b", "main", "-q", root], check=True)
         for key, value in (("user.email", "t@e"), ("user.name", "t")):
             subprocess.run(["git", "-C", root, "config", key, value], check=True)
-        with open(os.path.join(root, "keel/steps/0001-a.md"), "w",
+        with open(os.path.join(root, "keel/waves/0001-a.md"), "w",
                   encoding="utf-8") as handle:
             handle.write("---\nscenarios:\n  does-a: {}\n"
                          "transforms:\n  do:\n    implements: [does-a]\n"
@@ -680,7 +680,7 @@ class TestCheckOrderIsHonest(unittest.TestCase):
         os.makedirs(os.path.join(root, "lib"))
         with open(os.path.join(root, "lib/a.py"), "w") as handle:
             handle.write("x = 1\n")
-        body = keel.Project(root).steps["0001-a"].scenario_body("does-a")
+        body = keel.Project(root).waves["0001-a"].scenario_body("does-a")
         with open(os.path.join(root, "tests/__init__.py"), "w") as handle:
             handle.write("")
         # тест, який при прогоні лишає в дереві неоголошений файл — як _build/
@@ -706,11 +706,11 @@ class TestRevWritesHonestly(unittest.TestCase):
         import tempfile, shutil, subprocess
         self.root = tempfile.mkdtemp(prefix="keel-revh-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        for folder in ("keel/steps", "keel/contracts", "tests"):
+        for folder in ("keel/waves", "keel/contracts", "tests"):
             os.makedirs(os.path.join(self.root, folder))
         with open(os.path.join(self.root, "pyproject.toml"), "w") as handle:
             handle.write("[project]\nname='d'\n")
-        with open(os.path.join(self.root, "keel/steps/0001-a.md"), "w",
+        with open(os.path.join(self.root, "keel/waves/0001-a.md"), "w",
                   encoding="utf-8") as handle:
             handle.write("---\nscenarios:\n  parse: {}\n---\n\n"
                          "## scenario: parse\n\n**Given** щось.\n")

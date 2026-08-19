@@ -12,9 +12,9 @@ A scenario is a test. No test, no promise — only a wish.
 What is closed, what is open, when and by whom — counted from git and the tests.
 No status is set by hand. There is no log: git is more accurate.
 
-## 3. One step — one branch — one pull request
+## 3. One wave — one branch — one pull request
 
-A step is a transition: the project's new state = step(old state).
+A wave is a transition: the project's new state = wave(old state).
 Inside it, transforms are separate commits, each one atomic.
 
 ## 4. A transform declares the files it will touch
@@ -30,7 +30,7 @@ A revision is not a lock but a doorbell: change it, but not in silence.
 
 ## 6. A contract is what code promises code
 
-Module, exported functions, meaning. It outlives the step.
+Module, exported functions, meaning. It outlives the wave.
 What the module actually exports is compared against what was promised.
 
 ## 7. Do not add an entity until its absence hurts

@@ -6,7 +6,7 @@
 
 The tool behind the Keel method. It knows the state and writes no prose.
 
-MIT licensed. The method itself — why steps, contracts and revisions exist — is in
+MIT licensed. The method itself — why waves, contracts and revisions exist — is in
 [KEEL.md](KEEL.md). This file is what runs it. Either may point at the other
 freely: KEEL.md says what has to be true, README says which command checks it.
 
@@ -59,7 +59,8 @@ python3 -m unittest discover -s tests -t .
 
 They are laid out by what they check: `test_yamlish`, `test_documents`,
 `test_scope`, `test_adapters`, `test_commands`, `test_git_hooks`,
-`test_agent_hooks`, `test_skills`, `test_setup`. Each runs on its own
+`test_agent_hooks`, `test_skills`, `test_setup`, `test_ci`, `test_modes`,
+`test_language`, `test_install`. Each runs on its own
 (`python3 -m unittest tests.test_scope`); the shared fixture is in
 `tests/support.py`. Tests are copied nowhere, so splitting them costs nothing —
 unlike the tool itself.
@@ -72,12 +73,13 @@ read by Claude and Cursor, not by it.
 
 | Command | What it does |
 |---|---|
-| `keel new step <slug>` | the file skeleton: a header with empty fields and stub sections |
+| `keel new wave <slug>` | the file skeleton: a header with empty fields and stub sections |
 | `keel new contract <slug>` | the same for a contract: `module` with `exports`, or `verify` |
-| `keel gaps [step]` | what is missing from a step's description: slugs without sections, transforms without files, scenarios without `proves`. And it asks about a forgotten edge: the step declares a file another step declares too while `depends_on` does not name it |
-| `keel next` | the **package** for the next move: the transform, its files and boundaries, the scenarios it brings closer, the bodies of the contracts it leans on — and nothing beyond. On the main branch it names instead the step that is ready to be worked and the branch to take. Markdown; `--json` for scripts |
+| `keel gaps [wave]` | what is missing from a wave's description: slugs without sections, transforms without files, scenarios without `proves`. And it asks about a forgotten edge: the wave declares a file another wave declares too while `depends_on` does not name it |
+| `keel next` | the **package** for the next move: the transform, its files and boundaries, the scenarios it brings closer, the bodies of the contracts it leans on — and nothing beyond. On the main branch it names instead the wave that is ready to be worked and the branch to take. Markdown; `--json` for scripts |
 | `keel check` | the six checks — the full gate. `--fast` leaves those that run nothing, `--no-tests` skips the test run and the CI command, `--branch` names the branch where git does not know it, `--json` for scripts |
 | `keel rev` | shows revisions that have drifted apart; `--write` records the new ones |
+| `keel show` | a wave as a person reads it: the why, the scenarios and the transforms, with what is closed and what is not |
 | `keel hooks` | shows the state of `pre-commit` and `pre-push`; `--install` installs them, `--force` overwrites somebody else's |
 | `keel skills` | regenerates the skills from the method |
 | `keel init` | installs Keel into a project: directories, a copy of the tool, the references, `AGENTS.md`, CI, hooks. `--docs` and `--lang` set the languages, `--adapter` names the project's language, `--mode` how much installs itself, `--ci` the project's own gate, `--force` overwrites somebody else's hook |
@@ -128,7 +130,7 @@ stop meaning anything. `--fast` leaves it out deliberately: a commit on a plan
 branch may be half-written, a push and a merge may not.
 
 The `-C DIR` flag says where to work. The project root is searched upwards: the
-first directory with `keel/steps/`, or the first with `.git`.
+first directory with `keel/waves/`, or the first with `.git`.
 
 ## Two languages, and they are independent
 
@@ -138,7 +140,7 @@ and the two should not be conflated:
 | Key | What it decides | Flag |
 |---|---|---|
 | `docs` | which language the references arrive in | `--docs uk\|en` |
-| `lang` | what the agent writes steps and commits in, and which phrases the skills catch | `--lang uk\|en` |
+| `lang` | what the agent writes waves and commits in, and which phrases the skills catch | `--lang uk\|en` |
 | `ci` | the project's own gate — a command, `""` for undecided, `"none"` for a refusal out loud | `--ci "<command>"` |
 
 They are separate because wanting an English reference with Ukrainian triggers is
@@ -156,10 +158,10 @@ be guessed: the language of a project's prose is a team's decision, not a
 property of the code.
 
 `lang` also decides what this tool says, and what language `keel new` writes a
-step or contract skeleton in. The header fields are the same either way — they
+wave or contract skeleton in. The header fields are the same either way — they
 become code — while the hints and the Why heading follow the project; the reader
 accepts both spellings, so a project may change language without its existing
-steps becoming unreadable. The tool's messages are keyed by their English
+waves becoming unreadable. The tool's messages are keyed by their English
 text, so a missing translation degrades to readable English rather than to an
 error. The command line itself stays English in both: flag names, metavars and
 `--help` are the interface's own vocabulary, like `--force` is.
@@ -194,18 +196,21 @@ root.
 | CI steps | `erlef/setup-beam` plus `mix deps.get` | `actions/setup-python` |
 
 A scenario's slug and the name in the tag are compared after normalising, so
-`finishes-when-no-tool` in the step and `:finishes_when_no_tool` in the test are
+`finishes-when-no-tool` in the wave and `:finishes_when_no_tool` in the test are
 the same thing.
 
-CI versions are not guessed: `keel init` asks `elixir --version` on the machine
-it was run on and writes down what it found.
+CI versions come from the machine: `keel init` asks `elixir --version` where it
+was run and writes down what it found. Where there is no Elixir to ask — which
+is exactly the case `--adapter elixir` in an empty repository — it falls back to
+a pinned pair, and that pair goes into the workflow. Change it there if your
+project stands on different ground.
 
 **The language's CI steps stand under a `hashFiles` condition, for a reason.** A
 language may be named before its marker exists — an adapter written into
 `keel.json` ahead of the work, or `init --adapter` in an empty repository. Then
 `mix deps.get` would run on a branch with no `mix.exs`, which is every plan
 branch by design, and CI would be red for a reason that has nothing to do with
-the branch. With the condition the steps simply do not run until the marker is
+the branch. With the condition the waves simply do not run until the marker is
 there.
 
 **When more than one marker sits in the root, Keel does not guess.** A project
@@ -303,7 +308,7 @@ The `keel` repository is the method's home, not what an agent reads. The agent
 reads files **in the project it works on**, and `keel init` puts them there:
 
 ```
-keel/steps/                     empty directories
+keel/waves/                     empty directories
 keel/contracts/
 keel/keel.json                  the settings: two languages and the mode
 keel/keel.py                    the tool itself, as a copy
@@ -374,7 +379,7 @@ calling again; a session opened before the install has to be restarted, because
 
 **A plan branch may carry Keel's own files.** The rule "a plan touches no code"
 is about the project's code, not about what `init` put there: otherwise it would
-wall off the first step every time `init` or `update` refreshed something.
+wall off the first wave every time `init` or `update` refreshed something.
 
 **Updating does not clobber work.** `keel init` records the digest of every
 generated file in `keel/keel.json`, and that is what lets `keel update` tell "the
@@ -391,7 +396,7 @@ owns a block inside them, not the file, so they are merged rather than replaced.
 
 The translation check lives here too: `update` turns red when the English
 reference has fallen behind the Ukrainian source. It is deliberately not in
-`check` — the six checks are about the graph of steps in a project, and this one
+`check` — the six checks are about the graph of waves in a project, and this one
 is about the method's copies of itself.
 
 ## Git hooks
@@ -457,9 +462,12 @@ A hook cannot load a skill: all it can do is **put text into the context**. So
 | State | What it says |
 |---|---|
 | a `plan/*` branch | take `keel-plan` |
+| the main branch | the wave that is ready and the branch to take, or that it is time to plan |
+| the wave file does not parse | the reason, and nothing else |
+| the plan is not on the main branch | there is no work: approval has not happened |
 | an open transform | take `keel-work`, here is the `next` package |
 | every transform closed | take `keel-review` |
-| the branch is not a step | take `keel-plan`, here is how to start |
+| the branch is not a wave | take `keel-plan`, here is how to start |
 
 The point is that git knows the stage, not the agent. Without this the agent
 would have to guess.
@@ -470,7 +478,7 @@ produce a blocked call. So the text says "ask them to type /keel-plan".
 
 ### The hook before a write
 
-It compares the file against those declared in the step — deliberately the same
+It compares the file against those declared in the wave — deliberately the same
 ones check 4 compares, so that the hook is not stricter than the gate.
 
 **On the main branch it refuses a write to code.** Not through scope — there is
@@ -478,8 +486,8 @@ nothing there to compare against: check 4 compares a branch **with** `main`, and
 standing on `main` itself it honestly returns nothing. Which is why the one
 branch where no work is planned stayed the one branch where anything could be
 written. Now the hook says that `main` is where finished work arrives, and sends
-you to a step's branch. Keel's own furniture is always free, and a project with
-no step yet is not walled in: there is no plan there to work from.
+you to a wave's branch. Keel's own furniture is always free, and a project with
+no wave yet is not walled in: there is no plan there to work from.
 
 The path sits in different places in the incoming JSON, and the documentation is
 uneven. In Claude it is `tool_input.file_path` for Write, Edit and NotebookEdit,
@@ -518,9 +526,9 @@ word:
 The default is `strict` because a method nobody starts is not a method.
 
 **The hooks in that column are the agent hooks** — the ones that read what the
-agent is about to write and refuse a file the step does not declare. Git hooks
+agent is about to write and refuse a file the wave does not declare. Git hooks
 are a different animal and go in whatever the mode: they guard the repository
-against a broken step reaching the remote, and they guard it against you too.
+against a broken wave reaching the remote, and they guard it against you too.
 
 Three words cover three positions, and lose a fourth: starting every procedure
 by hand while keeping the guard that refuses an undeclared write. `--agent-hooks`
@@ -572,7 +580,7 @@ skill, `keel-plan`, and two thin ones, `keel-work` and `keel-review`.
 
 The format is the same for both: `name`, `description`, an optional `paths`.
 Cursor also has rules in `.cursor/rules/*.mdc`, but those are for short standing
-constraints, and multi-step procedures are skills.
+constraints, and multi-wave procedures are skills.
 
 **A skill is not only for the model to pick up.** The directory name is the
 command, so the operator starts a stage of the cycle directly — and in `manual`
@@ -580,14 +588,14 @@ mode the operator is the only one who starts it:
 
 | Skill | When | What runs underneath |
 |---|---|---|
-| `/keel-plan <slug>` | new work begins | `keel new step`, `keel rev --write`, `keel gaps` |
+| `/keel-plan <slug>` | new work begins | `keel new wave`, `keel rev --write`, `keel gaps` |
 | `/keel-work` | the plan is merged, the code gets written | `keel next`, `keel check` |
 | `/keel-review` | before the PR | `keel check` |
 
 The words on the left and the words on the right are deliberately different. On
 the left are the **stages** of the cycle, named exactly as `KEEL.md` names them;
 on the right are the tool's **actions**. One stage is several actions, so they do
-not collapse into one word: `/keel-plan` is not `new step`, it is three commands
+not collapse into one word: `/keel-plan` is not `new wave`, it is three commands
 and all the judgement in between. The operator knows the three words on the left;
 the rest is the agent's vocabulary.
 
@@ -600,9 +608,9 @@ colon, and it is truncated at 1536 characters in Claude's skill listing.
 **None of the three carries `paths`, and that is deliberate.** The field scopes a
 skill to the files it is about — but while nothing matches the pattern at the
 start of a session, the skill disappears from the listing altogether, rather than
-merely losing its automatic pickup. Verified live: with `keel/steps/` empty,
+merely losing its automatic pickup. Verified live: with `keel/waves/` empty,
 `/keel-plan` did not exist, while its two siblings without `paths` were there.
-And binding the skill that writes the **first** step to step files hides it at
+And binding the skill that writes the **first** wave to wave files hides it at
 exactly the moment it is needed.
 
 **These files are generated by `keel skills`, not maintained by hand.** The body
@@ -620,7 +628,7 @@ Left:
 
 1. **Hooks for Codex** — postponed: writes go through `apply_patch`, and the path
    sits inside the patch text rather than in a field.
-2. **The first real step on `keel-agent`** — until then the method is verified by
+2. **The first real wave on `keel-agent`** — until then the method is verified by
    the tool and the tests, but not by work.
 
 ## Open
@@ -632,6 +640,6 @@ Left:
   be narrowed then.
 - **Whether `tool_input` arrives as a string for the built-in tools too.** For MCP
   that is visible in captured examples; the reader parses both shapes.
-- **What a step actually costs.** Forty cuts on a small transform may turn out to
+- **What a wave actually costs.** Forty cuts on a small transform may turn out to
   be too dear, and the write hook may get in the way more than it helps. That is
-  visible only from the first real step.
+  visible only from the first real wave.

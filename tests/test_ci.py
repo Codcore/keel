@@ -191,10 +191,10 @@ class TestDriftReachesTheMachineReadableOutput(ProjectCase):
 
     def test_json_carries_the_drift(self):
         self.fixture.branch("0001-session-loop")
-        step = "keel/steps/0001-session-loop.md"
-        self.fixture.write(step, self.fixture.read(step) + "\nПравка тут.\n")
+        wave = "keel/waves/0001-session-loop.md"
+        self.fixture.write(wave, self.fixture.read(wave) + "\nПравка тут.\n")
         payload = json.loads(self.capture(Args(fast=True, no_tests=True, json=True)))
-        self.assertEqual([row["file"] for row in payload["drift"]], [step])
+        self.assertEqual([row["file"] for row in payload["drift"]], [wave])
 
     def test_json_drift_is_empty_when_nothing_moved(self):
         self.fixture.branch("0001-session-loop")

@@ -119,7 +119,7 @@ class TestHooksLandWhereGitReadsThem(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="keel-hookpath-")
         self.addCleanup(shutil.rmtree, self.root, True)
-        os.makedirs(os.path.join(self.root, "keel", "steps"))
+        os.makedirs(os.path.join(self.root, "keel", "waves"))
         os.makedirs(os.path.join(self.root, "keel", "contracts"))
         subprocess.run(["git", "init", "-q", "-b", "main", self.root], check=True)
         for key, value in (("user.email", "t@e"), ("user.name", "t")):
@@ -155,7 +155,7 @@ class TestHooksLandWhereGitReadsThem(unittest.TestCase):
         subprocess.run(["git", "-C", self.root, "worktree", "add", "-q", side,
                         "-b", "side"], check=True)
         self.addCleanup(shutil.rmtree, side, True)
-        os.makedirs(os.path.join(side, "keel", "steps"), exist_ok=True)
+        os.makedirs(os.path.join(side, "keel", "waves"), exist_ok=True)
         self.install(side)
         target = os.path.join(self.where_git_reads(side), "pre-commit")
         self.assertTrue(os.path.exists(target), target)

@@ -20,9 +20,11 @@ The header is YAML between three dashes. The body is ordinary Markdown.
 ## Where things live
 
 ```
-keel/steps/              steps — one file per branch
+keel/keel.py             the tool itself, as a copy — what every hook and skill invokes
+keel/keel.json           the settings: the two languages, the mode, the adapter, the CI command
+keel/waves/              waves — one file per branch
 keel/contracts/          contracts — one file per contract
-keel/QUALITY.md          the quality cuts — the checklist used while writing a step
+keel/QUALITY.md          the quality cuts — the checklist used while writing a wave
 keel/KEEL.md             this file, as a copy
 keel/README.md           the tool reference, as a copy
 AGENTS.md                seven principles and the pointers, as a block between markers
@@ -39,7 +41,7 @@ file, not a parser.
 
 ## Two entities
 
-### Step
+### Wave
 
 One file, one branch, one pull request. Inside it:
 
@@ -51,7 +53,7 @@ Both live as sections in the body; their names and links are in the header.
 ### Contract
 
 A promise the code leans on, and the way to check it. Its own file, because it
-outlives the step that created it.
+outlives the wave that created it.
 
 Our own promise is a module, its exported functions and their meaning; the check
 loads the module and compares. Somebody else's — a library, a service, a binary —
@@ -76,7 +78,7 @@ paragraph inside a transform.
 
 | Edge | From, to | What for |
 |---|---|---|
-| `depends_on` | step → step | the order of work |
+| `depends_on` | wave → wave | the order of work |
 | `proves` | scenario → contract | the contract has proof |
 | `contracts` | transform → contract | what it implements, plus the revision |
 | `implements` | transform → scenario | which commit brings which promise closer |
@@ -92,7 +94,7 @@ A transform lists its files by name, before the work. Globs are not used: under 
 glob an agent will produce ten files where one was meant, and nothing will make a
 sound.
 
-- a step has no scope of its own — it is the sum of its transforms;
+- a wave has no scope of its own — it is the sum of its transforms;
 - the check runs **both ways**: touching outside the list shows, and so does
   declaring something and never touching it;
 - **the whole branch** is checked, not a single commit;
@@ -113,7 +115,7 @@ work should not demand that our own generated file be declared in somebody's
 transform. A `plan/*` branch is the mirror image — it should touch nothing else,
 and the check says so.
 
-Scope is compared against the branch: its name is the step's name. Where git does
+Scope is compared against the branch: its name is the wave's name. Where git does
 not know that name — on CI the head is detached — it arrives through the
 `--branch` flag. Skipping the check in silence would mean green where nobody
 compared anything.
@@ -140,7 +142,7 @@ hashed by the body of its section.
 spaces and line breaks are collapsed; a comma, a change of case or a rephrasing
 all give a new revision, and the test has to be reread.
 
-A step's header holds no scenario revisions: the text lives in the body and the
+A wave's header holds no scenario revisions: the text lives in the body and the
 hash is computed from it on the fly. Only whoever leans on a text records its
 revision.
 
@@ -151,9 +153,9 @@ No status is written by hand.
 | What | Closed when | Where it shows |
 |---|---|---|
 | Transform | the branch has a commit whose message begins with its slug | git log |
-| Scenario | a test with its name exists, is green, and the revision matches | the test run, the step's text |
+| Scenario | a test with its name exists, is green, and the revision matches | the test run, the wave's text |
 | Contract | the revision matches the one recorded, and the promise is confirmed — by exports or by a command | the file, the compiled module, `verify` |
-| Step | every transform closed, every scenario proved, the whole gate green — the checks, the plan, the project's own CI command, and no two documents disagreeing | all of the above together |
+| Wave | every transform closed, every scenario proved, the whole gate green — the checks, the plan, the project's own CI command, and no two documents disagreeing | all of the above together |
 
 ## Six checks
 
@@ -195,7 +197,7 @@ Which are fast, what each one does and how they run is in [README.md](README.md)
 ## What is not here
 
 No requirements, no questions, no log, no statuses, no tags, no numbers inside a
-step, no separate decisions. A promise is written once, as a scenario; a question lives for hours in a
+wave, no separate decisions. A promise is written once, as a scenario; a question lives for hours in a
 pull request discussion rather than for years in a graph; git holds the history;
 status is counted.
 
@@ -204,7 +206,7 @@ structural is scope, and the rest is the "boundaries" paragraph in a transform.
 
 Decisions were here, and they left. There was a directory for them, but no header
 field pointed at it and no check looked at it; the rule "its own file once two
-steps lean on it" was counted by nobody. What promises something became a
+waves lean on it" was counted by nobody. What promises something became a
 contract; what we deliberately do not do became a boundary; a rule about
 architecture belongs to the linter's config.
 
@@ -213,7 +215,7 @@ has to prove it still hurts.
 
 ## Example
 
-`keel/steps/0007-session-loop.md`
+`keel/waves/0007-session-loop.md`
 
 ```markdown
 ---
@@ -291,21 +293,21 @@ between the work and the plan, and because of it no hash is recorded anywhere: a
 transform is closed by the fact that a commit carrying its slug is on the branch.
 There is no `commit` field in the header — it would be a status written by hand.
 
-**The number in a step's name** (`0007-`) is a unique prefix, not an order. The
+**The number in a wave's name** (`0007-`) is a unique prefix, not an order. The
 order is derived from `depends_on`. Otherwise the temptation to renumber appears,
 and references break — the same trap that was left behind by giving up codes.
 
 ## Quality cuts
 
 `keel/QUALITY.md` — forty questions under the nine characteristics of ISO/IEC
-25010. It is **a checklist, not a structure**: no step has to have a scenario for
+25010. It is **a checklist, not a structure**: no wave has to have a scenario for
 every cut. The agent walks the list and gives one of three answers — does not
 apply, answered by this scenario, stayed silent. Silent means: the cut is
 relevant, nothing closes it, and it needs either a scenario or a decision saying
 "no" out loud.
 
-**One pass per step**, where the scenarios are written. Not at every level and
-not until it converges: there are no levels any more, there are steps.
+**One pass per wave**, where the scenarios are written. Not at every level and
+not until it converges: there are no levels any more, there are waves.
 
 The point is not completeness. The point is that the case nobody thought of can
 no longer be passed over in silence. Left alone, an agent writes the happy path.
@@ -328,14 +330,14 @@ the tool.
 
 ## The cycle
 
-Two pull requests per step: the plan separately, the work separately. The
+Two pull requests per wave: the plan separately, the work separately. The
 operator starts each stage with a single command; the tool drives the rest.
 
 ```
 PLAN                                branch plan/0007-session-loop
 
   /keel-plan session-loop           the operator calls it
-      keel new step                   the file skeleton
+      keel new wave                   the file skeleton
       the agent writes                why → scenarios → transforms with files
       the agent asks                  what is unsettled — as a question, not a guess
       keel gaps                       what is missing
@@ -359,12 +361,12 @@ beyond it. The agent opens no documents around it — it gets a slice and works
 with that.
 
 The stage does not have to be remembered. The session-start hook asks the tool
-which state the step is in, and puts the answer into the context along with the
+which state the wave is in, and puts the answer into the context along with the
 name of the skill to take.
 
-**Approval of a plan is written nowhere — it is derived.** The step file being on
+**Approval of a plan is written nowhere — it is derived.** The wave file being on
 the main branch means a person read it and let it through; `keel next` hands out
-no transforms from a step that is not there yet. No fields and no log lines.
+no transforms from a wave that is not there yet. No fields and no log lines.
 
 The agent remembers nothing between moves, and that is deliberate: in an
 autonomous run the context is cleared anyway. The stages did not disappear — they

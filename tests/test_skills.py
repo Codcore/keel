@@ -343,3 +343,24 @@ class TestTheReviewSkillKnowsTheProjectsOwnGate(ProjectCase):
             body = self.fixture.read(relative)
             self.assertIn("CI", body, relative)
             self.assertIn("do not invent one", body, relative)
+
+
+class TestTheDocumentsNameEveryCommand(unittest.TestCase):
+    """`AGENTS.md` шле агента до `keel/README.md` за «кожною командою з
+    прапорцями», тож команда, якої там немає, невидима для всіх."""
+
+    def test_every_subcommand_appears_in_both_references(self):
+        home = keel.home()
+        names = {"new", "gaps", "check", "next", "rev", "hooks",
+                 "init", "skills", "show", "update", "hook"}
+        for relative in ("README.md", "docs/uk/README.md"):
+            text = keel.read_text(os.path.join(home, relative))
+            missing = [name for name in sorted(names)
+                       if f"keel {name}" not in text]
+            self.assertEqual(missing, [], relative)
+
+    def test_the_module_docstring_lists_them_too(self):
+        text = keel.read_text(os.path.join(keel.home(), "keel.py"))
+        head = text.split('"""')[1]
+        for name in ("show", "skills", "update", "hook"):
+            self.assertIn(f"keel {name}", head, name)
