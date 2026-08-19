@@ -98,6 +98,13 @@ sound.
 - extending the list is allowed and stays as a line in the diff. Drift is not
   forbidden — it is named.
 
+**What only lays the ground rides in the files of the transform that needs the
+ground, never as a transform of its own.** A build file, a first dependency, a
+project skeleton — none of them promises anything or brings any scenario closer,
+so none of them has earned a transform: `gaps` will refuse it for implementing
+no scenario, and `gaps` will be right. Put them in the file list of the first
+transform that cannot compile without them.
+
 Keel's own furniture is not subject to scope, on a plan branch or a work branch
 alike. The documents under `keel/`, the skills, the hooks, the CI and the block
 in `AGENTS.md` are plan and scaffolding, not work, and `keel update` running mid
@@ -160,6 +167,20 @@ No status is written by hand.
 
 A seventh, minor one: the set of names in the header matches the set of headings
 in the body.
+
+**What green means is said here, because the difference is not obvious.** A
+green fifth means "a test of that name exists, its revision matches, and it
+passes" — not "the promise is proven": whether that test actually checks what
+the scenario promises is asked by nobody, and cannot be asked mechanically. A
+green sixth means "the promised shape is there" — the module exports the named
+functions and the signatures match what was declared — not "the promise is
+kept": a contract may promise in prose that a broken tool does not bring the
+session down, keep a flawless shape, and have the code do the opposite.
+
+That gap is exactly what `/keel-review` aims at with its single question — **what
+did we stay silent about**. The checks catch a difference between the documents
+and the facts; the review catches one between what was written and what was
+meant.
 
 Before any of them comes reading the documents themselves. A header that does not
 parse, and a field of the wrong shape — at any level: `transforms` as a list,

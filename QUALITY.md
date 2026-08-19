@@ -44,6 +44,14 @@ agents in a row reported that the sync engine had no liveness check; all three
 read the project's file, and none of them looked inside the image, where it was
 built in.
 
+**And the same the other way: a boundary is checked against the dependency the
+way a cut is.** "We deliberately do not do this" is also a statement about
+somebody else's code, and it can be false from the moment it is written. A step
+promised by boundary that there were no retries, while the library kept its own
+counter of three: one turn went out as four requests. Nobody lied — the retries
+arrived as a default. Before saying something is **absent**, look and see that it
+is.
+
 ## Forty
 
 Forty questions under nine headings — the whole of ISO/IEC 25010:2023. Written
