@@ -232,7 +232,7 @@ read by Claude and Cursor, not by it.
 | `keel show` | a wave as a person reads it: the why, the scenarios and the transforms, with what is closed and what is not |
 | `keel hooks` | shows the state of `pre-commit` and `pre-push`; `--install` installs them, `--force` overwrites somebody else's |
 | `keel skills` | regenerates the skills from the method |
-| `keel init` | installs Keel into a project: directories, a copy of the tool, the references, `AGENTS.md`, CI, hooks. `--docs` and `--lang` set the languages, `--adapter` names the project's language, `--mode` how much installs itself, `--ci` the project's own gate, `--force` overwrites somebody else's hook |
+| `keel init` | installs Keel into a project: directories, a copy of the tool, the references, `AGENTS.md`, CI, hooks. `--docs` and `--lang` set the languages, `--adapter` names the project's language, `--mode` how much installs itself, `--ci` the project's own gate, `--agents` whom to install the skills and hooks for, `--force` overwrites somebody else's hook |
 | `keel hook <event> --agent` | answers an agent hook; called by a config, not by hand |
 | `keel update` | brings the project's copies up to date. `--diff` shows the difference, `--force` overwrites even hand-edited files |
 
@@ -292,6 +292,12 @@ and the two should not be conflated:
 | `docs` | which language the references arrive in | `--docs uk\|en` |
 | `lang` | what the agent writes waves and commits in, and which phrases the skills catch | `--lang uk\|en` |
 | `ci` | the project's own gate — a command, `""` for undecided, `"none"` for a refusal out loud | `--ci "<command>"` |
+| `agents` | whom the skills and hooks are written for: `claude`, `cursor`, `keel-agent`. Empty means nobody | `--agents <list>` |
+
+The third of the agents — `keel-agent` — is off unless asked for. It is ours and
+nobody else's yet, and a `.keel-agent/` folder has no business in a stranger's
+repository while the tool it belongs to is not there. It reads hooks and skills
+by Claude's contract, so only the address differs.
 
 They are separate because wanting an English reference with Ukrainian triggers is
 a reasonable thing to want. A skill's body depends on neither: it is read by the
@@ -299,7 +305,8 @@ model, and it is always English. So is what neither of them reads: the CI
 workflow and the git hook scripts, down to the message somebody meets on a
 failing push.
 
-Those two, the mode, the adapter, the agent-hooks override and the CI command
+Those two, the mode, the adapter, the list of agents, the agent-hooks override
+and the CI command
 are what Keel keeps in that settings file, along with the digests of every file
 it generated,
 but not the whole of what may live there: the file is yours, it sits in your

@@ -2001,9 +2001,24 @@ KEEL_DIR_PREFIX = "keel/"
 # a path restated as a literal can drift from the constant that names it.
 CLAUDE_SETTINGS = ".claude/settings.json"
 CURSOR_HOOKS = ".cursor/hooks.json"
+KEEL_AGENT_SETTINGS = ".keel-agent/settings.json"
 CI_FILE = ".github/workflows/keel.yml"
 
-KEEL_OWNED_DIRS = (KEEL_DIR_PREFIX, ".claude/skills/", ".cursor/skills/")
+# Whom Keel can equip, and whom it equips unless told otherwise. `keel-agent`
+# is opt-in because it is ours and nobody else's yet: writing .keel-agent/ into
+# a stranger's repository would leave a folder for a tool they do not have.
+AGENT_NAMES = ("claude", "cursor", "keel-agent")
+DEFAULT_AGENTS = ("claude", "cursor")
+# Those that speak Claude's hook and skill contract rather than their own.
+CLAUDE_CONTRACT = ("claude", "keel-agent")
+
+# `.keel-agent/skills/` and not `.keel-agent/`: sessions live in that folder too,
+# and they are the project's, written at runtime, never ours to sweep.
+KEEL_OWNED_DIRS = (KEEL_DIR_PREFIX, ".claude/skills/", ".cursor/skills/",
+                   ".keel-agent/skills/")
+# KEEL_AGENT_SETTINGS is deliberately absent: it is ours only in a project that
+# asked for that agent, and this list has no settings to consult. Claiming it
+# everywhere would exempt somebody else's file from the scope check.
 KEEL_OWNED_FILES = (CLAUDE_SETTINGS, CURSOR_HOOKS, CI_FILE, "AGENTS.md")
 def keel_owns(name):
     """Ours, by whole path — not by anything that merely starts the same way.
@@ -3578,9 +3593,13 @@ ADAPTER_NAMES = ("",) + tuple(adapter.name for adapter in ADAPTERS)
 # agent_hooks: "" lets the mode decide; True/False is the operator's override,
 # stored so the first routine update does not quietly revert their choice.
 DEFAULTS = {"docs": PUBLISHED_LANG, "lang": PUBLISHED_LANG, "mode": "strict",
-            "adapter": "", "agent_hooks": "", "ci": CI_UNDECIDED}
+            "adapter": "", "agent_hooks": "", "ci": CI_UNDECIDED,
+            "agents": list(DEFAULT_AGENTS)}
 ALLOWED = {"docs": LANGS, "lang": LANGS, "mode": MODES,
            "adapter": ADAPTER_NAMES, "agent_hooks": ("", True, False)}
+# Keys whose value is a list drawn from a known set. Empty is a real answer:
+# a project may want the method and none of the agent files.
+LISTS = {"agents": AGENT_NAMES}
 # Keys whose value is a command rather than one of a known set. Validating them
 # against a list would mean Keel deciding what a project may run.
 FREE_TEXT = ("ci",)
@@ -3601,14 +3620,14 @@ def generated_files(root, settings):
         if os.path.exists(source):
             out[f"keel/{name}"] = strip_front_matter(read_text(source))
     for skill in SKILLS:
-        for agent, relative in skill_targets(skill):
+        for agent, relative in skill_targets(skill, settings["agents"]):
             out[relative] = render_skill(skill, agent, settings["lang"],
                                          settings["mode"])
     adapter = detect_adapter(root, settings["adapter"])
     out[CI_FILE] = CI_TEMPLATE.format(
         tool=VENDORED,
         setup="".join(line + "\n" for line in (adapter.ci_steps(root) if adapter else [])))
-    if agent_hooks_wanted(settings):
+    if agent_hooks_wanted(settings) and "cursor" in settings["agents"]:
         out[CURSOR_HOOKS] = json.dumps(cursor_hook_config(), ensure_ascii=False,
                                        indent=2) + "\n"
     return out
@@ -3677,7 +3696,11 @@ def config_broken(root):
 
 
 def read_config(root):
-    settings = dict(DEFAULTS)
+    # Copied one level down: a list in DEFAULTS would otherwise be the same
+    # object in every settings dict in the process, and one in-place edit
+    # anywhere would rewrite the default for everybody after it.
+    settings = {key: (list(value) if isinstance(value, list) else value)
+                for key, value in DEFAULTS.items()}
     path = os.path.join(root, CONFIG_FILE)
     if os.path.exists(path):
         try:
@@ -3690,6 +3713,12 @@ def read_config(root):
                 if key in FREE_TEXT:
                     if isinstance(value, str):
                         settings[key] = value.strip()
+                elif key in LISTS:
+                    # Stored order and duplicates are somebody's typing; the
+                    # canonical order is ours, so the generated set is the same
+                    # whichever way the list was written.
+                    if isinstance(value, list) and all(v in LISTS[key] for v in value):
+                        settings[key] = [n for n in LISTS[key] if n in value]
                 elif value in ALLOWED[key]:
                     settings[key] = value
     return settings
@@ -3906,7 +3935,8 @@ jobs:
 # Both agents read SKILL.md with the same required fields, and both let the
 # operator run one by typing /<name>. Cursor rules stay what they are meant for —
 # short standing constraints — and Keel's texts are procedures, so: skills.
-SKILL_DIRS = {"claude": ".claude/skills", "cursor": ".cursor/skills"}
+SKILL_DIRS = {"claude": ".claude/skills", "cursor": ".cursor/skills",
+              "keel-agent": ".keel-agent/skills"}
 DESCRIPTION_CAP = 1536      # Claude truncates the skill listing at this
 
 PLAN_BODY = """\
@@ -3962,8 +3992,10 @@ skeleton shows the bones; the reference explains the fields.
 A person will read and approve this wave, so a guess written into the plan costs
 more than a question. When you reach a fork, ask through the **question tool** if
 there is one — in Claude Code that is `AskUserQuestion` — and offer ready options
-with the consequence of each. Without such a tool, ask in chat and stop until
-there is an answer.
+with the consequence of each. Prose with the options written out is not the same
+thing: it hands the person nothing to pick, and it travels as ordinary text,
+which is the first thing anything between you and them will shorten. Without
+such a tool, ask in chat and stop until there is an answer.
 
 Ask about:
 
@@ -3992,6 +4024,13 @@ which question is still open. A guess committed as a plan reads as a decision to
 whoever opens the pull request, and the chat where you called it a guess is not
 in the diff.
 
+**And the same for an intent cut short by something that is not a person.** When
+a guard, a sandbox or a permission refuses the command you were going to prove
+something with, and you narrow what you prove rather than pressing on, the
+narrowing belongs in the document and the commit, not only in the chat. From
+outside, an agent that honestly narrowed and an agent that quietly stopped
+checking are the same picture, and only one of them is fine.
+
 ## Quality cuts
 
 Before treating the list of scenarios as complete, walk `keel/QUALITY.md` — forty
@@ -4009,6 +4048,12 @@ Every cut gets exactly one of three answers:
 
 A cut that is relevant and deliberately answered "no" is a decision, and it gets
 said out loud. Silence is what this list ends; refusal is not.
+
+One pass, and that is not a promise nothing surfaces afterwards. A cut noticed
+once the plan is already committed is not a failed pass: put it where it belongs
+— a scenario if a test can prove it, a boundary if the answer is "no" — and say
+in the commit that it arrived late. Walking the list a second time to be sure
+costs more than the two lines that admission takes.
 
 Check what arrived with the library before claiming something is missing.
 
@@ -4281,18 +4326,18 @@ def hook_command(event, agent):
     return f'python3 "{root}{VENDORED}" hook {event} --agent {agent}'
 
 
-def claude_hook_config():
+def claude_hook_config(agent="claude"):
     return {
         "SessionStart": [{
             "matcher": "startup|resume|clear",
             "hooks": [{"type": "command",
-                       "command": hook_command("session", "claude"),
+                       "command": hook_command("session", agent),
                        "timeout": 30}],
         }],
         "PreToolUse": [{
             "matcher": "Write|Edit|NotebookEdit",
             "hooks": [{"type": "command",
-                       "command": hook_command("write", "claude"),
+                       "command": hook_command("write", agent),
                        "timeout": 10}],
         }],
     }
@@ -4413,7 +4458,7 @@ def session_context(project):
 
 def hook_reply(agent, event, kind, message):
     """The same verdict, in the dialect of one agent."""
-    if agent == "claude":
+    if agent in CLAUDE_CONTRACT:
         if event == "session":
             return {"hookSpecificOutput": {"hookEventName": "SessionStart",
                                            "additionalContext": message}}
@@ -4654,6 +4699,8 @@ def remove_hook_configs(root, done):
     `update` gives a hand-edited file.
     """
     strip_claude_settings(os.path.join(root, CLAUDE_SETTINGS), done)
+    strip_claude_settings(os.path.join(root, KEEL_AGENT_SETTINGS), done,
+                          KEEL_AGENT_SETTINGS)
     path = os.path.join(root, CURSOR_HOOKS)
     if not os.path.exists(path):
         return
@@ -4665,7 +4712,7 @@ def remove_hook_configs(root, done):
     done.append(t("{file} removed", file=CURSOR_HOOKS))
 
 
-def edit_claude_settings(path, change, done, label, create=False):
+def edit_claude_settings(path, change, done, note, create=False, file=None):
     """Load, hand the file to `change`, write it back if anything moved.
 
     Both the adding and the removing pass go through here. Two copies of this
@@ -4675,7 +4722,11 @@ def edit_claude_settings(path, change, done, label, create=False):
     """
     if not os.path.exists(path) and not create:
         return
-    data = load_json_object(path, CLAUDE_SETTINGS)
+    # `note` is the line that goes into the report and `file` is what to call
+    # the file if it will not parse. For the removing pass the note is a whole
+    # sentence, and a refusal naming ".claude/settings.json (our hook entries
+    # taken out)" points at nothing anybody can open.
+    data = load_json_object(path, file or note)
     if data is None:
         return
 
@@ -4686,7 +4737,7 @@ def edit_claude_settings(path, change, done, label, create=False):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
-    done.append(label)
+    done.append(note)
 
 
 def ours_only(entries):
@@ -4701,8 +4752,9 @@ def ours_only(entries):
     return [item for item in entries if not is_ours(item)]
 
 
-def strip_claude_settings(path, done):
+def strip_claude_settings(path, done, label=None):
     """Ours out of a file that is not ours: the rest of it stays untouched."""
+    label = label or CLAUDE_SETTINGS
     def change(data):
         hooks = data.get("hooks")
         if not isinstance(hooks, dict):
@@ -4724,10 +4776,11 @@ def strip_claude_settings(path, done):
             del data["hooks"]
 
     edit_claude_settings(path, change, done,
-                         t("{file} (our hook entries taken out)", file=CLAUDE_SETTINGS))
+                         t("{file} (our hook entries taken out)", file=label),
+                         file=label)
 
 
-def merge_claude_settings(path, done):
+def merge_claude_settings(path, done, label=None, agent="claude"):
     """Settings.json belongs to the project; we own only our own entries in it.
 
     Refusing to rewrite a shape that is not ours is right. Refusing in silence
@@ -4736,6 +4789,7 @@ def merge_claude_settings(path, done):
     absent, with nothing said. The operator believed strict mode was on while
     half of it was not.
     """
+    label = label or CLAUDE_SETTINGS
     refused = []
 
     def change(data):
@@ -4743,19 +4797,38 @@ def merge_claude_settings(path, done):
         if not isinstance(hooks, dict):
             refused.append(t("the whole hooks key"))
             return
-        for event, entries in claude_hook_config().items():
+        for event, entries in claude_hook_config(agent).items():
             existing = ours_only(hooks.get(event, []))
             if existing is None:
                 refused.append(event)   # somebody else's shape; adding would break it
                 continue
             hooks[event] = existing + entries
 
-    edit_claude_settings(path, change, done, CLAUDE_SETTINGS, create=True)
+    edit_claude_settings(path, change, done, label, create=True)
     if refused:
         done.append(t("{file}: {what} is somebody else's shape, so the write "
                       "guard was not installed there — put it in by hand or "
                       "move what is in the way",
-                      file=CLAUDE_SETTINGS, what=", ".join(refused)))
+                      file=label, what=", ".join(refused)))
+
+
+def merge_agent_settings(root, settings, done):
+    """The files Keel owns entries inside rather than whole, for whoever is asked for.
+
+    Cursor's file is generated and travels with the rest; these two are merged,
+    because they belong to the project and hold more than our hooks.
+
+    Adding for whoever is asked for is half the job. An agent dropped from the
+    list keeps its entries otherwise, and they keep firing — the same failure the
+    mode already had, one level down.
+    """
+    for agent, relative in (("claude", CLAUDE_SETTINGS),
+                            ("keel-agent", KEEL_AGENT_SETTINGS)):
+        path = os.path.join(root, relative)
+        if agent in settings["agents"]:
+            merge_claude_settings(path, done, relative, agent)
+        else:
+            strip_claude_settings(path, done, relative)
 
 
 def is_ours(entry):
@@ -4791,7 +4864,7 @@ def render_skill(skill, agent, lang=DEFAULTS["lang"], mode=DEFAULTS["mode"]):
     if skill.get("paths"):
         extra += "paths:\n" + "".join(
             f"  - {yaml_string(item)}\n" for item in skill["paths"])
-    if agent == "claude" and skill.get("argument_hint"):
+    if agent in CLAUDE_CONTRACT and skill.get("argument_hint"):
         # Keyed by lang, like the triggers: the hint is shown to the operator,
         # and an English project was getting a Ukrainian one.
         extra += f"argument-hint: {yaml_string(skill['argument_hint'][lang])}\n"
@@ -4813,10 +4886,11 @@ def skill_description(skill, lang=DEFAULTS["lang"]):
         skill["description"].format(triggers=skill["triggers"][lang]).split())
 
 
-def skill_targets(skill):
-    """Where this skill lands, per agent. Both accept /<name> from the operator."""
-    return tuple((agent, f"{folder}/{skill['name']}/SKILL.md")
-                 for agent, folder in sorted(SKILL_DIRS.items()))
+def skill_targets(skill, agents=None):
+    """Where this skill lands, per agent. Each accepts /<name> from the operator."""
+    chosen = DEFAULT_AGENTS if agents is None else agents
+    return tuple((agent, f"{SKILL_DIRS[agent]}/{skill['name']}/SKILL.md")
+                 for agent in sorted(chosen) if agent in SKILL_DIRS)
 
 
 def cmd_skills(project, args=None):
@@ -4871,6 +4945,10 @@ def cmd_init(project, args):
     # is meaningful when it is False.
     if getattr(args, "agent_hooks", None) is not None:
         settings["agent_hooks"] = args.agent_hooks
+    # Same reason, and one more: the empty list is a real answer — equip nobody —
+    # and the loop above would read it as "nothing was asked for".
+    if getattr(args, "agents", None) is not None:
+        settings["agents"] = args.agents
 
     # A proposal, only where the language has a convention for one, and only
     # into an empty setting: whoever already named a command keeps it, and a
@@ -4902,16 +4980,23 @@ def cmd_init(project, args):
     # One owner of "which files, with what content": the same table update and
     # survey read. Init rendering its own copies by hand is how the CI block
     # once honoured --adapter here and not there.
-    for relative, text in generated_files(project.root, settings).items():
+    wanted = generated_files(project.root, settings)
+    for relative, text in wanted.items():
         target = os.path.join(project.root, relative)
         if relative == VENDORED and os.path.abspath(target) == os.path.abspath(__file__):
             continue      # init run from the vendored copy itself
         write_if_changed(target, text, done, relative, manifest)
 
+    # The same answer update gives, and reachable here since `--agents` can
+    # narrow: init run twice used to leave the dropped agent's skills and hook
+    # file on disk, working, while keel.json said that agent was not equipped.
+    # Read before write_config, which replaces the record below.
+    remove_retired(project.root, wanted, read_manifest(project.root), done)
+
     # The two shared files generated_files cannot express: Keel owns entries
     # inside them, not the files.
     if agent_hooks_wanted(settings):
-        merge_claude_settings(os.path.join(project.root, CLAUDE_SETTINGS), done)
+        merge_agent_settings(project.root, settings, done)
     else:
         remove_hook_configs(project.root, done)
         done.append(t("no agent hooks: mode is {mode}", mode=settings["mode"]))
@@ -5258,7 +5343,7 @@ def cmd_update(project, args):
         if update_agents(os.path.join(project.root, "AGENTS.md"), block):
             done.append("AGENTS.md " + t("(block between the markers)"))
     if agent_hooks_wanted(project.settings):
-        merge_claude_settings(os.path.join(project.root, CLAUDE_SETTINGS), done)
+        merge_agent_settings(project.root, project.settings, done)
     else:
         # Refusing to add them back is half the job: a mode narrowed by hand in
         # keel.json would otherwise leave the old entries firing forever, and
@@ -5444,6 +5529,21 @@ def fail(message, code=2):
     raise SystemExit(code)
 
 
+def agent_names(text):
+    """`--agents claude,keel-agent` into the canonical list.
+
+    Unknown names fail here rather than quietly installing for two of three:
+    a typo that silently equips fewer agents is the kind of half-done the whole
+    tool exists against.
+    """
+    names = [name.strip() for name in text.split(",") if name.strip()]
+    unknown = [name for name in names if name not in AGENT_NAMES]
+    if unknown:
+        raise argparse.ArgumentTypeError(
+            "%s — known: %s" % (", ".join(unknown), ", ".join(AGENT_NAMES)))
+    return [name for name in AGENT_NAMES if name in names]
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="keel", description="Keel: two kinds of document, and the checks that hold them.")
@@ -5488,6 +5588,10 @@ def build_parser():
     init.add_argument("--lang", choices=LANGS,
                       help="language the agent writes in, the skills catch, "
                            "and this tool speaks")
+    init.add_argument("--agents", type=agent_names, metavar="LIST",
+                      help="comma-separated, whom to equip with the skills and "
+                           "hooks: " + ", ".join(AGENT_NAMES) + ". Empty means "
+                           "nobody. Default: " + ", ".join(DEFAULT_AGENTS))
     init.add_argument("--adapter", choices=[name for name in ADAPTER_NAMES if name],
                       help="which language this project is, when the root says "
                            "more than one")
@@ -5522,7 +5626,7 @@ def build_parser():
     hook = sub.add_parser("hook",
                           help="answer an agent hook; called by a config")
     hook.add_argument("event", choices=("session", "write"))
-    hook.add_argument("--agent", choices=("claude", "cursor"), required=True)
+    hook.add_argument("--agent", choices=AGENT_NAMES, required=True)
 
     return parser
 
