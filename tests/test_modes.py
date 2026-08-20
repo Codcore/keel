@@ -344,8 +344,14 @@ class TestOwnership(unittest.TestCase):
     def test_whole_paths_only(self):
         self.assertTrue(keel.keel_owns("AGENTS.md"))
         self.assertFalse(keel.keel_owns("AGENTS.mdx"))
-        self.assertTrue(keel.keel_owns(".claude/settings.json"))
-        self.assertFalse(keel.keel_owns(".claude/settings.json.bak"))
+        self.assertTrue(keel.keel_owns(".cursor/hooks.json"))
+        self.assertFalse(keel.keel_owns(".cursor/hooks.json.bak"))
+
+    def test_a_settings_file_is_not_owned_by_its_name(self):
+        """It is the project's file. Ours only where our entries are in it, and
+        that takes a root to look in — see test_agents for both answers."""
+        self.assertFalse(keel.keel_owns(".claude/settings.json"))
+        self.assertFalse(keel.keel_owns(".keel-agent/settings.json"))
 
     def test_directories_still_match_by_prefix(self):
         self.assertTrue(keel.keel_owns("keel/waves/0001-a.md"))

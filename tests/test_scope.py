@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check 4: what the branch touched against what it declared."""
 
+import json
 import os
 import shutil
 import subprocess
@@ -201,9 +202,12 @@ class TestScope(ProjectCase):
         """Інакше перший же комміт плану впирається в те, що поклав init."""
         self.fixture.branch("plan/0001-session-loop")
         for name in ("AGENTS.md", ".claude/skills/keel-plan/SKILL.md",
-                     ".cursor/hooks.json", ".github/workflows/keel.yml",
-                     ".claude/settings.json"):
+                     ".cursor/hooks.json", ".github/workflows/keel.yml"):
             self.fixture.write(name, "породжене\n")
+        # Written the way init writes it: a settings file is ours by the entries
+        # in it, not by its name, so a placeholder would not be ours at all.
+        self.fixture.write(keel.CLAUDE_SETTINGS, json.dumps(
+            {"hooks": keel.claude_hook_config()}, ensure_ascii=False) + "\n")
         self.assertEqual(keel.check_scope(self.project), [])
 
     def test_a_work_branch_may_carry_keels_own_files_too(self):
@@ -211,9 +215,10 @@ class TestScope(ProjectCase):
         self.fixture.branch("0001-session-loop")
         self.fixture.write("lib/session.ex", "змінено\n")
         for name in ("AGENTS.md", ".claude/skills/keel-plan/SKILL.md",
-                     ".cursor/hooks.json", ".github/workflows/keel.yml",
-                     ".claude/settings.json"):
+                     ".cursor/hooks.json", ".github/workflows/keel.yml"):
             self.fixture.write(name, "породжене\n")
+        self.fixture.write(keel.CLAUDE_SETTINGS, json.dumps(
+            {"hooks": keel.claude_hook_config()}, ensure_ascii=False) + "\n")
         self.assertEqual(keel.check_scope(self.project), [])
 
     def test_a_declared_keel_file_earns_no_false_report(self):

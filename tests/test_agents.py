@@ -193,17 +193,39 @@ class TestDroppingAnAgentTakesItsHooksAway(ProjectCase):
         self.assertFalse(os.path.exists(self.fixture.path(keel.KEEL_AGENT_SETTINGS)))
 
 
-class TestOwnershipDoesNotReachAFileWeDidNotWrite(unittest.TestCase):
-    """`.keel-agent/settings.json` is ours only where that agent was asked for,
-    and the ownership list has no settings to consult. Claiming it everywhere
-    would take somebody else's file out of the scope check — silently. Left out
-    instead: a project that does equip that agent sees a loud scope complaint it
-    can answer, which is the better half of the trade."""
+class TestOwnershipIsAnsweredByEvidence(ProjectCase):
+    """A settings file belongs to the project; we merge entries into it and only
+    where a setting asked for it. On the ownership list it would be exempt from
+    the scope check in every project, including the ones we never wrote in —
+    an exemption nobody asked for and nobody would see."""
 
-    def test_its_settings_file_is_not_claimed(self):
-        self.assertFalse(keel.keel_owns(keel.KEEL_AGENT_SETTINGS))
+    def test_a_settings_file_we_never_wrote_in_is_not_ours(self):
+        self.fixture.write(keel.KEEL_AGENT_SETTINGS,
+                           json.dumps({"model": "theirs"}) + "\n")
+        self.assertFalse(keel.keel_owns(keel.KEEL_AGENT_SETTINGS, self.fixture.root))
+        self.assertFalse(keel.keel_owns(keel.CLAUDE_SETTINGS, self.fixture.root))
 
-    def test_its_skills_are_claimed_because_we_generate_them(self):
+    def test_the_same_file_becomes_ours_once_our_entries_are_in_it(self):
+        keel.merge_agent_settings(self.fixture.root,
+                                  dict(keel.DEFAULTS, agents=["keel-agent"]), [])
+        self.assertTrue(keel.keel_owns(keel.KEEL_AGENT_SETTINGS, self.fixture.root))
+
+    def test_and_stops_being_ours_when_they_are_taken_out(self):
+        keel.merge_agent_settings(self.fixture.root,
+                                  dict(keel.DEFAULTS, agents=["keel-agent"]), [])
+        keel.remove_hook_configs(self.fixture.root, [])
+        self.assertFalse(keel.keel_owns(keel.KEEL_AGENT_SETTINGS, self.fixture.root))
+
+    def test_without_a_root_there_is_nothing_to_read_and_the_answer_is_no(self):
+        self.assertFalse(keel.keel_owns(keel.CLAUDE_SETTINGS))
+
+    def test_a_file_that_will_not_parse_is_not_claimed(self):
+        """A claim we cannot see the grounds for is one we do not make."""
+        self.fixture.write(keel.CLAUDE_SETTINGS, "{ not json\n")
+        self.assertFalse(keel.keel_owns(keel.CLAUDE_SETTINGS, self.fixture.root))
+
+    def test_the_skills_folder_is_still_ours_by_structure(self):
+        """Only we write there, so no evidence is needed and none is read."""
         self.assertTrue(keel.keel_owns(".keel-agent/skills/keel-plan/SKILL.md"))
 
     def test_its_sessions_are_never_ours(self):

@@ -2016,18 +2016,48 @@ CLAUDE_CONTRACT = ("claude", "keel-agent")
 # and they are the project's, written at runtime, never ours to sweep.
 KEEL_OWNED_DIRS = (KEEL_DIR_PREFIX, ".claude/skills/", ".cursor/skills/",
                    ".keel-agent/skills/")
-# KEEL_AGENT_SETTINGS is deliberately absent: it is ours only in a project that
-# asked for that agent, and this list has no settings to consult. Claiming it
-# everywhere would exempt somebody else's file from the scope check.
-KEEL_OWNED_FILES = (CLAUDE_SETTINGS, CURSOR_HOOKS, CI_FILE, "AGENTS.md")
-def keel_owns(name):
+KEEL_OWNED_FILES = (CURSOR_HOOKS, CI_FILE, "AGENTS.md")
+# Neither settings file is on that list, and that is the point. They belong to
+# the project and hold its own keys beside our hook entries, and whether we ever
+# wrote in one depends on a setting — so ownership here is answered by evidence:
+# our mark is in the file, or the file is not ours.
+KEEL_MERGED_FILES = (CLAUDE_SETTINGS, KEEL_AGENT_SETTINGS)
+def carries_our_hooks(path):
+    """Whether one of our hook entries is actually in this settings file.
+
+    Unreadable, absent, or somebody else's shape all answer no: ownership is a
+    claim, and a claim we cannot see the grounds for is one we do not make.
+    """
+    try:
+        data = json.loads(read_text(path))
+    except (ValueError, OSError):
+        return False
+    hooks = data.get("hooks") if isinstance(data, dict) else None
+    if not isinstance(hooks, dict):
+        return False
+    return any(is_ours(entry) for entries in hooks.values()
+               if isinstance(entries, list) for entry in entries)
+
+
+def keel_owns(name, root=None):
     """Ours, by whole path — not by anything that merely starts the same way.
 
     A bare prefix test claimed AGENTS.mdx and .claude/settings.json.bak, which
     let a plan branch modify somebody's unrelated file and let `init` sweep it
     into its own commit — against the one promise that commit makes.
+
+    Two settings files are answered differently, by evidence rather than by
+    list. They are the project's, not ours; we merge entries into them and only
+    where a setting asked for it. On the list they would be exempt from the
+    scope check in every project, including the ones we never wrote in — an
+    exemption nobody asked for and nobody would see. Without a root there is no
+    evidence to read, so the answer is no.
     """
-    return name.startswith(KEEL_OWNED_DIRS) or name in KEEL_OWNED_FILES
+    if name.startswith(KEEL_OWNED_DIRS) or name in KEEL_OWNED_FILES:
+        return True
+    if name in KEEL_MERGED_FILES and root is not None:
+        return carries_our_hooks(os.path.join(root, name))
+    return False
 
 
 def check_structure(project):
@@ -2341,7 +2371,8 @@ def check_scope(project):
             changed.add(inside)
 
     if project.is_plan_branch(branch):
-        stray = sorted(name for name in changed if not keel_owns(name))
+        stray = sorted(name for name in changed
+                       if not keel_owns(name, project.root))
         return (deleted_documents(project, base)
                 + [Problem(4, t("a plan branch is touching code: {name}", name=name))
                    for name in stray])
@@ -2356,7 +2387,7 @@ def check_scope(project):
     # same door — quieter than moving it, because what is gone cannot be named
     # by anything that walks the documents that remain.
     problems = deleted_documents(project, base)
-    changed = {name for name in changed if not keel_owns(name)}
+    changed = {name for name in changed if not keel_owns(name, project.root)}
 
     wave = project.wave_for_branch(branch)
     if wave is None:
@@ -2368,7 +2399,8 @@ def check_scope(project):
     # The same exemption on both sides: keel_owns is filtered out of changed,
     # and a declared AGENTS.md would otherwise earn "declared but not changed"
     # over a diff that plainly changed it — a message stating a falsehood.
-    declared = {name for name in wave.declared_files() if not keel_owns(name)}
+    declared = {name for name in wave.declared_files()
+                if not keel_owns(name, project.root)}
 
     # The two directions do not read the same list, and that is the whole point.
     #
@@ -2391,7 +2423,7 @@ def check_scope(project):
     for slug in wave.transforms:
         if closed[slug][0] is not None:
             promised.update(wave.transform_files(slug))
-    promised = {name for name in promised if not keel_owns(name)}
+    promised = {name for name in promised if not keel_owns(name, project.root)}
 
     for name in sorted(changed - declared):
         problems.append(Problem(4, t("changed but not declared: {name}", name=name), wave.rel))
@@ -4156,7 +4188,22 @@ that is `/keel-review`.
 The files on the list, and only those. If you need a file that is not there, add
 it to the transform in the wave file. Drift is not forbidden — it is named, and
 it shows up as a line in the diff. Leaving the list silently is what is
-forbidden, and the write hook will refuse it.
+forbidden.
+
+Know how far the guard actually reaches. The write hook refuses a write outside
+the list when the write goes through an editing tool; a file written through the
+shell never reaches it. `keel check` closes most of that gap at commit time,
+because git shows a tracked file changed and an untracked one appearing. What
+neither of them sees is an untracked file that **disappears**: git has no record
+of what was never recorded. So on that last edge the rule holds because you keep
+it, and for no other reason.
+
+**A file in your way that is not yours stays where it is.** An abandoned
+skeleton, somebody's scratch file, anything you did not write and the transform
+does not name — it may well be the thing holding `check` red. Say so and stop.
+Moving it aside turns the check green over a repository nobody agreed to change,
+and from outside that is the same picture as the work having been done. Naming
+it costs a sentence; the operator can move their own file in seconds.
 
 Every scenario the transform brings closer needs a test carrying its name and its
 revision in the tag. `next` prints the revision; `keel rev --write` records a new
@@ -4592,7 +4639,7 @@ def main_branch_verdict(project, payload):
                           "write was not judged. This is {main}, where finished "
                           "work arrives.", main=project.git.main_short))
     relative = repo_relative(project, target)
-    if relative is None or keel_owns(relative):
+    if relative is None or keel_owns(relative, project.root):
         return None
     return ("deny", t("{name}: this is {main}, where finished work arrives — it "
                       "is not where work is written. Code belongs on a branch "
@@ -4639,7 +4686,7 @@ def write_verdict(project, payload):
         return ("note", t("keel: {target} is outside the repository, so the "
                           "wave's scope does not apply to it. Judge for yourself "
                           "whether it should be written to.", target=target))
-    if keel_owns(relative):
+    if keel_owns(relative, project.root):
         return None      # the same exemption check 4 applies, so the hook is
                          # never stricter than the gate
     if relative in declared:
@@ -5032,7 +5079,7 @@ def pending_keel_paths(project):
     code, stdout, _ = project.git.run("status", "--porcelain", "--untracked-files=all")
     if code != 0:
         return None
-    return sorted({row[3:] for row in stdout.splitlines() if keel_owns(row[3:])})
+    return sorted({row[3:] for row in stdout.splitlines() if keel_owns(row[3:], project.root)})
 
 
 def commit_own(project):
