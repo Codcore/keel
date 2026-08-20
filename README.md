@@ -210,7 +210,7 @@ python3 -m unittest discover -s tests -t .
 They are laid out by what they check: `test_yamlish`, `test_documents`,
 `test_scope`, `test_adapters`, `test_commands`, `test_git_hooks`,
 `test_agent_hooks`, `test_skills`, `test_setup`, `test_ci`, `test_modes`,
-`test_language`, `test_install`. Each runs on its own
+`test_language`, `test_install`, `test_agents`. Each runs on its own
 (`python3 -m unittest tests.test_scope`); the shared fixture is in
 `tests/support.py`. Tests are copied nowhere, so splitting them costs nothing —
 unlike the tool itself.
@@ -467,7 +467,7 @@ reads files **in the project it works on**, and `keel init` puts them there:
 ```
 keel/waves/                     empty directories
 keel/contracts/
-keel/keel.json                  the settings: two languages and the mode
+keel/keel.json                  the settings: languages, mode, adapter, whom for
 keel/keel.py                    the tool itself, as a copy
 keel/METHODOLOGY.md             the method, as a copy
 keel/README.md                  this file, as a copy
@@ -478,6 +478,8 @@ AGENTS.md                       a block between markers: principles and pointers
 .cursor/skills/keel-*/SKILL.md  generated — the same format
 .claude/settings.json           agent hooks in strict mode; anything else stays
 .cursor/hooks.json              the same for Cursor
+.keel-agent/skills/keel-*/…     and .keel-agent/settings.json — only where
+                                that agent was asked for
 .git/hooks/                     pre-commit and pre-push, which call keel
 ```
 
@@ -516,8 +518,10 @@ it would mean taking something away.
 not duplicated on a repeated `init`, and if the file is broken the tool leaves it
 alone and says so.
 
-The skills are installed **as both sets at once**: they are cheap, and which
-agent you will be working with tomorrow is unknown.
+The skills are installed **for whoever is named** in the `agents` setting — by
+default both agents that exist, because they are cheap and which one you will be
+working with tomorrow is unknown. The third, `keel-agent`, arrives only where it
+is asked for, and an empty list is an answer too.
 
 **`init` commits what it wrote** — as its own commit, staging only its own
 files, so anything of yours sitting uncommitted next to it stays yours.
@@ -582,7 +586,7 @@ scope is compared against the point where the branch left.
 Faster feedback. They do not replace the git hooks: an agent hook makes a mistake
 cheaper, `pre-commit` makes it impossible.
 
-| Event | What it does | Claude | Cursor | Codex |
+| Event | What it does | Claude | Cursor | keel-agent |
 |---|---|---|---|---|
 | session start | injects the state and names the skill | `SessionStart` | `sessionStart` | `SessionStart` |
 | before a file write | refuses if the file is not declared | `PreToolUse` | `preToolUse` | `PreToolUse` |
@@ -593,11 +597,16 @@ about to write in the wrong place, rather than at the commit.
 The event names match, the configs are all project-level and all committed. What
 differs is what a hook answers with:
 
-| What | Claude | Cursor | Codex |
+| What | Claude | Cursor | keel-agent |
 |---|---|---|---|
-| refusal | `hookSpecificOutput.permissionDecision: "deny"` | `permission: "deny"` | `decision: "block"` |
-| text into context | `additionalContext` | `additional_context` | `additionalContext` |
-| wrapper | `matcher` and a nested `hooks` list | a flat list, `"version": 1` | a flat list |
+| refusal | `hookSpecificOutput.permissionDecision: "deny"` | `permission: "deny"` | as Claude |
+| text into context | `additionalContext` | `additional_context` | as Claude |
+| wrapper | `matcher` and a nested `hooks` list | a flat list, `"version": 1` | as Claude |
+
+The third speaks Claude's contract on purpose: it declares no events of its own,
+so it has no dialect of its own either. **Codex is not here**, and that is not an
+oversight — its `apply_patch` payload is not worked out, and describing a refusal
+the tool cannot send would be documenting something that does not exist.
 
 Exiting with code 2 blocks the action in all three — that is the only thing they
 share.
@@ -709,8 +718,10 @@ outlives updates instead of lasting until the first one.
 
 **Narrowing the mode also takes back what a wider one installed.** `keel init
 --mode manual` over a strict install does not merely stop writing hooks: it
-removes `.cursor/hooks.json` and takes our entries out of `.claude/settings.json`,
-leaving everything else in that file untouched. Otherwise the output would say
+removes `.cursor/hooks.json` and takes our entries out of **both** settings files
+— Claude's and `.keel-agent/`'s — leaving everything else in them untouched. A
+file with nothing left in it but an empty object goes with them: `{}` is our
+leftover, not somebody's configuration. Otherwise the output would say
 "no agent hooks" while the hooks went on refusing writes — and a report the
 filesystem contradicts is the one thing this whole tool exists against.
 
@@ -733,6 +744,7 @@ skill, `keel-plan`, and two thin ones, `keel-work` and `keel-review`.
 |---|---|
 | Claude Code | `.claude/skills/<name>/SKILL.md` |
 | Cursor | `.cursor/skills/<name>/SKILL.md` |
+| keel-agent | `.keel-agent/skills/<name>/SKILL.md`, where asked for |
 | Codex and the rest | `AGENTS.md`, ten lines of pointers |
 
 The format is the same for both: `name`, `description`, an optional `paths`.

@@ -139,11 +139,15 @@ transform that needs it, and gets no transform of its own.
 nothing and bring no scenario closer, so a transform without a scenario is
 refused — rightly.*
 
-**§4.8.** The method's own furniture — `keel/`, the skills, the hooks, the CI
-file, the block inside `AGENTS.md` — is out of scope on every branch.
+**§4.8.** The method's own furniture — `keel/`, the skills, the CI file, the
+block inside `AGENTS.md` — is out of scope on every branch. The hook configs
+live inside somebody else's files, so they are furniture only while they are as
+the tool left them.
 
 *Grounds: refreshing the method mid-work must not require declaring our own
-generated file inside somebody's transform.*
+generated file inside somebody's transform. But a file we never wrote, or one a
+hand has touched since, is not furniture: exempting it would take somebody's
+configuration out of the check, and nobody would see it happen.*
 
 **§4.9.** A plan branch touches nothing but the furniture of §4.8. No code
 appears on it.
