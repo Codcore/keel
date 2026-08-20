@@ -521,6 +521,12 @@ UK = {
         "лишено як є: закрита хвиля записує текст, проти якого доводили, "
         "а пізніший текст ним не є.",
     "nothing open drifted": "у роботі не розійшлось нічого",
+    "keel: {name} is the project's account of itself and no wave plans it, so "
+    "writing it on {main} is allowed. Code still belongs on a branch named "
+    "after a wave.":
+        "keel: {name} — це розповідь проєкту про себе, і жодна хвиля її не "
+        "планує, тож писати її на {main} можна. Кодові й далі місце на гілці, "
+        "названій за хвилею.",
     "recorded {written} of {count} — the rest were reported and not found where "
     "the rewrite looked":
         "вписано {written} з {count} — решту звітовано, але там, де шукав "
@@ -4732,6 +4738,17 @@ def widened_here(project, wave, relative):
     return approved is not None and relative not in approved
 
 
+# The project's account of itself, as opposed to its work. No wave plans these
+# and none should: a paragraph saying what the project now is has no promise a
+# test could prove. Refusing them on main left nowhere honest to write them at
+# all, and the way around the refusal turned out to be one heredoc through Bash
+# — the guard said no through the door it watches and nothing at the other.
+#
+# Whole paths at the root, not prefixes: a README inside a vendored directory is
+# somebody else's front page, not this project's account of itself.
+SCENERY = ("README.md", "BACKLOG.md")
+
+
 def main_branch_verdict(project, payload):
     """The main branch takes finished work; it is not where work is written.
 
@@ -4756,6 +4773,14 @@ def main_branch_verdict(project, payload):
     relative = repo_relative(project, target)
     if relative is None or keel_owns(relative, project.root):
         return None
+    if relative in SCENERY:
+        # Said rather than waved through: every other allowance in this function
+        # says why it is not judging, and an allowance nobody is told about is
+        # the same silence the guard was written to end.
+        return ("note", t("keel: {name} is the project's account of itself and no "
+                          "wave plans it, so writing it on {main} is allowed. Code "
+                          "still belongs on a branch named after a wave.",
+                          name=relative, main=project.git.main_short))
     return ("deny", t("{name}: this is {main}, where finished work arrives — it "
                       "is not where work is written. Code belongs on a branch "
                       "named after a wave: check out the wave you are working "

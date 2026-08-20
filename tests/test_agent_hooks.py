@@ -131,6 +131,39 @@ class TestTheMainBranchIsNotAWorkbench(ProjectCase):
                      "keel/keel.json"):
             self.assertIsNone(self.verdict(name), name)
 
+    def test_the_projects_own_account_of_itself_passes_on_main(self):
+        """Хук відмовляв README на main, а жодна хвиля його не планує.
+
+        Відмова лишала цей запис без жодного законного місця, і обійшовся він
+        одним heredoc'ом через Bash — повз двері, які хук стереже.
+        """
+        for name in ("README.md", "BACKLOG.md"):
+            verdict = self.verdict(name)
+            self.assertIsNotNone(verdict, name)
+            kind, message = verdict
+            self.assertEqual(kind, "note", name)
+            self.assertIn(name, message)
+
+    def test_the_allowance_is_said_and_not_silent(self):
+        """Дозвіл, про який ніхто не сказав, — та сама тиша, проти якої заслон."""
+        _, message = self.verdict("README.md")
+        self.assertIn("account of itself", message)
+        self.assertIn("wave", message)
+
+    def test_code_beside_the_account_is_refused_as_before(self):
+        kind, _ = self.verdict("lib/whatever.ex")
+        self.assertEqual(kind, "deny")
+
+    def test_a_readme_deeper_in_the_tree_is_somebody_elses(self):
+        kind, _ = self.verdict("vendor/thing/README.md")
+        self.assertEqual(kind, "deny")
+
+    def test_on_a_wave_branch_the_account_is_judged_by_scope_as_before(self):
+        """Дозвіл стосується main, і тільки його: у хвилі файл оголошують."""
+        self.fixture.branch("0001-session-loop")
+        kind, _ = self.verdict("README.md")
+        self.assertEqual(kind, "deny")
+
     def test_a_project_with_no_waves_is_not_walled_in(self):
         """Проєкт, який щойно взяв Keel, ще не має плану, з якого працювати."""
         os.remove(self.fixture.path("keel/waves/0001-session-loop.md"))

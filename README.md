@@ -655,6 +655,12 @@ written. Now the hook says that `main` is where finished work arrives, and sends
 you to a wave's branch. Keel's own furniture is always free, and a project with
 no wave yet is not walled in: there is no plan there to work from.
 
+The project's account of itself — `README.md` and `BACKLOG.md` at the root —
+passes too, and the hook **says so** rather than waving it through: no wave
+plans them, so refusing them left nowhere lawful at all, and the way around such
+a refusal is a shell heredoc, past the door the hook watches. Code beside them is
+refused as before.
+
 The path sits in different places in the incoming JSON, and the documentation is
 uneven. In Claude it is `tool_input.file_path` for Write, Edit and NotebookEdit,
 and that is documented. Cursor documents nothing for its write tools; `file_path`

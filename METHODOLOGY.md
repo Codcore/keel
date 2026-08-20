@@ -158,6 +158,15 @@ comparison silently is not permitted.
 
 *Grounds: green obtained without comparing is worse than red.*
 
+**§4.11.** Code is not written on the main branch: there is no wave there to
+declare it. The project's account of itself — `README` and `BACKLOG` at the
+root — is the exception, and the allowance is said out loud.
+
+*Grounds: a paragraph about what the project has become carries no promise a
+test could prove, so it has no wave and can have none. Forbidding what has
+nowhere else lawful to go is not a guard but a detour somebody will eventually
+take — through the same tool, past the door the guard watches.*
+
 ---
 
 ## Chapter 5. Revisions
