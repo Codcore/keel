@@ -181,6 +181,13 @@ newlines are collapsed before hashing.
 **§5.5.** Only the one who leans on a text writes its revision. A wave's header
 carries no revisions of its own scenarios.
 
+**§5.6.** The revisions of a closed wave (§6.5) are not rewritten, and whoever
+left them alone says so out loud.
+
+*Rationale: a revision records the text the work was proven against. Rewriting
+it says the work was proven against text that did not exist at the time — and
+the gate goes green on the strength of that rewrite.*
+
 ---
 
 ## Chapter 6. Closure and approval

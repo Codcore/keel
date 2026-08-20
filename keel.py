@@ -516,6 +516,11 @@ UK = {
         "розійшлося: {count}. keel rev --write впише нові — після того, як "
         "перечитаєш текст, на який спираєшся.",
     "recorded: {count}": "вписано: {count}",
+    "left as it is: a closed wave records the text its work was "
+    "proven against, and later text is not it.":
+        "лишено як є: закрита хвиля записує текст, проти якого доводили, "
+        "а пізніший текст ним не є.",
+    "nothing open drifted": "у роботі не розійшлось нічого",
     "recorded {written} of {count} — the rest were reported and not found where "
     "the rewrite looked":
         "вписано {written} з {count} — решту звітовано, але там, де шукав "
@@ -2247,15 +2252,31 @@ def scenario_tags(project, tags=None, shared=None):
             yield wave, slug, body, tags.get(normalise_slug(slug), [])
 
 
-def drifted_contract_refs(project):
-    """(wave, who, ref, contract) for every reference not matching its contract.
+def closed_wave(project, wave):
+    """A wave whose work is finished: on the main branch, every transform closed.
 
-    One definition of "drifted", consumed by check 3 to report and by `rev` to
-    restamp: two hand-kept copies of this loop could disagree about what needs
-    fixing and what got fixed.
+    The same two facts `next` and `ready_waves` already read — the wave's work
+    landed on main, and no transform of it is left without a commit there —
+    named once, so that everything which must not disturb finished work means
+    the same thing by "finished". A wave with no transforms declares no work
+    and is not closed by it: an unfilled skeleton would otherwise count as
+    done, the trap `ready_waves` already names.
+    """
+    return bool(wave.transforms) and not project.unclosed_on_main(wave)
+
+
+def contract_ref_drift(project, closed):
+    """(wave, who, ref, contract) for references not matching, from waves of one kind.
+
+    One loop asked twice, rather than two that could drift apart: `closed=False`
+    is the work that can still be restamped, `closed=True` the record that must
+    not be. The second exists so that `rev` can say what it left alone — a
+    guard nobody is told about is indistinguishable from one that failed.
     """
     for wave in project.waves.values():
         if wave.error:
+            continue
+        if closed_wave(project, wave) is not closed:
             continue
         for who, ref in contract_refs(wave):
             contract = project.contracts.get(ref.slug)
@@ -2264,6 +2285,27 @@ def drifted_contract_refs(project):
             if ref.rev and contract.rev_ok(ref.rev):
                 continue
             yield wave, who, ref, contract
+
+
+def drifted_contract_refs(project):
+    """(wave, who, ref, contract) for every reference the work can still fix.
+
+    One definition of "drifted", consumed by check 3 to report and by `rev` to
+    restamp: two hand-kept copies of this loop could disagree about what needs
+    fixing and what got fixed.
+
+    A closed wave is not in it. Restamping a finished wave would leave it
+    saying its scenarios were proven against text that did not exist when they
+    proved it, and the gate would go green on the strength of that rewrite. The
+    revision there is a fingerprint of the text the work leaned on, and the text
+    a later wave writes is not it.
+    """
+    return contract_ref_drift(project, closed=False)
+
+
+def settled_contract_refs(project):
+    """The same, from closed waves: what `rev` deliberately does not touch."""
+    return contract_ref_drift(project, closed=True)
 
 
 def drifted_tags(project, tags=None, shared=None):
@@ -5587,10 +5629,27 @@ def cmd_rev(project, args):
         edits.setdefault(os.path.join(project.root, path), []).append(
             (("TAG", slug), fresh))
 
+    # Said before the drift, and said whether or not there is any: a guard that
+    # quietly declines looks exactly like one that failed, and the agent whose
+    # edit was left unstamped is the one who has to know why.
+    settled = list(settled_contract_refs(project))
+    if settled:
+        print(t("left as it is: a closed wave records the text its work was "
+                "proven against, and later text is not it."))
+        for wave, who, ref, contract in settled:
+            print(f"  {wave.rel}  " + t(
+                "{who} holds {slug}@{held}, and the contract is now {now}",
+                who=who, slug=ref.slug, held=ref.rev or "—", now=contract.revision))
+
     if not report:
-        print(t("every revision matches"))
+        if settled:
+            print("\n" + t("nothing open drifted"))
+        else:
+            print(t("every revision matches"))
         return 0
 
+    if settled:
+        print("")
     for where, who, was, now in report:
         print(f"  {where}  {who}: {was} → {now}")
 

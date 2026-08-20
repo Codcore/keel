@@ -203,6 +203,111 @@ class TestRev(ProjectCase):
         self.run_rev(write=True)
         self.assertEqual(keel.check_scenarios(self.project, run_tests=False), [])
 
+    LATER_WAVE = """---
+depends_on: []
+
+scenarios:
+  later-finishes: {{proves: session-run@{rev}}}
+
+transforms:
+  later-turns:
+    implements: [later-finishes]
+    contracts:  [session-run@{rev}]
+    files:      [lib/later.ex]
+---
+
+## Навіщо
+
+Друга хвиля, якої ще ніхто не закривав.
+
+## scenario: later-finishes
+
+**Given** порожній набір інструментів,
+**When** модель відповідає текстом,
+**Then** розмова завершується.
+
+## transform: later-turns
+
+Крутити ходи ще раз.
+
+Межі: лічильника спроб немає.
+"""
+
+    def close_the_wave(self):
+        """Хвиля закрита так, як її закриває робота: коммітом на main."""
+        self.fixture.git("commit", "--allow-empty", "-m", "drive-turns: ходи закрито")
+
+    def test_a_closed_wave_keeps_the_revision_it_proved(self):
+        """Переписати її означало б сказати, що доводили проти тексту, якого не було."""
+        self.close_the_wave()
+        held = self.fixture.contract_rev
+        self.fixture.write("keel/contracts/session-run.md", CONTRACT + "\nІ ще речення.\n")
+        code, out = self.run_rev(write=True)
+        self.assertEqual(code, 0)
+        self.assertIn("nothing open drifted", out)
+        self.assertIn(f"session-run@{held}",
+                      self.fixture.read("keel/waves/0001-session-loop.md"))
+
+    def test_a_closed_wave_is_not_reported_as_drifted_either(self):
+        """Інакше гейт червонів би вічно там, де рев відмовляється писати."""
+        self.close_the_wave()
+        self.fixture.write("keel/contracts/session-run.md", CONTRACT + "\nІ ще речення.\n")
+        self.assertEqual(keel.check_revisions(self.project), [])
+
+    def test_an_open_wave_beside_it_is_still_restamped(self):
+        """Тиша про закрите не є тишею про те, що в роботі."""
+        held = self.fixture.contract_rev
+        self.fixture.write("keel/waves/0002-later.md",
+                           self.LATER_WAVE.format(rev=held))
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "план другої хвилі")
+        self.close_the_wave()
+        body = CONTRACT + "\nІ ще речення.\n"
+        self.fixture.write("keel/contracts/session-run.md", body)
+        fresh = keel.revision(body)
+        self.assertNotEqual(fresh, held)
+        self.run_rev(write=True)
+        self.assertIn(f"session-run@{held}",
+                      self.fixture.read("keel/waves/0001-session-loop.md"))
+        self.assertIn(f"session-run@{fresh}",
+                      self.fixture.read("keel/waves/0002-later.md"))
+
+    def test_the_closed_wave_is_named_out_loud_with_the_reason(self):
+        """Заслон, що мовчки не робить, не відрізнити від зламаного."""
+        self.close_the_wave()
+        self.fixture.write("keel/contracts/session-run.md", CONTRACT + "\nІ ще речення.\n")
+        code, out = self.run_rev()
+        self.assertEqual(code, 0)
+        self.assertIn("0001-session-loop", out)
+        self.assertIn("session-run", out)
+        self.assertIn("closed wave", out)
+        self.assertIn("proven against", out)
+        self.assertNotIn("every revision matches", out)
+
+    def test_the_reason_is_said_while_writing_too(self):
+        """Той, чию правку не проштампували, дізнається це саме тоді, коли штампують."""
+        held = self.fixture.contract_rev
+        self.fixture.write("keel/waves/0002-later.md",
+                           self.LATER_WAVE.format(rev=held))
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "план другої хвилі")
+        self.close_the_wave()
+        self.fixture.write("keel/contracts/session-run.md", CONTRACT + "\nІ ще речення.\n")
+        code, out = self.run_rev(write=True)
+        self.assertEqual(code, 0)
+        self.assertIn("closed wave", out)
+        self.assertIn("0001-session-loop", out)
+        self.assertIn("0002-later", out)
+        self.assertIn("recorded", out)
+
+    def test_a_wave_without_transforms_is_not_closed_by_having_none(self):
+        """Скелет, якого ніхто не заповнив, не є завершеною роботою."""
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
+                           text.replace("transforms:", "transforms: {}\n_transforms:", 1))
+        self.assertFalse(keel.closed_wave(
+            self.project, self.project.waves["0001-session-loop"]))
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # keel new and keel gaps
