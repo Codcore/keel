@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.7.1"
+VERSION = "0.7.2"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
