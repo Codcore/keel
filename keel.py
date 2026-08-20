@@ -3889,7 +3889,7 @@ on: [push, pull_request]
 jobs:
   check:
     runs-on: ubuntu-latest
-    waves:
+    steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0   # the scope check compares the branch against main

@@ -3,6 +3,8 @@
 
 import json
 import os
+import re
+import tempfile
 import sys
 import unittest
 from io import StringIO
@@ -200,3 +202,44 @@ class TestDriftReachesTheMachineReadableOutput(ProjectCase):
         self.fixture.branch("0001-session-loop")
         payload = json.loads(self.capture(Args(fast=True, no_tests=True, json=True)))
         self.assertEqual(payload["drift"], [])
+
+
+class TestTheGeneratedWorkflowSpeaksGitHub(unittest.TestCase):
+    """Ключі породженого workflow належать GitHub, а не методиці.
+
+    `steps:` свого часу став `waves:` — глобальне перейменування кроків на
+    хвилі зачепило чужий словник. Actions відхиляє такий файл цілком, тобто
+    кожен проєкт після `keel init` діставав непрацездатний заслон. Тест на
+    шаблон при цьому був: він питав, чи текст англійський, і мовчав про будову.
+    """
+
+    # Те, що GitHub розуміє всередині job. Список навмисно повний, а не
+    # «steps є»: наступне перейменування зайде іншим словом, і перевірка на
+    # одне імʼя його пропустить.
+    JOB_KEYS = {
+        "runs-on", "steps", "needs", "if", "env", "strategy", "container",
+        "services", "outputs", "permissions", "timeout-minutes",
+        "continue-on-error", "defaults", "concurrency", "environment",
+    }
+
+    def workflow(self, setup=""):
+        return keel.CI_TEMPLATE.format(tool=keel.VENDORED, setup=setup)
+
+    def job_keys(self, text):
+        job = text.split("\n  check:\n", 1)[1]
+        return {line.split(":")[0].strip() for line in job.splitlines()
+                if re.match(r"^ {4}\S", line)}
+
+    def test_the_job_carries_steps(self):
+        self.assertIn("\n    steps:\n", self.workflow())
+
+    def test_no_key_of_the_job_is_a_word_of_the_method(self):
+        self.assertLessEqual(self.job_keys(self.workflow()), self.JOB_KEYS)
+
+    def test_it_holds_with_every_language_block_too(self):
+        """Блок мови вставляється всередину job; ключів job він додавати не сміє."""
+        with tempfile.TemporaryDirectory() as root:
+            for adapter in (keel.ElixirAdapter(), keel.PythonAdapter()):
+                setup = "".join(line + "\n" for line in adapter.ci_steps(root))
+                self.assertLessEqual(self.job_keys(self.workflow(setup)),
+                                     self.JOB_KEYS, adapter.name)
