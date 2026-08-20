@@ -300,6 +300,63 @@ transforms:
         self.assertIn("0002-later", out)
         self.assertIn("recorded", out)
 
+    # ── розрізи якості ──
+
+    def wave_without(self, heading):
+        """Хвиля, у якій один заголовок лишився без відповіді."""
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        lines = [l for l in text.split("\n") if not l.startswith(f"- {heading}:")]
+        self.fixture.write("keel/waves/0001-session-loop.md", "\n".join(lines))
+
+    def test_a_wave_without_the_cuts_section_is_incomplete(self):
+        """Прохід не перевіряється; перевіряється слід, який він лишає."""
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
+                           text.split("## Розрізи якості")[0])
+        problems = keel.gaps_problems(self.project, [self.project.waves["0001-session-loop"]])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("quality cuts", problems[0].message)
+
+    def test_every_heading_must_carry_an_answer(self):
+        for heading in ("Security", "Safety", "Flexibility"):
+            with self.subTest(heading=heading):
+                self.setUp()
+                self.wave_without(heading)
+                problems = keel.gaps_problems(
+                    self.project, [self.project.waves["0001-session-loop"]])
+                self.assertEqual([p.message for p in problems],
+                                 [f"the cut {heading} has no answer"])
+
+    def test_a_heading_named_with_nothing_after_it_is_no_answer(self):
+        """Порожній рядок — не відповідь: інакше девʼять двокрапок закривали б список."""
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
+                           text.replace("- Security: не стосується — інструментів ще немає.",
+                                        "- Security:"))
+        problems = keel.gaps_problems(self.project, [self.project.waves["0001-session-loop"]])
+        self.assertEqual([p.message for p in problems], ["the cut Security has no answer"])
+
+    def test_the_list_as_quality_md_writes_it_is_accepted(self):
+        """Скопіювати заголовки з номерами — найдешевше чесне; воно мусить проходити."""
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        head, _ = text.split("## Розрізи якості")
+        numbered = "\n".join(
+            f"**{n}. {h}** — не стосується, бо хвиля мала."
+            for n, h in enumerate(keel.QUALITY_HEADINGS, 1))
+        self.fixture.write("keel/waves/0001-session-loop.md",
+                           head + "## Розрізи якості\n\n" + numbered + "\n")
+        self.assertEqual(
+            keel.gaps_problems(self.project, [self.project.waves["0001-session-loop"]]), [])
+
+    def test_a_closed_wave_is_not_asked_for_a_section_that_did_not_exist(self):
+        """Інакше правило зробило б червоними всі хвилі, закриті до нього."""
+        self.close_the_wave()
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
+                           text.split("## Розрізи якості")[0])
+        self.assertEqual(
+            keel.gaps_problems(self.project, [self.project.waves["0001-session-loop"]]), [])
+
     def test_a_wave_without_transforms_is_not_closed_by_having_none(self):
         """Скелет, якого ніхто не заповнив, не є завершеною роботою."""
         text = self.fixture.read("keel/waves/0001-session-loop.md")

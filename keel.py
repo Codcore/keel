@@ -521,6 +521,17 @@ UK = {
         "лишено як є: закрита хвиля записує текст, проти якого доводили, "
         "а пізніший текст ним не є.",
     "nothing open drifted": "у роботі не розійшлось нічого",
+    "Quality cuts": "Розрізи якості",
+    "One line each, from keel/QUALITY.md: does not apply and why, the scenario "
+    "that answers it, or the boundary that says no out loud.":
+        "По рядку на кожен, за keel/QUALITY.md: не стосується і чому, сценарій, "
+        "який його закриває, або межа, що каже «ні» вголос.",
+    "no quality cuts section: one line per heading of QUALITY.md, each saying "
+    "does-not-apply with the reason, the scenario that answers it, or the "
+    "boundary that says no":
+        "немає розділу розрізів якості: по рядку на кожен заголовок QUALITY.md — "
+        "не стосується з причиною, сценарій, який відповідає, або межа, що каже «ні»",
+    "the cut {heading} has no answer": "розріз {heading} лишився без відповіді",
     "keel: {name} is the project's account of itself and no wave plans it, so "
     "writing it on {main} is allowed. Code still belongs on a branch named "
     "after a wave.":
@@ -1157,6 +1168,18 @@ class Wave(Doc):
             if title.strip().lower() in WHY_HEADINGS:
                 return text
         return ""
+
+    @property
+    def cuts(self):
+        """The quality-cuts section, or None when the wave has none at all.
+
+        None and "" are different answers: a wave without the section never
+        walked the list, a wave with an empty one started and stopped.
+        """
+        for title, text in self.sections.items():
+            if title.strip().lower() in CUTS_HEADINGS:
+                return text
+        return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3086,6 +3109,20 @@ transforms:
 {does}
 
 {bounds}: {bounds_hint}
+
+## {cuts}
+
+{cuts_hint}
+
+- Functional suitability:
+- Performance efficiency:
+- Compatibility:
+- Interaction capability:
+- Reliability:
+- Security:
+- Maintainability:
+- Flexibility:
+- Safety:
 """
 
 CONTRACT_SKELETON = """---
@@ -3104,6 +3141,15 @@ exports: []
 
 
 WHY_HEADINGS = ("why", "навіщо")
+CUTS_HEADINGS = ("quality cuts", "розрізи якості", "розрізи")
+
+# The nine headings of QUALITY.md. They are ISO 25010's names and read the same
+# in both translations, so the gate keys on them regardless of the project's
+# language — the same way `## scenario:` stays English in a Ukrainian wave.
+QUALITY_HEADINGS = (
+    "Functional suitability", "Performance efficiency", "Compatibility",
+    "Interaction capability", "Reliability", "Security", "Maintainability",
+    "Flexibility", "Safety")
 
 
 def wave_skeleton(slug):
@@ -3115,7 +3161,11 @@ def wave_skeleton(slug):
         why_hint=t(WHY_HINT),
         does=t("What it does."),
         bounds=t("Boundaries"),
-        bounds_hint=t("what it does not do."))
+        bounds_hint=t("what it does not do."),
+        cuts=t("Quality cuts"),
+        cuts_hint=t("One line each, from keel/QUALITY.md: does not apply and "
+                    "why, the scenario that answers it, or the boundary that "
+                    "says no out loud."))
 
 
 def contract_skeleton():
@@ -3254,6 +3304,52 @@ def unclaimed_contracts(project, wave):
         for slug in sorted(project.arriving_contracts - leaned_on)]
 
 
+def cut_answer(text, heading):
+    """What the wave wrote against one heading, or None when it wrote nothing.
+
+    The heading may carry a number and any separator — `2. Performance
+    efficiency — closed by …` — because that is how the list reads in
+    QUALITY.md and copying it verbatim is the cheapest honest thing to do.
+    """
+    # Every gap here is [ \t]*, never \s*: `\s` eats the newline, and a heading
+    # with nothing after it then borrows the next line's answer. Nine bare
+    # colons would have passed as nine answers — caught by the test that asks
+    # whether an empty line is an answer.
+    pattern = re.compile(
+        r"^[ \t\-*>#]*(?:\d+\.[ \t]*)?\**" + re.escape(heading)
+        + r"\**[ \t]*[—:\-–]?[ \t]*(.*)$",
+        re.M | re.I)
+    for match in pattern.finditer(text or ""):
+        answer = match.group(1).strip(" *_`—–-")
+        if answer:
+            return answer
+    return None
+
+
+def missing_cuts(project, wave):
+    """The nine headings of QUALITY.md, each answered in one line.
+
+    The walk itself cannot be gated — a tool sees the trace, never the
+    thinking. Nine lines are the cheapest trace that cannot be produced from
+    memory: the headings have to be read to be named. It is a weaker promise
+    than the walk and an honest one, and it stays a line in the diff.
+
+    A closed wave is exempt: its plan is history, and demanding the section
+    from work that finished before the rule existed would make the gate red
+    everywhere at once — which is how a gate teaches people not to look at it.
+    """
+    if closed_wave(project, wave) or not wave.transforms:
+        return []
+    text = wave.cuts
+    if text is None:
+        return [Problem(0, t("no quality cuts section: one line per heading of "
+                             "QUALITY.md, each saying does-not-apply with the "
+                             "reason, the scenario that answers it, or the "
+                             "boundary that says no"), wave.rel)]
+    return [Problem(0, t("the cut {heading} has no answer", heading=heading), wave.rel)
+            for heading in QUALITY_HEADINGS if cut_answer(text, heading) is None]
+
+
 def gaps_problems(project, waves):
     """What a plan is missing mechanically. Read by `gaps` and by `check`.
 
@@ -3299,6 +3395,7 @@ def gaps_problems(project, waves):
                 problems.append(Problem(
                     0, t("scenario {slug} has no body: given/when/then", slug=slug), wave.rel))
 
+        problems += missing_cuts(project, wave)
         problems += missing_edges(project, wave)
         problems += unclaimed_contracts(project, wave)
 
@@ -4208,6 +4305,17 @@ once the plan is already committed is not a failed pass: put it where it belongs
 in the commit that it arrived late. Walking the list a second time to be sure
 costs more than the two lines that admission takes.
 
+**Leave the trace.** The wave carries a `Quality cuts` section with one line per
+heading — nine, the ones `keel new wave` already put in the file. `gaps` calls
+the plan incomplete without them, and so does `check` before the push. This is
+not the walk and does not pretend to be: the walk cannot be gated, the trace
+can. Copy the heading, then say which of the three answers it got — the reason
+it does not apply, the scenario that closes it, or the boundary that says no.
+
+The gate is satisfied by nine shallow lines, and shallow lines are visible to
+whoever reads the diff. That is the whole of what it buys: the list gets opened,
+and what was answered stays on the record.
+
 Check what arrived with the library before claiming something is missing.
 
 ## Where the line runs
@@ -4346,6 +4454,19 @@ the gate says no CI command is named, say so to the operator and ask what the
 project's own run should be — do not invent one, and do not write `none` on
 their behalf: that is their decision to make out loud, not yours to make for
 them.
+
+**Reread the nine lines the plan left.** The `Quality cuts` section says what
+each heading got: the reason it does not apply, the scenario that closes it, or
+the boundary that says no. Ask of each line not "was it written" but **is it
+still true of the code that now exists**. A line that said "does not apply"
+about a wave that has since grown a socket, a queue or a second caller is no
+longer true; a line that named a scenario is a claim that the test proves the
+whole cut, not a corner of it.
+
+This is not the walk again — §10.2 says once, and once is right. It is the
+narrower question the record makes possible: the plan promised, the code
+arrived, and only now can the two be compared. Whatever moved gets said in the
+PR like any other drift.
 
 Then the part no check can see. Reread the wave and ask not "what else should be
 true" but **what did we stay silent about**. Most often the silence is about

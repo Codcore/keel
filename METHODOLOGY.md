@@ -361,6 +361,15 @@ against the dependency exactly as a quality cut is.
 *Grounds: `QUALITY.md`, the rule about libraries. The story that produced it
 lives there and only there.*
 
+**§10.6.** A wave carries an answer to each of the nine headings of
+`QUALITY.md` — one line each. Without them the plan is incomplete.
+
+*Grounds: the walk itself cannot be verified — a tool sees the trace, never the
+thinking. Nine lines are the cheapest trace that cannot be written from memory:
+naming the headings means opening the file. It is a weaker promise than the
+walk and an honest one — the line stays in the diff, and an empty one is
+visible to the eye.*
+
 ---
 
 ## Appendix A. An example
