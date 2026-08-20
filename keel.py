@@ -197,7 +197,7 @@ UK = {
 
     # вивід команд
     '<what was done>': '<що зроблено>',
-    'Wave {id} · {file}': 'Крок {id} · {file}',
+    'Wave {id} · {file}': 'Хвиля {id} · {file}',
     'Closed: {names}': 'Закрито: {names}',
     'After this one: {names}': 'Після цієї: {names}',
     'Why the wave': 'Навіщо хвиля',
@@ -260,11 +260,11 @@ UK = {
         "встановлено — впишіть руками або приберіть те, що заважає",
     "{name} was deleted on this branch. A wave or a contract outlives the "
     "branch that removes it — say so in the pull request, or put it back.":
-        "{name} видалено на цій гілці. Крок і контракт живуть довше за гілку, "
+        "{name} видалено на цій гілці. Хвиля і контракт живуть довше за гілку, "
         "яка їх прибирає — скажіть про це в PR або поверніть на місце.",
     "wave {wave} has two scenarios that read as {slug} once dashes and "
     "underscores are levelled, and a tag names only that — rename one":
-        "у кроці {wave} два сценарії читаються як {slug}, щойно зрівняти дефіси "
+        "у хвилі {wave} два сценарії читаються як {slug}, щойно зрівняти дефіси "
         "з підкресленнями, а тег називає тільки це — перейменуйте один",
     "keel: the head is detached, so there is no wave to judge this write "
     "against. Scope is not being checked.":
@@ -446,7 +446,7 @@ UK = {
     "{name} is not declared in wave {wave}. Declared: {declared}. If this file "
     "is the one you need, add it to the transform in {file}: drift is not "
     "forbidden, it has to stay a line in the diff.":
-        "{name} не оголошено в кроці {wave}. Оголошено: {declared}. Якщо потрібен "
+        "{name} не оголошено в хвилі {wave}. Оголошено: {declared}. Якщо потрібен "
         "саме цей файл, додай його до трансформа в {file}: відхилення не "
         "заборонене, воно має лишитись рядком у diff.",
     "⚠ the wave holds {held}, the contract is now {now} — keel rev first":

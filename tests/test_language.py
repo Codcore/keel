@@ -317,3 +317,37 @@ class TestSpokenLanguage(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheRenameReachedTheTranslationToo(unittest.TestCase):
+    """A step became a wave, and the Ukrainian table kept the retired word.
+
+    Four strings said «крок» where the English said wave — among them the header
+    `keel next` prints, so the operator was told the old name for the central
+    idea on every single run. The same rename went the other way in the CI
+    template and broke it; a rename that lands unevenly is the failure, not the
+    direction it misses in.
+    """
+
+    RETIRED = re.compile(r"\b[Кк]ро(к|ці|ку|ком|ки|ків)\b")
+
+    def pairs_about_waves(self):
+        """English that says the word, not English that interpolates the name:
+        `{waves}: the plan is not written yet` carries the names in the
+        placeholder, and a translation repeating the noun would be worse."""
+        return [(en, uk) for en, uk in keel.UK.items()
+                if re.search(r"\bwaves?\b", re.sub(r"\{[^}]*\}", "", en).lower())]
+
+    def test_there_are_such_strings_to_check(self):
+        """Otherwise the one below passes by having nothing to look at."""
+        self.assertGreater(len(self.pairs_about_waves()), 3)
+
+    def test_each_of_them_names_a_wave(self):
+        for en, uk in self.pairs_about_waves():
+            self.assertIn("хвил", uk.lower(), en)
+
+    def test_the_retired_word_is_gone_from_the_whole_table(self):
+        """Not only from the strings about waves: it is the old name for the
+        central idea, and anywhere it survives it teaches the wrong one."""
+        for en, uk in keel.UK.items():
+            self.assertIsNone(self.RETIRED.search(uk), en)
