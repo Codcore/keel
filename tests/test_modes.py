@@ -299,9 +299,13 @@ class TestSomebodyElsesSettingsFile(ModeCase):
             self.assertEqual(handle.read(), "{ це не json\n")
 
     def test_an_empty_hooks_object_of_ours_is_removed_not_left_hanging(self):
+        """Either answer satisfies the name: the file keeps its own keys without
+        ours, or — holding nothing but ours — it goes with them."""
         self.init()
         self.init(mode="manual")
-        self.assertNotIn("hooks", self.read_settings())
+        path = os.path.join(self.root, keel.CLAUDE_SETTINGS)
+        if os.path.exists(path):
+            self.assertNotIn("hooks", self.read_settings())
 
     def test_a_foreign_empty_event_is_not_tidied_away(self):
         """{"PreToolUse": []} без нічого нашого — чужа форма, не наша прибирати.

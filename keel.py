@@ -341,6 +341,12 @@ UK = {
         "не перейменовують і не видаляють заради зеленої перевірки — лишіть його "
         "на місці й скажіть, що він там є.",
     "bad slug: {slug}": "поганий слаг: {slug}",
+    "{file} removed — nothing of ours left in it":
+        "{file} прибрано — нашого в ньому не лишилось",
+    "{key} in {file} has to be a list":
+        "{key} у {file} має бути списком",
+    "{file} names {what} under {key}, and there is no such one — known: {known}":
+        "{file} називає {what} під ключем {key}, а такого немає — відомі: {known}",
     "already there: {path}": "вже є: {path}",
     "no such wave: {wave}": "хвилі немає: {wave}",
     "branch {branch}": "гілка {branch}",
@@ -2022,23 +2028,14 @@ KEEL_OWNED_FILES = (CURSOR_HOOKS, CI_FILE, "AGENTS.md")
 # wrote in one depends on a setting — so ownership here is answered by evidence:
 # our mark is in the file, or the file is not ours.
 KEEL_MERGED_FILES = (CLAUDE_SETTINGS, KEEL_AGENT_SETTINGS)
-def carries_our_hooks(path):
-    """Whether one of our hook entries is actually in this settings file.
-
-    Unreadable, absent, or somebody else's shape all answer no: ownership is a
-    claim, and a claim we cannot see the grounds for is one we do not make.
-    """
-    try:
-        data = json.loads(read_text(path))
-    except (ValueError, OSError):
-        return False
-    hooks = data.get("hooks") if isinstance(data, dict) else None
-    if not isinstance(hooks, dict):
-        return False
-    return any(is_ours(entry) for entries in hooks.values()
-               if isinstance(entries, list) for entry in entries)
-
-
+# Folders that are ours to sweep once they are empty. `.claude/` and `.cursor/`
+# are not on it — those belong to the agents themselves and hold their own
+# things; `keel/` is not either, because it is the project's documents and an
+# empty one is still where `find_root` looks. `.keel-agent/` is ours whole, and
+# leaving it standing after a retraction is the very litter the setting exists
+# to avoid.
+PRUNABLE_DIRS = (".claude/skills", ".cursor/skills",
+                 ".keel-agent/skills", ".keel-agent")
 def keel_owns(name, root=None):
     """Ours, by whole path — not by anything that merely starts the same way.
 
@@ -2046,17 +2043,33 @@ def keel_owns(name, root=None):
     let a plan branch modify somebody's unrelated file and let `init` sweep it
     into its own commit — against the one promise that commit makes.
 
-    Two settings files are answered differently, by evidence rather than by
-    list. They are the project's, not ours; we merge entries into them and only
-    where a setting asked for it. On the list they would be exempt from the
-    scope check in every project, including the ones we never wrote in — an
-    exemption nobody asked for and nobody would see. Without a root there is no
-    evidence to read, so the answer is no.
+    Two settings files are answered by record rather than by list. They are the
+    project's, not ours; we merge entries into them and only where a setting
+    asked for it. On the list they would be exempt from the scope check in every
+    project, including the ones we never wrote in.
+
+    The record is the digest of the file as we left it, and the test is whether
+    it still reads that way. Asking instead whether our entries are *in* the
+    file was the obvious answer and the wrong one: taking our entries out is
+    itself something we do, and the moment we did it the file stopped being
+    ours — so `update` narrowed a mode on a plan branch, edited the file, and
+    check 4 condemned that very edit with nothing that could satisfy it. A
+    record survives the edit that clears the evidence; evidence does not.
+
+    A file somebody else has since touched no longer matches, and is theirs
+    again — which is the right answer for a file that holds their keys beside
+    ours. Without a root there is nothing to read, so the answer is no.
     """
     if name.startswith(KEEL_OWNED_DIRS) or name in KEEL_OWNED_FILES:
         return True
     if name in KEEL_MERGED_FILES and root is not None:
-        return carries_our_hooks(os.path.join(root, name))
+        recorded = read_merged(root).get(name)
+        if recorded is None:
+            return False
+        path = os.path.join(root, name)
+        if not os.path.exists(path):
+            return recorded == ""      # gone because we took it away
+        return digest(read_text(path)) == recorded
     return False
 
 
@@ -2997,7 +3010,7 @@ def run_checks(project, only=None, run_tests=True):
 # every other line the tool produces. The heading is the one structural word in
 # them, and the reader accepts either spelling — a project may change language
 # without its existing waves becoming unreadable.
-STEP_SKELETON = """---
+WAVE_SKELETON = """---
 depends_on: []
 
 scenarios:
@@ -3047,7 +3060,7 @@ WHY_HEADINGS = ("why", "навіщо")
 
 def wave_skeleton(slug):
     """One formatting pass: two would need the literal braces escaped twice."""
-    return STEP_SKELETON.format(
+    return WAVE_SKELETON.format(
         slug=slug,
         path=t("path/to/file"),
         why=t("Why"),
@@ -3708,6 +3721,42 @@ def refuse_broken_config(root):
         fail(t("{file} does not parse — fix it first. Regenerating on the "
                "defaults would rewrite the project in the wrong language.",
                file=CONFIG_FILE))
+    problem = config_list_problem(root)
+    if problem:
+        fail(problem)
+
+
+def config_list_problem(root):
+    """A list setting naming something we do not know.
+
+    read_config falls back to the default, which is right for a hook that has to
+    answer something and wrong for a command that installs: `["keel-agent",
+    "cursur"]` quietly equips claude and cursor — two the operator did not name
+    — and skips the one they did. `--agents` refuses a typo for exactly this
+    reason, and a file is not a softer place to make the same mistake.
+    """
+    path = os.path.join(root, CONFIG_FILE)
+    if not os.path.exists(path):
+        return None
+    try:
+        stored = json.loads(read_text(path))
+    except ValueError:
+        return None                      # config_broken says this one better
+    if not isinstance(stored, dict):
+        return None
+    for key, allowed in LISTS.items():
+        if key not in stored:
+            continue
+        value = stored[key]
+        if not isinstance(value, list):
+            return t("{key} in {file} has to be a list", key=key, file=CONFIG_FILE)
+        unknown = [item for item in value if item not in allowed]
+        if unknown:
+            return t("{file} names {what} under {key}, and there is no such one "
+                     "— known: {known}", file=CONFIG_FILE, key=key,
+                     what=", ".join(repr(str(item)) for item in unknown),
+                     known=", ".join(allowed))
+    return None
 
 
 def config_broken(root):
@@ -3756,7 +3805,7 @@ def read_config(root):
     return settings
 
 
-def write_config(root, settings, done, manifest=None):
+def write_config(root, settings, done, manifest=None, merged=None):
     path = os.path.join(root, CONFIG_FILE)
     # Overwriting an unreadable config would silently reset docs and lang to the
     # defaults and regenerate the skills with the wrong triggers; valid JSON that
@@ -3771,6 +3820,8 @@ def write_config(root, settings, done, manifest=None):
     stored.update(settings)
     if manifest is not None:
         stored["generated"] = manifest
+    if merged:
+        stored[MERGED_KEY] = merged
     text = json.dumps(stored, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     if os.path.exists(path) and read_text(path) == text:
         return
@@ -3779,6 +3830,28 @@ def write_config(root, settings, done, manifest=None):
         handle.write(text)
     if CONFIG_FILE not in done:
         done.append(CONFIG_FILE)
+
+
+MERGED_KEY = "merged"
+
+
+def read_merged(root):
+    """{relative path: digest of the file as Keel last left it}.
+
+    Its own key and not `generated`: those are files Keel writes whole and
+    `remove_retired` deletes when they stop being generated. These belong to the
+    project — deleting one because it is not in `generated_files` would take
+    somebody's configuration with it.
+    """
+    path = os.path.join(root, CONFIG_FILE)
+    if not os.path.exists(path):
+        return {}
+    try:
+        stored = json.loads(read_text(path))
+    except ValueError:
+        return {}
+    found = stored.get(MERGED_KEY) if isinstance(stored, dict) else None
+    return found if isinstance(found, dict) else {}
 
 
 def read_manifest(root):
@@ -4730,10 +4803,47 @@ def remove_retired(root, wanted, manifest, done):
             os.remove(path)
             done.append(t("{file} removed — no longer part of the methodology",
                           file=relative))
+            prune_empty(root, os.path.dirname(relative))
         del manifest[relative]
 
 
-def remove_hook_configs(root, done):
+def drop_if_empty(root, relative, done):    # noqa: C901
+    """A settings file we emptied is our leftover, not somebody's configuration.
+
+    `{}` holds nothing of theirs. Left behind it keeps `.keel-agent/` standing
+    after the retraction that was supposed to remove the folder.
+    """
+    path = os.path.join(root, relative)
+    if not os.path.exists(path):
+        return
+    try:
+        if json.loads(read_text(path)) != {}:
+            return
+    except ValueError:
+        return
+    os.remove(path)
+    done.append(t("{file} removed — nothing of ours left in it", file=relative))
+    prune_empty(root, os.path.dirname(relative))
+    return True
+
+
+def prune_empty(root, relative):
+    """Empty folders of ours, upwards, stopping where ours stop.
+
+    A retired skill left `.cursor/skills/keel-plan/` standing, and the folder
+    over it as well. For the third agent that defeats the point of asking
+    first: `.keel-agent/` outlived the retraction meant to take it away.
+    """
+    inside = tuple(folder + "/" for folder in PRUNABLE_DIRS)
+    while relative and (relative in PRUNABLE_DIRS or relative.startswith(inside)):
+        path = os.path.join(root, relative)
+        if not os.path.isdir(path) or os.listdir(path):
+            return
+        os.rmdir(path)
+        relative = os.path.dirname(relative)
+
+
+def remove_hook_configs(root, done, wrote=None):
     """Take back the hooks a narrower mode no longer wants.
 
     Installing is not the whole job. Switching a project from strict to manual
@@ -4745,9 +4855,9 @@ def remove_hook_configs(root, done):
     longer matches what we put there, it is named and left, the same answer
     `update` gives a hand-edited file.
     """
-    strip_claude_settings(os.path.join(root, CLAUDE_SETTINGS), done)
-    strip_claude_settings(os.path.join(root, KEEL_AGENT_SETTINGS), done,
-                          KEEL_AGENT_SETTINGS)
+    for relative in KEEL_MERGED_FILES:
+        strip_claude_settings(os.path.join(root, relative), done, relative, wrote)
+        drop_if_empty(root, relative, done)
     path = os.path.join(root, CURSOR_HOOKS)
     if not os.path.exists(path):
         return
@@ -4760,6 +4870,7 @@ def remove_hook_configs(root, done):
 
 
 def edit_claude_settings(path, change, done, note, create=False, file=None):
+    """Returns whether it wrote, so the caller can record what it left."""
     """Load, hand the file to `change`, write it back if anything moved.
 
     Both the adding and the removing pass go through here. Two copies of this
@@ -4768,23 +4879,24 @@ def edit_claude_settings(path, change, done, note, create=False, file=None):
     ours to rewrite.
     """
     if not os.path.exists(path) and not create:
-        return
+        return False
     # `note` is the line that goes into the report and `file` is what to call
     # the file if it will not parse. For the removing pass the note is a whole
     # sentence, and a refusal naming ".claude/settings.json (our hook entries
     # taken out)" points at nothing anybody can open.
     data = load_json_object(path, file or note)
     if data is None:
-        return
+        return False
 
     before = json.dumps(data, ensure_ascii=False, sort_keys=True)
     change(data)
     if json.dumps(data, ensure_ascii=False, sort_keys=True) == before:
-        return
+        return False
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
     done.append(note)
+    return True
 
 
 def ours_only(entries):
@@ -4799,7 +4911,7 @@ def ours_only(entries):
     return [item for item in entries if not is_ours(item)]
 
 
-def strip_claude_settings(path, done, label=None):
+def strip_claude_settings(path, done, label=None, wrote=None):
     """Ours out of a file that is not ours: the rest of it stays untouched."""
     label = label or CLAUDE_SETTINGS
     def change(data):
@@ -4822,12 +4934,13 @@ def strip_claude_settings(path, done, label=None):
         if touched and not hooks:
             del data["hooks"]
 
-    edit_claude_settings(path, change, done,
-                         t("{file} (our hook entries taken out)", file=label),
-                         file=label)
+    if edit_claude_settings(path, change, done,
+                            t("{file} (our hook entries taken out)", file=label),
+                            file=label) and wrote is not None:
+        wrote.append(label)
 
 
-def merge_claude_settings(path, done, label=None, agent="claude"):
+def merge_claude_settings(path, done, label=None, agent="claude", wrote=None):
     """Settings.json belongs to the project; we own only our own entries in it.
 
     Refusing to rewrite a shape that is not ours is right. Refusing in silence
@@ -4851,7 +4964,8 @@ def merge_claude_settings(path, done, label=None, agent="claude"):
                 continue
             hooks[event] = existing + entries
 
-    edit_claude_settings(path, change, done, label, create=True)
+    if edit_claude_settings(path, change, done, label, create=True) and wrote is not None:
+        wrote.append(label)
     if refused:
         done.append(t("{file}: {what} is somebody else's shape, so the write "
                       "guard was not installed there — put it in by hand or "
@@ -4859,7 +4973,20 @@ def merge_claude_settings(path, done, label=None, agent="claude"):
                       file=label, what=", ".join(refused)))
 
 
-def merge_agent_settings(root, settings, done):
+def merged_record(root, wrote):
+    """What Keel left in the shared files, so a later run tells its own edit
+    from somebody else's. A file we removed drops out of the record with it."""
+    record = dict(read_merged(root))
+    for relative in wrote:
+        path = os.path.join(root, relative)
+        # An empty string is not a missing entry: a file we removed is still a
+        # file we left the way it is, and dropping the record would make our own
+        # deletion read as somebody else's on the very next check.
+        record[relative] = digest(read_text(path)) if os.path.exists(path) else ""
+    return record
+
+
+def merge_agent_settings(root, settings, done, wrote=None):
     """The files Keel owns entries inside rather than whole, for whoever is asked for.
 
     Cursor's file is generated and travels with the rest; these two are merged,
@@ -4873,9 +5000,10 @@ def merge_agent_settings(root, settings, done):
                             ("keel-agent", KEEL_AGENT_SETTINGS)):
         path = os.path.join(root, relative)
         if agent in settings["agents"]:
-            merge_claude_settings(path, done, relative, agent)
+            merge_claude_settings(path, done, relative, agent, wrote)
         else:
-            strip_claude_settings(path, done, relative)
+            strip_claude_settings(path, done, relative, wrote)
+            drop_if_empty(root, relative, done)
 
 
 def is_ours(entry):
@@ -4948,7 +5076,11 @@ def cmd_skills(project, args=None):
     # keel wedged on its own output.
     manifest = read_manifest(project.root)
     write_skills(project.root, project.settings["lang"], done,
-                 mode=project.settings["mode"], manifest=manifest)
+                 mode=project.settings["mode"], manifest=manifest,
+                 # Without this the command that installs skills installed them
+                 # for the default two whatever the project asked, undoing what
+                 # `init` had just retired and never writing the third at all.
+                 agents=project.settings["agents"])
     write_config(project.root, project.settings, done, manifest)
     for line in done:
         print(f"  {line}")
@@ -4957,9 +5089,10 @@ def cmd_skills(project, args=None):
     return 0
 
 
-def write_skills(root, lang, done, manifest=None, mode=DEFAULTS["mode"]):
+def write_skills(root, lang, done, manifest=None, mode=DEFAULTS["mode"],
+                 agents=None):
     for skill in SKILLS:
-        for agent, relative in skill_targets(skill):
+        for agent, relative in skill_targets(skill, agents):
             write_if_changed(os.path.join(root, relative),
                              render_skill(skill, agent, lang, mode), done,
                              relative, manifest)
@@ -5042,17 +5175,19 @@ def cmd_init(project, args):
 
     # The two shared files generated_files cannot express: Keel owns entries
     # inside them, not the files.
+    wrote = []
     if agent_hooks_wanted(settings):
-        merge_agent_settings(project.root, settings, done)
+        merge_agent_settings(project.root, settings, done, wrote)
     else:
-        remove_hook_configs(project.root, done)
+        remove_hook_configs(project.root, done, wrote)
         done.append(t("no agent hooks: mode is {mode}", mode=settings["mode"]))
 
     block = agents_block(settings["docs"], principles)
     if update_agents(os.path.join(project.root, "AGENTS.md"), block):
         done.append("AGENTS.md " + t("(block between the markers)"))
 
-    write_config(project.root, settings, done, manifest)
+    write_config(project.root, settings, done, manifest,
+                 merged_record(project.root, wrote))
 
     for line in done:
         print(f"  {line}")
@@ -5389,16 +5524,18 @@ def cmd_update(project, args):
         block = agents_block(project.settings["docs"], principles)
         if update_agents(os.path.join(project.root, "AGENTS.md"), block):
             done.append("AGENTS.md " + t("(block between the markers)"))
+    wrote = []
     if agent_hooks_wanted(project.settings):
-        merge_agent_settings(project.root, project.settings, done)
+        merge_agent_settings(project.root, project.settings, done, wrote)
     else:
         # Refusing to add them back is half the job: a mode narrowed by hand in
         # keel.json would otherwise leave the old entries firing forever, and
         # generated_files no longer lists the cursor file, so survey never
         # mentions it either.
-        remove_hook_configs(project.root, done)
+        remove_hook_configs(project.root, done, wrote)
     remove_retired(project.root, wanted, manifest, done)
-    write_config(project.root, project.settings, done, manifest)
+    write_config(project.root, project.settings, done, manifest,
+                 merged_record(project.root, wrote))
 
     for line in done:
         print("  " + t("updated: {what}", what=line))

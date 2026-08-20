@@ -204,10 +204,9 @@ class TestScope(ProjectCase):
         for name in ("AGENTS.md", ".claude/skills/keel-plan/SKILL.md",
                      ".cursor/hooks.json", ".github/workflows/keel.yml"):
             self.fixture.write(name, "породжене\n")
-        # Written the way init writes it: a settings file is ours by the entries
-        # in it, not by its name, so a placeholder would not be ours at all.
-        self.fixture.write(keel.CLAUDE_SETTINGS, json.dumps(
-            {"hooks": keel.claude_hook_config()}, ensure_ascii=False) + "\n")
+        # Installed the way init installs it: a settings file is ours by the
+        # record of what Keel left there, so a placeholder is not ours at all.
+        self.fixture.install_hooks()
         self.assertEqual(keel.check_scope(self.project), [])
 
     def test_a_work_branch_may_carry_keels_own_files_too(self):
@@ -217,8 +216,7 @@ class TestScope(ProjectCase):
         for name in ("AGENTS.md", ".claude/skills/keel-plan/SKILL.md",
                      ".cursor/hooks.json", ".github/workflows/keel.yml"):
             self.fixture.write(name, "породжене\n")
-        self.fixture.write(keel.CLAUDE_SETTINGS, json.dumps(
-            {"hooks": keel.claude_hook_config()}, ensure_ascii=False) + "\n")
+        self.fixture.install_hooks()
         self.assertEqual(keel.check_scope(self.project), [])
 
     def test_a_declared_keel_file_earns_no_false_report(self):

@@ -104,6 +104,20 @@ class Fixture:
     def project(self):
         return keel.Project(self.root)
 
+    def install_hooks(self, agents=("claude",)):
+        """The shared settings files as `init` leaves them, record included.
+
+        Writing the file alone is not the same thing: ownership follows what
+        Keel recorded it had left, and a fixture that skips the record tests a
+        state the tool never produces.
+        """
+        wrote = []
+        keel.merge_agent_settings(
+            self.root, dict(keel.DEFAULTS, agents=list(agents)), [], wrote)
+        keel.write_config(self.root, keel.read_config(self.root), [], None,
+                          keel.merged_record(self.root, wrote))
+        return wrote
+
     def scenario_rev(self):
         return self.project().waves["0001-session-loop"].scenario_revision(
             "finishes-when-no-tool-called")

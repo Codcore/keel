@@ -25,18 +25,18 @@ class TestCiStepsWaitForTheirMarker(unittest.TestCase):
     def test_every_adapter_guards_its_install_on_the_marker(self):
         for cls in keel.ADAPTERS:
             adapter = cls()
-            waves = adapter.ci_steps(".")
-            if not waves:
+            steps = adapter.ci_steps(".")
+            if not steps:
                 continue
             guard = adapter.ci_guard()
             for name in adapter.marker:
                 self.assertIn(f"'{name}'", guard, cls.__name__)
-            installs = [line for line in waves
+            installs = [line for line in steps
                         if line.strip().startswith(("- uses:", "- run:"))]
             self.assertTrue(installs, cls.__name__)
             for line in installs:
-                position = waves.index(line)
-                self.assertEqual(waves[position + 1], guard,
+                position = steps.index(line)
+                self.assertEqual(steps[position + 1], guard,
                                  f"{cls.__name__}: {line.strip()} без умови")
 
     def test_the_condition_is_a_yaml_key_at_the_step_indent(self):

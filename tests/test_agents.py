@@ -131,10 +131,15 @@ class TestTheHooksGoIntoItsOwnFile(ProjectCase):
 
     def test_removing_takes_our_entries_out_of_that_file_too(self):
         self.merge(["keel-agent"])
-        done = []
-        keel.remove_hook_configs(self.fixture.root, done)
-        written = json.loads(self.fixture.read(keel.KEEL_AGENT_SETTINGS))
-        self.assertNotIn("hooks", written)
+        keel.remove_hook_configs(self.fixture.root, [])
+        path = self.fixture.path(keel.KEEL_AGENT_SETTINGS)
+        if os.path.exists(path):
+            self.assertNotIn("hooks", json.loads(self.fixture.read(
+                keel.KEEL_AGENT_SETTINGS)))
+        else:
+            # Holding nothing but ours, it left with them — and the folder that
+            # existed only for it goes too, which is the point of asking first.
+            self.assertFalse(os.path.exists(self.fixture.path(".keel-agent")))
 
 
 class TestTheFlagSaysWhoRatherThanGuessing(unittest.TestCase):
@@ -193,43 +198,66 @@ class TestDroppingAnAgentTakesItsHooksAway(ProjectCase):
         self.assertFalse(os.path.exists(self.fixture.path(keel.KEEL_AGENT_SETTINGS)))
 
 
-class TestOwnershipIsAnsweredByEvidence(ProjectCase):
-    """A settings file belongs to the project; we merge entries into it and only
-    where a setting asked for it. On the ownership list it would be exempt from
-    the scope check in every project, including the ones we never wrote in —
-    an exemption nobody asked for and nobody would see."""
+class TestOwnershipIsAnsweredByRecord(ProjectCase):
+    """A settings file belongs to the project and holds its keys beside ours.
 
-    def test_a_settings_file_we_never_wrote_in_is_not_ours(self):
-        self.fixture.write(keel.KEEL_AGENT_SETTINGS,
+    Ours is the record of what Keel left there, not the presence of our entries
+    in it: taking our entries out is itself something Keel does, and a rule
+    reading the file after that edit calls the edit somebody else's.
+    """
+
+    def test_a_file_we_never_wrote_in_is_not_ours(self):
+        self.fixture.write(keel.CLAUDE_SETTINGS,
                            json.dumps({"model": "theirs"}) + "\n")
-        self.assertFalse(keel.keel_owns(keel.KEEL_AGENT_SETTINGS, self.fixture.root))
         self.assertFalse(keel.keel_owns(keel.CLAUDE_SETTINGS, self.fixture.root))
 
-    def test_the_same_file_becomes_ours_once_our_entries_are_in_it(self):
-        keel.merge_agent_settings(self.fixture.root,
-                                  dict(keel.DEFAULTS, agents=["keel-agent"]), [])
-        self.assertTrue(keel.keel_owns(keel.KEEL_AGENT_SETTINGS, self.fixture.root))
+    def test_installing_makes_it_ours(self):
+        self.fixture.install_hooks()
+        self.assertTrue(keel.keel_owns(keel.CLAUDE_SETTINGS, self.fixture.root))
 
-    def test_and_stops_being_ours_when_they_are_taken_out(self):
-        keel.merge_agent_settings(self.fixture.root,
-                                  dict(keel.DEFAULTS, agents=["keel-agent"]), [])
-        keel.remove_hook_configs(self.fixture.root, [])
-        self.assertFalse(keel.keel_owns(keel.KEEL_AGENT_SETTINGS, self.fixture.root))
+    def test_it_stays_ours_after_keel_takes_its_own_entries_out(self):
+        """The regression this rule exists for. `update` narrowing a mode on a
+        plan branch edited the file, and check 4 then condemned that edit with
+        nothing that could satisfy it — the file had stopped being ours at the
+        moment we changed it."""
+        self.fixture.install_hooks()
+        wrote = []
+        keel.remove_hook_configs(self.fixture.root, [], wrote)
+        keel.write_config(self.fixture.root, keel.read_config(self.fixture.root),
+                          [], None, keel.merged_record(self.fixture.root, wrote))
+        # Holding nothing but ours, it goes with them — and it stays ours while
+        # it does, or check 4 would condemn our own removal.
+        self.assertFalse(os.path.exists(self.fixture.path(keel.CLAUDE_SETTINGS)))
+        self.assertTrue(keel.keel_owns(keel.CLAUDE_SETTINGS, self.fixture.root))
+
+    def test_a_hand_edit_gives_it_back_to_the_project(self):
+        self.fixture.install_hooks()
+        data = json.loads(self.fixture.read(keel.CLAUDE_SETTINGS))
+        data["model"] = "theirs"
+        self.fixture.write(keel.CLAUDE_SETTINGS, json.dumps(data) + "\n")
+        self.assertFalse(keel.keel_owns(keel.CLAUDE_SETTINGS, self.fixture.root))
+
+    def test_a_file_somebody_else_deleted_is_not_ours(self):
+        """Gone at our hand is recorded as gone; gone at theirs is not."""
+        self.fixture.install_hooks()
+        os.remove(self.fixture.path(keel.CLAUDE_SETTINGS))
+        self.assertFalse(keel.keel_owns(keel.CLAUDE_SETTINGS, self.fixture.root))
+
+    def test_the_third_agents_file_follows_the_same_rule(self):
+        self.fixture.install_hooks(agents=["keel-agent"])
+        self.assertTrue(keel.keel_owns(keel.KEEL_AGENT_SETTINGS, self.fixture.root))
+        self.assertFalse(keel.keel_owns(keel.CLAUDE_SETTINGS, self.fixture.root))
 
     def test_without_a_root_there_is_nothing_to_read_and_the_answer_is_no(self):
         self.assertFalse(keel.keel_owns(keel.CLAUDE_SETTINGS))
 
-    def test_a_file_that_will_not_parse_is_not_claimed(self):
-        """A claim we cannot see the grounds for is one we do not make."""
-        self.fixture.write(keel.CLAUDE_SETTINGS, "{ not json\n")
-        self.assertFalse(keel.keel_owns(keel.CLAUDE_SETTINGS, self.fixture.root))
-
     def test_the_skills_folder_is_still_ours_by_structure(self):
-        """Only we write there, so no evidence is needed and none is read."""
+        """Only we write there, so no record is needed and none is read."""
         self.assertTrue(keel.keel_owns(".keel-agent/skills/keel-plan/SKILL.md"))
 
     def test_its_sessions_are_never_ours(self):
-        self.assertFalse(keel.keel_owns(".keel-agent/sessions/2026-01-01.jsonl"))
+        self.assertFalse(keel.keel_owns(".keel-agent/sessions/x.jsonl",
+                                        self.fixture.root))
 
 
 class TestTheDefaultListIsNotSharedBetweenReaders(ProjectCase):
@@ -304,6 +332,66 @@ class TestInitTakesBackWhatItStopsGenerating(unittest.TestCase):
         self.assertFalse(self.there(".keel-agent/skills/keel-plan/SKILL.md"))
         self.init(agents=["claude", "cursor", "keel-agent"])
         self.assertTrue(self.there(".keel-agent/skills/keel-plan/SKILL.md"))
+
+
+class TestTheCommandsAgreeAboutTheSetting(unittest.TestCase):
+    """`init` and `skills` install the same things; they must ask the same
+    question about whom for. They did not: `skills` installed for the default
+    two whatever the project had asked."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-agree-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        with open(os.path.join(self.root, "mix.exs"), "w", encoding="utf-8") as h:
+            h.write("defmodule D.MixProject do\nend\n")
+        subprocess.run(["git", "init", "-b", "main", "-q", self.root], check=True)
+
+    def run_quiet(self, command, **kwargs):
+        stream, saved = io.StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            return command(keel.Project(self.root),
+                           Args(**{"install": True, "force": False,
+                                   "no_commit": True, **kwargs}))
+        finally:
+            sys.stdout = saved
+
+    def there(self, relative):
+        return os.path.exists(os.path.join(self.root, relative))
+
+    def test_skills_installs_for_whom_the_project_asked(self):
+        self.run_quiet(keel.cmd_init, agents=["claude"])
+        self.run_quiet(keel.cmd_skills)
+        self.assertTrue(self.there(".claude/skills/keel-plan/SKILL.md"))
+        self.assertFalse(self.there(".cursor/skills/keel-plan/SKILL.md"))
+
+    def test_skills_reaches_the_third_when_it_was_asked_for(self):
+        self.run_quiet(keel.cmd_init, agents=["keel-agent"])
+        os.remove(os.path.join(self.root, ".keel-agent/skills/keel-plan/SKILL.md"))
+        self.run_quiet(keel.cmd_skills)
+        self.assertTrue(self.there(".keel-agent/skills/keel-plan/SKILL.md"))
+
+    def test_narrowing_leaves_no_empty_folders_behind(self):
+        self.run_quiet(keel.cmd_init, agents=["claude", "cursor", "keel-agent"])
+        self.run_quiet(keel.cmd_init, agents=["claude"])
+        self.assertFalse(self.there(".cursor/skills"))
+        self.assertFalse(self.there(".keel-agent"))
+        self.assertTrue(self.there(".cursor"))      # theirs, not ours to sweep
+        self.assertTrue(self.there(".claude/skills"))
+
+    def test_a_typo_in_the_file_refuses_as_loudly_as_one_in_the_flag(self):
+        """read_config falls back to the default, which for a command that
+        installs means equipping two agents nobody named and skipping the one
+        they did."""
+        self.run_quiet(keel.cmd_init, agents=["keel-agent"])
+        path = os.path.join(self.root, keel.CONFIG_FILE)
+        stored = json.loads(keel.read_text(path))
+        stored["agents"] = ["keel-agent", "cursur"]
+        with open(path, "w", encoding="utf-8") as h:
+            h.write(json.dumps(stored, indent=2) + "\n")
+        with self.assertRaises(SystemExit):
+            self.run_quiet(keel.cmd_skills)
+        self.assertIsNotNone(keel.config_list_problem(self.root))
 
 
 if __name__ == "__main__":
