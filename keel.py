@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.8.5"
+VERSION = "0.8.6"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -163,6 +163,8 @@ UK = {
     "the test holds {slug}@{held}, and the scenario is now {now}":
         "тест тримає редакцію {slug}@{held}, а сценарій зараз {now}",
     "the tests are red ({command}):": "тести червоні ({command}):",
+    "branch {branch} is already merged into {main}: the wave is finished and there is no work here. The next one starts from {main}.":
+        "гілку {branch} уже злито в {main}: хвиля скінчена, роботи тут немає. Наступна починається з {main}.",
     "…and {count} more": "…і ще {count}",
     "verify has to be a command as a string, and this is {kind}: {value}":
         "verify має бути командою рядком, а тут {kind}: {value}",
@@ -1289,6 +1291,18 @@ class Git:
 
     def merge_base(self, other):
         return self.out("merge-base", other, "HEAD")
+
+    def head_is_in(self, other):
+        """Is everything on this branch already on `other`?
+
+        True the moment a wave branch is merged. From then on the range the
+        branch's work lives in — merge_base..HEAD — is empty, because the merge
+        base *is* HEAD, and every transform reads as unclosed.
+        """
+        if not self.available:
+            return False
+        code, _out, _err = self.run("merge-base", "--is-ancestor", "HEAD", other)
+        return code == 0
 
     def changed_files(self, base):
         """All the branch changed: commits since the base plus what is not committed."""
@@ -3752,6 +3766,22 @@ def cmd_next(project, args):
                     main=project.git.main_branch))
     if wave.error:
         return emit_next_error(args, f"{wave.rel}: {wave.error}")
+    # Merged, and therefore finished. Closure is counted over merge_base..HEAD,
+    # and once the branch is on main that range is empty — the merge base is
+    # HEAD — so every transform reads as unclosed and `next` hands out the
+    # first one again. Recovering the range afterwards is not possible and not
+    # needed: work does not come off a branch that is already in. Found live,
+    # by an agent that took the packet and went looking for what to redo.
+    # …and main закриває бодай одну трансформу цієї хвилі. Свіжа робоча гілка
+    # теж міститься в main — комітів на ній ще немає, — і git ці два стани не
+    # розрізняє. Розрізняє історія main: після злиття вона несе коміти цієї
+    # хвилі, до першого коміту гілки — ні.
+    if (project.git.head_is_in(project.git.main_branch)
+            and len(project.unclosed_on_main(wave)) < len(wave.transforms)):
+        return emit_next_error(
+            args, t("branch {branch} is already merged into {main}: the wave is "
+                    "finished and there is no work here. The next one starts "
+                    "from {main}.", branch=branch, main=project.git.main_branch))
 
     slug, state = next_transform(project, wave)
     if slug is None:

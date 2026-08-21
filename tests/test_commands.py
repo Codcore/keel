@@ -1054,3 +1054,62 @@ class TestAWaveNobodyHasBegunIsNotJudged(ProjectCase):
         self.close_the_only_transform()
         self.plan_a_second_wave()
         self.assertNotIn("session-run", keel.unbegun_contracts(self.project))
+
+
+class TestAMergedBranchHandsOutNoWork(ProjectCase):
+    """Знайдено живим: агент узяв пакет і пішов шукати, що там переробити.
+
+    Закриття рахується по діапазону `merge_base..HEAD`. Щойно гілку злито,
+    той діапазон порожній — точкою розходження стає сам HEAD, — і кожна
+    трансформа читається як незакрита. `next` видавав першу заново.
+
+    Відновити діапазон після злиття не можна й не треба: робота не береться
+    з гілки, яка вже всередині.
+    """
+
+    def run_next(self):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_next(self.project, Args(json=False))
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def work_branch(self):
+        self.fixture.git("checkout", "-b", "0001-session-loop")
+
+    def close_the_transform(self):
+        self.fixture.git("commit", "--allow-empty", "-m", "drive-turns: зроблено")
+
+    def merge_into_main(self):
+        self.fixture.git("checkout", "main")
+        self.fixture.git("merge", "--no-ff", "-m", "злиття", "0001-session-loop")
+        self.fixture.git("checkout", "0001-session-loop")
+
+    def test_a_merged_branch_says_the_wave_is_finished(self):
+        self.work_branch()
+        self.close_the_transform()
+        self.merge_into_main()
+        code, out = self.run_next()
+        self.assertNotEqual(code, 0, out)
+        self.assertIn("already merged", out)
+
+    def test_a_fresh_branch_still_hands_out_the_first_transform(self):
+        """Межа, об яку легко спіткнутись: свіжа гілка теж міститься в main.
+
+        Комітів на ній ще немає, тож git ці два стани не розрізняє. Розрізняє
+        історія main — вона закриває трансформи цієї хвилі лише після злиття.
+        """
+        self.work_branch()
+        code, out = self.run_next()
+        self.assertEqual(code, 0, out)
+        self.assertIn("drive-turns", out)
+
+    def test_a_branch_with_work_on_it_is_untouched(self):
+        self.work_branch()
+        self.fixture.git("commit", "--allow-empty", "-m", "щось інше")
+        code, out = self.run_next()
+        self.assertEqual(code, 0, out)
+        self.assertIn("drive-turns", out)
