@@ -282,6 +282,21 @@ moves that state onto main rather than ending it, and until the work lands a red
 main means nothing. The cost was not only that: while main is red, what §4.11
 allows through cannot be pushed either.*
 
+**§7.12.** A test that has never been seen red is undemonstrated. Before
+believing green, break what the test guards and watch it fail.
+
+*Rationale: green says nothing about proving power. A test that checks the wrong
+thing, compares against the wrong value, or lost its assertion is green as well,
+and from outside the two are identical. The difference shows only with the code
+broken.*
+
+**§7.13.** The suite is run more than once before green is accepted.
+
+*Rationale: a single run hides everything that depends on order, timing, or a
+process that outlived its test. Three or four runs cost a minute and have twice
+caught a real defect that would otherwise have surfaced later as "it fails
+sometimes" — the worst kind, because by then nobody trusts the gate.*
+
 ---
 
 ## Chapter 8. Branches and acceptance

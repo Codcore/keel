@@ -306,3 +306,61 @@ class TestTheProjectGateStandsDownOnAPlanBranch(ProjectCase):
         # виводі — шукати не те. Питання тут одне: чи є рядок про CI взагалі.
         self.assertEqual(
             [line for line in out.splitlines() if line.startswith("– CI")], [])
+
+
+class TestTheMutationCommandIsTheProjectsOwn(ProjectCase):
+    """§7.12 каже: тест, якого не бачили червоним, не доведений.
+
+    Один зі способів це побачити — мутаційний прогін: інструмент ламає код по
+    одній зміні за раз і дивиться, чи хоч один тест червоніє. Keel про мутації
+    не знає нічого: проєкт називає команду, Keel її запускає.
+
+    Не в `check`, і це не дрібниця. Мутаційний прогін ламає код раз на мутанта
+    й щоразу ганяє набір — це хвилини або години. Заслон, якого ніхто не
+    дочекається, — це заслон, який обходять.
+    """
+
+    def run_mutate(self):
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_mutate(self.project, Args())
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def settings(self, command):
+        path = self.fixture.path(keel.CONFIG_FILE)
+        stored = json.loads(keel.read_text(path)) if os.path.exists(path) else {}
+        stored["mutation"] = command
+        self.fixture.write(keel.CONFIG_FILE, json.dumps(stored) + "\n")
+
+    def test_a_command_that_passes_is_green(self):
+        self.settings("true")
+        code, _ = self.run_mutate()
+        self.assertEqual(code, 0)
+
+    def test_a_command_that_fails_is_red(self):
+        """Мутант вижив — отже якийсь тест нічого не стереже."""
+        self.settings("false")
+        code, _ = self.run_mutate()
+        self.assertEqual(code, 1)
+
+    def test_no_command_is_said_out_loud_and_is_not_red(self):
+        """Мовчання тут читалось би як «усе гаразд», а це інший факт."""
+        code, out = self.run_mutate()
+        self.assertEqual(code, 0)
+        self.assertIn("no mutation command", out)
+
+    def test_refusing_out_loud_is_silent(self):
+        """`none` — рішення не мати цього, сказане вголос. Воно мовчить."""
+        self.settings("none")
+        code, out = self.run_mutate()
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "")
+
+    def test_a_command_that_is_not_there_says_so_instead_of_a_traceback(self):
+        self.settings("/немає/такої/програми")
+        code, out = self.run_mutate()
+        self.assertEqual(code, 1)
+        self.assertNotIn("Traceback", out)

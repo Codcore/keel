@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.8.6"
+VERSION = "0.8.7"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -165,6 +165,12 @@ UK = {
     "the tests are red ({command}):": "тести червоні ({command}):",
     "branch {branch} is already merged into {main}: the wave is finished and there is no work here. The next one starts from {main}.":
         "гілку {branch} уже злито в {main}: хвиля скінчена, роботи тут немає. Наступна починається з {main}.",
+    "no mutation command: nothing here shows whether the tests can fail at all. Name one in {file} (\"mutation\": \"{example}\"), or say there is none (\"mutation\": \"none\").":
+        "команди мутацій немає: ніщо тут не показує, чи здатні тести впасти взагалі. Назвіть її у {file} (\"mutation\": \"{example}\") або скажіть, що її немає (\"mutation\": \"none\").",
+    "the mutation run did not finish within {seconds}s: {command}":
+        "мутаційний прогін не вклався у {seconds}с: {command}",
+    "the mutation command could not run ({command}): {reason}":
+        "команда мутацій не запустилась ({command}): {reason}",
     "…and {count} more": "…і ще {count}",
     "verify has to be a command as a string, and this is {kind}: {value}":
         "verify має бути командою рядком, а тут {kind}: {value}",
@@ -564,6 +570,11 @@ VERIFY_TIMEOUT = 30
 # a suite, not one probe. Bounded all the same — a hung command holds pre-push
 # and says nothing while it does.
 CI_TIMEOUT = 900
+# Four hours. A mutation run rebuilds and re-runs the suite once per mutant, so
+# the honest bound is hours, not minutes — but a bound there must be: a run that
+# hangs at three in the morning and is found at nine has cost a night and proved
+# nothing. Generous enough that hitting it means something is wrong.
+MUTATION_TIMEOUT = 4 * 60 * 60
 # The command is free text, so the two words that are not commands have to be
 # spelled: nothing decided yet, and deliberately no gate.
 CI_UNDECIDED = ""
@@ -3560,6 +3571,47 @@ def cmd_gaps(project, args):
     return 1
 
 
+def cmd_mutate(project, args):
+    """Run the project's own mutation command and report what it said.
+
+    Keel knows nothing about mutation testing, and does not need to: the
+    project names the command, Keel runs it and looks at the exit code. The
+    same shape as the CI command and a contract's `verify`, for the same
+    reason — who makes the promise does not matter, that it can be checked does.
+
+    Its own command rather than part of `check`, because a mutation run breaks
+    the code once per mutant and runs the suite each time. That is minutes to
+    hours, and a gate nobody can afford to wait for is a gate that gets skipped.
+    §7.12 says a test unseen red is undemonstrated; this is one way to see it,
+    once per wave, and the review is where it belongs.
+    """
+    command = (project.settings.get("mutation") or "").strip()
+    if command == CI_REFUSED:
+        return 0
+    if not command:
+        print(t("no mutation command: nothing here shows whether the tests can "
+                "fail at all. Name one in {file} (\"mutation\": \"{example}\"), "
+                "or say there is none (\"mutation\": \"none\").",
+                file=CONFIG_FILE, example=t("your command")))
+        return 0
+    print(command)
+    try:
+        proc = subprocess.run(command, shell=True, cwd=project.root,
+                              stdin=subprocess.DEVNULL, timeout=MUTATION_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        print(t("the mutation run did not finish within {seconds}s: {command}",
+                seconds=MUTATION_TIMEOUT, command=command))
+        return 1
+    except OSError as exc:
+        print(t("the mutation command could not run ({command}): {reason}",
+                command=command, reason=exc.strerror or exc))
+        return 1
+    # The output went straight to the terminal, unswallowed: a mutation run is
+    # long, and a person watching it needs to see it move. What survived is the
+    # tool's own report to read, not ours to summarise.
+    return 0 if proc.returncode == 0 else 1
+
+
 def cmd_check(project, args):
     only = FAST_CHECKS if args.fast else None
     structural, results = run_checks(project, only, run_tests=not args.no_tests)
@@ -3945,7 +3997,7 @@ ADAPTER_NAMES = ("",) + tuple(adapter.name for adapter in ADAPTERS)
 # stored so the first routine update does not quietly revert their choice.
 DEFAULTS = {"docs": PUBLISHED_LANG, "lang": PUBLISHED_LANG, "mode": "strict",
             "adapter": "", "agent_hooks": "", "ci": CI_UNDECIDED,
-            "agents": list(DEFAULT_AGENTS)}
+            "mutation": CI_UNDECIDED, "agents": list(DEFAULT_AGENTS)}
 ALLOWED = {"docs": LANGS, "lang": LANGS, "mode": MODES,
            "adapter": ADAPTER_NAMES, "agent_hooks": ("", True, False)}
 # Keys whose value is a list drawn from a known set. Empty is a real answer:
@@ -3953,7 +4005,7 @@ ALLOWED = {"docs": LANGS, "lang": LANGS, "mode": MODES,
 LISTS = {"agents": AGENT_NAMES}
 # Keys whose value is a command rather than one of a known set. Validating them
 # against a list would mean Keel deciding what a project may run.
-FREE_TEXT = ("ci",)
+FREE_TEXT = ("ci", "mutation")
 REVISIONS = "docs/revisions.json"
 
 
@@ -4638,6 +4690,19 @@ closed before the PR, like anything else.
 Compare the text of each scenario with what its test actually proves. A test that
 goes green without checking the promise is worse than a missing one, because it
 stays quiet.
+
+**Was each test seen red?** A green test does not prove it checks anything: a
+test that asserts the wrong thing, compares the wrong value, or forgets the
+assertion is green too, and from outside the two are identical. The difference
+shows only with the code broken — the real one goes red, the empty one stays
+green. So break what the test guards, watch it fail, put it back. Any test that
+has never been seen red is undemonstrated, whatever colour it is now.
+
+**Was the suite run more than once?** A single green run hides everything that
+depends on order, timing or a process that outlives its test. Three or four runs
+in a row cost a minute and have twice caught a real defect that would otherwise
+have surfaced later as "it fails sometimes" — the worst kind, because by then
+nobody trusts the gate.
 
 Look at scope in both directions. The check reports not only "touched something
 undeclared" but also "declared and never touched" — and the second usually means
@@ -6164,6 +6229,8 @@ def build_parser():
     init.set_defaults(install=True)
 
     sub.add_parser("skills", help="regenerate the skills from the methodology")
+    sub.add_parser("mutate",
+                   help="run the project's own mutation command, once per wave")
 
     show = sub.add_parser("show", help="a wave as a person reads it")
     show.add_argument("wave", nargs="?", help="a wave; without it, the branch's wave")
@@ -6210,7 +6277,8 @@ def main(argv=None):
     handlers = {"new": cmd_new, "gaps": cmd_gaps, "check": cmd_check,
                 "next": cmd_next, "rev": cmd_rev, "hooks": cmd_hooks,
                 "init": cmd_init, "skills": cmd_skills, "hook": cmd_hook,
-                "update": cmd_update, "show": cmd_show}
+                "update": cmd_update, "show": cmd_show,
+                "mutate": cmd_mutate}
     return handlers[args.command](project, args)
 
 
