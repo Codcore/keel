@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.8.7"
+VERSION = "0.8.8"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -165,6 +165,14 @@ UK = {
     "the tests are red ({command}):": "тести червоні ({command}):",
     "branch {branch} is already merged into {main}: the wave is finished and there is no work here. The next one starts from {main}.":
         "гілку {branch} уже злито в {main}: хвиля скінчена, роботи тут немає. Наступна починається з {main}.",
+    "no mutation command, and this wave is finished: nothing here shows whether the tests can fail at all. Name one in {file} (\"mutation\": \"{example}\"), or say there is none (\"mutation\": \"none\").":
+        "команди мутацій немає, а хвиля завершена: ніщо тут не показує, чи здатні тести впасти взагалі. Назвіть її у {file} (\"mutation\": \"{example}\") або скажіть, що її немає (\"mutation\": \"none\").",
+    "the mutation command is not there: {command}":
+        "команди мутацій немає на місці: {command}",
+    "mutations survived: {command} — the suite passed while the code was broken, so what it proves is smaller than it looks.":
+        "мутації вижили: {command} — набір пройшов на зламаному коді, отже доводить він менше, ніж здається.",
+    "mutations": "мутації",
+    "(not run: the wave is not finished)": "(не запускались: хвиля не завершена)",
     "no mutation command: nothing here shows whether the tests can fail at all. Name one in {file} (\"mutation\": \"{example}\"), or say there is none (\"mutation\": \"none\").":
         "команди мутацій немає: ніщо тут не показує, чи здатні тести впасти взагалі. Назвіть її у {file} (\"mutation\": \"{example}\") або скажіть, що її немає (\"mutation\": \"none\").",
     "the mutation run did not finish within {seconds}s: {command}":
@@ -3191,6 +3199,91 @@ def ci_verdict(project, run=True):
                     + ("\n" + said if said else ""))], None, True
 
 
+def wave_is_finished(project):
+    """True on a work branch where every transform is already closed.
+
+    The one moment a mutation run belongs to. `next` names it in words —
+    "every transform of wave X is closed by a commit. Next: keel check, then
+    the PR" — and until then there is unwritten code, so mutating what is there
+    measures a wave that does not exist yet.
+
+    Deliberately false on a plan branch and on a wave whose plan has not
+    reached main: neither carries the code a mutation run would break.
+    """
+    if plan_wave(project) is not None:
+        return False
+    wave = project.wave_for_branch()
+    if wave is None or wave.error or not wave.transforms:
+        return False
+    if not project.git.file_in_branch(project.git.main_branch, wave.rel):
+        return False
+    slug, _ = next_transform(project, wave)
+    return slug is None
+
+
+def mutation_verdict(project, run=True):
+    """Whether the tests can fail at all, asked once, where it is affordable.
+
+    The same shape as CI and a contract's `verify`: the project names a
+    command, Keel runs it and reads the exit code. Keel knows nothing about
+    mutation testing and must not — a tool that narrows the run to the files a
+    wave declared is a convenience of that tool, not something Keel may demand.
+    Demanding it would make the check unmeetable for a language whose mutation
+    tool has no such flag, and Keel is not tied to any language.
+
+    Three states, and the middle one differs from CI's. A command is run. The
+    word `none` is the decision to have no mutation run, said out loud, and it
+    is silent. An empty setting is nobody having decided — and here that is
+    red, not a note: a wave closes once, and a green suite that has never been
+    shown able to fail is exactly what §7.12 says is undemonstrated.
+
+    Whether this is the close of a wave is not decided here — the caller passes
+    `run`, and `cmd_check` gets it from `wave_is_finished`. It is asked there
+    and nowhere else because the run breaks the code once per mutant and runs
+    the suite each time. That is minutes to hours. A gate on every commit would
+    be a gate nobody can afford, and a gate nobody can afford is a gate that
+    gets skipped.
+    """
+    command = (project.settings.get("mutation") or CI_UNDECIDED).strip()
+    if command == CI_REFUSED:
+        return [], None, False
+    if not command:
+        if not run:
+            return [], None, False
+        return [Problem(0, t("no mutation command, and this wave is finished: "
+                             "nothing here shows whether the tests can fail at "
+                             "all. Name one in {file} (\"mutation\": "
+                             "\"{example}\"), or say there is none "
+                             "(\"mutation\": \"none\").",
+                             file=CONFIG_FILE, example=t("your command")))], None, False
+    if not run:
+        return [], None, False
+    # Not captured, unlike CI. A mutation run is long, and a person watching
+    # one needs to see it move; what survived on the terminal is the tool's own
+    # report to read, not ours to summarise.
+    try:
+        proc = subprocess.run(command, shell=True, cwd=project.root,
+                              stdin=subprocess.DEVNULL, timeout=MUTATION_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return [Problem(0, t("the mutation run did not finish within {seconds}s: "
+                             "{command}", seconds=MUTATION_TIMEOUT,
+                             command=command))], None, True
+    except OSError as exc:
+        return [Problem(0, t("the mutation command could not run ({command}): "
+                             "{reason}", command=command,
+                             reason=exc.strerror or exc))], None, True
+    if proc.returncode == 0:
+        return [], None, True
+    # 127 is the shell saying the thing is not there at all — a different state
+    # from a run that finished and found survivors, and the reader should not
+    # have to work that out from a raw exit code.
+    reason = (t("the mutation command is not there: {command}")
+              if proc.returncode == 127 else
+              t("mutations survived: {command} — the suite passed while the "
+                "code was broken, so what it proves is smaller than it looks."))
+    return [Problem(0, reason.format(command=command))], None, True
+
+
 def run_checks(project, only=None, run_tests=True):
     only = set(only or CHECK_NAMES)
     if plan_wave(project) is not None:
@@ -3634,13 +3727,18 @@ def cmd_check(project, args):
     ci_problems, ci_note, ci_ran = ci_verdict(
         project, run=(not args.fast and not args.no_tests
                       and planning is None))
+    # Once per wave, at its close. Every other run of `check` leaves it alone:
+    # the wave is not finished, so there is nothing whole to break.
+    mutation_problems, mutation_note, mutation_ran = mutation_verdict(
+        project, run=(not args.fast and not args.no_tests
+                      and wave_is_finished(project)))
     drift = drifted_from_main(project)
     disagreements = shared_transform_slugs(project)
 
     if args.json:
         payload = {
             "ok": (not structural and not disagreements and not plan_gaps
-                   and not ci_problems
+                   and not ci_problems and not mutation_problems
                    and not any(results.get(n) for n in results)),
             "structure": [p.as_dict() for p in structural],
             "disagreement": [p.as_dict() for p in disagreements],
@@ -3648,6 +3746,9 @@ def cmd_check(project, args):
             "ci": {"command": project.settings.get("ci", ""),
                    "problems": [p.as_dict() for p in ci_problems],
                    "note": ci_note, "ran": ci_ran},
+            "mutation": {"command": project.settings.get("mutation", ""),
+                         "problems": [p.as_dict() for p in mutation_problems],
+                         "note": mutation_note, "ran": mutation_ran},
             # Drift belongs here too: the whole point of naming it is that
             # somebody learns of it, and scripts read this payload, not the
             # prose underneath.
@@ -3724,11 +3825,28 @@ def cmd_check(project, args):
         # different fact from "it stood down because this branch has no code".
         print("\u2013 CI: " + project.settings["ci"].strip()
               + " " + t("(not run: a plan branch has no code)"))
+    if mutation_problems:
+        total += len(mutation_problems)
+        for problem in mutation_problems:
+            print("\u2717 " + problem.message)
+    elif mutation_ran:
+        # Same reasoning as CI's tick: a command is not a phrase to translate.
+        print("\u2713 " + t("mutations") + ": "
+              + project.settings["mutation"].strip())
+    elif project.settings.get("mutation") not in (None, "", "none"):
+        # Named, and standing down. Saying so keeps the reader from reading the
+        # silence as "no mutation command", which is a different fact.
+        print("\u2013 " + t("mutations") + ": "
+              + project.settings["mutation"].strip()
+              + " " + t("(not run: the wave is not finished)"))
     print()
     print(t("clean") if total == 0 else t("problems: {count}", count=total))
 
     if ci_note:
         print("\u2013 " + ci_note)
+
+    if mutation_note:
+        print("\u2013 " + mutation_note)
 
     for name, added, removed in drift:
         print("\u2013 " + t("{file} differs from what was approved: +{added} "

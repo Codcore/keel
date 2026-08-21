@@ -227,7 +227,8 @@ read by Claude and Cursor, not by it.
 | `keel new contract <slug>` | the same for a contract: `module` with `exports`, or `verify` |
 | `keel gaps [wave]` | what is missing from a wave's description: slugs without sections, transforms without files, scenarios without `proves`. And it asks about a forgotten edge: the wave declares a file another wave declares too while `depends_on` does not name it |
 | `keel next` | the **package** for the next move: the transform, its files and boundaries, the scenarios it brings closer, the bodies of the contracts it leans on — and nothing beyond. On the main branch it names instead the wave that is ready to be worked and the branch to take. Markdown; `--json` for scripts |
-| `keel check` | every check — the full gate. `--fast` leaves those that run nothing, `--no-tests` skips the test run and the CI command, `--branch` names the branch where git does not know it, `--json` for scripts |
+| `keel check` | every check — the full gate. At the close of a wave it also runs the project's mutation command (§7.14). `--fast` leaves those that run nothing, `--no-tests` skips the test run, the CI command and the mutation run, `--branch` names the branch where git does not know it, `--json` for scripts |
+| `keel mutate` | runs the project's own mutation command and reports what it said. Keel knows nothing about mutation testing: the project names the command, Keel reads the exit code. Its own command as well as part of `check`, because the run is long and a person may want it on demand |
 | `keel rev` | shows revisions that have drifted apart; `--write` records the new ones; closed waves are left alone, and it says so |
 | `keel show` | a wave as a person reads it: the why, the scenarios and the transforms, with what is closed and what is not |
 | `keel hooks` | shows the state of `pre-commit` and `pre-push`; `--install` installs them, `--force` overwrites somebody else's |
