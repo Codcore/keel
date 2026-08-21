@@ -52,6 +52,24 @@ counter of three: one turn went out as four requests. Nobody lied — the retrie
 arrived as a default. Before saying something is **absent**, look and see that it
 is.
 
+**And a third, the most expensive: a library's description is not its code.** The
+question is not "is it there" but **where do you know that from** — the code that
+will run, or a text about it. Three cases in a single day, all on one project. A
+function existed by name and was a deprecated stub inside, printing a warning and
+returning `:ok` — the declaration was grepped, the body was not read. A released
+version and the `main` branch of the same library told different stories: the
+release was three months old, and ten days earlier the repository had changed the
+sandbox's language — one channel was asked. And a list of sandboxed functions was
+taken from the documentation of a **neighbouring** library, which sandboxed them
+itself — so `print` wrote happily into our stdout until a run caught it.
+
+Nobody lied once. Each description was true about what it described.
+
+Two minutes in the source would have settled all three. So: **read the code of
+the dependency you lean on, and a run outweighs the code.** For a library whose
+last release is some months old, ask the repository as well — the release says
+what shipped, the repository says where it is going.
+
 ## Forty
 
 Forty questions under nine headings — the whole of ISO/IEC 25010:2023. Written
