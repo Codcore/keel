@@ -297,20 +297,22 @@ process that outlived its test. Three or four runs cost a minute and have twice
 caught a real defect that would otherwise have surfaced later as "it fails
 sometimes" — the worst kind, because by then nobody trusts the gate.*
 
-**§7.14.** A wave does not close without a mutation run. At the close — every
-transform committed, the pull request next — the project's own mutation command
-runs and has to succeed. An empty setting is red; the word `none` is a decision,
-said out loud, and it is silent.
+**§7.14.** At the close of a wave — every transform committed, the pull
+request next — go through the wave's scenarios by breaking what each one guards
+and watching that scenario's test go red. The checks say this and do not enforce
+it.
 
-*Rationale: §7.12 asks of one test what a mutation run asks of the whole suite
-at once — whether it can fail at all. It is asked at the close because that is
-the only place it is affordable: the run breaks the code once per mutant and
-runs the suite each time, which is minutes to hours, and a gate nobody can wait
-for is a gate that gets skipped. Keel names no tool and demands no flag. The
-project names a command and Keel reads its exit code, exactly as with CI and a
-contract's `verify` — so narrowing the run to the files the wave declared is the
-project's business, and the check stays meetable in a language whose mutation
-tool cannot narrow at all.*
+*Rationale: §7.12 asks of one test whether it can fail at all; the close of a
+wave is where the same question is asked of every promise the wave made. A gate
+was tried here and withdrawn. It could read only the exit code of a tool the
+method knows nothing about, and a mutation run exits zero in three states that
+prove nothing: the optimiser left no mutants at all, every mutant timed out
+instead of being killed, or the files the wave wrote were skipped as
+uninteresting. All three were met on the first wave to reach a close. Over the
+same wave, aimed breaks reached every promise it made, while the tool kept two
+hundred mutations out of six thousand and never touched the file the wave was
+written for. A guard whose green may mean "possibly nothing happened" is worse
+than no guard, because it is believed.*
 
 ---
 
