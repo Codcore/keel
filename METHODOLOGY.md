@@ -272,6 +272,16 @@ merely in the wrong shape.*
 **§7.10.** No check parses prose. They all read the header, git, and compiled
 modules.
 
+**§7.11.** A wave whose plan has reached the main branch and whose work has not
+is not judged by §7.5 and §7.6 on main. It has begun once main closes at least
+one of its transforms.
+
+*Rationale: the same as for a plan branch — a promise without code, judged by
+green tests and existing modules, is a gate that is always shut. Approving a plan
+moves that state onto main rather than ending it, and until the work lands a red
+main means nothing. The cost was not only that: while main is red, what §4.11
+allows through cannot be pushed either.*
+
 ---
 
 ## Chapter 8. Branches and acceptance

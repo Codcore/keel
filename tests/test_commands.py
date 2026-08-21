@@ -972,3 +972,85 @@ class TestAnEmptyProjectIsNotAFinishedOne(ProjectCase):
     def test_all_done_still_says_finished(self):
         self.fixture.git("commit", "--allow-empty", "-m", "drive-turns: зроблено")
         self.assertIn("every wave is finished", keel.main_branch_answer(self.project))
+
+
+class TestAWaveNobodyHasBegunIsNotJudged(ProjectCase):
+    """Знайдено живим, двічі, на двох різних хвилях.
+
+    Схваленням плану є те, що файл хвилі дійшов головної гілки. Між тим
+    моментом і приїздом роботи головна гілка тримає обіцянки без коду —
+    і перевірки 5 та 6 судять її за тестами, яких ще нема, і модулями, яких
+    ще не написали. `plan_wave` вимкнула це для гілки плану з тією самою
+    причиною; злиття плану причину не скасовує, а переносить.
+
+    Ціна була не лише в червоному CI: поки головна червона, у неї не
+    запушиш нічого — зокрема й README з беклогом, яким 0.7.3 навмисно дав
+    дорогу.
+    """
+
+    def close_the_only_transform(self):
+        self.fixture.git("commit", "--allow-empty", "-m", "drive-turns: зроблено")
+
+    def plan_a_second_wave(self, closed=False):
+        body = WAVE.format(rev=self.fixture.contract_rev).replace(
+            "drive-turns:", "carry-tools:").replace(
+            "finishes-when-no-tool-called", "asks-before-it-writes")
+        self.fixture.write("keel/waves/0002-tools.md", body)
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "план 0002")
+        if closed:
+            self.fixture.git("commit", "--allow-empty", "-m", "carry-tools: зроблено")
+
+    def scenario_problems(self):
+        return [p for p in keel.check_scenarios(self.project, run_tests=False)
+                if "asks-before-it-writes" in p.message]
+
+    def test_its_scenarios_are_not_asked_for_tests_on_main(self):
+        self.close_the_only_transform()
+        self.plan_a_second_wave()
+        self.assertEqual(self.scenario_problems(), [])
+
+    def test_the_same_wave_is_judged_on_its_own_branch(self):
+        """Робота йде під носом у перевірки, і історія головної про це мовчить."""
+        self.close_the_only_transform()
+        self.plan_a_second_wave()
+        self.fixture.git("checkout", "-b", "0002-tools")
+        self.assertNotEqual(self.scenario_problems(), [])
+
+    def test_a_wave_with_one_transform_closed_is_under_way(self):
+        """Почата — значить судять, і решту її сценаріїв теж."""
+        self.close_the_only_transform()
+        self.plan_a_second_wave(closed=True)
+        self.assertNotEqual(self.scenario_problems(), [])
+
+    def test_a_project_that_never_closed_a_transform_gets_no_exemption(self):
+        """Усі хвилі непочаті — значить це не проміжок, а інший спосіб роботи.
+
+        Осліпити перевірки над цілим проєктом було б рівно тією тишею, проти
+        якої вони й стоять.
+        """
+        self.plan_a_second_wave()
+        self.assertNotEqual(self.scenario_problems(), [])
+        self.assertEqual(keel.unbegun_waves(self.project), set())
+
+    def test_the_contract_of_an_unbegun_wave_alone_is_not_asked_for_its_module(self):
+        self.close_the_only_transform()
+        self.fixture.write("keel/contracts/tool-call.md",
+                           "---\nmodule: Demo.Missing\nexports: [run/1]\n---\n\nОбіцянка.\n")
+        rev = keel.revision(self.fixture.read("keel/contracts/tool-call.md"))
+        body = WAVE.format(rev=self.fixture.contract_rev).replace(
+            "drive-turns:", "carry-tools:").replace(
+            "finishes-when-no-tool-called", "asks-before-it-writes").replace(
+            f"session-run@{self.fixture.contract_rev}", f"tool-call@{rev}")
+        self.fixture.write("keel/waves/0002-tools.md", body)
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "план 0002")
+        self.assertIn("tool-call", keel.unbegun_contracts(self.project))
+        problems = keel.check_exports(self.project)
+        self.assertEqual([p for p in problems if "Demo.Missing" in p.message], [])
+
+    def test_a_contract_two_waves_lean_on_is_still_asked(self):
+        """Одна почата, одна ні — код першої мусить його тримати."""
+        self.close_the_only_transform()
+        self.plan_a_second_wave()
+        self.assertNotIn("session-run", keel.unbegun_contracts(self.project))

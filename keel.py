@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.8.3"
+VERSION = "0.8.4"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -2298,14 +2298,71 @@ def ambiguous_scenarios(project):
             for flat, owners in seen.items() if len(owners) > 1}
 
 
+def unbegun_waves(project):
+    """Waves whose plan reached main and whose work has not started yet.
+
+    `plan_wave` blinds checks 5 and 6 on a plan branch, for the reason written
+    there: a plan carries documents and no code, so judging it by green tests
+    and existing modules leaves a gate that is always shut. Merging that plan
+    does not make the fact go away — it moves it. Between the plan landing on
+    main and the work landing after it, main is red for every wave this project
+    ever runs, which is most of the time; and while it is red nothing can be
+    pushed to main at all, so the scenery allowance of §4.11 cannot be used
+    while any wave is open. Found live, twice, on two different waves.
+
+    Not begun means no commit on main closes any of this wave's transforms. One
+    transform closed and the wave is under way: its scenarios are judged, and
+    the ones its later transforms will prove are judged too — that is check 5
+    doing its job, not this exemption's business.
+
+    Only on main. On a wave's own branch the work is happening under the
+    check's nose, and main's history says nothing about it.
+    """
+    if not project.git.available or project.branch != project.git.main_short:
+        return set()
+    unbegun = {slug for slug, wave in project.waves.items()
+               if not wave.error and wave.transforms
+               and len(project.unclosed_on_main(wave)) == len(wave.transforms)}
+    # Every wave unbegun means main has never closed a transform at all, and
+    # then this cannot be the gap between a plan and its work — it is a project
+    # that does not put its work on main this way, and blinding checks 5 and 6
+    # over the whole of it would be exactly the silence they exist to break.
+    if len(unbegun) == len([w for w in project.waves.values() if not w.error]):
+        return set()
+    return unbegun
+
+
+def unbegun_contracts(project, unbegun=None):
+    """Contracts that only waves nobody has begun lean on.
+
+    A contract named by one unbegun wave and one finished wave is checked: the
+    finished wave's code is supposed to keep it. Only a contract whose every
+    reader is still unbegun has nothing on the branch to compare against.
+    """
+    unbegun = unbegun_waves(project) if unbegun is None else unbegun
+    if not unbegun:
+        return set()
+    from_unbegun, from_others = set(), set()
+    for slug, wave in project.waves.items():
+        if wave.error:
+            continue
+        target = from_unbegun if slug in unbegun else from_others
+        for _who, ref in contract_refs(wave):
+            target.add(ref.slug)
+    # A contract nobody leans on falls into neither set and stays judged: that
+    # is check 6's own business and none of this exemption's.
+    return from_unbegun - from_others
+
+
 def scenario_tags(project, tags=None, shared=None):
     """(wave, scenario, body, [(file, line, revision)]) — scenarios and their tags."""
     if tags is None:
         tags = project.adapter.tags(project.root) if project.adapter else {}
     if shared is None:
         shared = ambiguous_scenarios(project)
-    for wave in project.waves.values():
-        if wave.error:
+    unbegun = unbegun_waves(project)
+    for slug_of_wave, wave in project.waves.items():
+        if wave.error or slug_of_wave in unbegun:
             continue
         for slug in wave.scenarios:
             body = wave.scenario_body(slug)
@@ -2812,9 +2869,12 @@ def check_exports(project, run_tests=True):
     # A promise that is not a module carries the command that proves it: a
     # service answering, a binary on PATH, a dependency of the right version.
     # Whoever makes the promise does not have to be our code for it to be checkable.
+    asleep_verify = unbegun_contracts(project)
     for contract in project.contracts.values():
         if contract.error:
             continue
+        if contract.slug in asleep_verify and contract.verify:
+            continue      # a command that proves code nobody has written yet
         if not run_tests and contract.verify:
             continue      # --no-tests means run nothing, and this is a run too
         if "verify" in contract.front and not contract.verify:
@@ -2874,8 +2934,10 @@ def check_exports(project, run_tests=True):
                      "for them"),
                 contract.rel, contract.line_of("exports")))
 
+    asleep = unbegun_contracts(project)
     contracts = [c for c in project.contracts.values()
-                 if not c.error and c.module and c.exports]
+                 if not c.error and c.module and c.exports
+                 and c.slug not in asleep]
     if not contracts:
         return problems
     problems += adapter_problem(project, 6)
