@@ -243,3 +243,66 @@ class TestTheGeneratedWorkflowSpeaksGitHub(unittest.TestCase):
                 setup = "".join(line + "\n" for line in adapter.ci_steps(root))
                 self.assertLessEqual(self.job_keys(self.workflow(setup)),
                                      self.JOB_KEYS, adapter.name)
+
+
+class TestTheProjectGateStandsDownOnAPlanBranch(ProjectCase):
+    """Друга половина `PLAN_BLIND`, знайдена живою на хвилі 0010.
+
+    Перевірки 5 і 6 на гілці плану не працюють: гілка везе документи й не
+    везе коду. Команда проєкту ганяє тести того самого коду — і лишалась
+    стояти. Тобто гейт казав «тут немає чого судити» й тут-таки судив.
+
+    Ціна була не теоретична: один тест, зіпсований попередньою хвилею,
+    блокував пуш **будь-якої** гілки плану — зокрема й тієї малої хвилі,
+    що писалась цей тест полагодити. Коло без виходу.
+    """
+
+    def capture(self, args):
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_check(self.project, args)
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def settings(self, command):
+        path = self.fixture.path(keel.CONFIG_FILE)
+        stored = json.loads(keel.read_text(path)) if os.path.exists(path) else {}
+        stored["ci"] = command
+        self.fixture.write(keel.CONFIG_FILE, json.dumps(stored) + "\n")
+
+    def plan_branch(self):
+        self.fixture.branch("plan/0001-session-loop")
+
+    def test_a_red_command_does_not_turn_a_plan_branch_red(self):
+        self.settings("false")
+        self.plan_branch()
+        code, out = self.capture(Args(fast=False, no_tests=False, json=False))
+        self.assertNotIn("CI червоний", out)
+        self.assertNotIn("CI is red", out)
+        self.assertEqual(code, 0, out)
+
+    def test_the_same_command_still_turns_a_work_branch_red(self):
+        """Сліпота живе на гілці плану й ніде більше."""
+        self.settings("false")
+        self.fixture.branch("0001-session-loop")
+        code, out = self.capture(Args(fast=False, no_tests=False, json=False))
+        self.assertNotEqual(code, 0, out)
+
+    def test_standing_down_is_said_out_loud_and_not_by_silence(self):
+        """Мовчання читалось би як «команди CI немає» — а це інший факт."""
+        self.settings("false")
+        self.plan_branch()
+        _, out = self.capture(Args(fast=False, no_tests=False, json=False))
+        self.assertIn("false", out)
+        self.assertIn("a plan branch has no code", out)
+
+    def test_a_project_without_a_ci_command_says_nothing_extra(self):
+        self.settings("none")
+        self.plan_branch()
+        _, out = self.capture(Args(fast=False, no_tests=False, json=False))
+        # Той самий рядок друкують і перевірки 5 і 6, тож шукати його в усьому
+        # виводі — шукати не те. Питання тут одне: чи є рядок про CI взагалі.
+        self.assertEqual(
+            [line for line in out.splitlines() if line.startswith("– CI")], [])

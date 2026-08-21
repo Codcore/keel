@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.8.4"
+VERSION = "0.8.5"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -3557,8 +3557,17 @@ def cmd_check(project, args):
                  else gaps_problems(project, [planning]))
     # The project's own gate, and only in the full run — same reasoning as the
     # plan's: a commit may be half-written, a push and a merge may not.
+    #
+    # Not on a plan branch, and this is the other half of PLAN_BLIND. Checks 5
+    # and 6 stand down there because the branch carries documents and no code;
+    # `mix ci` runs that same code's tests, so leaving it standing said "there
+    # is nothing here to judge" and judged it in the next breath. One test left
+    # red by an earlier wave then blocked every plan branch there is —
+    # including the branch of the small wave written to repair that very test,
+    # which is a circle with no way out. Found live, on 0010.
     ci_problems, ci_note, ci_ran = ci_verdict(
-        project, run=not args.fast and not args.no_tests)
+        project, run=(not args.fast and not args.no_tests
+                      and planning is None))
     drift = drifted_from_main(project)
     disagreements = shared_transform_slugs(project)
 
@@ -3644,6 +3653,11 @@ def cmd_check(project, args):
         # to translate, and an entry that renders to itself reads as a
         # forgotten translation to the guard that watches for exactly that.
         print("\u2713 CI: " + project.settings["ci"].strip())
+    elif planning is not None and project.settings.get("ci") not in (None, "", "none"):
+        # Silence here would read as "there is no CI command", which is a
+        # different fact from "it stood down because this branch has no code".
+        print("\u2013 CI: " + project.settings["ci"].strip()
+              + " " + t("(not run: a plan branch has no code)"))
     print()
     print(t("clean") if total == 0 else t("problems: {count}", count=total))
 
