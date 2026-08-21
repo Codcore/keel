@@ -219,6 +219,16 @@ the project's own CI command — and no two documents contradict each other.
 **§6.6.** Approval of a plan is written nowhere: it is the fact that the wave's
 file reached the main branch. Until then no work is handed out.
 
+**§6.7.** A defect found in a closed wave (§6.5) is repaired by a wave of its
+own. Debt, bugs and fixes are waves on the same terms: a promise, a scenario
+and a test.
+
+*Rationale: the files of a closed wave belong to somebody else's plan, and §4.4
+keeps them out on purpose. An edit forced into the current wave makes its
+declared scope a lie, and going around the guard is always cheaper than opening
+a wave — so without this rule the road leads past it. Size changes nothing: four
+lines that repair something proved are proved the same way as four hundred.*
+
 ---
 
 ## Chapter 7. The checks
