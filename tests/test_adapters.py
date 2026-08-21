@@ -969,6 +969,24 @@ class TestPythonRunnerRunsWhatTheCollectorCounts(unittest.TestCase):
         self.assertTrue(any("the tests are red" in x.message for x in problems),
                         [x.message for x in problems])
 
+    def test_the_red_message_names_the_test_that_went_red(self):
+        """Гейт відмовив, причину знає — мусить її сказати."""
+        body = self.scenario()
+        with open(os.path.join(self.root, "tests/greet_test.py"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("import unittest\n"
+                         f"# proves: does-a, rev: \"{keel.revision(body)}\"\n"
+                         "class T(unittest.TestCase):\n"
+                         "    def test_x(self):\n"
+                         "        self.fail('червоний')\n")
+        problems = keel.check_scenarios(keel.Project(self.root))
+        red = [x.message for x in problems if "the tests are red" in x.message]
+        self.assertEqual(len(red), 1, [x.message for x in problems])
+        # Перший рядок після заголовка, а не «десь у повідомленні»: хвіст
+        # unittest і так везе свої `FAIL:`, тож «десь» проходило б і тоді, коли
+        # гейт нікого не називає. Мутація це й показала.
+        self.assertIn("test_x", red[0].splitlines()[1])
+
     def test_a_conftest_that_cannot_import_does_not_break_check_5(self):
         body = self.scenario()
         with open(os.path.join(self.root, "tests/conftest.py"), "w") as handle:
@@ -1309,3 +1327,84 @@ class TestTheSkippedMatchIsAnchored(unittest.TestCase):
         self.assertEqual(
             keel.normalise_slug("tests.test_demo.T.test_runs_ok".rsplit(".", 1)[-1]),
             "test-runs-ok")
+
+
+class TestARedRunNamesWhatWentRed(unittest.TestCase):
+    """Знайдено живим: CI сказав «1 із 213 впав» і не сказав, який саме.
+
+    ExUnit друкує блок падіння там, де воно сталося, — між крапками тестів,
+    що йшли після, — а підсумок у кінці. Хвіст виводу показує ту частину, у
+    якій назви не буває ніколи, і у workflow один крок, тож більше вона не
+    зберігається ніде.
+    """
+
+    EXUNIT = (
+        "Compiling 3 files (.ex)\n"
+        "........\n"
+        "  1) test хук, що не завершується, зупиняється (KeelAgent.HooksTest)\n"
+        "     test/keel_agent/hooks_test.exs:77\n"
+        "     ** (File.Error) could not read file\n"
+        "     stacktrace:\n"
+        "       test/keel_agent/hooks_test.exs:98\n"
+        "\n"
+        "........................\n"
+        "Finished in 6.3 seconds (6.3s async, 0.02s sync)\n"
+        "\n"
+        "Result: 212/213 passed\n"
+        "Failed: 1 test\n"
+    )
+
+    def test_the_elixir_runner_is_read_for_the_name_and_the_place(self):
+        named = keel.ElixirAdapter().failures(self.EXUNIT)
+        self.assertEqual(len(named), 1, named)
+        self.assertIn("хук, що не завершується", named[0])
+        self.assertIn("test/keel_agent/hooks_test.exs:77", named[0])
+
+    def test_a_doctest_and_a_property_are_failures_too(self):
+        text = ("  1) doctest KeelAgent.Sandbox.run/2 (KeelAgent.SandboxTest)\n"
+                "     test/keel_agent/sandbox_test.exs:12\n"
+                "\n"
+                "  2) property round trips (KeelAgent.MessageTest)\n"
+                "     test/keel_agent/message_test.exs:40\n")
+        named = keel.ElixirAdapter().failures(text)
+        self.assertEqual(len(named), 2, named)
+        self.assertIn("sandbox_test.exs:12", named[0])
+        self.assertIn("message_test.exs:40", named[1])
+
+    def test_a_green_run_names_nobody(self):
+        self.assertEqual(
+            keel.ElixirAdapter().failures("........\nResult: 213 passed\n"), [])
+
+    def test_the_python_runner_counts_an_error_as_red(self):
+        text = ("FAIL: test_x (tests.greet_test.T.test_x)\n"
+                "ERROR: test_y (tests.greet_test.T.test_y)\n"
+                "FAILED (failures=1, errors=1)\n")
+        self.assertEqual(
+            keel.PythonAdapter().failures(text),
+            ["test_x (tests.greet_test.T.test_x)",
+             "test_y (tests.greet_test.T.test_y)"])
+
+    def test_the_name_comes_before_the_tail_and_the_tail_stays(self):
+        said = keel.said_red(keel.ElixirAdapter(), self.EXUNIT.strip())
+        lines = said.splitlines()
+        self.assertIn("hooks_test.exs:77", lines[0])
+        self.assertTrue(any("Failed: 1 test" in line for line in lines[1:]),
+                        said)
+
+    def test_a_runner_that_names_nothing_still_reports_its_tail(self):
+        """Той самий звіт, коротший, — а не інший звіт."""
+        said = keel.said_red(keel.Adapter(), "перший\nдругий\nтретій")
+        self.assertEqual(said.splitlines(),
+                         ["      перший", "      другий", "      третій"])
+
+    def test_a_suite_that_fails_wholesale_says_how_many_it_did_not_list(self):
+        text = "".join(
+            f"  {n}) test номер {n} (T)\n     test/a_test.exs:{n}\n"
+            for n in range(1, keel.FAILURES_SHOWN + 4))
+        said = keel.said_red(keel.ElixirAdapter(), text.strip(), tail=0)
+        lines = said.splitlines()
+        self.assertEqual(len(lines), keel.FAILURES_SHOWN + 1, said)
+        self.assertIn("3", lines[-1])
+
+    def test_no_adapter_at_all_is_not_a_traceback(self):
+        self.assertEqual(keel.said_red(None, "щось"), "      щось")

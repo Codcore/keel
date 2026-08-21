@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.8.1"
+VERSION = "0.8.2"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -163,6 +163,7 @@ UK = {
     "the test holds {slug}@{held}, and the scenario is now {now}":
         "тест тримає редакцію {slug}@{held}, а сценарій зараз {now}",
     "the tests are red ({command}):": "тести червоні ({command}):",
+    "…and {count} more": "…і ще {count}",
     "verify has to be a command as a string, and this is {kind}: {value}":
         "verify має бути командою рядком, а тут {kind}: {value}",
     "the contract did not answer within {seconds}s: {command}":
@@ -570,6 +571,11 @@ CI_REFUSED = "none"
 # suite that waits on input or on a socket would hold pre-push and CI for as
 # long as they are allowed to run.
 TEST_TIMEOUT = 600
+# How many red tests a report names before it stops listing. A suite that
+# fails wholesale — a missing dependency, a broken compile — would
+# otherwise print hundreds of lines into a pre-push hook, and the person
+# reading it needs the first few and the count, not the roll.
+FAILURES_SHOWN = 10
 PROBE_TIMEOUT = 120  # a contract's proof is a probe, not a build
 
 
@@ -1506,6 +1512,23 @@ class Adapter:
         """
         return [], 0
 
+    # The tail of a red run is a guess about where the reason is, not the
+    # reason. ExUnit prints a failure where it happens — between the dots of
+    # the tests that follow — and the summary at the end, so on a suite of any
+    # size the block that names the test is exactly what the last dozen lines
+    # cannot hold. Found live: CI said "1 of 213 failed" and the workflow has
+    # one step, so the name existed nowhere else. A check that stopped the work
+    # says what stopped it.
+    failure_re = None
+
+    def failures(self, output):
+        """Tests this run reported red, named as the runner named them."""
+        if self.failure_re is None:
+            return []
+        return [" ".join(part.strip() for part in match if part).strip()
+                for match in (m.groups() if m.groups() else (m.group(0),)
+                              for m in self.failure_re.finditer(output))]
+
     def ci_guard(self):
         """The condition under which this language's waves make sense at all.
 
@@ -1568,6 +1591,14 @@ class ElixirAdapter(Adapter):
 
     def not_run(self, output):
         return [], sum(int(number) for number in self.not_run_re.findall(output))
+
+    # `  1) test says the thing (KeelAgent.SomeTest)` and, on the next line,
+    # the file and line it stands on. Both, because the name alone sends the
+    # reader grepping and the location alone says nothing about what broke.
+    failure_re = re.compile(
+        r"^\s*\d+\)\s+(?:test|doctest|property)\s+(.+?)[ \t]*\r?\n"
+        r"[ \t]*(\S+:\d+)",
+        re.MULTILINE)
 
     def ci_steps(self, root):
         elixir, otp = self.versions()
@@ -1703,6 +1734,10 @@ class PythonAdapter(Adapter):
     def not_run(self, output):
         return ([line[len(SKIP_MARK):].strip() for line in output.splitlines()
                  if line.startswith(SKIP_MARK)], 0)
+
+    # `FAIL: test_thing (tests.foo_test.Case.test_thing)` — unittest names the
+    # case in full, and an error is as red as a failure.
+    failure_re = re.compile(r"^(?:FAIL|ERROR):[ \t]+(.+?)[ \t]*$", re.MULTILINE)
 
     def test_label(self, root):
         count = len(self.test_files(root))
@@ -2517,6 +2552,26 @@ def check_scope(project):
     return problems
 
 
+def said_red(adapter, output, tail=12):
+    """What a red run says: the tests it named, then the last lines of it.
+
+    Both, and in that order. The names answer "which one", which the tail
+    cannot: a runner that prints a failure where it happens buries the block
+    under every test that ran after it. The tail answers "how many, and did it
+    even get that far", which the names cannot. An adapter whose runner names
+    nothing loses the first half and keeps the second — the same report,
+    shorter, rather than a different one.
+    """
+    lines = []
+    if adapter is not None:
+        named = adapter.failures(output)
+        lines += named[:FAILURES_SHOWN]
+        if len(named) > FAILURES_SHOWN:
+            lines.append(t("…and {count} more", count=len(named) - FAILURES_SHOWN))
+    lines += output.splitlines()[-tail:] if tail else []
+    return "\n".join("      " + line for line in lines)
+
+
 def check_scenarios(project, run_tests=True):
     waves = [wave for wave in project.waves.values() if not wave.error and wave.scenarios]
     if not waves:
@@ -2583,10 +2638,10 @@ def check_scenarios(project, run_tests=True):
                      "being wrong.", seconds=TEST_TIMEOUT,
                      command=label))]
         if proc.returncode != 0:
-            tail = (proc.stdout or proc.stderr).strip().splitlines()[-12:]
+            output = (proc.stdout or proc.stderr).strip()
             problems.append(Problem(
                 5, t("the tests are red ({command}):", command=label)
-                + "\n" + "\n".join("      " + line for line in tail)))
+                + "\n" + said_red(project.adapter, output)))
         else:
             problems += skipped_proofs(project, proc.stdout or "")
     return problems
@@ -3037,16 +3092,16 @@ def ci_verdict(project, run=True):
                              reason=exc.strerror or exc))], None, True
     if proc.returncode == 0:
         return [], None, True
-    tail = (proc.stdout or proc.stderr).strip().splitlines()[-10:]
+    output = (proc.stdout or proc.stderr).strip()
     # 127 is the shell saying the thing is not there at all. Worth its own
     # sentence: "the command is missing" and "the command failed" are different
     # states, and a raw runner error makes the reader work that out.
     reason = (t("CI is not set up: {command} — there is no such command")
               if proc.returncode == 127 else
               t("CI is red: {command}"))
+    said = said_red(project.adapter, output, tail=10)
     return [Problem(0, reason.format(command=command)
-                    + ("\n" + "\n".join("      " + line for line in tail)
-                       if tail else ""))], None, True
+                    + ("\n" + said if said else ""))], None, True
 
 
 def run_checks(project, only=None, run_tests=True):
