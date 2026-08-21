@@ -395,6 +395,45 @@ class TestNewAndPlan(ProjectCase):
         self.assertIn("0002-tool-calls.md", out)
         self.assertTrue(os.path.exists(self.fixture.path("keel/waves/0002-tool-calls.md")))
 
+    def test_a_number_parked_on_another_branch_is_taken(self):
+        """§8.5 makes the number a unique prefix, and the working tree is one
+        branch's worth of it. A plan written and parked lives on its own branch
+        and nowhere else; without looking there the next wave takes 0002 twice
+        and the collision surfaces at the merge."""
+        self.fixture.branch("plan/0002-parked")
+        self.fixture.write("keel/waves/0002-parked.md", "---\nscenarios: {}\n---\n")
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "план, який відклали")
+        self.fixture.git("checkout", "main")
+
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="wave", slug="tool-calls"))
+        self.assertEqual(code, 0)
+        self.assertIn("0003-tool-calls.md", out)
+        self.assertFalse(os.path.exists(self.fixture.path("keel/waves/0002-tool-calls.md")))
+
+    def test_a_number_binned_after_a_commit_comes_back(self):
+        """Branch tips, not the whole history — and the two differ.
+
+        A plan committed and then binned lives in the history for ever, and a
+        rule reading `rev-list --all` would hold its number hostage. What makes
+        a number taken is a plan somebody can still merge, which means a branch
+        that still carries the file. The distinction is the whole point of
+        looking at refs rather than commits, so the case that separates them is
+        the one worth a test: committed, then removed, on the same branch.
+        """
+        self.fixture.write("keel/waves/0002-binned.md", "---\nscenarios: {}\n---\n")
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "план, який потім передумали")
+        os.remove(self.fixture.path("keel/waves/0002-binned.md"))
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "передумали")
+
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="wave", slug="tool-calls"))
+        self.assertEqual(code, 0)
+        self.assertIn("0002-tool-calls.md", out)
+
     def test_new_wave_skeleton_parses(self):
         self.capture(keel.cmd_new, self.project, Args(kind="wave", slug="tool-calls"))
         wave = self.project.waves["0002-tool-calls"]

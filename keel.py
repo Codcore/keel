@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.8.8"
+VERSION = "0.8.9"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -3398,6 +3398,36 @@ def unfilled_why(wave):
     return any(tail.startswith(hint.lower()) for hint in hints)
 
 
+def wave_numbers_on_other_branches(project):
+    """Wave numbers taken on branches this one cannot see.
+
+    §8.5 makes the number a unique prefix, and the working tree is only one
+    branch's worth of it. A plan that is written and then parked — reviewed
+    later, or waiting on a decision — lives on its own branch and nowhere else,
+    so `listdir` reports the number free and the next wave takes it. Two plans
+    then answer to 0014, and the collision surfaces at the merge, which is the
+    worst place to find it. Met live: a parked plan branch and a wave planned
+    the same evening.
+
+    Branches only, not the whole history: a wave whose file was written and
+    binned gives its number back, and that is the difference between "taken" and
+    "was once typed".
+    """
+    if not project.git.available:
+        return []
+    refs = project.git.out("for-each-ref", "--format=%(refname)",
+                           "refs/heads", "refs/remotes").splitlines()
+    taken = []
+    for ref in refs:
+        listing = project.git.out("ls-tree", "--name-only", ref,
+                                  KEEL_DIR_PREFIX + "waves/")
+        for path in listing.splitlines():
+            found = re.search(r"/(\d{4})-", path)
+            if found:
+                taken.append(int(found.group(1)))
+    return taken
+
+
 def cmd_new(project, args):
     kind, slug = args.kind, args.slug
     clean = normalise_slug(slug)
@@ -3408,6 +3438,7 @@ def cmd_new(project, args):
         folder = os.path.join(project.keel, "waves")
         numbers = [int(m.group(1)) for name in os.listdir(folder)
                    if (m := re.match(r"(\d{4})-", name))] if os.path.isdir(folder) else []
+        numbers += wave_numbers_on_other_branches(project)
         number = max(numbers, default=0) + 1
         name = f"{number:04d}-{clean}.md"
         # The numbered name, as the file is called: the Why placeholder starts
