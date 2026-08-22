@@ -171,9 +171,9 @@ take — through the same tool, past the door the guard watches.*
 carries `renamed_from: <old slug>` in its header. The deletion of the old one
 then stops being an error and stays a line in the diff, as drift does. The old
 name still leads somewhere — the document answers to both, and closed waves
-pointing at the former one are not rewritten. The claim is checked: it is red
-when nothing by that name was removed on this branch, when two documents claim
-the same inheritance, or when the move crosses folders.
+pointing at the former one are not rewritten. The claim outlives the branch that
+made it: the removal happens there once and lives in history after. It is red
+when two documents claim the same inheritance, or when the move crosses folders.
 
 *Grounds: a wave and a contract outlive the branch that removes them because a
 deletion loses a promise. A rename loses nothing — the promise stays, under

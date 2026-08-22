@@ -637,14 +637,38 @@ class TestAContractThatChangedItsName(ProjectCase):
     def test_the_old_name_still_leads_somewhere(self):
         self.rename()
         project = keel.Project(self.fixture.root)
-        self.assertIn("session-run", project.contracts)
-        self.assertEqual(project.contracts["session-run"].slug, "running-a-session")
+        self.assertTrue(project.knows("contracts", "session-run"))
+        self.assertEqual(project.aliases["session-run"].slug, "running-a-session")
 
-    def test_a_move_from_a_file_nobody_removed_is_a_lie(self):
-        self.fixture.write("keel/contracts/running-a-session.md",
-                           "---\nrenamed_from: never-existed\nmodule: X\n---\n\nТіло.\n")
-        self.fixture.git("add", "-A")
-        self.fixture.git("commit", "-m", "drive-turns: заявив переїзд, якого не було")
+    def test_the_shelf_itself_holds_real_files_only(self):
+        # Псевдонім поруч із полицею, не на ній: складений усередину, він
+        # видавав документ двічі кожному, хто йшов по всіх, і `gaps` читав
+        # стару назву як контракт, якого головна гілка не бачила.
+        self.rename()
+        project = keel.Project(self.fixture.root)
+        self.assertNotIn("session-run", project.contracts)
+        self.assertEqual(
+            [doc.slug for doc in project.contracts.values()
+             if doc.slug == "running-a-session"], ["running-a-session"])
+
+    def test_the_claim_outlives_the_branch_that_made_it(self):
+        # Видалення стається рівно на тій гілці, що перейменовує, і далі живе
+        # в історії. Перевірка «щось із таким іменем прибрали на цій гілці»
+        # робила заяву правдивою один раз і брехнею на кожній гілці позаду.
+        self.rename()
+        self.fixture.git("checkout", "-q", "main")
+        self.fixture.git("merge", "-q", "--no-ff", "-m", "злито",
+                         "0001-session-loop")
+        self.fixture.branch("0002-other")
         problems = keel.check_scope(self.project)
-        self.assertTrue(any("never-existed" in p.message for p in problems),
-                        [p.message for p in problems])
+        self.assertEqual([p.message for p in problems if "session-run" in p.message], [])
+
+    def test_two_heirs_to_one_promise_is_named(self):
+        self.rename()
+        self.fixture.write("keel/contracts/another-heir.md",
+                           "---\nrenamed_from: session-run\nmodule: Y\n---\n\nТіло.\n")
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "drive-turns: другий спадкоємець")
+        problems = keel.check_scope(self.project)
+        self.assertTrue(any("session-run" in p.message and "another-heir" in p.message
+                            for p in problems), [p.message for p in problems])

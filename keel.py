@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.8.10"
+VERSION = "0.8.11"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -318,10 +318,6 @@ UK = {
     "it stays a line in the diff — say in the pull request what changed and why.":
         "{file} відрізняється від схваленого: +{added} -{removed}. Дозволено, і "
         "воно лишається рядком у diff — скажіть у PR, що змінилось і чому.",
-    "{name} says it was renamed from {was}, and nothing by that name was "
-    "removed on this branch.":
-        "{name} каже, що його перейменували з {was}, а нічого з таким іменем "
-        "на цій гілці не прибирали.",
     "{name} and {other} both claim to be {was} renamed — one promise cannot "
     "have two heirs.":
         "{name} і {other} обидва звуться перейменованим {was} — в однієї "
@@ -1951,6 +1947,10 @@ class Project:
         # On CI the head is detached and git cannot name the branch — there the
         # name arrives in a flag.
         self.branch_override = None
+        # {old slug -> the document that now carries the promise}. Kept apart
+        # from `waves` and `contracts` so that walking either one walks real
+        # files, once each.
+        self.aliases = {}
         self._load()
 
     @property
@@ -1972,14 +1972,28 @@ class Project:
                     self.broken.append(doc)
                 target[doc.slug] = doc
 
-            # A document that changed its name answers to both. Closed waves
-            # point at the old slug and are not rewritten to keep a check
-            # green; without this the rename would break `references lead
-            # somewhere` across the whole history behind it.
-            for doc in list(target.values()):
+            # A document that changed its name answers to both — but the old
+            # name lives beside the shelf, not on it. Putting the alias into the
+            # same dict handed the document out twice: every walk over
+            # `.values()` saw it again, and `arriving_contracts` read the alias
+            # as a contract main has never seen.
+            for doc in target.values():
                 was = doc.renamed_from
                 if was and was not in target:
-                    target[was] = doc
+                    self.aliases[was] = doc
+
+    def knows(self, kind, slug):
+        """Does a wave or a contract answer to this name, alias included?
+
+        Asked wherever a reference is resolved: a closed wave points at the
+        name a contract carried when it was approved, and that name has to keep
+        leading somewhere after the contract is renamed.
+        """
+        group = self.waves if kind == "waves" else self.contracts
+        if slug in group:
+            return True
+        found = self.aliases.get(slug)
+        return found is not None and found.rel.split("/")[-2] == kind
 
     @property
     def ready(self):
@@ -2243,13 +2257,13 @@ def check_refs(project):
         if wave.error:
             continue
         for ref in wave.depends_on:
-            if ref.slug not in project.waves:
+            if not project.knows("waves", ref.slug):
                 problems.append(Problem(
                     1, t("depends_on points at a wave that does not exist: {slug}", slug=ref.slug),
                     wave.rel, wave.line_of(ref.slug)))
         for slug in wave.scenarios:
             for ref in wave.proves(slug):
-                if ref.slug not in project.contracts:
+                if not project.knows("contracts", ref.slug):
                     problems.append(Problem(
                         1, t("scenario {scenario} proves a contract that does not exist: {slug}", scenario=slug, slug=ref.slug),
                         wave.rel, wave.line_of(ref.raw)))
@@ -2260,7 +2274,7 @@ def check_refs(project):
                         1, t("transform {transform} implements a scenario that does not exist: {scenario}", transform=slug, scenario=name),
                         wave.rel, wave.line_of(name)))
             for ref in wave.transform_contracts(slug):
-                if ref.slug not in project.contracts:
+                if not project.knows("contracts", ref.slug):
                     problems.append(Problem(
                         1, t("transform {transform} implements a contract that does not exist: {slug}", transform=slug, slug=ref.slug),
                         wave.rel, wave.line_of(ref.raw)))
@@ -2580,7 +2594,7 @@ def deleted_documents(project, base):
             "{name} was deleted on this branch. A wave or a "
             "contract outlives the branch that removes it — say so "
             "in the pull request, or put it back.", name=name)))
-    return problems + rename_lies(project, gone)
+    return problems + rename_lies(project)
 
 
 def renames(project):
@@ -2594,26 +2608,22 @@ def renames(project):
     return claimed
 
 
-def rename_lies(project, gone):
-    """Claims that do not hold: nothing removed under that name, or two heirs.
-
-    A claim skips the guard that stops a deletion, so a claim nobody can check
-    would be the quietest way through it — quieter than the deletion itself,
-    because it arrives wearing the word that makes deletions legal.
-    """
-    removed = {os.path.splitext(os.path.basename(name))[0] for name in gone}
+def rename_lies(project):
+    """Claims that do not hold: one promise named by two heirs."""
     problems, heirs = [], {}
     for group in (project.waves, project.contracts):
         for doc in sorted(group.values(), key=lambda item: item.rel):
             was = doc.renamed_from
             if not was or doc.slug == was:
                 continue
-            if was not in removed:
-                problems.append(Problem(4, t(
-                    "{name} says it was renamed from {was}, and nothing by that "
-                    "name was removed on this branch.", name=doc.rel, was=was),
-                    where=doc.rel))
-            elif was in heirs and heirs[was] is not doc:
+            # Not checked: that something by that name went away on *this*
+            # branch. The removal is on this branch exactly once — the branch
+            # that did the renaming — and lives in history ever after, so the
+            # check made the claim true for one branch and a lie on every one
+            # behind it. The claim alone legalises nothing: it only excuses the
+            # deletion standing beside it, and a name still taken by a document
+            # of its own never becomes an alias.
+            if was in heirs and heirs[was] is not doc:
                 problems.append(Problem(4, t(
                     "{name} and {other} both claim to be {was} renamed — one "
                     "promise cannot have two heirs.", name=doc.rel,
