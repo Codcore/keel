@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.8.11"
+VERSION = "0.8.12"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -2407,11 +2407,22 @@ def unbegun_waves(project):
 
 
 def unbegun_contracts(project, unbegun=None):
-    """Contracts that only waves nobody has begun lean on.
+    """Contracts whose current revision only waves nobody has begun lean on.
 
     A contract named by one unbegun wave and one finished wave is checked: the
-    finished wave's code is supposed to keep it. Only a contract whose every
-    reader is still unbegun has nothing on the branch to compare against.
+    finished wave's code is supposed to keep it. Only a contract nothing begun
+    has anything to say about has nothing on the branch to compare against.
+
+    Revision, not slug. A begun wave pinned to `session-run@1781fb` promises
+    its code keeps *that* text; the unbegun wave rewrote the file to `@9eb3ef`
+    and added a promise nobody has written yet. Reading the slug alone made the
+    older wave vouch for words it never saw, and check 6 asked the finished
+    code for an export the open wave will bring. Found live on wave 0018: main
+    went red the moment the plan merged, and with it the §4.11 allowance went
+    silent — the backlog could not be pushed either.
+
+    A reference with no revision at all is not pinned to any text, so it does
+    speak for whatever the file says now.
     """
     unbegun = unbegun_waves(project) if unbegun is None else unbegun
     if not unbegun:
@@ -2420,9 +2431,13 @@ def unbegun_contracts(project, unbegun=None):
     for slug, wave in project.waves.items():
         if wave.error:
             continue
-        target = from_unbegun if slug in unbegun else from_others
         for _who, ref in contract_refs(wave):
-            target.add(ref.slug)
+            if slug in unbegun:
+                from_unbegun.add(ref.slug)
+                continue
+            contract = project.contracts.get(ref.slug)
+            if ref.rev is None or contract is None or contract.rev_ok(ref.rev):
+                from_others.add(ref.slug)
     # A contract nobody leans on falls into neither set and stays judged: that
     # is check 6's own business and none of this exemption's.
     return from_unbegun - from_others

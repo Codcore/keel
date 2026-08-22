@@ -288,13 +288,21 @@ modules.
 
 **§7.11.** A wave whose plan has reached the main branch and whose work has not
 is not judged by §7.5 and §7.6 on main. It has begun once main closes at least
-one of its transforms.
+one of its transforms. A contract it rewrote is a contract nobody has begun:
+what an earlier wave keeps is the revision that wave named, not the words the
+open one added.
 
 *Rationale: the same as for a plan branch — a promise without code, judged by
 green tests and existing modules, is a gate that is always shut. Approving a plan
 moves that state onto main rather than ending it, and until the work lands a red
 main means nothing. The cost was not only that: while main is red, what §4.11
 allows through cannot be pushed either.*
+
+*On the revision: a contract two waves name looks held — the finished one's code
+is supposed to keep it. It is held only in the revision that wave was pinned to.
+When the open wave rewrites the file and adds a promise, reading the slug alone
+makes the older wave vouch for words it never saw, and the gate shuts again on
+the same day the plan lands.*
 
 **§7.12.** A test that has never been seen red is undemonstrated. Before
 believing green, break what the test guards and watch it fail.

@@ -1094,6 +1094,47 @@ class TestAWaveNobodyHasBegunIsNotJudged(ProjectCase):
         self.plan_a_second_wave()
         self.assertNotIn("session-run", keel.unbegun_contracts(self.project))
 
+    def rewrite_the_contract(self):
+        """Друга хвиля дописує контрактові обіцянку, якої код ще не тримає."""
+        body = CONTRACT.replace("exports: [run/3]",
+                                        "exports: [run/3, looked?/1]")
+        self.fixture.write("keel/contracts/session-run.md", body)
+        return keel.revision(body)
+
+    def test_a_contract_the_unbegun_wave_rewrote_is_not_asked(self):
+        """Знайдено живим на хвилі 0018.
+
+        Почата хвиля лежить на **старій** редакції контракту й нічого не
+        каже про нову. Друга хвиля переписала контракт, дописавши обіцянку,
+        якої код ще не має, — і поки її роботи на головній немає, питати
+        цю обіцянку нема в кого. Раніше сам факт, що на слаг посилається
+        ще й закрита хвиля, будив контракт, і перевірка 6 судила старий
+        код за новою обіцянкою: головна червоніла, а з нею глухнув і
+        виняток §4.11 — беклог у неї не запушиш.
+        """
+        self.close_the_only_transform()
+        rev = self.rewrite_the_contract()
+        body = WAVE.format(rev=rev).replace(
+            "drive-turns:", "carry-tools:").replace(
+            "finishes-when-no-tool-called", "asks-before-it-writes")
+        self.fixture.write("keel/waves/0002-tools.md", body)
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "план 0002")
+        self.assertIn("session-run", keel.unbegun_contracts(self.project))
+
+    def test_the_rewritten_contract_wakes_once_the_work_lands(self):
+        """Одна закрита трансформа — і питати вже є в кого."""
+        self.close_the_only_transform()
+        rev = self.rewrite_the_contract()
+        body = WAVE.format(rev=rev).replace(
+            "drive-turns:", "carry-tools:").replace(
+            "finishes-when-no-tool-called", "asks-before-it-writes")
+        self.fixture.write("keel/waves/0002-tools.md", body)
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "план 0002")
+        self.fixture.git("commit", "--allow-empty", "-m", "carry-tools: зроблено")
+        self.assertNotIn("session-run", keel.unbegun_contracts(self.project))
+
 
 class TestAMergedBranchHandsOutNoWork(ProjectCase):
     """Знайдено живим: агент узяв пакет і пішов шукати, що там переробити.
