@@ -167,6 +167,20 @@ test could prove, so it has no wave and can have none. Forbidding what has
 nowhere else lawful to go is not a guard but a detour somebody will eventually
 take — through the same tool, past the door the guard watches.*
 
+**§4.12.** A document that changed its name says so itself: the new file
+carries `renamed_from: <old slug>` in its header. The deletion of the old one
+then stops being an error and stays a line in the diff, as drift does. The old
+name still leads somewhere — the document answers to both, and closed waves
+pointing at the former one are not rewritten. The claim is checked: it is red
+when nothing by that name was removed on this branch, when two documents claim
+the same inheritance, or when the move crosses folders.
+
+*Grounds: a wave and a contract outlive the branch that removes them because a
+deletion loses a promise. A rename loses nothing — the promise stays, under
+another word — so the guard is not about it. Nothing is guessed: git recognises
+a rename by how alike the two files are, and a document is renamed exactly when
+its body was rewritten, which is when git says nothing.*
+
 ---
 
 ## Chapter 5. Revisions

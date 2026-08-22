@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.8.9"
+VERSION = "0.8.10"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -318,6 +318,14 @@ UK = {
     "it stays a line in the diff — say in the pull request what changed and why.":
         "{file} відрізняється від схваленого: +{added} -{removed}. Дозволено, і "
         "воно лишається рядком у diff — скажіть у PR, що змінилось і чому.",
+    "{name} says it was renamed from {was}, and nothing by that name was "
+    "removed on this branch.":
+        "{name} каже, що його перейменували з {was}, а нічого з таким іменем "
+        "на цій гілці не прибирали.",
+    "{name} and {other} both claim to be {was} renamed — one promise cannot "
+    "have two heirs.":
+        "{name} і {other} обидва звуться перейменованим {was} — в однієї "
+        "обіцянки не буває двох спадкоємців.",
     "wave {other} declares {name} too, and depends_on does not name it — "
     "deliberate?":
         "хвиля {other} теж оголошує {name}, а depends_on його не називає — "
@@ -970,6 +978,19 @@ class Doc:
     # one level down.
     SHAPES = {}
 
+    @property
+    def renamed_from(self):
+        """The slug this document used to carry, when it changed its name.
+
+        A rename is a deletion plus an addition, and deleting a document is
+        exactly what check 4 stops. Saying it out loud is what tells the two
+        apart: the promise did not go anywhere, it is written under another
+        name. Nothing is guessed from similarity — git cannot see a rename
+        whose body was rewritten, and that is the case a rename is for.
+        """
+        value = self.front.get("renamed_from")
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
     def _wrong_shape(self):
         for field, kind in self.SHAPES.items():
             value = self.front.get(field)
@@ -1050,7 +1071,7 @@ class Contract(Doc):
     # `verify` is left out on purpose: check 6 already names a wrong shape
     # there, with the value in the message, and that is a promise about a
     # command rather than about the document's own structure.
-    SHAPES = {"module": str, "exports": list}
+    SHAPES = {"module": str, "exports": list, "renamed_from": str}
 
     @property
     def module(self):
@@ -1080,7 +1101,8 @@ class Contract(Doc):
 
 
 class Wave(Doc):
-    SHAPES = {"depends_on": list, "scenarios": dict, "transforms": dict}
+    SHAPES = {"depends_on": list, "scenarios": dict, "transforms": dict,
+              "renamed_from": str}
 
     def _wrong_shape(self):
         problem = super()._wrong_shape()
@@ -1950,6 +1972,15 @@ class Project:
                     self.broken.append(doc)
                 target[doc.slug] = doc
 
+            # A document that changed its name answers to both. Closed waves
+            # point at the old slug and are not rewritten to keep a check
+            # green; without this the rename would break `references lead
+            # somewhere` across the whole history behind it.
+            for doc in list(target.values()):
+                was = doc.renamed_from
+                if was and was not in target:
+                    target[was] = doc
+
     @property
     def ready(self):
         return os.path.isdir(self.keel)
@@ -2534,10 +2565,61 @@ def deleted_documents(project, base):
         return []
     listing = project.git.out("diff", "--name-only", "--diff-filter=D", base,
                              "--", "keel/waves", "keel/contracts")
-    return [Problem(4, t("{name} was deleted on this branch. A wave or a "
-                         "contract outlives the branch that removes it — say so "
-                         "in the pull request, or put it back.", name=name))
-            for name in sorted(listing.splitlines()) if name.strip()]
+    gone = [name for name in sorted(listing.splitlines()) if name.strip()]
+    claimed = renames(project)
+    problems = []
+    for name in gone:
+        folder, slug = name.split("/")[-2], os.path.splitext(os.path.basename(name))[0]
+        heir = claimed.get(slug)
+        # A rename is allowed and stays a line in the diff; a deletion is not.
+        # The heir has to sit in the same folder: a wave is not a contract, and
+        # calling one the other's new name would launder a loss as a move.
+        if heir is not None and heir.rel.split("/")[-2] == folder:
+            continue
+        problems.append(Problem(4, t(
+            "{name} was deleted on this branch. A wave or a "
+            "contract outlives the branch that removes it — say so "
+            "in the pull request, or put it back.", name=name)))
+    return problems + rename_lies(project, gone)
+
+
+def renames(project):
+    """{old slug -> the document that claims it}, across waves and contracts."""
+    claimed = {}
+    for group in (project.waves, project.contracts):
+        for doc in group.values():
+            was = doc.renamed_from
+            if was:
+                claimed.setdefault(was, doc)
+    return claimed
+
+
+def rename_lies(project, gone):
+    """Claims that do not hold: nothing removed under that name, or two heirs.
+
+    A claim skips the guard that stops a deletion, so a claim nobody can check
+    would be the quietest way through it — quieter than the deletion itself,
+    because it arrives wearing the word that makes deletions legal.
+    """
+    removed = {os.path.splitext(os.path.basename(name))[0] for name in gone}
+    problems, heirs = [], {}
+    for group in (project.waves, project.contracts):
+        for doc in sorted(group.values(), key=lambda item: item.rel):
+            was = doc.renamed_from
+            if not was or doc.slug == was:
+                continue
+            if was not in removed:
+                problems.append(Problem(4, t(
+                    "{name} says it was renamed from {was}, and nothing by that "
+                    "name was removed on this branch.", name=doc.rel, was=was),
+                    where=doc.rel))
+            elif was in heirs and heirs[was] is not doc:
+                problems.append(Problem(4, t(
+                    "{name} and {other} both claim to be {was} renamed — one "
+                    "promise cannot have two heirs.", name=doc.rel,
+                    other=heirs[was].rel, was=was), where=doc.rel))
+            heirs.setdefault(was, doc)
+    return problems
 
 
 def check_scope(project):

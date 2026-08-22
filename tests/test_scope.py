@@ -594,3 +594,57 @@ class TestDeletingSomebodyElsesDocument(ProjectCase):
     def test_touching_nothing_says_nothing(self):
         self.assertEqual(
             [p for p in keel.check_scope(self.project) if "deleted" in p.message], [])
+
+
+class TestAContractThatChangedItsName(ProjectCase):
+    """Перейменування не втрачає обіцянки, і правило проти видалення не про нього.
+
+    Прогулянка дала контракт, чий зміст переписали цілком: спостерігач був
+    скриптом на Python, став модулем BEAM. Слово `script` лишилось у слазі, бо
+    видалити документ не можна, а перейменувати — те саме видалення. Ім'я
+    застигло неправдивим, і виправити його методика не давала.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.fixture.branch("0001-session-loop")
+
+    def rename(self, old="session-run", new="running-a-session"):
+        # Тіло переписується цілком, а не переїжджає: саме так і сталось на
+        # прогулянці — спостерігач із Python став модулем BEAM. Якби вміст
+        # лишався тим самим, git сам назвав би це перейменуванням, і перевірка
+        # мовчала б із власної причини, нічого не довівши.
+        self.fixture.git("rm", "-q", "keel/contracts/%s.md" % old)
+        self.fixture.write("keel/contracts/%s.md" % new,
+                           "---\nrenamed_from: %s\nmodule: KeelAgent.Other\n"
+                           "exports:\n  - \"run(word :: binary()) :: :ok\"\n---\n\n"
+                           "Зовсім інше тіло, писане іншою мовою про інший предмет.\n" % old)
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "drive-turns: контракт дістав правдиве ім'я")
+
+    def test_a_declared_move_is_not_a_deletion(self):
+        self.rename()
+        problems = keel.check_scope(self.project)
+        self.assertEqual([p.message for p in problems if "session-run" in p.message], [])
+
+    def test_an_undeclared_deletion_is_still_named(self):
+        self.fixture.git("rm", "-q", "keel/contracts/session-run.md")
+        self.fixture.git("commit", "-m", "drive-turns: просто прибрав")
+        problems = keel.check_scope(self.project)
+        self.assertTrue(any("session-run" in p.message for p in problems),
+                        [p.message for p in problems])
+
+    def test_the_old_name_still_leads_somewhere(self):
+        self.rename()
+        project = keel.Project(self.fixture.root)
+        self.assertIn("session-run", project.contracts)
+        self.assertEqual(project.contracts["session-run"].slug, "running-a-session")
+
+    def test_a_move_from_a_file_nobody_removed_is_a_lie(self):
+        self.fixture.write("keel/contracts/running-a-session.md",
+                           "---\nrenamed_from: never-existed\nmodule: X\n---\n\nТіло.\n")
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "drive-turns: заявив переїзд, якого не було")
+        problems = keel.check_scope(self.project)
+        self.assertTrue(any("never-existed" in p.message for p in problems),
+                        [p.message for p in problems])
