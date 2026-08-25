@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-VERSION = "0.8.12"
+VERSION = "0.8.13"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -73,7 +73,18 @@ UK = {
     "no key before the colon: {line}": "немає ключа перед двокрапкою: {line}",
     "two colons on one line: {line}": "дві двокрапки в одному рядку: {line}",
     "empty key": "порожній ключ",
-    "no header between --- markers": "немає шапки між рисками ---",
+    "the file is empty: a wave starts with a --- header":
+        "файл порожній: хвиля починається з шапки між рисками ---",
+    "line 1 has to be exactly --- and it is {line}. The header comes first in "
+    "the file, before any heading.":
+        "перший рядок мусить бути рівно --- , а він {line}. Шапка стоїть на "
+        "початку файлу, перед будь-яким заголовком.",
+    "the header opens with --- on line 1 and never closes: add a line with "
+    "nothing but --- after the last header field, and the prose goes below it.":
+        "шапка відкрилась рискою --- у першому рядку й ніде не закрилась: "
+        "поставте рядок із самою рискою --- після останнього поля шапки, а "
+        "проза йде під ним.",
+    "empty": "порожній",
     "the test command could not run ({command}): {reason}":
         "команда тестів не запустилась ({command}): {reason}",
     "{command} could not run: {reason}": "{command} не запустився: {reason}",
@@ -104,6 +115,12 @@ UK = {
         "належать цій роботі.",
     "{field} has to be {kind}, and this is {actual}":
         "{field} має бути {kind}, а це {actual}",
+    "{field} is a field of {theirs}, and this is {ours}; a document with it "
+    "belongs in keel/{folder}/":
+        "{field} — поле, яке має {theirs}, а це {ours}; документ із ним лежить "
+        "у keel/{folder}/",
+    "a wave": "хвиля",
+    "a contract": "контракт",
     "a list": "списком",
     "a set of named entries": "набором іменованих записів",
     "a name": "імʼям",
@@ -133,6 +150,10 @@ UK = {
     "cycle in depends_on: {cycle}": "цикл у depends_on: {cycle}",
     "{who} leans on {slug} without a revision; it is now {now}":
         "{who} спирається на {slug} без редакції; зараз {now}",
+    "{who} holds {slug}@{held}, and no version of that contract ever had this "
+    "revision — it is now {now}. `keel rev` stamps the real one":
+        "{who} тримає {slug}@{held}, а такої редакції цей контракт не мав ніколи "
+        "— зараз {now}. Справжню ставить `keel rev`",
     "{who} holds {slug}@{held}, and the contract is now {now}":
         "{who} тримає редакцію {slug}@{held}, а контракт зараз {now}",
     "this is not a git repository — nothing to check scope against":
@@ -258,6 +279,62 @@ UK = {
     "CI is not set up: {command} — there is no such command":
         "CI не налаштований: {command} — такої команди немає",
     "CI is red: {command}": "CI червоний: {command}",
+    "a reference without a revision is not an error — it is how you write one "
+    "before the contract has been read. Run `keel rev --write` and the "
+    "revisions above are recorded into the files that hold them.":
+        "посилання без редакції — це не помилка, а саме те, як його пишуть, "
+        "поки контракт іще не прочитано. Виконайте `keel rev --write`, і "
+        "редакції вище запишуться у файли, що їх тримають.",
+    "nothing refers to these contracts yet, so there is no revision to record. "
+    "The revision lives in the reference: name the contract in a wave — "
+    "proves: <contract> or contracts: [<contract>] — and run this again.":
+        "на ці контракти поки ніщо не посилається, тож і редакції ставити "
+        "нікуди. Редакція живе в посиланні: назвіть контракт у хвилі — "
+        "proves: <контракт> або contracts: [<контракт>] — і покличте ще раз.",
+    "\nAn example of the same file, filled in — this is not written anywhere, it is\n"
+    "only here to show what the shapes look like:\n"
+    "\n"
+    "  scenarios:\n"
+    "    a_failed_job_is_retried_once:   {proves: queue@7f21ac}\n"
+    "    a_job_that_fails_twice_is_parked: {proves: queue@7f21ac}\n"
+    "\n"
+    "  transforms:\n"
+    "    retry-policy:\n"
+    "      implements: [a_failed_job_is_retried_once, a_job_that_fails_twice_is_parked]\n"
+    "      contracts:  [queue@7f21ac]\n"
+    "      files:      [lib/app/queue.ex, test/app/queue_test.exs]\n"
+    "\n"
+    "  ## scenario: a_failed_job_is_retried_once\n"
+    "\n"
+    "  **Given** a job that raises on its first run,\n"
+    "  **When** the queue drains,\n"
+    "  **Then** the job runs a second time and then succeeds.\n"
+    "\n"
+    "The revision after @ is the contract's, and you do not type it by hand. It\n"
+    "lives in the reference, not in the contract: write the contract, name it here\n"
+    "without a revision, then run `keel rev --write` and it fills them in.\n":
+        "\nОсь той самий файл, заповнений. Його ніде не записано — він тут лише щоб\n"
+        "показати, який вигляд мають ці місця:\n"
+        "\n"
+        "  scenarios:\n"
+        "    a_failed_job_is_retried_once:   {proves: queue@7f21ac}\n"
+        "    a_job_that_fails_twice_is_parked: {proves: queue@7f21ac}\n"
+        "\n"
+        "  transforms:\n"
+        "    retry-policy:\n"
+        "      implements: [a_failed_job_is_retried_once, a_job_that_fails_twice_is_parked]\n"
+        "      contracts:  [queue@7f21ac]\n"
+        "      files:      [lib/app/queue.ex, test/app/queue_test.exs]\n"
+        "\n"
+        "  ## scenario: a_failed_job_is_retried_once\n"
+        "\n"
+        "  **Given** завдання, що падає на першому запуску,\n"
+        "  **When** черга розбирається,\n"
+        "  **Then** завдання йде вдруге й цього разу минає.\n"
+        "\n"
+        "Редакція після @ належить контракту, і руками її не пишуть. Живе вона\n"
+        "в посиланні, а не в контракті: напишіть контракт, назвіть його тут без\n"
+        "редакції, тоді `keel rev --write` — і він їх проставить.\n",
     "no waves yet. The first one starts with a plan: keel new wave <slug>, then "
     "the branch plan/<that name>.":
         "хвиль поки немає. Перша починається з плану: keel new wave <слаг>, а "
@@ -381,6 +458,12 @@ UK = {
     "scenario {slug} has no body: given/when/then":
         "сценарій {slug} без тіла: given/when/then",
     "the plan is complete: {names}": "план повний: {names}",
+    "there are no waves yet, so there is nothing to be missing. A plan starts "
+    "with `keel new wave <slug>`, and the file it creates lives in keel/waves/.":
+        "хвиль поки немає, тож і бракувати нічому. План починається з "
+        "`keel new wave <слаг>`, а файл, який він створює, лежить у keel/waves/.",
+    "{path} looks like a wave but is not in keel/waves/, so nothing reads it":
+        "{path} схожий на хвилю, але лежить не в keel/waves/, тож його ніхто не читає",
     "the plan is missing things ({names}):": "плану бракує ({names}):",
     "in total: {count}": "всього: {count}",
     "{file}: does not parse as JSON, leaving it alone":
@@ -921,6 +1004,11 @@ class Ref:
         return f"Ref({self.raw!r})"
 
 
+def kind_names():
+    """Spelled out as literals so the catalogue guard can see them."""
+    return {"wave": t("a wave"), "contract": t("a contract")}
+
+
 def shape_names():
     """Spelled out as literals so the catalogue guard can see them."""
     return {list: t("a list"),
@@ -955,14 +1043,16 @@ class Doc:
         self.text = text
         front_text, self.body, self.body_offset = split_front_matter(text)
         if front_text is None:
-            self.error = t("no header between --- markers")
+            self.error = front_matter_problem(text)
             return
         try:
             self.front = parse_yaml(front_text) or {}
         except YamlError as exc:
             self.error = t("header does not parse: {reason}", reason=exc)
             return
-        self.error = self._wrong_shape()
+        # Порода — поперед форми: коли документ лежить не в тій теці, розмова
+        # про тип поля веде не туди. Спершу місце, тоді вміст.
+        self.error = self._wrong_kind() or self._wrong_shape()
         if self.error:
             return
         self._split_sections()
@@ -995,6 +1085,28 @@ class Doc:
             return t("{field} has to be {kind}, and this is {actual}",
                      field=field, kind=shape_names()[kind],
                      actual=type(value).__name__)
+        return None
+
+    # ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: контракт із полями хвилі.
+    #
+    # Гема 26B поклала `proves:` у `keel/contracts/…`, а `scenarios:` — туди ж.
+    # Заголовок контракту читає лише свої поля, чужі мовчки минає, тож файл
+    # пройшов перевірку. Плану при цьому не було: хвилі не існувало, і `gaps`
+    # казав «нічому бракувати». Дві мовчазні зелені підряд, і модель пішла
+    # комітити з певністю, що впоралась.
+    #
+    # Поле чужої породи — не хиба стилю, а сплутане місце: документ написали
+    # правильно й поклали не в ту теку. Сказати треба саме це, бо порада тут
+    # інша, ніж «прибери зайве»: файл треба перенести.
+    FOREIGN = ()
+
+    def _wrong_kind(self):
+        for field in self.FOREIGN:
+            if field in self.front:
+                return t("{field} is a field of {theirs}, and this is {ours}; "
+                         "a document with it belongs in keel/{folder}/",
+                         field=field, theirs=kind_names()[self.OTHER],
+                         ours=kind_names()[self.KIND], folder=self.OTHER + "s")
         return None
 
     def _split_sections(self):
@@ -1051,6 +1163,31 @@ class Doc:
         return 1
 
 
+def front_matter_problem(text):
+    """Чому шапка не прочиталась — двома різними відповідями, не однією.
+
+    ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: Laguna дістала «no header between ---
+    markers» на файл, який починається саме з `---`, і у відповідь зробила
+    шістнадцятковий дамп власного файлу — `od -c` по рядках. Повідомлення не
+    казало ані якого маркера бракує, ані де його шукали, тож єдиний спосіб
+    дізнатись — дивитись на байти.
+
+    Випадків тут два, і вони протилежні: файл не починається з риски, або
+    починається, але друга риска ніде не стоїть. Порада в кожному своя.
+    """
+    lines = text.splitlines()
+    if not lines:
+        return t("the file is empty: a wave starts with a --- header")
+    if lines[0].strip() != "---":
+        pershyj = lines[0].strip()
+        return t("line 1 has to be exactly --- and it is {line}. The header "
+                 "comes first in the file, before any heading.",
+                 line=repr(pershyj[:60]) if pershyj else t("empty"))
+    return t("the header opens with --- on line 1 and never closes: add a "
+             "line with nothing but --- after the last header field, and the "
+             "prose goes below it.")
+
+
 def split_front_matter(text):
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
@@ -1064,6 +1201,9 @@ def split_front_matter(text):
 
 
 class Contract(Doc):
+    KIND, OTHER = "contract", "wave"
+    FOREIGN = ("scenarios", "transforms", "depends_on", "proves")
+
     # `verify` is left out on purpose: check 6 already names a wrong shape
     # there, with the value in the message, and that is a promise about a
     # command rather than about the document's own structure.
@@ -1097,6 +1237,10 @@ class Contract(Doc):
 
 
 class Wave(Doc):
+    KIND, OTHER = "wave", "contract"
+    # `verify` не тут: контракт може обіцяти команду, і хвиля з таким полем
+    # трапляється як чернетка, а не як переплутана тека.
+    FOREIGN = ("module", "exports")
     SHAPES = {"depends_on": list, "scenarios": dict, "transforms": dict,
               "renamed_from": str}
 
@@ -2497,6 +2641,32 @@ def contract_ref_drift(project, closed):
             yield wave, who, ref, contract
 
 
+def rev_ever(project, contract, rev):
+    """Чи збігалась ця редакція бодай з однією версією контракту в історії.
+
+    ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: і Ornith, і гема 26B ставили `@000000` —
+    заповнювач, вигаданий на місці, бо справжньої редакції вони не спитали.
+    Засіб відповідав «holds voda-nakladna@000000, and the contract is now
+    a3f1c0», і це читалось як «контракт змінився під тобою». Модель ішла
+    шукати, що ж там змінилось, правила текст контракту — і робила гірше.
+
+    Різниця варта запиту до git: дрейф лагодять `keel rev`, а вигадку — тим
+    самим `keel rev`, але спершу треба перестати шукати неіснуючу зміну.
+
+    Історія обмежена: сорока версій одного контракту не буває, а без межі
+    перевірка ходила б по всьому сховищу заради відповіді на дрібницю.
+    """
+    if not project.git.available or not project.git.has_commits:
+        return False
+    relative = os.path.relpath(contract.path, project.root).replace(os.sep, "/")
+    listing = project.git.out("log", "-40", "--format=%H", "--", relative)
+    for sha in listing.split():
+        text = project.git.out("show", f"{sha}:{relative}", default=None)
+        if text and rev_matches(rev, text):
+            return True
+    return False
+
+
 def drifted_contract_refs(project):
     """(wave, who, ref, contract) for every reference the work can still fix.
 
@@ -2573,9 +2743,16 @@ def check_revisions(project):
                 3, t("{who} leans on {slug} without a revision; it is now {now}",
                   who=who, slug=ref.slug, now=contract.revision),
                 wave.rel, line))
-        else:
+        elif rev_ever(project, contract, ref.rev):
             problems.append(Problem(
                 3, t("{who} holds {slug}@{held}, and the contract is now {now}",
+                  who=who, slug=ref.slug, held=ref.rev, now=contract.revision),
+                wave.rel, line))
+        else:
+            problems.append(Problem(
+                3, t("{who} holds {slug}@{held}, and no version of that contract "
+                     "ever had this revision — it is now {now}. `keel rev` stamps "
+                     "the real one",
                   who=who, slug=ref.slug, held=ref.rev, now=contract.revision),
                 wave.rel, line))
     return problems
@@ -3488,6 +3665,49 @@ def contract_skeleton():
         prose=t("What exactly is promised, and to whom."))
 
 
+# ЗНАЙДЕНО ПРОГОНАМИ 25 серпня 2026: скелет каже ФОРМУ, але не показує вигляду.
+#
+# Три моделі поспіль — Laguna, Ornith, Qwen3.8 і Qwen3.6 — доходили до місця,
+# де треба заповнити `scenarios:` і `transforms:`, і спинялись. Далі кожна
+# шукала зразок: викликала `--help` усіх підкоманд по десять разів, читала сам
+# засіб байтами, шукала неіснуючий `keel/README.md`, повторювала ті самі
+# команди двічі. Від 19 до 50 відсотків усіх дій до першого запису йшло на це.
+#
+# Плейсхолдер `<slug>: {proves: <contract>@<rev>}` описує граматику, а не
+# приклад. З нього не видно ані того, які імена доречні, ані звідки береться
+# `@rev`, ані що трансформ перелічує саме ті сценарії, які реалізує.
+#
+# Приклад друкується ПОРУЧ зі скелетом, а не в файл: у файлі він став би
+# сміттям, яке треба стерти, і `gaps` лаявся б на нього як на справжній вміст.
+#
+# Імена взято навмисно з чужої області — черга завдань, — щоб приклад не
+# підказував нічого про роботу, яку модель зараз робить.
+PRYKLAD = """
+An example of the same file, filled in — this is not written anywhere, it is
+only here to show what the shapes look like:
+
+  scenarios:
+    a_failed_job_is_retried_once:   {proves: queue@7f21ac}
+    a_job_that_fails_twice_is_parked: {proves: queue@7f21ac}
+
+  transforms:
+    retry-policy:
+      implements: [a_failed_job_is_retried_once, a_job_that_fails_twice_is_parked]
+      contracts:  [queue@7f21ac]
+      files:      [lib/app/queue.ex, test/app/queue_test.exs]
+
+  ## scenario: a_failed_job_is_retried_once
+
+  **Given** a job that raises on its first run,
+  **When** the queue drains,
+  **Then** the job runs a second time and then succeeds.
+
+The revision after @ is the contract's, and you do not type it by hand. It
+lives in the reference, not in the contract: write the contract, name it here
+without a revision, then run `keel rev --write` and it fills them in.
+"""
+
+
 WHY_HINT = "why this wave exists and what is missing without it"
 
 
@@ -3564,6 +3784,8 @@ def cmd_new(project, args):
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(text)
     print(os.path.relpath(path, project.root))
+    if kind == "wave":
+        print(t(PRYKLAD), end="")
     return 0
 
 
@@ -3746,6 +3968,29 @@ def gaps_problems(project, waves):
     return problems
 
 
+def wave_shaped_strays(project):
+    """Файли, що виглядають як хвиля, але лежать не там, де їх шукають.
+
+    Ознака навмисно вузька: `WAVE` чи `wave` в імені, розширення `.md`, і місце
+    — просто в `keel/`, поруч із методикою. Ширший пошук по всьому проєкту ловив
+    би нотатки й чернетки, тобто казав би про чуже.
+    """
+    baza = os.path.join(project.keel, "")
+    znajdeni = []
+
+    if not os.path.isdir(project.keel):
+        return znajdeni
+
+    for name in sorted(os.listdir(project.keel)):
+        if not name.endswith(".md") or "wave" not in name.lower():
+            continue
+        shlyah = os.path.join(project.keel, name)
+        if os.path.isfile(shlyah):
+            znajdeni.append(os.path.relpath(shlyah, project.root))
+
+    return znajdeni
+
+
 def cmd_gaps(project, args):
     waves = ([project.waves[args.wave]] if args.wave and args.wave in project.waves
              else [project.wave_for_branch()] if not args.wave and project.wave_for_branch()
@@ -3759,6 +4004,25 @@ def cmd_gaps(project, args):
     # through the plan and surface on a work branch, where fixing it means
     # amending an approved plan.
     problems = shared_transform_slugs(project) + gaps_problems(project, waves)
+
+    # ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: «the plan is complete: nothing».
+    #
+    # Гема 26B написала хвилю руками — у `keel/WAVE-1.md`, поруч із методикою, а
+    # не в `keel/waves/`. Засіб її не побачив: немає хвиль — немає й прогалин, —
+    # і відповів «план повний». Модель прочитала це як похвалу й завершила
+    # роботу з повною певністю, що впоралась.
+    #
+    # Це найдорожчий рід відповіді: правдива й веде в хибний бік. Порожній план
+    # мусить називатись порожнім, а не повним.
+    if not waves:
+        print(t("there are no waves yet, so there is nothing to be missing. "
+                "A plan starts with `keel new wave <slug>`, and the file it "
+                "creates lives in keel/waves/."))
+        for zabludy in wave_shaped_strays(project):
+            print("  " + t("{path} looks like a wave but is not in keel/waves/, "
+                           "so nothing reads it", path=zabludy))
+        return 0
+
     names = ", ".join(wave.slug for wave in waves) or t("nothing")
     if not problems:
         print(t("the plan is complete: {names}", names=names))
@@ -4544,7 +4808,7 @@ Two commands:
   boundaries, the scenarios it brings closer, the contracts it leans on.
 - `python3 {tool} check` — what is wrong right now. Before a commit and before a PR.
 
-Three references — open them when something is unclear:
+The references — open them when something is unclear:
 
 - `keel/METHODOLOGY.md` — the method: what goes in a wave's header, how revisions work,
   what each check looks at.
@@ -4570,7 +4834,7 @@ AGENTS_BLOCK = """{start}
   сценарії, які вона наближає, тіла контрактів, на які спирається.
 - `python3 {tool} check` — що не так зараз. Перед коммітом і перед PR.
 
-Три довідники — відкривай, коли не ясно:
+Довідники — відкривай, коли не ясно:
 
 - `keel/METHODOLOGY.md` — методика: що йде в шапку хвилі, як влаштовані редакції,
   що саме перевіряє кожна перевірка.
@@ -6191,6 +6455,28 @@ def read_text(path):
         return ""
 
 
+def contract_refs_exist(project):
+    """Чи називає бодай одна хвиля бодай один контракт.
+
+    Питання не про збіг редакцій, а про те, чи є що звіряти взагалі.
+    """
+    for wave in project.waves.values():
+        if wave.error:
+            continue
+        for slug in wave.scenarios:
+            if list(wave.proves(slug)):
+                return True
+        for slug in wave.transforms:
+            if list(wave.transform_contracts(slug)):
+                return True
+    return False
+
+
+def was_rev(was):
+    """Чи несло посилання редакцію. `slug@—` означає, що не несло."""
+    return "@" in was and not was.endswith("@—")
+
+
 def cmd_rev(project, args):
     """Show revisions that have drifted apart; --write records the new ones."""
     edits = {}   # path -> [(old, new)]
@@ -6224,6 +6510,21 @@ def cmd_rev(project, args):
     if not report:
         if settled:
             print("\n" + t("nothing open drifted"))
+        elif not any(True for _ in drifted_contract_refs(project)) and \
+                project.contracts and not contract_refs_exist(project):
+            # ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: Laguna написала контракт, одразу
+            # покликала `rev --write` — і дістала «every revision matches».
+            # Формально правда: звіряти було нічого, бо жодна хвиля контракту
+            # ще не називала. Практично — глухий кут: засіб сказав «усе
+            # гаразд», модель вирішила, що не розуміє інструмента, і стерла
+            # все, що зробила: `rm -rf keel/contracts keel/waves`.
+            #
+            # Редакція живе не в контракті, а в ПОСИЛАННІ на нього. Поки
+            # посилання немає, ставити нема куди — і сказати треба саме це.
+            print(t("nothing refers to these contracts yet, so there is no "
+                    "revision to record. The revision lives in the reference: "
+                    "name the contract in a wave — proves: <contract> or "
+                    "contracts: [<contract>] — and run this again."))
         else:
             print(t("every revision matches"))
         return 0
@@ -6232,6 +6533,23 @@ def cmd_rev(project, args):
         print("")
     for where, who, was, now in report:
         print(f"  {where}  {who}: {was} → {now}")
+
+    # ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: Laguna дійшла до готової хвилі з
+    # контрактом, спитала себе «how to properly set up a contract with a
+    # revision» — і пішла шукати `keel/README.md`, якого немає. Тричі поспіль,
+    # аж доки цикл не спинив її за повтор.
+    #
+    # Приклад із `keel new wave` це пояснює, але його показано на початку, за
+    # тисячі токенів до питання. Порада мусить стояти там, де питання виникає:
+    # у відповіді того, хто його бачить.
+    #
+    # Без `--write` це особливо важить: людина (чи модель) щойно почула, що
+    # редакції розійшлись, і найперше питання — «а як їх поставити».
+    if not getattr(args, "write", False) and any(not was_rev(was) for _, _, was, _ in report):
+        print("\n" + t("a reference without a revision is not an error — it is "
+                       "how you write one before the contract has been read. "
+                       "Run `keel rev --write` and the revisions above are "
+                       "recorded into the files that hold them."))
 
     if not args.write:
         print("\n" + t("drifted apart: {count}. keel rev --write records the new ones, "

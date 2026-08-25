@@ -491,3 +491,33 @@ class TestReaderRefusesWhatItCannotRead(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TestFrontMatterProblem(unittest.TestCase):
+    """Помилка про шапку мусить казати, ЩО не так і ДЕ.
+
+    25 серпня 2026 Laguna дістала «no header between --- markers» на файл, який
+    починається саме з `---`, і у відповідь зробила шістнадцятковий дамп
+    власного файлу. Повідомлення не казало ані якого маркера бракує, ані де
+    його шукали, тож єдиний спосіб дізнатись — дивитись на байти.
+    """
+
+    def test_the_header_never_closes(self):
+        problem = keel.front_matter_problem("---\ndepends_on: []\n\n## Why\n")
+        self.assertIn("never closes", problem)
+        self.assertIn("nothing but ---", problem)
+
+    def test_the_file_does_not_start_with_a_marker(self):
+        problem = keel.front_matter_problem("# Wave one\n\n---\ndepends_on: []\n---\n")
+        self.assertIn("line 1 has to be exactly ---", problem)
+        # Показуємо, ЩО там стоїть: інакше знову доведеться дивитись на байти.
+        self.assertIn("# Wave one", problem)
+
+    def test_an_empty_file(self):
+        self.assertIn("the file is empty", keel.front_matter_problem(""))
+
+    def test_a_good_header_has_no_problem_reported(self):
+        """Зворотне: там, де шапка ціла, помилки не вигадуємо."""
+        front, body, _ = keel.split_front_matter("---\ndepends_on: []\n---\n\n## Why\n")
+        self.assertEqual(front.strip(), "depends_on: []")
+        self.assertIn("## Why", body)
+

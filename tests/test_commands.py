@@ -434,6 +434,111 @@ class TestNewAndPlan(ProjectCase):
         self.assertEqual(code, 0)
         self.assertIn("0002-tool-calls.md", out)
 
+    def test_new_wave_shows_a_filled_example(self):
+        """Скелет каже форму, але не показує вигляду.
+
+        25 серпня 2026 чотири моделі поспіль спинялись на місці, де треба
+        заповнити `scenarios:` і `transforms:`, і йшли шукати зразок: кликали
+        `--help` десятками, читали сам засіб байтами, шукали неіснуючий
+        README. Від 19 до 50 відсотків дій до першого запису — на це.
+        """
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="wave", slug="tool-calls"))
+        self.assertEqual(code, 0)
+
+        # Шлях лишається першим рядком: його читають скриптами.
+        self.assertEqual(out.splitlines()[0], "keel/waves/0002-tool-calls.md")
+
+        # Приклад показує ВСІ три місця, на яких вони спинялись.
+        self.assertIn("{proves: queue@7f21ac}", out)
+        self.assertIn("implements: [", out)
+        self.assertIn("contracts:  [queue@7f21ac]", out)
+        self.assertIn("files:      [", out)
+        self.assertIn("**Given**", out)
+
+        # І звідки береться редакція — це питали найчастіше.
+        self.assertIn("keel rev --write", out)
+
+    def test_the_example_is_not_written_into_the_file(self):
+        """У файлі приклад став би сміттям, яке треба стерти, а `gaps` лаявся б
+        на нього як на справжній вміст."""
+        self.capture(keel.cmd_new, self.project, Args(kind="wave", slug="tool-calls"))
+        text = self.fixture.read("keel/waves/0002-tool-calls.md")
+        self.assertNotIn("queue@7f21ac", text)
+        self.assertNotIn("retry-policy", text)
+
+    def test_a_contract_gets_no_example(self):
+        """Спинялись на хвилі, не на контракті: його скелет самодостатній."""
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="contract", slug="tool-registry"))
+        self.assertEqual(code, 0)
+        self.assertNotIn("queue@7f21ac", out)
+
+    def test_rev_says_what_is_missing_instead_of_all_is_well(self):
+        """Засіб відповідав правду, з якої нічого не випливає.
+
+        25 серпня 2026 Laguna написала контракт, одразу покликала
+        `rev --write` — і дістала «every revision matches». Звіряти справді
+        було нічого: жодна хвиля контракту ще не називала. Модель прочитала це
+        як «я не розумію інструмента» і стерла все, що зробила:
+        `rm -rf keel/contracts keel/waves`.
+
+        Редакція живе в ПОСИЛАННІ, не в контракті. Поки посилання немає,
+        ставити нікуди — і сказати треба саме це.
+        """
+        # Прибираємо всі посилання: лишаємо контракти, знімаємо хвилі.
+        for name in os.listdir(self.fixture.path("keel/waves")):
+            os.remove(self.fixture.path(f"keel/waves/{name}"))
+        project = keel.Project(self.fixture.root)
+
+        code, out = self.capture(keel.cmd_rev, project, Args(write=True))
+        self.assertEqual(code, 0)
+        self.assertIn("nothing refers to these contracts yet", out)
+        self.assertIn("proves: <contract>", out)
+        self.assertNotIn("every revision matches", out)
+
+    def test_rev_tells_how_to_stamp_a_bare_reference(self):
+        """Питання «а звідки береться @rev» мусить мати відповідь там, де воно
+        виникає.
+
+        25 серпня 2026 Laguna дійшла до готової хвилі з `queue@—`, спитала себе
+        «how to properly set up a contract with a revision» і пішла шукати
+        `keel/README.md`, якого у фікстурі немає. Тричі поспіль, аж доки цикл не
+        спинив її за повтор. Приклад із `new wave` це пояснює — але його
+        показано на початку, за тисячі токенів до питання.
+        """
+        # У фікстурі редакції вже проставлені — знімаємо їх, бо саме голе
+        # посилання й породжує питання.
+        shlyah = "keel/waves/0001-session-loop.md"
+        text = self.fixture.read(shlyah)
+        self.fixture.write(shlyah, re.sub(r"@[0-9a-f]{6}", "", text))
+        project = keel.Project(self.fixture.root)
+
+        # Код виходу тут ненульовий навмисно: редакції розійшлись, і без
+        # `--write` це стан, а не успіх. Питання тесту — що саме сказано.
+        code, out = self.capture(keel.cmd_rev, project, Args(write=False))
+        self.assertEqual(code, 1)
+        self.assertIn("a reference without a revision is not an error", out)
+        self.assertIn("keel rev --write", out)
+
+    def test_the_advice_is_silent_when_there_is_nothing_bare(self):
+        """Коли редакції вже стоять, поради не буває: вона про порожнє поле."""
+        _, out = self.capture(keel.cmd_rev, self.project, Args(write=False))
+        self.assertNotIn("a reference without a revision is not an error", out)
+
+    def test_rev_still_records_when_there_is_a_reference(self):
+        """Зворотне: коли посилання є, він робить свою роботу мовчки й точно."""
+        code, out = self.capture(keel.cmd_rev, self.project, Args(write=True))
+        self.assertEqual(code, 0)
+        self.assertNotIn("nothing refers to these contracts", out)
+
+    def test_the_example_points_at_the_reference_not_the_contract(self):
+        """Приклад вів у ту саму пастку: «спершу контракт, тоді rev --write»."""
+        _, out = self.capture(keel.cmd_new, self.project,
+                              Args(kind="wave", slug="tool-calls"))
+        self.assertIn("lives in the reference", out)
+        self.assertIn("keel rev --write", out)
+
     def test_new_wave_skeleton_parses(self):
         self.capture(keel.cmd_new, self.project, Args(kind="wave", slug="tool-calls"))
         wave = self.project.waves["0002-tool-calls"]
@@ -453,6 +558,42 @@ class TestNewAndPlan(ProjectCase):
         code, out = self.capture(keel.cmd_gaps, self.project, Args(wave="0001-session-loop"))
         self.assertEqual(code, 0)
         self.assertIn("the plan is complete", out)
+
+    def test_an_empty_plan_is_not_called_complete(self):
+        """«the plan is complete: nothing» читалось як похвала.
+
+        25 серпня 2026 гема 26B написала хвилю руками — у `keel/WAVE-1.md`,
+        поруч із методикою, а не в `keel/waves/`. Засіб її не побачив: немає
+        хвиль — немає й прогалин, — і відповів «план повний». Модель завершила
+        роботу з повною певністю, що впоралась.
+        """
+        for name in os.listdir(self.fixture.path("keel/waves")):
+            os.remove(self.fixture.path(f"keel/waves/{name}"))
+        project = keel.Project(self.fixture.root)
+
+        code, out = self.capture(keel.cmd_gaps, project, Args(wave=None))
+        self.assertEqual(code, 0)
+        self.assertIn("there are no waves yet", out)
+        self.assertIn("keel new wave", out)
+        self.assertNotIn("the plan is complete", out)
+
+    def test_a_wave_shaped_file_outside_the_folder_is_named(self):
+        """Файл, що виглядає як хвиля, але лежить не там, більше не мовчазний."""
+        for name in os.listdir(self.fixture.path("keel/waves")):
+            os.remove(self.fixture.path(f"keel/waves/{name}"))
+        self.fixture.write("keel/WAVE-1.md", "# Wave 1\n\n## Purpose\n\nЩось.\n")
+        project = keel.Project(self.fixture.root)
+
+        _, out = self.capture(keel.cmd_gaps, project, Args(wave=None))
+        self.assertIn("keel/WAVE-1.md", out)
+        self.assertIn("not in keel/waves/", out)
+
+    def test_a_plan_with_waves_still_reports_completeness(self):
+        """Зворотне: там, де хвилі є, відповідь лишається тією, що була."""
+        code, out = self.capture(keel.cmd_gaps, self.project, Args(wave=None))
+        self.assertEqual(code, 0)
+        self.assertIn("the plan is complete", out)
+        self.assertNotIn("there are no waves yet", out)
 
     def test_gaps_without_an_argument_names_only_its_own_wave(self):
         """Заголовок казав один крок, а список — інший."""
@@ -1193,3 +1334,78 @@ class TestAMergedBranchHandsOutNoWork(ProjectCase):
         code, out = self.run_next()
         self.assertEqual(code, 0, out)
         self.assertIn("drive-turns", out)
+
+
+class TestAFabricatedRevisionIsNamedAsOne(ProjectCase):
+    """`@000000` — не застаріле посилання, а вигадане.
+
+    ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: моделі ставили заповнювач замість гаша,
+    а засіб відповідав «and the contract is now …» — так, ніби контракт
+    змінився під ними. Модель ішла шукати ту зміну й правила текст контракту.
+    """
+
+    def hold(self, rev):
+        wave = "keel/waves/0001-session-loop.md"
+        text = self.fixture.read(wave).replace(
+            f"session-run@{self.fixture.contract_rev}", f"session-run@{rev}")
+        self.fixture.write(wave, text)
+
+    def test_a_revision_that_never_was_says_so(self):
+        self.hold("000000")
+        problems = keel.check_revisions(self.project)
+        self.assertTrue(problems)
+        self.assertIn("no version of that contract ever had this revision",
+                      problems[0].message)
+        self.assertIn("keel rev", problems[0].message)
+
+    def test_a_revision_that_once_matched_is_plain_drift(self):
+        """Той самий вигляд посилання, інша історія — інша порада."""
+        staryj = self.fixture.contract_rev
+        self.fixture.write("keel/contracts/session-run.md",
+                           self.fixture.read("keel/contracts/session-run.md")
+                           + "\nДодали абзац, і редакція змінилась.\n")
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "-m", "контракт зріс")
+
+        self.hold(staryj)                       # редакція, яка справді була
+        problems = keel.check_revisions(self.project)
+        self.assertTrue(problems)
+        self.assertIn("and the contract is now", problems[0].message)
+        self.assertNotIn("ever had this revision", problems[0].message)
+
+    def test_rev_stamps_the_fabricated_one_away(self):
+        """Порада має справджуватись: `keel rev` і справді це лагодить."""
+        self.hold("000000")
+        keel.cmd_rev(self.project, Args(write=True, wave=None))
+        self.assertEqual(keel.check_revisions(self.project), [])
+
+
+class TestADocumentInTheWrongFolderSaysSo(ProjectCase):
+    """Контракт із полями хвилі — не контракт, а хвиля не в тій теці.
+
+    ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: гема 26B поклала `proves:` і `scenarios:`
+    у файл контракту. Заголовок контракту читає лише свої поля, чужі минав
+    мовчки — тож файл проходив перевірку, а плану не існувало.
+    """
+
+    def test_wave_fields_in_a_contract_are_reported(self):
+        self.fixture.write("keel/contracts/session-run.md",
+                           "---\nmodule: Demo.Session\n"
+                           "scenarios:\n  finishes: {proves: session-run}\n---\n\nТекст.\n")
+        contract = self.project.contracts["session-run"]
+        self.assertIsNotNone(contract.error)
+        self.assertIn("scenarios", contract.error)
+        self.assertIn("keel/waves/", contract.error)
+
+    def test_contract_fields_in_a_wave_are_reported(self):
+        self.fixture.write("keel/waves/0002-stray.md",
+                           "---\nmodule: Demo.Stray\nexports: [run/1]\n---\n\nТекст.\n")
+        wave = self.project.waves["0002-stray"]
+        self.assertIsNotNone(wave.error)
+        self.assertIn("module", wave.error)
+        self.assertIn("keel/contracts/", wave.error)
+
+    def test_a_plain_contract_stays_clean(self):
+        """Межа: своє поле чужим не стає."""
+        self.assertIsNone(self.project.contracts["session-run"].error)
+        self.assertIsNone(self.project.waves["0001-session-loop"].error)
