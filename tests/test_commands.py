@@ -1494,14 +1494,32 @@ class TestAPlanBranchThatNamesNoWave(ProjectCase):
         self.assertIn("5. ", out)
         self.assertNotIn("– 5. ", out)
 
-    def test_without_a_candidate_the_rule_is_stated_instead(self):
-        """Схожої хвилі немає — вгадувати нічого, і ми не вгадуємо."""
+    def test_without_a_candidate_the_waves_that_exist_are_named(self):
+        """Схожої хвилі немає — вгадувати нічого, але назвати наявні можна.
+
+        ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026: тут стояло правило замість дії — «the
+        branch is named after the wave file, number and all». Гема 26B зробила
+        з нього зворотний висновок і покликала `new wave wave-1`, щоб хвиля
+        збіглася з гілкою. Вибір із переліку такого не допускає.
+        """
         self.fixture.branch("plan/зовсім-інше")
         _code, out = self.capture(Args(fast=False, no_tests=True, json=False))
 
         self.assertIn("names no wave", out)
-        self.assertIn("number and all", out)
-        self.assertNotIn("Rename it to", out)
+        self.assertIn("0001-session-loop", out)
+        self.assertIn("rename the branch", out)
+        self.assertNotIn("Rename it to plan/зовсім", out)
+
+    def test_with_no_waves_at_all_the_wave_comes_first(self):
+        """Перейменовувати гілку нема під що — спершу хвиля."""
+        os.remove(self.fixture.path("keel/waves/0001-session-loop.md"))
+        self.fixture.branch("plan/wave-1")
+        _code, out = self.capture(Args(fast=False, no_tests=True, json=False))
+
+        self.assertIn("keel/waves/ is empty", out)
+        self.assertIn("keel new wave", out)
+        # Головне: наказ, а не опис норми. Саме опис і збив гему.
+        self.assertNotIn("The branch is named after the wave file", out)
 
     def test_json_says_it_too(self):
         """Скрипти читають цей вантаж, а не прозу під ним."""

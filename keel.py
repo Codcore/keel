@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.16"
+VERSION = "0.8.17"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -477,9 +477,17 @@ UK = {
         "Перейменуйте її на plan/{whole} — засіб шукає хвилю саме за іменем "
         "гілки, разом із номером.",
     "branch {branch} names no wave: nothing in keel/waves/ is called {name}. "
-    "The branch is named after the wave file, number and all.":
+    "It holds {waves} — rename the branch to plan/ plus the whole name of the "
+    "one you are planning.":
         "гілка {branch} не називає жодної хвилі: у keel/waves/ немає {name}. "
-        "Гілку звуть за файлом хвилі, разом із номером.",
+        "Там лежать {waves} — перейменуйте гілку на plan/ плюс повне імʼя тієї, "
+        "яку плануєте.",
+    "branch {branch} names no wave, and keel/waves/ is empty. Create the wave "
+    "first: `keel new wave <slug>` — it puts a number in front. Then name the "
+    "branch after the file it made.":
+        "гілка {branch} не називає жодної хвилі, а keel/waves/ порожня. Спершу "
+        "заведіть хвилю: `keel new wave <слаг>` — він ставить номер попереду. "
+        "Тоді назвіть гілку за файлом, який він створив.",
     "the plan is complete: {names}": "план повний: {names}",
     "there are no waves yet, so there is nothing to be missing. A plan starts "
     "with `keel new wave <slug>`, and the file it creates lives in keel/waves/.":
@@ -3463,21 +3471,47 @@ def plan_branch_lost(project):
 
 
 def plan_branch_problems(project):
-    """Слова про загублену планову гілку — наказом, а не докором."""
+    """Слова про загублену планову гілку — наказом, а не докором.
+
+    ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, і знайдено на власній редакції цього ж
+    повідомлення. Гілка без кандидата діставала правило замість дії:
+
+        The branch is named after the wave file, number and all.
+
+    Гема 26B прочитала його й зробила зворотний висновок — не «перейменуй
+    гілку під хвилю», а **«створи хвилю під гілку»**: покликала `new wave
+    wave-1`, щоб імʼя збіглося з `plan/wave-1`. Хід був марний іще й тому, що
+    засіб створює `0002-wave-1`, і збігу однаково не виходить.
+
+    Три стани — три різні дії, і жодна з них не є нормою в описовому способі.
+    """
     lost = plan_branch_lost(project)
     if lost is None:
         return []
     branch, kandydaty = lost
     name = branch.split("/", 1)[1] if "/" in branch else branch
 
+    # Хвиля, схожа на імʼя гілки, є — тоді дія одна: перейменувати гілку.
     if kandydaty:
         return [t("branch {branch} names no wave: nothing in keel/waves/ is "
                   "called {name}. Rename it to plan/{whole} — the tool finds "
                   "the wave by the branch name, number and all.",
                   branch=branch, name=name, whole=kandydaty[0])]
-    return [t("branch {branch} names no wave: nothing in keel/waves/ is called "
-              "{name}. The branch is named after the wave file, number and all.",
-              branch=branch, name=name)]
+
+    # Хвилі є, та жодна не схожа. Вгадувати нема з чого — але назвати те, що
+    # лежить, можна, і вибір тоді робиться з переліку, а не з голови.
+    if project.waves:
+        return [t("branch {branch} names no wave: nothing in keel/waves/ is "
+                  "called {name}. It holds {waves} — rename the branch to "
+                  "plan/ plus the whole name of the one you are planning.",
+                  branch=branch, name=name,
+                  waves=", ".join(sorted(project.waves)))]
+
+    # Хвиль немає зовсім. Перейменовувати гілку нема під що: спершу хвиля.
+    return [t("branch {branch} names no wave, and keel/waves/ is empty. Create "
+              "the wave first: `keel new wave <slug>` — it puts a number in "
+              "front. Then name the branch after the file it made.",
+              branch=branch)]
 
 
 def drifted_from_main(project):
