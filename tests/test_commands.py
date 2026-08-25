@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """new, gaps, next, rev, check — the commands a person runs."""
 
+import json
 import os
 import re
 import sys
@@ -1409,3 +1410,113 @@ class TestADocumentInTheWrongFolderSaysSo(ProjectCase):
         """Межа: своє поле чужим не стає."""
         self.assertIsNone(self.project.contracts["session-run"].error)
         self.assertIsNone(self.project.waves["0001-session-loop"].error)
+
+
+class TestAPlanBranchThatNamesNoWave(ProjectCase):
+    """Гілка `plan/X`, коли хвилі `X` немає, — скарга, а не інша порода гілки.
+
+    ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026. Laguna назвала гілку `plan/meter-readings`
+    при файлі `keel/waves/0001-meter-readings.md` — зрізала номер, проти чого
+    §8.2 застерігає дослівно. Далі сталося те, чого ніхто не казав: засіб не
+    знайшов хвилі, перестав вважати гілку плановою, і перевірки 5, 6 та CI
+    встали — тобто зажадали тестів і модуля на гілці, де коду свідомо немає.
+
+    Та сама пісочниця на правильно названій гілці давала `clean`, а тут —
+    `problems: 8`. Завдання при цьому забороняло писати код, і модель витратила
+    десятки ходів, зʼясовуючи, чому засіб суперечить власній методиці.
+    """
+
+    def capture(self, args):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_check(self.project, args)
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def zlamana(self):
+        """Та сама помилка, що й у прогоні: номер зрізано."""
+        self.fixture.branch("plan/session-loop")
+
+    def test_the_branch_is_named_and_so_is_the_candidate(self):
+        self.zlamana()
+        code, out = self.capture(Args(fast=False, no_tests=True, json=False))
+
+        self.assertEqual(code, 1)
+        self.assertIn("plan/session-loop", out)
+        self.assertIn("names no wave", out)
+        # Кандидат — цілим імʼям файлу, разом із номером: саме його бракувало.
+        self.assertIn("plan/0001-session-loop", out)
+
+    def test_checks_five_and_six_stand_down_all_the_same(self):
+        """Головне: гілка планова за іменем, отже коду на ній немає."""
+        self.zlamana()
+        _code, out = self.capture(Args(fast=False, no_tests=False, json=False))
+
+        self.assertIn("– 5. ", out)
+        self.assertIn("– 6. ", out)
+        self.assertNotIn("has no test", out)
+        self.assertNotIn("did not build", out)
+
+    def test_the_fast_run_refuses_too(self):
+        """`pre-commit` кличе саме його: коміт на такій гілці не проходить."""
+        self.zlamana()
+        code, out = self.capture(Args(fast=True, no_tests=True, json=False))
+
+        self.assertEqual(code, 1)
+        self.assertIn("names no wave", out)
+
+    def test_a_correctly_named_branch_is_untouched(self):
+        """Межа: правильна гілка нічого не втратила."""
+        self.fixture.branch("plan/0001-session-loop")
+        code, out = self.capture(Args(fast=False, no_tests=True, json=False))
+
+        self.assertEqual(code, 0)
+        self.assertNotIn("names no wave", out)
+        self.assertIn("– 5. ", out)
+
+    def test_a_work_branch_still_runs_the_code_checks(self):
+        """Межа: не планова гілка — не стає нічого."""
+        self.fixture.branch("0001-session-loop")
+        _code, out = self.capture(Args(fast=False, no_tests=True, json=False))
+
+        self.assertNotIn("names no wave", out)
+        self.assertIn("5. ", out)
+        self.assertNotIn("– 5. ", out)
+
+    def test_without_a_candidate_the_rule_is_stated_instead(self):
+        """Схожої хвилі немає — вгадувати нічого, і ми не вгадуємо."""
+        self.fixture.branch("plan/зовсім-інше")
+        _code, out = self.capture(Args(fast=False, no_tests=True, json=False))
+
+        self.assertIn("names no wave", out)
+        self.assertIn("number and all", out)
+        self.assertNotIn("Rename it to", out)
+
+    def test_json_says_it_too(self):
+        """Скрипти читають цей вантаж, а не прозу під ним."""
+        self.zlamana()
+        code, out = self.capture(Args(fast=False, no_tests=True, json=True))
+        payload = json.loads(out)
+
+        self.assertEqual(code, 1)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["branch"])
+        self.assertIn("plan/0001-session-loop", payload["branch"][0])
+
+    def test_next_names_the_candidate_instead_of_reciting_the_rule(self):
+        """`next` — поводир, і саме він першим натрапляє на цю гілку."""
+        self.zlamana()
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            keel.cmd_next(self.project, Args(json=False, wave=None))
+        finally:
+            sys.stdout = saved
+
+        said = stream.getvalue()
+        self.assertIn("plan/0001-session-loop", said)
+        self.assertNotIn("planning on plan/<wave>", said)

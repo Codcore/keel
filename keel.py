@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.14"
+VERSION = "0.8.15"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -458,6 +458,16 @@ UK = {
         "сценарій {slug} не наближає жодна трансформа",
     "scenario {slug} has no body: given/when/then":
         "сценарій {slug} без тіла: given/when/then",
+    "branch {branch} names no wave: nothing in keel/waves/ is called {name}. "
+    "Rename it to plan/{whole} — the tool finds the wave by the branch name, "
+    "number and all.":
+        "гілка {branch} не називає жодної хвилі: у keel/waves/ немає {name}. "
+        "Перейменуйте її на plan/{whole} — засіб шукає хвилю саме за іменем "
+        "гілки, разом із номером.",
+    "branch {branch} names no wave: nothing in keel/waves/ is called {name}. "
+    "The branch is named after the wave file, number and all.":
+        "гілка {branch} не називає жодної хвилі: у keel/waves/ немає {name}. "
+        "Гілку звуть за файлом хвилі, разом із номером.",
     "the plan is complete: {names}": "план повний: {names}",
     "there are no waves yet, so there is nothing to be missing. A plan starts "
     "with `keel new wave <slug>`, and the file it creates lives in keel/waves/.":
@@ -3376,6 +3386,62 @@ def plan_wave(project):
     return project.wave_for_branch() if project.is_plan_branch() else None
 
 
+def wave_like(project, name):
+    """Хвилі, що різняться від `name` лише числом попереду.
+
+    Правило вузьке навмисно: імена хвиль мають вигляд `NNNN-слово`, і промах,
+    який ми ловимо, — саме зрізаний номер. Ширший пошук за схожістю почав би
+    вгадувати, а вгадана порада гірша за мовчання.
+    """
+    return sorted(slug for slug in project.waves
+                  if slug == name or slug.split("-", 1)[-1] == name)
+
+
+def plan_branch_lost(project):
+    """(гілка, [кандидати]) — планова гілка, яка не називає жодної хвилі.
+
+    ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026, і це найдорожча з тихих зелених.
+
+    Laguna назвала гілку `plan/meter-readings` при файлі
+    `keel/waves/0001-meter-readings.md` — зрізала номер, проти чого §8.2
+    застерігає дослівно. Далі сталося те, чого ніхто не казав: `plan_wave`
+    не знайшов хвилі, гілка перестала бути плановою для засобу, і перевірки
+    5, 6 та CI встали. Той самий стан на правильно названій гілці давав
+    `clean`, а тут — `problems: 8` із вимогою написати тести й модуль.
+
+    Завдання при цьому прямо забороняло писати код. Модель це помітила
+    («according to §8.3, on a plan branch these checks should not run») і
+    витратила десятки ходів, зʼясовуючи, чому засіб суперечить методиці.
+
+    Мовчазне перекваліфікування планової гілки в робочу — і є вада. Гілка
+    зветься `plan/…`, отже вона планова; хвилі під нею немає — отже про це
+    треба сказати, а не судити її як щось інше.
+    """
+    if not project.is_plan_branch() or project.wave_for_branch() is not None:
+        return None
+    branch = project.branch or ""
+    name = branch.split("/", 1)[1] if "/" in branch else branch
+    return branch, wave_like(project, name)
+
+
+def plan_branch_problems(project):
+    """Слова про загублену планову гілку — наказом, а не докором."""
+    lost = plan_branch_lost(project)
+    if lost is None:
+        return []
+    branch, kandydaty = lost
+    name = branch.split("/", 1)[1] if "/" in branch else branch
+
+    if kandydaty:
+        return [t("branch {branch} names no wave: nothing in keel/waves/ is "
+                  "called {name}. Rename it to plan/{whole} — the tool finds "
+                  "the wave by the branch name, number and all.",
+                  branch=branch, name=name, whole=kandydaty[0])]
+    return [t("branch {branch} names no wave: nothing in keel/waves/ is called "
+              "{name}. The branch is named after the wave file, number and all.",
+              branch=branch, name=name)]
+
+
 def drifted_from_main(project):
     """[(file, added, removed)] — documents this branch changed after approval.
 
@@ -3539,7 +3605,12 @@ def mutation_reminder(project, at_close):
 
 def run_checks(project, only=None, run_tests=True):
     only = set(only or CHECK_NAMES)
-    if plan_wave(project) is not None:
+    # За гілкою, а не за знайденою хвилею. Гілка зветься `plan/…` — отже вона
+    # планова, і коду на ній немає незалежно від того, чи склалось посилання на
+    # хвилю. Обірване посилання — окрема скарга (`plan_branch_problems`), і
+    # мовчки судити таку гілку як робочу означає вимагати коду там, де його
+    # свідомо не пишуть.
+    if project.is_plan_branch():
         only -= set(PLAN_BLIND)
     results = {}
     structural = check_structure(project)
@@ -4083,6 +4154,11 @@ def cmd_check(project, args):
     # The plan's own gate, and only in the full run: a commit on a plan branch
     # may be half-written, a push and a merge may not.
     planning = plan_wave(project)
+    # Гілка планова — навіть коли хвилі під нею не знайшлось. Саме цим і
+    # відрізняється «стати» від «не судити»: перевірки 5, 6 та CI стоять на
+    # плановій гілці за §8.3, а обірване посилання названо окремо.
+    plan_branch = project.is_plan_branch()
+    lost = plan_branch_problems(project)
     plan_gaps = ([] if planning is None or args.fast
                  else gaps_problems(project, [planning]))
     # The project's own gate, and only in the full run — same reasoning as the
@@ -4097,7 +4173,7 @@ def cmd_check(project, args):
     # which is a circle with no way out. Found live, on 0010.
     ci_problems, ci_note, ci_ran = ci_verdict(
         project, run=(not args.fast and not args.no_tests
-                      and planning is None))
+                      and not plan_branch))
     # Said once, at the close of a wave, and never enforced — see
     # `mutation_reminder` for why a gate here could only lie.
     mutation_note = mutation_reminder(
@@ -4108,9 +4184,10 @@ def cmd_check(project, args):
     if args.json:
         payload = {
             "ok": (not structural and not disagreements and not plan_gaps
-                   and not ci_problems
+                   and not ci_problems and not lost
                    and not any(results.get(n) for n in results)),
             "structure": [p.as_dict() for p in structural],
+            "branch": lost,
             "disagreement": [p.as_dict() for p in disagreements],
             "plan": [p.as_dict() for p in plan_gaps],
             "ci": {"command": project.settings.get("ci", ""),
@@ -4139,7 +4216,14 @@ def cmd_check(project, args):
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0 if payload["ok"] else 1
 
-    total = len(structural) + len(disagreements)
+    total = len(structural) + len(disagreements) + len(lost)
+    # Поперед усього: доки гілка не називає хвилі, решта відповідей стосується
+    # не тієї роботи, і читати їх спершу означає читати не про те.
+    for slova in lost:
+        print("✗ " + slova)
+    if lost:
+        print()
+
     if structural:
         print("✗ " + t("documents do not parse"))
         for problem in structural:
@@ -4164,7 +4248,7 @@ def cmd_check(project, args):
     for number in sorted(results):
         problems = results[number]
         if problems is None:
-            why = blind if planning is not None and number in PLAN_BLIND else t("(not run)")
+            why = blind if plan_branch and number in PLAN_BLIND else t("(not run)")
             print(f"– {number}. " + t(CHECK_NAMES[number]) + " " + why)
             continue
         total += len(problems)
@@ -4189,7 +4273,7 @@ def cmd_check(project, args):
         # to translate, and an entry that renders to itself reads as a
         # forgotten translation to the guard that watches for exactly that.
         print("\u2713 CI: " + project.settings["ci"].strip())
-    elif planning is not None and project.settings.get("ci") not in (None, "", "none"):
+    elif plan_branch and project.settings.get("ci") not in (None, "", "none"):
         # Silence here would read as "there is no CI command", which is a
         # different fact from "it stood down because this branch has no code".
         print("\u2013 CI: " + project.settings["ci"].strip()
@@ -4276,9 +4360,13 @@ def cmd_next(project, args):
     if wave is None:
         if branch and branch == project.git.main_short:
             return emit_next_error(args, main_branch_answer(project))
-        message = t("branch {branch} is not named after a wave. Work happens on "
-                    "a branch named after the wave, planning on plan/<wave>.",
-                    branch=branch)
+        # Загублена планова гілка має власні слова: вони називають кандидата,
+        # а не переказують правило, яке людина щойно й порушила, не помітивши.
+        lost = plan_branch_problems(project)
+        message = lost[0] if lost else t(
+            "branch {branch} is not named after a wave. Work happens on "
+            "a branch named after the wave, planning on plan/<wave>.",
+            branch=branch)
         return emit_next_error(args, message)
     if project.is_plan_branch(branch):
         return emit_next_error(args, t("this is a plan branch: the wave is written "
