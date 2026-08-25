@@ -163,3 +163,58 @@ class TestHooksLandWhereGitReadsThem(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheHookFindsACompiledTool(ProjectCase):
+    """Засіб їде у випробування зібраним двійником, і хук мусить його знайти.
+
+    ЗНАЙДЕНО 25 серпня 2026. Дві біди в одному місці: у хуку шукали лише
+    `keel/keel.py`, а зібраний засіб зветься `keel/keel` і не має розширення;
+    і `__file__` під Nuitka onefile вказує в тимчасову теку розпакування, яка
+    зникає з кінцем процесу — тобто в файл, що йде під гіт, запікався мертвий
+    шлях із номером процесу всередині.
+    """
+
+    def install(self):
+        keel.cmd_hooks(self.project, Args(install=True, force=False))
+        return self.fixture.read(".git/hooks/pre-commit")
+
+    def test_the_project_copy_may_be_a_binary(self):
+        text = self.install()
+        self.assertIn('if [ -x "$root/keel/keel" ]', text)
+        self.assertIn('if [ -f "$root/keel/keel.py" ]', text)
+
+    def test_without_a_baked_path_the_hook_still_works(self):
+        script = keel.hook_script("pre-commit", None)
+        self.assertNotIn("if [ -f \"\" ]", script)
+        # Три пошуки поперед нього лишаються, і остання відповідь теж.
+        self.assertIn("command -v keel", script)
+        self.assertIn("keel: no tool found", script)
+
+    def test_a_real_path_is_still_baked_in(self):
+        """Межа: звичайний запуск із дерева нічого не втрачає."""
+        script = keel.hook_script("pre-commit", "/opt/keel/keel.py")
+        self.assertIn('if [ -f "/opt/keel/keel.py" ]', script)
+
+    def test_a_temporary_extraction_is_refused(self):
+        rozpakovano = os.path.join(tempfile.gettempdir(), "onefile_1234", "keel.py")
+        spravzhnij = keel.__file__
+        keel.__file__ = rozpakovano
+        try:
+            self.assertIsNone(keel.baked_path())
+        finally:
+            keel.__file__ = spravzhnij
+        self.assertTrue(keel.baked_path().endswith("keel.py"))
+
+    def test_a_compiled_tool_bakes_in_the_binary_not_the_interpreter(self):
+        """Під onefile `sys.executable` — розпакований python, а не засіб."""
+        dvijnyk = os.path.join(self.fixture.root, "keel", "keel")
+        keel.__dict__["__compiled__"] = object()
+        argv, executable = sys.argv, sys.executable
+        sys.argv = [dvijnyk]
+        sys.executable = os.path.join(tempfile.gettempdir(), "onefile_9", "python")
+        try:
+            self.assertEqual(keel.baked_path(), dvijnyk)
+        finally:
+            sys.argv, sys.executable = argv, executable
+            del keel.__dict__["__compiled__"]

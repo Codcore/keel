@@ -28,8 +28,9 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 
-VERSION = "0.8.13"
+VERSION = "0.8.14"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -6235,8 +6236,8 @@ if [ -n "$tool" ]; then run "$tool"; fi
 
 root=$(git rev-parse --show-toplevel)
 if [ -f "$root/keel/keel.py" ]; then run "$root/keel/keel.py"; fi
-
-if [ -f "{baked}" ]; then run "{baked}"; fi
+if [ -x "$root/keel/keel" ]; then run "$root/keel/keel"; fi
+{baked_line}
 
 echo "keel: no tool found. Set KEEL=/path/to/keel.py" >&2
 exit 1
@@ -6244,8 +6245,38 @@ exit 1
 
 
 def hook_script(name, baked):
+    # Запечений шлях — остання надія, і його може не бути зовсім.
+    line = f'\nif [ -f "{baked}" ]; then run "{baked}"; fi\n' if baked else ""
     return HOOK_SCRIPT.format(
-        mark=HOOK_MARK, name=name, baked=baked, args=" ".join(HOOKS[name]))
+        mark=HOOK_MARK, name=name, baked_line=line, args=" ".join(HOOKS[name]))
+
+
+def baked_path():
+    """Шлях до засобу, який переживе цей запуск, — або нічого.
+
+    ЗНАЙДЕНО 25 серпня 2026, коли засіб уперше поїхав у випробування зібраним
+    двійником. Nuitka в режимі onefile розпаковує себе в тимчасову теку й
+    ставить `__file__` туди — тож у хук запікався шлях виду
+    `/private/var/folders/…/onefile_98698_…/keel.py`, який зникає, щойно процес
+    завершиться. Хук лишався з мертвим посиланням, та ще й із номером процесу
+    всередині файлу, який іде під гіт.
+
+    Зібраний засіб знає себе через `sys.argv[0]`: Nuitka лишає там шлях самого
+    двійника. `sys.executable` не годиться — під onefile це розпакований усередину
+    інтерпретатор, тобто та сама тимчасова тека іншими дверима.
+
+    Перевірка на тимчасову теку лишилась тільки для незібраного запуску, і це
+    не недогляд. Під `argv[0]` лежить те, що набрала людина, — двійник може
+    стояти де завгодно, у `/tmp` теж, і це нормальна адреса. А `__file__` у
+    тимчасовій теці означає рівно одне: файл там опинився цього разу.
+    """
+    if getattr(sys, "frozen", False) or "__compiled__" in globals():
+        return os.path.abspath(sys.argv[0])
+    shlyah = os.path.abspath(__file__)
+    tymchasove = os.path.realpath(tempfile.gettempdir())
+    if os.path.realpath(shlyah).startswith(tymchasove + os.sep):
+        return None
+    return shlyah
 
 
 def cmd_hooks(project, args):
@@ -6261,7 +6292,7 @@ def cmd_hooks(project, args):
             folder = os.path.join(project.root, folder)
     if not folder:
         fail(t("this is not a git repository — there is nowhere to put the hooks"))
-    baked = os.path.abspath(__file__)
+    baked = baked_path()
 
     problems, missing = 0, 0
     for name in HOOKS:
