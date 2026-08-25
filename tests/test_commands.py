@@ -38,11 +38,19 @@ class TestNext(ProjectCase):
         self.assertEqual(code, 1)
         self.assertIn("is not named after a wave", out)
 
-    def test_refuses_on_plan_branch(self):
+    def test_on_a_plan_branch_it_answers_about_the_plan(self):
+        """Роботи тут немає — але «немає роботи» не те саме, що «нема що робити».
+
+        Досі це була відмова з відсиланням до `gaps`. 25 серпня 2026 виявилось,
+        що на ПОВНОМУ плані обидва порадники кивали один на одного: `gaps` казав
+        «the plan is complete», `next` — «keel gaps says what is missing». Тепер
+        повний план дістає наступний крок, а неповний — лік того, чого бракує
+        (див. TestNextAnswersOnAFinishedPlan).
+        """
         self.fixture.branch("plan/0001-session-loop")
         code, out = self.run_next()
-        self.assertEqual(code, 1)
-        self.assertIn("this is a plan branch", out)
+        self.assertEqual(code, 0)
+        self.assertIn("pull request", out)
 
     def test_refuses_while_plan_is_not_in_main(self):
         self.fixture.branch("plan/0002-later")
@@ -1520,3 +1528,87 @@ class TestAPlanBranchThatNamesNoWave(ProjectCase):
         said = stream.getvalue()
         self.assertIn("plan/0001-session-loop", said)
         self.assertNotIn("planning on plan/<wave>", said)
+
+
+class TestACommandNameIsNotAWave(ProjectCase):
+    """`keel show next` — той, хто це пише, уже знає потрібне слово.
+
+    ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: Laguna шукала поводиря й майже намацала
+    його — `next` існує рівно під цим імʼям. Засіб відповів «no such wave: next»
+    і про власну команду змовчав.
+    """
+
+    def refusal(self, call, **kwargs):
+        """`fail()` каже в stderr — там і слухаємо."""
+        from io import StringIO
+        stream, saved = StringIO(), sys.stderr
+        sys.stderr = stream
+        try:
+            call(self.project, Args(**kwargs))
+        except SystemExit:
+            pass
+        finally:
+            sys.stderr = saved
+        return stream.getvalue()
+
+    def test_show_names_the_command(self):
+        said = self.refusal(keel.cmd_show, wave="next", json=False)
+        self.assertIn("no such wave: next", said)
+        self.assertIn("keel next", said)
+
+    def test_gaps_names_it_too(self):
+        said = self.refusal(keel.cmd_gaps, wave="next", json=False)
+        self.assertIn("keel next", said)
+
+    def test_a_plain_typo_stays_a_plain_refusal(self):
+        """Межа: не команда — не вигадуємо поради."""
+        said = self.refusal(keel.cmd_show, wave="сесія-якої-немає", json=False)
+        self.assertIn("no such wave", said)
+        self.assertNotIn("command with that name", said)
+
+    def test_the_names_come_from_the_parser(self):
+        """Перелік руками розійшовся б із розбирачем, і розійшовся б тихо."""
+        names = keel.command_names()
+        for known in ("next", "gaps", "check", "show", "rev"):
+            self.assertIn(known, names)
+
+
+class TestNextAnswersOnAFinishedPlan(ProjectCase):
+    """Поводир мовчав саме там, куди довів.
+
+    ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: Laguna довела план до кінця — `gaps` казав
+    «the plan is complete», — а `next` і далі відсилав до `gaps`. Двоє вбудованих
+    порадників кивали один на одного, і жоден не казав, що робити.
+    """
+
+    def said(self):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_next(self.project, Args(json=False, wave=None))
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def test_a_complete_plan_gets_the_next_move(self):
+        self.fixture.branch("plan/0001-session-loop")
+        code, out = self.said()
+
+        self.assertEqual(code, 0)
+        self.assertIn("complete", out)
+        self.assertIn("pull request", out)
+        self.assertNotIn("keel gaps names", out)
+
+    def test_an_unfinished_plan_still_points_at_gaps(self):
+        """Межа: доки бракує — каже, скільки саме, і хто це назве."""
+        self.fixture.write("keel/waves/0001-session-loop.md",
+                           self.fixture.read("keel/waves/0001-session-loop.md")
+                           .replace("## Навіщо\n\nОдна розмова з моделлю проти "
+                                    "набору інструментів, який дали ззовні.",
+                                    "## Навіщо"))
+        self.fixture.branch("plan/0001-session-loop")
+        code, out = self.said()
+
+        self.assertEqual(code, 1)
+        self.assertIn("keel gaps names", out)

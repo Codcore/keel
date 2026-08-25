@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.15"
+VERSION = "0.8.16"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -444,6 +444,18 @@ UK = {
         "{file} називає {what} під ключем {key}, а такого немає — відомі: {known}",
     "already there: {path}": "вже є: {path}",
     "no such wave: {wave}": "хвилі немає: {wave}",
+    "no such wave: {wave}. There is a command with that name — run `keel {wave}` "
+    "on its own.":
+        "хвилі немає: {wave}. Зате є команда з таким імʼям — кличте `keel {wave}` "
+        "саму по собі.",
+    "the plan of wave {wave} is complete. Next: keel check, then the pull "
+    "request — the plan goes as one of its own.":
+        "план хвилі {wave} повний. Далі: keel check, тоді pull request — план "
+        "їде окремим.",
+    "this is a plan branch: the wave is written here, not code. keel gaps names "
+    "what is still missing ({count}).":
+        "це гілка плану: тут пишеться хвиля, а не код. Чого ще бракує — називає "
+        "keel gaps ({count}).",
     "branch {branch}": "гілка {branch}",
     "the Why section is empty": "секція «Навіщо» порожня",
     "no scenarios at all": "жодного сценарію",
@@ -553,9 +565,6 @@ UK = {
     "is no work.":
         "Keel: хвилі {wave} ще немає на {main}: план не затверджено, і роботи "
         "немає.",
-    "this is a plan branch: the wave is written here, not code. keel gaps says "
-    "what is missing.":
-        "це гілка плану: тут пишеться хвиля, а не код. Чого бракує — каже keel gaps.",
     "Keel files with uncommitted changes: {count}. Commit them separately from "
     "the work:\n  git add {paths}\n  git commit -m \"Keel in the project\"":
         "Файли Keel із незакоміченими змінами: {count}. Закоміть їх окремо від "
@@ -3386,6 +3395,35 @@ def plan_wave(project):
     return project.wave_for_branch() if project.is_plan_branch() else None
 
 
+def command_names():
+    """Імена команд — від самого розбирача, а не переліком поруч.
+
+    Перелік руками розійшовся б із розбирачем на першій же новій команді, і
+    розійшовся б тихо: ніхто не помічає підказки, якої не стало.
+    """
+    parser = build_parser()
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return set(action.choices)
+    return set()
+
+
+def no_such_wave(name):
+    """«Хвилі немає» — і, якщо це насправді команда, сказати й це.
+
+    ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: Laguna написала `keel show next`. Вона
+    шукала поводиря — і майже намацала його, бо `next` існує рівно під цим
+    імʼям. Засіб відповів «no such wave: next» і про власну команду змовчав.
+
+    Мовчати тут — найдорожче: той, хто пише `show next`, уже знає слово, якого
+    йому бракує, і не знає лише, що воно самостійне.
+    """
+    if name in command_names():
+        return t("no such wave: {wave}. There is a command with that name — "
+                 "run `keel {wave}` on its own.", wave=name)
+    return t("no such wave: {wave}", wave=name)
+
+
 def wave_like(project, name):
     """Хвилі, що різняться від `name` лише числом попереду.
 
@@ -4068,7 +4106,7 @@ def cmd_gaps(project, args):
              else [project.wave_for_branch()] if not args.wave and project.wave_for_branch()
              else list(project.waves.values()))
     if args.wave and args.wave not in project.waves:
-        fail(t("no such wave: {wave}", wave=args.wave))
+        fail(no_such_wave(args.wave))
     waves = [wave for wave in waves if wave]
 
     # The same disagreement `check` refuses: gaps is what the planning skill
@@ -4369,9 +4407,22 @@ def cmd_next(project, args):
             branch=branch)
         return emit_next_error(args, message)
     if project.is_plan_branch(branch):
-        return emit_next_error(args, t("this is a plan branch: the wave is written "
-                                       "here, not code. keel gaps says what is "
-                                       "missing."))
+        # ЗНАЙДЕНО ПРОГОНОМ 25 серпня 2026: поводир мовчав саме там, куди довів.
+        #
+        # Відповідь була одна на два різні стани: план ще неповний і план уже
+        # готовий. Laguna довела його до кінця — `gaps` казав «the plan is
+        # complete», — а `next` і далі відсилав до `gaps`. Двоє вбудованих
+        # порадників кивали один на одного, і жоден не казав, що робити.
+        missing = gaps_problems(project, [wave])
+        if not missing:
+            return emit_next_error(args, t(
+                "the plan of wave {wave} is complete. Next: keel check, then "
+                "the pull request — the plan goes as one of its own.",
+                wave=wave.slug), code=0)
+        return emit_next_error(args, t(
+            "this is a plan branch: the wave is written here, not code. "
+            "keel gaps names what is still missing ({count}).",
+            count=len(missing)))
     if not project.git.file_in_branch(project.git.main_branch, wave.rel):
         return emit_next_error(
             args, t("wave {wave} is not on {main} yet: the plan is not approved "
@@ -6421,8 +6472,9 @@ def cmd_show(project, args):
     """
     wave = project.waves.get(args.wave) if args.wave else project.wave_for_branch()
     if wave is None:
-        fail(t("no such wave: {wave}",
-               wave=args.wave or t("branch {branch}", branch=project.branch)))
+        fail(no_such_wave(args.wave) if args.wave
+             else t("no such wave: {wave}",
+                    wave=t("branch {branch}", branch=project.branch)))
     if wave.error:
         fail(f"{wave.rel}: {wave.error}")
 
