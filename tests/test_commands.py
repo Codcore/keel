@@ -470,6 +470,54 @@ class TestNewAndPlan(ProjectCase):
         self.assertEqual(code, 0)
         self.assertIn("0002-tool-calls.md", out)
 
+    def test_a_slug_that_starts_with_a_number_loses_it(self):
+        """ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, Devstral.
+
+        Вона взяла слаг із власного `PLAN.md`, де хвилі звуться «Wave 1», і
+        подала `1-parse-meter-readings`. Засіб додав свій номер — вийшло
+        `0001-1-parse-meter-readings.md`, і подвоєння потягнулось далі в імʼя
+        гілки. Модель нумерує, не знаючи, що нумерує засіб.
+        """
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="wave", slug="1-parse-meter-readings"))
+        self.assertEqual(code, 0)
+        self.assertIn("0002-parse-meter-readings.md", out)
+        self.assertNotIn("0002-1-parse", out)
+
+    def test_the_number_it_dropped_is_said_out_loud(self):
+        """Зрізане мовчки — це зрізане навмання: `2024-migration` теж
+        починається з цифр, і там номер може бути частиною назви."""
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="wave", slug="0001-parse"))
+        self.assertEqual(code, 0)
+        self.assertIn("dropped the leading `0001-`", out)
+        self.assertIn("0002-parse.md", out)
+
+    def test_a_number_inside_a_word_stays(self):
+        """`2fa-login` і `v2-parser` — номер тут частина імені, не префікс."""
+        for slug, expected in (("2fa-login", "0002-2fa-login.md"),
+                               ("v2-parser", "0002-v2-parser.md")):
+            with self.subTest(slug=slug):
+                self.setUp()
+                code, out = self.capture(keel.cmd_new, self.project,
+                                         Args(kind="wave", slug=slug))
+                self.assertEqual(code, 0)
+                self.assertIn(expected, out)
+
+    def test_a_slug_of_digits_alone_survives(self):
+        """Зрізати все — значить лишити хвилю без імені."""
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="wave", slug="42"))
+        self.assertEqual(code, 0)
+        self.assertIn("0002-42.md", out)
+
+    def test_a_contract_keeps_its_leading_number(self):
+        """Контракт засіб не нумерує, тож зрізати нема від чого."""
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="contract", slug="2fa-tokens"))
+        self.assertEqual(code, 0)
+        self.assertIn("2fa-tokens.md", out)
+
     def test_new_wave_names_the_branch_to_stand_on(self):
         """ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, третя модель поспіль.
 

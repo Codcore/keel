@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.24"
+VERSION = "0.8.25"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -471,6 +471,8 @@ UK = {
     "and the tool finds the wave by that name.":
         "\nДалі: `git checkout -b {branch}` — хвилю планують на власній гілці, і "
         "засіб знаходить хвилю саме за цим імʼям.",
+    "(dropped the leading `{number}-`: the tool numbers waves itself)":
+        "(зрізано провідне `{number}-`: хвилі нумерує сам засіб)",
     "the Why section is empty": "секція «Навіщо» порожня",
     "the heading `# {title}` is one level too high: sections of a wave are "
     "`## {title}`":
@@ -1797,6 +1799,22 @@ class Adapter:
 
 def normalise_slug(text):
     return re.sub(r"[^a-z0-9]+", "-", str(text).strip().lower()).strip("-")
+
+
+def unnumbered(slug):
+    """(слаг без провідного номера, зрізане) — або (слаг, "") якщо нема чого.
+
+    ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, Devstral. Вона взяла імʼя з власного
+    `PLAN.md`, де хвилі звуться «Wave 1», і подала `1-parse-meter-readings`.
+    Засіб додав свій номер — вийшло `0001-1-parse-meter-readings`, і подвоєння
+    потягнулось далі в імʼя гілки. Модель нумерує, не знаючи, що нумерує засіб.
+
+    Зрізається лише ОКРЕМИЙ сегмент із самих цифр: `2fa-login` і `v2-parser`
+    лишаються цілими — там цифра є частиною слова, а не префіксом. Слаг із
+    самих цифр теж лишається: зрізати все — значить лишити хвилю без імені.
+    """
+    m = re.match(r"(\d+)-(.+)$", slug)
+    return (m.group(2), m.group(1)) if m else (slug, "")
 
 
 class ElixirAdapter(Adapter):
@@ -3992,7 +4010,9 @@ def cmd_new(project, args):
     if not clean:
         fail(t("bad slug: {slug}", slug=repr(slug)))
 
+    zrizano = ""
     if kind == "wave":
+        clean, zrizano = unnumbered(clean)
         folder = os.path.join(project.keel, "waves")
         numbers = [int(m.group(1)) for name in os.listdir(folder)
                    if (m := re.match(r"(\d{4})-", name))] if os.path.isdir(folder) else []
@@ -4015,6 +4035,12 @@ def cmd_new(project, args):
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(text)
     print(os.path.relpath(path, project.root))
+    if zrizano:
+        # Зрізане мовчки — зрізане навмання: `2024-migration` теж починається з
+        # цифр, і там номер може бути частиною назви. Сказавши, що саме знято,
+        # ми лишаємо змогу заперечити.
+        print(t("(dropped the leading `{number}-`: the tool numbers waves itself)",
+                number=zrizano))
     if kind == "wave":
         # ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, третя модель поспіль. Гілка мусить
         # зватись за іменем файлу — з номером, який щойно додав сам засіб.
