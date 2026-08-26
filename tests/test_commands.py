@@ -689,6 +689,14 @@ class TestNewAndPlan(ProjectCase):
         self.assertIn("keel new wave", out)
         self.assertNotIn("the plan is complete", out)
 
+        # ЗНАЙДЕНО ПРОГОНАМИ 26 серпня 2026, Laguna двічі поспіль: не знаючи
+        # форми, вона створювала хвилю-зразок, дивилась на скелет і потім її
+        # прибирала. У python зразок забрав номер 0001, і справжня хвиля стала
+        # другою. Засіб уміє показати скелет без створення файлу — і сказано
+        # про це було лише в `new --help`, куди модель заглядає рідко.
+        self.assertIn("without creating one", out)
+        self.assertIn("`keel new wave` with no name", out)
+
     def test_a_wave_shaped_file_outside_the_folder_is_named(self):
         """Файл, що виглядає як хвиля, але лежить не там, більше не мовчазний."""
         for name in os.listdir(self.fixture.path("keel/waves")):

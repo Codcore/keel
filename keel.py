@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.26"
+VERSION = "0.8.27"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -524,9 +524,13 @@ UK = {
         "`{name}: {{proves: contract@rev}}`",
     "the plan is complete: {names}": "план повний: {names}",
     "there are no waves yet, so there is nothing to be missing. A plan starts "
-    "with `keel new wave <slug>`, and the file it creates lives in keel/waves/.":
+    "with `keel new wave <slug>`, and the file it creates lives in keel/waves/. "
+    "To see what a filled wave looks like without creating one, run `keel new "
+    "wave` with no name.":
         "хвиль поки немає, тож і бракувати нічому. План починається з "
-        "`keel new wave <слаг>`, а файл, який він створює, лежить у keel/waves/.",
+        "`keel new wave <слаг>`, а файл, який він створює, лежить у keel/waves/. "
+        "Щоб побачити заповнену хвилю, нічого не створюючи, кличте "
+        "`keel new wave` без імені.",
     "{path} looks like a wave but is not in keel/waves/, so nothing reads it":
         "{path} схожий на хвилю, але лежить не в keel/waves/, тож його ніхто не читає",
     "the plan is missing things ({names}):": "плану бракує ({names}):",
@@ -4405,9 +4409,19 @@ def cmd_gaps(project, args):
     # Це найдорожчий рід відповіді: правдива й веде в хибний бік. Порожній план
     # мусить називатись порожнім, а не повним.
     if not waves:
+        # ЗНАЙДЕНО ПРОГОНАМИ 26 серпня 2026, Laguna двічі поспіль. Не знаючи
+        # форми, вона створювала хвилю-зразок — `0001-test-wave`, — дивилась на
+        # скелет і потім її прибирала. У native це коштувало трьох зайвих
+        # файлів і чотирьох скарг на порожньому місці; у python зразок забрав
+        # номер 0001, і справжня хвиля стала другою.
+        #
+        # Засіб уміє показати скелет БЕЗ створення файлу — `new wave` без
+        # імені, — і сказано про це лише в `new --help`, куди модель заглядає
+        # рідко. Тепер сказано там, де вона дивиться першим ділом.
         print(t("there are no waves yet, so there is nothing to be missing. "
                 "A plan starts with `keel new wave <slug>`, and the file it "
-                "creates lives in keel/waves/."))
+                "creates lives in keel/waves/. To see what a filled wave looks "
+                "like without creating one, run `keel new wave` with no name."))
         for zabludy in wave_shaped_strays(project):
             print("  " + t("{path} looks like a wave but is not in keel/waves/, "
                            "so nothing reads it", path=zabludy))
