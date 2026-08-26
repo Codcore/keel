@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.20"
+VERSION = "0.8.21"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -4240,6 +4240,21 @@ def gaps_problems(project, waves):
     mine = {wave.rel for wave in waves}
     problems += [p for p in check_headings(project) if p.where in mine]
     problems += [p for p in check_refs(project) if p.where in mine]
+    # ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026: заблуда лишалась невидимою, щойно
+    # поруч зʼявлялась справжня хвиля.
+    #
+    # Перевірку додали вчора, і вона казала своє лише в гілці «хвиль немає
+    # зовсім»: там до відповіді дописувався перелік файлів, схожих на хвилю.
+    # Кодер поклав `keel/wave1.md` поруч із `keel/waves/0001-reading-and-
+    # parsing.md` — і засіб змовчав, бо хвиля вже була. Тобто перевірка не
+    # працювала в найзвичайнішому випадку: хвиля є, а поруч лежить чернетка,
+    # яку ніхто не читає.
+    if waves:
+        for zabluda in wave_shaped_strays(project):
+            problems.append(Problem(0, t(
+                "{path} looks like a wave but is not in keel/waves/, so nothing "
+                "reads it", path=zabluda)))
+
     return problems
 
 

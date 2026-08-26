@@ -1730,6 +1730,36 @@ class TestNextAnswersOnAFinishedPlan(ProjectCase):
         self.assertIn("keel gaps names", out)
 
 
+class TestAStrayBesideARealWave(ProjectCase):
+    """Файл, схожий на хвилю, помічають і тоді, коли справжня хвиля вже є.
+
+    ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026. Перевірку додали напередодні, і вона
+    казала своє лише в гілці «хвиль немає зовсім». Кодер поклав `keel/wave1.md`
+    поруч із справжньою хвилею — і засіб змовчав, бо хвиля вже була. Тобто
+    перевірка не працювала в найзвичайнішому випадку.
+    """
+
+    def skarhy(self):
+        waves = list(self.project.waves.values())
+        return "\n".join(p.message for p in keel.gaps_problems(self.project, waves))
+
+    def test_a_stray_is_named_even_when_a_wave_exists(self):
+        self.fixture.write("keel/wave1.md", "# Wave 1\n\nчернетка\n")
+        said = self.skarhy()
+
+        self.assertIn("keel/wave1.md", said)
+        self.assertIn("is not in keel/waves/", said)
+
+    def test_without_strays_nothing_is_said(self):
+        """Межа: у чистому проєкті про заблуди мовчимо."""
+        self.assertNotIn("looks like a wave", self.skarhy())
+
+    def test_the_methodology_itself_is_not_a_stray(self):
+        """Межа: `keel/METHODOLOGY.md` теж `.md` у `keel/`, і він не хвиля."""
+        self.fixture.write("keel/METHODOLOGY.md", "# Метод\n")
+        self.assertNotIn("METHODOLOGY", self.skarhy())
+
+
 class TestTheHeaderSaysEveryFault(ProjectCase):
     """Шапка, що не розібралась, називає все, що видно, — а не першу ваду.
 
