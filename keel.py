@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.28"
+VERSION = "0.8.29"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -943,6 +943,17 @@ def parse_yaml(text):
             continue
         lines.append((number, len(body) - len(body.lstrip(" ")), body.strip()))
 
+    # ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, Qwen3.6. Вісім імен в `implements` вона
+    # записала так, як їх пише кожен, кому важлива читабельність:
+    #
+    #     implements: [line_with_comma_delimiter, line_with_semicolon_delimiter,
+    #                  line_with_multiple_spaces, number_with_dot_decimal]
+    #
+    # Це законний YAML і найприродніший спосіб записати довгий список. Читач
+    # бачив лише перший рядок і казав «list is not closed by a bracket» —
+    # правду, з якої не випливає, що річ у переносі.
+    lines = _sklejeni(lines)
+
     value, index = _parse_block(lines, 0, 0)
     if index != len(lines):
         raise YamlError(lines[index][0], t("unexpected indent"))
@@ -952,6 +963,49 @@ def parse_yaml(text):
         # hook off without a word.
         raise YamlError(1, t("a header has to be a set of keys, not a list"))
     return value
+
+
+def _sklejeni(lines):
+    """Рядки, у яких дужка відкрита й не закрита, приєднують наступні.
+
+    Рахунок ведеться поза лапками: `text: "[не дужка"` не має тягти за собою
+    сусіда.
+
+    Незакритий до кінця список лишається незакритим — склеювання не є
+    поблажливістю до вади, лише до переносу. Рядок, що обірвався, дійде до
+    `_flow/2` і назветься там своїм імʼям.
+    """
+    out, i = [], 0
+    while i < len(lines):
+        number, own, text = lines[i]
+        i += 1
+        while _vidkryto(text) > 0 and i < len(lines):
+            text = text + " " + lines[i][2]
+            i += 1
+        out.append((number, own, text))
+    return out
+
+
+def _vidkryto(text):
+    """Скільки дужок лишилось відкритими. Лапки й екранування враховані."""
+    depth = quote = 0
+    escaped = False
+    for ch in text:
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\" and quote:
+            escaped = True
+        elif quote:
+            if ch == quote:
+                quote = 0
+        elif ch in "\"'":
+            quote = ch
+        elif ch in "[{":
+            depth += 1
+        elif ch in "]}":
+            depth -= 1
+    return depth
 
 
 def _parse_block(lines, index, indent):

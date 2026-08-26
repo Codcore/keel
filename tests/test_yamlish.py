@@ -286,5 +286,49 @@ class TestQuotedRoundTrip(unittest.TestCase):
             keel._scalar('"край\\"', 1)
 
 
+class TestAListAcrossLines(unittest.TestCase):
+    """ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, Qwen3.6 в режимі Python.
+
+    Вісім імен сценаріїв в `implements` вона записала так, як їх пише кожен,
+    кому важлива читабельність:
+
+        implements: [line_with_comma_delimiter, line_with_semicolon_delimiter,
+                     line_with_multiple_spaces, number_with_dot_decimal]
+
+    Це законний YAML і найприродніший спосіб записати довгий список. Наш
+    розбирач бачив лише перший рядок і казав «list is not closed by a
+    bracket» — правду, з якої не випливає, що річ у переносі.
+    """
+
+    def test_a_list_wrapped_onto_the_next_line_is_read(self):
+        got = keel.parse_yaml("implements: [a,\n             b]\n")
+        self.assertEqual(got["implements"], ["a", "b"])
+
+    def test_three_lines_too(self):
+        got = keel.parse_yaml("files: [lib/a.ex,\n        lib/b.ex,\n        test/c.exs]\n")
+        self.assertEqual(got["files"], ["lib/a.ex", "lib/b.ex", "test/c.exs"])
+
+    def test_a_wrapped_list_inside_a_map_keeps_its_place(self):
+        got = keel.parse_yaml(
+            "transforms:\n"
+            "  t:\n"
+            "    implements: [a,\n"
+            "                 b]\n"
+            "    files: [lib/a.ex]\n")
+        self.assertEqual(got["transforms"]["t"]["implements"], ["a", "b"])
+        self.assertEqual(got["transforms"]["t"]["files"], ["lib/a.ex"])
+
+    def test_a_list_that_is_never_closed_is_still_an_error(self):
+        """Поблажливість до переносу не є поблажливістю до незакритого списку:
+        рядок, що обірвався, лишається вадою й називається нею."""
+        with self.assertRaises(keel.YamlError):
+            keel.parse_yaml("implements: [a,\n             b\n")
+
+    def test_the_next_key_does_not_get_swallowed(self):
+        """Незакритий список не має права з'їдати наступні ключі мовчки."""
+        with self.assertRaises(keel.YamlError):
+            keel.parse_yaml("implements: [a,\nfiles: [lib/a.ex]\n")
+
+
 if __name__ == "__main__":
     unittest.main()
