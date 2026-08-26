@@ -470,6 +470,34 @@ class TestNewAndPlan(ProjectCase):
         self.assertEqual(code, 0)
         self.assertIn("0002-tool-calls.md", out)
 
+    def test_new_wave_names_the_branch_to_stand_on(self):
+        """ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, третя модель поспіль.
+
+        Гілка мусить зватись `plan/0002-tool-calls` — із номером, який щойно
+        додав сам засіб. Модель знає лише свій слаг `tool-calls`, номера не
+        бачить, і називає гілку `plan/tool-calls`. Далі `check` вимагає
+        перейменувати: Laguna, гема 26B і Devstral пройшли цей гак кожна.
+        """
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="wave", slug="tool-calls"))
+        self.assertEqual(code, 0)
+        self.assertIn("git checkout -b plan/0002-tool-calls", out)
+
+    def test_the_branch_line_is_absent_when_you_already_stand_there(self):
+        """Порада, яку вже виконано, — шум: вона каже зробити зроблене."""
+        self.fixture.branch("plan/0002-tool-calls")
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="wave", slug="tool-calls"))
+        self.assertEqual(code, 0)
+        self.assertNotIn("git checkout -b", out)
+
+    def test_a_contract_says_nothing_about_branches(self):
+        """Контракт не має власної гілки: він живе на гілці хвилі."""
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="contract", slug="queue"))
+        self.assertEqual(code, 0)
+        self.assertNotIn("git checkout -b", out)
+
     def test_new_wave_shows_a_filled_example(self):
         """Скелет каже форму, але не показує вигляду.
 

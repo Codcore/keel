@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.23"
+VERSION = "0.8.24"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -467,6 +467,10 @@ UK = {
         "це гілка плану: тут пишеться хвиля, а не код. Чого ще бракує — називає "
         "keel gaps ({count}).",
     "branch {branch}": "гілка {branch}",
+    "\nNext: `git checkout -b {branch}` — the wave is planned on its own branch, "
+    "and the tool finds the wave by that name.":
+        "\nДалі: `git checkout -b {branch}` — хвилю планують на власній гілці, і "
+        "засіб знаходить хвилю саме за цим імʼям.",
     "the Why section is empty": "секція «Навіщо» порожня",
     "the heading `# {title}` is one level too high: sections of a wave are "
     "`## {title}`":
@@ -4012,6 +4016,20 @@ def cmd_new(project, args):
         handle.write(text)
     print(os.path.relpath(path, project.root))
     if kind == "wave":
+        # ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, третя модель поспіль. Гілка мусить
+        # зватись за іменем файлу — з номером, який щойно додав сам засіб.
+        # Модель знає лише свій слаг і номера не бачить, тож називає гілку без
+        # нього; далі `check` вимагає перейменувати. Laguna, гема 26B і
+        # Devstral пройшли цей гак кожна, і щоразу він коштував три ходи там,
+        # де мав коштувати нуль.
+        #
+        # Порада мовчить, коли на тій гілці вже стоять: сказати зробити
+        # зроблене — це навчити не читати порад.
+        plan = "plan/" + os.path.splitext(name)[0]
+        if (project.branch or "") != plan:
+            print(t("\nNext: `git checkout -b {branch}` — the wave is planned on "
+                    "its own branch, and the tool finds the wave by that name.",
+                    branch=plan))
         print(t(PRYKLAD), end="")
     return 0
 
