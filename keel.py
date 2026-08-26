@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.25"
+VERSION = "0.8.26"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -473,6 +473,10 @@ UK = {
         "засіб знаходить хвилю саме за цим імʼям.",
     "(dropped the leading `{number}-`: the tool numbers waves itself)":
         "(зрізано провідне `{number}-`: хвилі нумерує сам засіб)",
+    "a contract is its own file under keel/contracts/, and the transform that "
+    "leans on it names it: contracts: [<slug>]":
+        "контракт — окремий файл у keel/contracts/, а трансформ, який на нього "
+        "спирається, називає його: contracts: [<slug>]",
     "the Why section is empty": "секція «Навіщо» порожня",
     "the heading `# {title}` is one level too high: sections of a wave are "
     "`## {title}`":
@@ -4237,6 +4241,18 @@ def header_lint(wave):
             problems.append(t(
                 "line {line}: {field} is not a field of a wave — those are {known}",
                 line=number, field=imya, known=", ".join(WAVE_FIELDS)))
+            # ЗНАЙДЕНО ПРОГОНАМИ 26 серпня 2026 — Devstral і Laguna, обидві
+            # оголосили контракт УСЕРЕДИНІ хвилі, з полями й експортами, хоча
+            # файл `keel/contracts/…` уже створили. Сказати «не поле хвилі» й
+            # змовкнути — це половина відповіді: Laguna вигоріла на цьому 47
+            # ходів і спинилась заслоном кола.
+            #
+            # Порада стоїть лише там, де є куди подіти. `title` нікуди не
+            # переносять, і вигадувати йому дім було б новою неправдою.
+            if imya == "contracts":
+                problems.append(t(
+                    "a contract is its own file under keel/contracts/, and the "
+                    "transform that leans on it names it: contracts: [<slug>]"))
 
     # Сценарії списком імен: сам по собі це не злам розбору, але й не те, що
     # чекають — сценарій мусить сказати, який контракт він доводить.

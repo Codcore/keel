@@ -1878,6 +1878,43 @@ class TestTheHeaderSaysEveryFault(ProjectCase):
                            "---\n" + header + "---\n\n## Навіщо\n\nтекст\n")
         return keel.gaps_problems(self.project, [self.project.waves["0001-session-loop"]])
 
+    def test_contracts_in_a_wave_are_told_where_they_belong(self):
+        """ЗНАЙДЕНО ПРОГОНАМИ 26 серпня 2026 — Devstral і Laguna, обидві.
+
+        Обидві оголосили контракт УСЕРЕДИНІ хвилі, з полями й експортами, хоча
+        файл `keel/contracts/…` уже створили. Скарга називала, чого не можна
+        («contracts is not a field of a wave»), і мовчала про те, де контракти
+        живуть. Laguna на цьому вигоріла 47 ходів і спинилась заслоном кола.
+
+        Поле, назване чужим без указання місця, — це половина відповіді.
+        """
+        problems = self.zlamana(
+            "depends_on: []\n"
+            "scenarios:\n"
+            "  parse: {proves: meter-reader}\n"
+            "contracts:\n"
+            "  meter_reader:\n"
+            "    exports: [parse-reading]\n")
+        said = "\n".join(problem.message for problem in problems)
+
+        self.assertIn("contracts is not a field of a wave", said)
+        # Куди подіти — своїм файлом і своїм рядком у трансформі.
+        self.assertIn("keel/contracts/", said)
+        self.assertIn("contracts: [", said)
+
+    def test_a_field_that_is_merely_foreign_says_nothing_extra(self):
+        """Порада про місце — лише там, де місце є. `title` нікуди не
+        переносять, і вигадувати йому дім було б новою неправдою."""
+        problems = self.zlamana(
+            "depends_on: []\n"
+            "title: Parse Meter Readings\n"
+            "scenarios:\n"
+            "  parse: {proves: meter-reader}\n")
+        said = "\n".join(problem.message for problem in problems)
+
+        self.assertIn("title is not a field of a wave", said)
+        self.assertNotIn("keel/contracts/", said)
+
     def test_the_real_header_from_the_run_gets_every_fault(self):
         """Та сама шапка, на якій Devstral крутилась сорок два ходи."""
         problems = self.zlamana(
