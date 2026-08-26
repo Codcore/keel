@@ -317,6 +317,33 @@ transforms:
         lines = [l for l in text.split("\n") if not l.startswith(f"- {heading}:")]
         self.fixture.write("keel/waves/0001-session-loop.md", "\n".join(lines))
 
+    def test_a_why_written_one_level_up_is_named_as_such(self):
+        """ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, Devstral.
+
+        Вона написала `# Why` і абзац під ним. Секцією вважається лише `## `,
+        тож засіб казав «секція «Навіщо» порожня» — стоячи над непорожнім
+        текстом. Скарга, яка суперечить тому, що модель бачить у файлі, гірша
+        за мовчання: рухатись від неї нікуди.
+        """
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write("keel/waves/0001-session-loop.md",
+                           text.replace("## Навіщо", "# Навіщо", 1))
+        problems = keel.gaps_problems(self.project, [self.project.waves["0001-session-loop"]])
+        skarhy = [p.message for p in problems]
+        self.assertIn("one level too high", " ".join(skarhy))
+        self.assertIn("`# Навіщо`", " ".join(skarhy))
+        self.assertNotIn("the Why section is empty", skarhy)
+
+    def test_a_why_that_is_simply_absent_still_says_so(self):
+        """Заголовка немає зовсім — тоді скарга та сама, що й була."""
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        head, _, tail = text.partition("## Навіщо")
+        self.fixture.write("keel/waves/0001-session-loop.md",
+                           head + tail.partition("\n## ")[1] + tail.partition("\n## ")[2])
+        skarhy = [p.message for p in keel.gaps_problems(
+            self.project, [self.project.waves["0001-session-loop"]])]
+        self.assertIn("the Why section is empty", skarhy)
+
     def test_a_wave_without_the_cuts_section_is_incomplete(self):
         """Прохід не перевіряється; перевіряється слід, який він лишає."""
         text = self.fixture.read("keel/waves/0001-session-loop.md")

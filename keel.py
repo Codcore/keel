@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.22"
+VERSION = "0.8.23"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -468,6 +468,10 @@ UK = {
         "keel gaps ({count}).",
     "branch {branch}": "гілка {branch}",
     "the Why section is empty": "секція «Навіщо» порожня",
+    "the heading `# {title}` is one level too high: sections of a wave are "
+    "`## {title}`":
+        "заголовок `# {title}` на рівень вище, ніж треба: секції хвилі — "
+        "це `## {title}`",
     "no scenarios at all": "жодного сценарію",
     "no transforms at all": "жодної трансформи",
     "transform {slug} declared no files": "трансформа {slug} не оголосила файлів",
@@ -3917,6 +3921,26 @@ def unfilled_why(wave):
     return any(tail.startswith(hint.lower()) for hint in hints)
 
 
+def misleveled(wave, titles):
+    """Заголовок із такою назвою, написаний одним хешем замість двох.
+
+    ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, Devstral. Вона написала `# Why` і текст
+    під ним; секцією вважається лише `## `, тож засіб казав «секція «Навіщо»
+    порожня» — стоячи над непорожнім абзацом. Скарга, яка суперечить тому, що
+    модель бачить у файлі, гірша за мовчання: рухатись від неї нікуди.
+
+    Дивимось у сирий текст, бо в `sections` цього заголовка за означенням
+    немає. Фенси пропускаємо тим самим правилом, що й `_split_sections`:
+    заголовок усередині прикладу — вміст, не заголовок.
+    """
+    for mark in re.finditer(r"^#[ \t]+(.+?)[ \t]*$", wave.body, re.M):
+        if wave._in_fence(mark.start()):
+            continue
+        if mark.group(1).strip().lower() in titles:
+            return mark.group(1).strip()
+    return None
+
+
 def wave_numbers_on_other_branches(project):
     """Wave numbers taken on branches this one cannot see.
 
@@ -4211,7 +4235,13 @@ def gaps_problems(project, waves):
         for slova in header_lint(wave):
             problems.append(Problem(0, slova, wave.rel))
         if not wave.why.strip() or unfilled_why(wave):
-            problems.append(Problem(0, t("the Why section is empty"), wave.rel))
+            wyshche = misleveled(wave, WHY_HEADINGS) if not wave.why.strip() else None
+            problems.append(Problem(
+                0,
+                t("the heading `# {title}` is one level too high: sections of a "
+                  "wave are `## {title}`", title=wyshche) if wyshche
+                else t("the Why section is empty"),
+                wave.rel))
         if not wave.scenarios:
             problems.append(Problem(0, t("no scenarios at all"), wave.rel))
         if not wave.transforms:
