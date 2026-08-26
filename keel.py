@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.19"
+VERSION = "0.8.20"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -496,6 +496,16 @@ UK = {
         "гілка {branch} не називає жодної хвилі, а keel/waves/ порожня. Спершу "
         "заведіть хвилю: `keel new wave <слаг>` — він ставить номер попереду. "
         "Тоді назвіть гілку за файлом, який він створив.",
+    "line {line}: `{rydok}` is a map inside a list. Lists hold plain names; a name "
+    "with fields under it is written as a map.":
+        "рядок {line}: `{rydok}` — це карта всередині списку. У списку лежать "
+        "самі імена; імʼя з полями під ним пишуть картою.",
+    "line {line}: {field} is not a field of a wave — those are {known}":
+        "рядок {line}: {field} не є полем хвилі — її поля це {known}",
+    "line {line}: scenarios is a map, not a list: write "
+    "`{name}: {{proves: contract@rev}}` under it":
+        "рядок {line}: scenarios — карта, а не список: пишіть під ним "
+        "`{name}: {{proves: contract@rev}}`",
     "the plan is complete: {names}": "план повний: {names}",
     "there are no waves yet, so there is nothing to be missing. A plan starts "
     "with `keel new wave <slug>`, and the file it creates lives in keel/waves/.":
@@ -1058,6 +1068,7 @@ class Doc:
         self.rel = os.path.relpath(path, root).replace(os.sep, "/")
         self.slug = os.path.splitext(os.path.basename(path))[0]
         self.error = None
+        self.front_text = ""
         self.front = {}
         self.body = ""
         self.sections = {}          # heading -> the text under it
@@ -1078,6 +1089,9 @@ class Doc:
             return
         self.text = text
         front_text, self.body, self.body_offset = split_front_matter(text)
+        # Сира шапка лишається при документі: коли розбір спиниться на першій
+        # ваді, огляд `header_lint` читає саме її й називає решту.
+        self.front_text = front_text or ""
         if front_text is None:
             self.error = front_matter_problem(text)
             return
@@ -4092,6 +4106,81 @@ def missing_cuts(project, wave):
             for heading in QUALITY_HEADINGS if cut_answer(text, heading) is None]
 
 
+# Поля, які хвиля справді має. Перелічені тут, а не зібрані з `SHAPES`, бо
+# `SHAPES` каже про ТИП оголошених полів, а це — про те, які взагалі бувають.
+WAVE_FIELDS = ("depends_on", "scenarios", "transforms", "renamed_from")
+
+
+def header_lint(wave):
+    """Усі вади шапки, які видно з сирого тексту, — а не перша-ліпша.
+
+    ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026. Devstral писала хвилю руками й шість
+    разів вгадувала форму: словник → список → словник → список. Зрештою склала
+    власну послідовну схему — `slug:`, `title:`, `contracts:` на верхньому
+    рівні, сценарії списком імен.
+
+    Помилок у неї було пʼять. А `parse_yaml` спиняється на ПЕРШІЙ і далі не
+    дивиться, тож відповідь щоразу приходила одна: «a map inside a list is not
+    supported». Сорок два ходи, пів мільйона токенів контексту, робота не
+    зрушила — модель лагодила по одній ваді з пʼяти, і кожна правка відкривала
+    наступну.
+
+    Цей огляд читає сирі рядки й називає все, що бачить, разом. Він навмисно
+    дурний: жодного розбору, самі ознаки. Огляд, який сам спіткнеться, не
+    скаже нічого — а саме цього ми й уникаємо.
+    """
+    problems = []
+    seen_top = []
+    scenarios_at = None
+
+    for number, raw in enumerate(wave.front_text.splitlines(), 1):
+        body = _strip_comment(raw)
+        if not body.strip():
+            continue
+        vidstup = len(body) - len(body.lstrip(" "))
+        golyj = body.strip()
+
+        # Поле верхнього рівня — те, що починається з першої колонки.
+        if vidstup == 0 and ":" in golyj and not golyj.startswith("-"):
+            imya = golyj.split(":", 1)[0].strip()
+            seen_top.append((number, imya))
+            if imya == "scenarios":
+                scenarios_at = number
+
+        # Карта всередині списку: `- щось: значення`. Найчастіший злам.
+        if golyj.startswith("- ") and ":" in golyj[2:]:
+            problems.append(t(
+                "line {line}: `{rydok}` is a map inside a list. Lists hold plain "
+                "names; a name with fields under it is written as a map.",
+                line=number, rydok=golyj[:40]))
+
+    for number, imya in seen_top:
+        if imya not in WAVE_FIELDS:
+            problems.append(t(
+                "line {line}: {field} is not a field of a wave — those are {known}",
+                line=number, field=imya, known=", ".join(WAVE_FIELDS)))
+
+    # Сценарії списком імен: сам по собі це не злам розбору, але й не те, що
+    # чекають — сценарій мусить сказати, який контракт він доводить.
+    if scenarios_at is not None:
+        for number, raw in enumerate(wave.front_text.splitlines(), 1):
+            if number <= scenarios_at:
+                continue
+            golyj = _strip_comment(raw).strip()
+            if not golyj:
+                continue
+            if not raw.startswith((" ", "\t")):
+                break
+            if golyj.startswith("- ") and ":" not in golyj:
+                problems.append(t(
+                    "line {line}: scenarios is a map, not a list: write "
+                    "`{name}: {{proves: contract@rev}}` under it",
+                    line=number, name=golyj[2:].strip()))
+                break
+
+    return problems
+
+
 def gaps_problems(project, waves):
     """What a plan is missing mechanically. Read by `gaps` and by `check`.
 
@@ -4103,7 +4192,14 @@ def gaps_problems(project, waves):
     for wave in waves:
         if wave.error:
             problems.append(Problem(0, wave.error, wave.rel))
+            # Розбір спинився на першій ваді — огляд називає решту, які видно
+            # з сирого тексту. Інакше модель лагодить по одній із пʼяти.
+            for slova in header_lint(wave):
+                problems.append(Problem(0, slova, wave.rel))
             continue
+
+        for slova in header_lint(wave):
+            problems.append(Problem(0, slova, wave.rel))
         if not wave.why.strip() or unfilled_why(wave):
             problems.append(Problem(0, t("the Why section is empty"), wave.rel))
         if not wave.scenarios:
@@ -6960,7 +7056,15 @@ def build_parser():
                         help="work in this directory")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    new = sub.add_parser("new", help="skeleton of a wave or a contract")
+    # ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026: підказка була, дороги до неї не було.
+    #
+    # `keel new wave` без імені показує заповнений приклад — це записано в
+    # довідці САМОЇ команди. Але моделі читають `keel --help`, а там стояло
+    # тільки «skeleton of a wave or a contract», і про приклад ані слова.
+    # Devstral шість заходів вгадувала форму шапки, аж поки не завела зайву
+    # хвилю, щоб той приклад побачити; гема зробила так само.
+    new = sub.add_parser(
+        "new", help="skeleton of a wave or a contract; without a name, an example")
     new.add_argument("kind", choices=("wave", "contract"))
     # ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026: щоб побачити зразок, заводили зайву хвилю.
     #

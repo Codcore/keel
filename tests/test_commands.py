@@ -1607,6 +1607,30 @@ class TestTheExampleCostsNothing(ProjectCase):
 
         self.assertIn(bez_slaga.strip(), zi_slagom)
 
+    def test_the_general_help_leads_to_the_example(self):
+        """Підказка мусить бути ЗНАЙДЕНОЮ, а не просто наявною.
+
+        ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026: `keel new wave` без імені показує
+        приклад, і це записано в довідці самої команди. Але моделі читають
+        `keel --help`, де стояло тільки «skeleton of a wave or a contract».
+        Devstral шість заходів вгадувала форму шапки, аж поки не завела зайву
+        хвилю, щоб приклад побачити; гема зробила так само.
+        """
+        parser = keel.build_parser()
+        for action in parser._actions:
+            if isinstance(action, keel.argparse._SubParsersAction):
+                pro_new = action.choices["new"]
+                break
+        else:
+            self.fail("підкоманд не знайдено")
+
+        # Довідка самої команди — там опис аргументу.
+        assert pro_new.format_help()
+        # І головне: загальний перелік теж веде до прикладу.
+        # Перенос рядка ставить argparse — звіряємо по слову, що не ламається.
+        vzahali = " ".join(parser.format_help().split())
+        self.assertIn("without a name, an example", vzahali)
+
     def test_a_contract_without_a_slug_says_it_has_no_example(self):
         """Межа: зразок є лише в хвилі, і вигадувати його для контракту не з чого."""
         from io import StringIO
@@ -1704,3 +1728,62 @@ class TestNextAnswersOnAFinishedPlan(ProjectCase):
 
         self.assertEqual(code, 1)
         self.assertIn("keel gaps names", out)
+
+
+class TestTheHeaderSaysEveryFault(ProjectCase):
+    """Шапка, що не розібралась, називає все, що видно, — а не першу ваду.
+
+    ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026. Devstral писала хвилю руками й шість
+    разів вгадувала форму: словник → список → словник → список. Помилок у неї
+    було пʼять, а `parse_yaml` спинявся на першій, тож відповідь щоразу
+    приходила одна. Сорок два ходи, пів мільйона токенів контексту, робота не
+    зрушила: кожна правка відкривала наступну ваду.
+    """
+
+    def zlamana(self, header):
+        self.fixture.write("keel/waves/0001-session-loop.md",
+                           "---\n" + header + "---\n\n## Навіщо\n\nтекст\n")
+        return keel.gaps_problems(self.project, [self.project.waves["0001-session-loop"]])
+
+    def test_the_real_header_from_the_run_gets_every_fault(self):
+        """Та сама шапка, на якій Devstral крутилась сорок два ходи."""
+        problems = self.zlamana(
+            "slug: 1-parse\n"
+            "title: Parse Meter Readings\n"
+            "depends_on: []\n"
+            "scenarios:\n"
+            "  - parse-various-formats\n"
+            "contracts:\n"
+            "  - slug: meter-reading-format\n")
+        said = "\n".join(problem.message for problem in problems)
+
+        # Вигадані поля — усі три, поіменно.
+        for field in ("slug", "title", "contracts"):
+            self.assertIn(f"{field} is not a field of a wave", said)
+        # Карта в списку — з самим рядком, а не самим номером.
+        self.assertIn("- slug: meter-reading-format", said)
+        # І готова форма з її ж іменем сценарію.
+        self.assertIn("parse-various-formats: {proves: contract@rev}", said)
+
+    def test_the_known_fields_are_named(self):
+        """Відмова каже не лише «не те», а й що буває."""
+        said = "\n".join(p.message for p in self.zlamana("titel: щось\n"))
+        self.assertIn("depends_on, scenarios, transforms", said)
+
+    def test_a_good_header_says_nothing(self):
+        """Межа: жодної скарги на здоровій шапці."""
+        problems = keel.gaps_problems(
+            self.project, [self.project.waves["0001-session-loop"]])
+        said = "\n".join(problem.message for problem in problems)
+
+        self.assertNotIn("is not a field", said)
+        self.assertNotIn("map inside a list", said)
+
+    def test_a_list_of_plain_names_is_left_alone(self):
+        """Межа: `depends_on: [a, b]` — законний список, не злам."""
+        said = "\n".join(p.message for p in self.zlamana(
+            "depends_on:\n  - 0002-other\n  - 0003-third\n"
+            "scenarios:\n  парсер: {proves: session-run}\n"
+            "transforms:\n  крутити: {files: [lib/a.ex]}\n"))
+        self.assertNotIn("map inside a list", said)
+        self.assertNotIn("is not a field", said)
