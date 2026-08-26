@@ -493,6 +493,26 @@ class TestNewAndPlan(ProjectCase):
         self.assertIn("dropped the leading `0001-`", out)
         self.assertIn("0002-parse.md", out)
 
+    def test_the_word_wave_before_the_number_is_dropped_too(self):
+        """ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, Qwen3.6.
+
+        Вона подала `wave-0001-readings-intake` — нумерація та сама, лише зі
+        словом попереду. Вийшло `0001-wave-0001-readings-intake`, і гілку вона
+        назвала `plan/wave-0001`, тобто ще й обрізала по-своєму.
+        """
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="wave", slug="wave-0001-readings-intake"))
+        self.assertEqual(code, 0)
+        self.assertIn("0002-readings-intake.md", out)
+        self.assertNotIn("wave-0001", out.splitlines()[0])
+
+    def test_the_word_wave_without_a_number_stays(self):
+        """`wave-function-parser` — тут `wave` частина назви, не нумерація."""
+        code, out = self.capture(keel.cmd_new, self.project,
+                                 Args(kind="wave", slug="wave-function-parser"))
+        self.assertEqual(code, 0)
+        self.assertIn("0002-wave-function-parser.md", out)
+
     def test_a_number_inside_a_word_stays(self):
         """`2fa-login` і `v2-parser` — номер тут частина імені, не префікс."""
         for slug, expected in (("2fa-login", "0002-2fa-login.md"),
