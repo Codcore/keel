@@ -1485,6 +1485,27 @@ class TestAPlanBranchThatNamesNoWave(ProjectCase):
         self.assertNotIn("names no wave", out)
         self.assertIn("– 5. ", out)
 
+    def test_a_branch_named_nothing_like_a_wave_gets_the_name(self):
+        """Перевірка 4 каже дію, а не самий наслідок.
+
+        ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026: гема назвала гілку `wave_1_parsing`
+        при файлі `0001-wave-1-parsing.md` — ані `plan/`, ані номера, ані рисок.
+        Засіб казав, що звіряти обсяг нема з чим, і на цьому все.
+        """
+        self.fixture.branch("session_loop")
+        _code, out = self.capture(Args(fast=True, no_tests=True, json=False))
+
+        self.assertIn("Rename it to", out)
+        self.assertIn("0001-session-loop", out)
+
+    def test_a_branch_resembling_nothing_says_only_what_is_true(self):
+        """Межа: схожої хвилі немає — імені не вигадуємо."""
+        self.fixture.branch("зовсім-стороннє")
+        _code, out = self.capture(Args(fast=True, no_tests=True, json=False))
+
+        self.assertIn("there is nothing to compare scope against", out)
+        self.assertNotIn("Rename it to", out)
+
     def test_a_work_branch_still_runs_the_code_checks(self):
         """Межа: не планова гілка — не стає нічого."""
         self.fixture.branch("0001-session-loop")
@@ -1546,6 +1567,59 @@ class TestAPlanBranchThatNamesNoWave(ProjectCase):
         said = stream.getvalue()
         self.assertIn("plan/0001-session-loop", said)
         self.assertNotIn("planning on plan/<wave>", said)
+
+
+class TestTheExampleCostsNothing(ProjectCase):
+    """Зразок хвилі показують, не створюючи хвилі.
+
+    ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026: заповнений приклад друкувався ЛИШЕ після
+    створення файлу. Гема 26B, якій він був потрібен, покликала
+    `new wave test-wave` — і в теці лишилась хвиля-заготовка, через яку `gaps`
+    рахував зайві прогалини, а заслон вимагав її прибрати.
+    """
+
+    def said(self, **kwargs):
+        from io import StringIO
+        stream, saved = StringIO(), sys.stdout
+        sys.stdout = stream
+        try:
+            code = keel.cmd_new(self.project, Args(**kwargs))
+        except SystemExit as stop:
+            code = stop.code
+        finally:
+            sys.stdout = saved
+        return code, stream.getvalue()
+
+    def test_a_wave_without_a_slug_shows_the_example(self):
+        bulo = sorted(os.listdir(self.fixture.path("keel/waves")))
+        code, out = self.said(kind="wave", slug=None)
+
+        self.assertEqual(code, 0)
+        self.assertIn("filled in", out)
+        self.assertIn("proves:", out)
+        # Головне: нічого не створено.
+        self.assertEqual(sorted(os.listdir(self.fixture.path("keel/waves"))), bulo)
+
+    def test_the_example_is_the_same_one_new_prints_after_creating(self):
+        """Одне джерело: копія в довідці розійшлася б першої ж правки форми."""
+        _code, bez_slaga = self.said(kind="wave", slug=None)
+        _code, zi_slagom = self.said(kind="wave", slug="proba-zrazka")
+
+        self.assertIn(bez_slaga.strip(), zi_slagom)
+
+    def test_a_contract_without_a_slug_says_it_has_no_example(self):
+        """Межа: зразок є лише в хвилі, і вигадувати його для контракту не з чого."""
+        from io import StringIO
+        stream, saved = StringIO(), sys.stderr
+        sys.stderr = stream
+        try:
+            keel.cmd_new(self.project, Args(kind="contract", slug=None))
+        except SystemExit:
+            pass
+        finally:
+            sys.stderr = saved
+
+        self.assertIn("keel new contract", stream.getvalue())
 
 
 class TestACommandNameIsNotAWave(ProjectCase):

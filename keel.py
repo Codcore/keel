@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.18"
+VERSION = "0.8.19"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -168,6 +168,11 @@ UK = {
         "не знайшов, від чого відійшла гілка: {main} немає або історія обрізана. "
         "Межі не звірено — це не означає, що вони цілі.",
     "a plan branch is touching code: {name}": "гілка плану чіпає код: {name}",
+    "branch {branch} is not named after a wave. Rename it to {whole} — the tool "
+    "finds the wave by the branch name, and without it scope is compared against "
+    "nothing.":
+        "гілка {branch} не названа за хвилею. Перейменуйте її на {whole} — засіб "
+        "шукає хвилю саме за іменем гілки, а без цього обсяг звіряється ні з чим.",
     "branch {branch} is not named after a wave — there is nothing to compare "
     "scope against":
         "гілка {branch} не називається хвилею — немає з чим звіряти межі",
@@ -435,6 +440,9 @@ UK = {
         "{waves}: ця гілка писати ту хвилю не приходила. Чужу хвилю не пересувають, "
         "не перейменовують і не видаляють заради зеленої перевірки — лишіть його "
         "на місці й скажіть, що він там є.",
+    "only a wave has an example to show; a contract takes a name: "
+    "keel new contract <slug>":
+        "зразок є лише в хвилі; контракт бере імʼя: keel new contract <слаг>",
     "bad slug: {slug}": "поганий слаг: {slug}",
     "{file} removed — nothing of ours left in it":
         "{file} прибрано — нашого в ньому не лишилось",
@@ -2908,6 +2916,22 @@ def check_scope(project):
 
     wave = project.wave_for_branch(branch)
     if wave is None:
+        # ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026: наслідок без дії.
+        #
+        # Гема 26B назвала гілку `wave_1_parsing` при файлі
+        # `0001-wave-1-parsing.md` — ані `plan/`, ані номера, ані рисок. Ця
+        # перевірка казала їй, що звіряти обсяг нема з чим, і на цьому все:
+        # правда, з якої не випливає наступного кроку.
+        #
+        # Кандидата шукаємо так само вузько, як для планової гілки: імена
+        # хвиль мають вигляд `NNNN-слово`, і промах, який ми ловимо, — зрізаний
+        # номер чи підкреслення замість риски.
+        blyzki = wave_like(project, (branch or "").replace("_", "-"))
+        if blyzki:
+            return [Problem(4, t("branch {branch} is not named after a wave. Rename it to "
+                            "{whole} — the tool finds the wave by the branch name, and "
+                            "without it scope is compared against nothing.",
+                            branch=branch, whole=blyzki[0]))]
         return [Problem(4, t("branch {branch} is not named after a wave — there is nothing "
                         "to compare scope against", branch=branch))]
     if wave.error:
@@ -3901,6 +3925,17 @@ def wave_numbers_on_other_branches(project):
 
 def cmd_new(project, args):
     kind, slug = args.kind, args.slug
+
+    # Без слага нічого не створюємо — показуємо зразок. Створити файл, щоб на
+    # нього подивитись, коштує і ходу, і сміття в теці: 26 серпня 2026 гема так
+    # завела зайву хвилю, і `gaps` почав рахувати її прогалини як свої.
+    if slug is None:
+        if kind != "wave":
+            fail(t("only a wave has an example to show; a contract takes a name: "
+                   "keel new contract <slug>"))
+        print(t(PRYKLAD), end="")
+        return 0
+
     clean = normalise_slug(slug)
     if not clean:
         fail(t("bad slug: {slug}", slug=repr(slug)))
@@ -6927,7 +6962,18 @@ def build_parser():
 
     new = sub.add_parser("new", help="skeleton of a wave or a contract")
     new.add_argument("kind", choices=("wave", "contract"))
-    new.add_argument("slug")
+    # ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026: щоб побачити зразок, заводили зайву хвилю.
+    #
+    # Заповнений приклад друкувався ЛИШЕ після створення файлу. Гема 26B, якій
+    # він був потрібен, покликала `new wave test-wave` — і в теці лишилась
+    # хвиля-заготовка, через яку `gaps` рахував зайві прогалини, а заслон
+    # вимагав її прибрати. Обхідний маневр за зразком коштував і ходу, і сміття.
+    #
+    # Тому слаг тепер необовʼязковий: без нього показуємо приклад і нічого не
+    # створюємо. Одне джерело — той самий `PRYKLAD`, що друкується й після
+    # створення; копія в документації розійшлася б із ним першої ж правки.
+    new.add_argument("slug", nargs="?",
+                     help="name of the new document; without it, prints an example")
 
     gaps = sub.add_parser("gaps", help="what is missing from a wave")
     gaps.add_argument("wave", nargs="?", help="a wave; without it, the branch's wave")
