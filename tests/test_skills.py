@@ -173,11 +173,47 @@ class TestSkills(ProjectCase):
             self.assertIn("did not come to write is not yours", body, relative)
 
     def test_thin_skills_name_the_commands(self):
+        """Команди названі так, як засіб кличуть САМЕ В ЦЬОМУ проєкті.
+
+        ЗНАЙДЕНО 26 серпня 2026: тексти несли `python3 keel/keel.py` намертво —
+        так засіб кличуть у власному сховищі, і лише там це правда. У
+        випробуванні поруч лежить шим `keel/keel`, а `keel.py` того ж дня
+        прибрали з дозволених і сховали від моделі. `keel skills` перезаписав би
+        правильні рядки на ті, що ведуть у відмову.
+        """
         self.generate()
-        self.assertIn("keel.py next", self.fixture.read(
+        # Ані шима, ані копії — засіб стоїть у PATH, як його кладе встановлювач.
+        self.assertIn("keel next", self.fixture.read(
             ".claude/skills/keel-work/SKILL.md"))
-        self.assertIn("keel.py check", self.fixture.read(
+        self.assertIn("keel check", self.fixture.read(
             ".claude/skills/keel-review/SKILL.md"))
+
+    def test_a_copy_in_the_project_is_called_as_a_copy(self):
+        self.fixture.write("keel/keel.py", "# копія засобу\n")
+        self.generate()
+        self.assertIn("python3 keel/keel.py next", self.fixture.read(
+            ".claude/skills/keel-work/SKILL.md"))
+
+    def test_a_shim_beside_the_copy_wins(self):
+        """Шим і є тим, чим кличуть: він знає, де лежить сам засіб."""
+        self.fixture.write("keel/keel.py", "# копія засобу\n")
+        self.fixture.write("keel/keel", "#!/bin/sh\nexec python3 keel.py \"$@\"\n")
+        os.chmod(self.fixture.path("keel/keel"), 0o755)
+        self.generate()
+
+        body = self.fixture.read(".claude/skills/keel-work/SKILL.md")
+        self.assertIn("keel/keel next", body)
+        # Саме те, що ловимо: шлях, який у випробуванні веде у відмову.
+        self.assertNotIn("python3 keel/keel.py", body)
+
+    def test_an_unexecutable_shim_is_not_the_call(self):
+        """Межа: файл без права запуску шимом не є."""
+        self.fixture.write("keel/keel.py", "# копія засобу\n")
+        self.fixture.write("keel/keel", "не програма\n")
+        self.generate()
+
+        self.assertIn("python3 keel/keel.py next", self.fixture.read(
+            ".claude/skills/keel-work/SKILL.md"))
 
     def test_each_skill_hands_over_to_the_next_stage(self):
         """Цикл не має обриватись: скіл каже, куди йти, коли етап скінчився."""

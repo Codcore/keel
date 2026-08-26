@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.17"
+VERSION = "0.8.18"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -6085,7 +6085,33 @@ def home():
     return os.path.dirname(os.path.abspath(__file__))
 
 
-def render_skill(skill, agent, lang=DEFAULTS["lang"], mode=DEFAULTS["mode"]):
+def invocation(root):
+    """Як засіб кличуть САМЕ В ЦЬОМУ проєкті.
+
+    ЗНАЙДЕНО 26 серпня 2026: тексти скілів несли `python3 keel/keel.py` намертво
+    — так засіб кличуть у власному сховищі, і лише там це правда. У випробуванні
+    поруч лежить шим `keel/keel`, а `keel.py` того ж дня прибрали з дозволених і
+    сховали від моделі. Тобто `keel skills` перезаписав би правильні рядки на ті,
+    що ведуть у відмову.
+
+    Порядок той самий, що в хуку, і з тієї ж причини: спершу те, що лежить у
+    проєкті, бо скіл читають усередині нього.
+    """
+    dvijnyk = os.path.join(root, "keel", "keel")
+    if os.path.isfile(dvijnyk) and os.access(dvijnyk, os.X_OK):
+        return "keel/keel"
+    if os.path.isfile(os.path.join(root, "keel", "keel.py")):
+        return "python3 keel/keel.py"
+    return "keel"
+
+
+# Те, що стоїть у текстах скілів дослівно. Заміною, а не `format`: у тілах є
+# фігурні дужки — `{proves: contract@rev}`, — і форматування зламало б їх.
+BAKED_CALL = "python3 keel/keel.py"
+
+
+def render_skill(skill, agent, lang=DEFAULTS["lang"], mode=DEFAULTS["mode"],
+                 keel=BAKED_CALL):
     """One skill. Both agents take the same fields; only extras differ.
 
     In manual mode one line in the header turns a skill into a plain command:
@@ -6108,7 +6134,7 @@ def render_skill(skill, agent, lang=DEFAULTS["lang"], mode=DEFAULTS["mode"]):
         description=yaml_string(skill_description(skill, lang)),
         extra=extra,
         note=GENERATED_NOTE,
-        body=skill["body"].strip())
+        body=skill["body"].strip().replace(BAKED_CALL, keel))
 
 
 def skill_description(skill, lang=DEFAULTS["lang"]):
@@ -6151,10 +6177,11 @@ def cmd_skills(project, args=None):
 
 def write_skills(root, lang, done, manifest=None, mode=DEFAULTS["mode"],
                  agents=None):
+    klych = invocation(root)
     for skill in SKILLS:
         for agent, relative in skill_targets(skill, agents):
             write_if_changed(os.path.join(root, relative),
-                             render_skill(skill, agent, lang, mode), done,
+                             render_skill(skill, agent, lang, mode, klych), done,
                              relative, manifest)
 
 
