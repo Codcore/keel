@@ -165,6 +165,22 @@ class TestRefChecks(ProjectCase):
         problems = keel.check_headings(self.project)
         self.assertTrue(any("ghost" in p.message for p in problems))
 
+    def test_the_missing_heading_is_named_in_full(self):
+        """ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, Devstral.
+
+        Вона написала секції — `### parse-valid-readings` під `## Scenarios`,
+        як пишуть у README, — і засіб казав лише «секції немає». Назвати ваду,
+        не назвавши форми, значить відправити шукати навмання: правильну форму
+        показує приклад із `new wave`, а вона його не бачила.
+        """
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        self.fixture.write(
+            "keel/waves/0001-session-loop.md",
+            text.replace("transforms:\n", "transforms:\n  ghost:\n    files: [a.ex]\n"))
+        skarha = next(p.message for p in keel.check_headings(self.project)
+                      if "ghost" in p.message)
+        self.assertIn("## transform: ghost", skarha)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Check 4: scope

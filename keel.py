@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.21"
+VERSION = "0.8.22"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -226,8 +226,10 @@ UK = {
     "the heading ## {title} appears twice — the first is read and the last is "
     "counted":
         "заголовок ## {title} трапляється двічі — читають перший, а рахується останній",
-    "the header has {kind} {slug} and the body has no section for it":
-        "у шапці є {kind} {slug}, у тілі секції немає",
+    "the header has {kind} {slug} and the body has no section for it; the body "
+    "needs a heading `## {kind}: {slug}`":
+        "у шапці є {kind} {slug}, у тілі секції немає; тілу потрібен заголовок "
+        "`## {kind}: {slug}`",
     "the body has ## {kind}: {slug} and the header does not":
         "у тілі є ## {kind}: {slug}, у шапці його немає",
     "the translation names no source revision; it is now {now}":
@@ -3394,8 +3396,16 @@ def check_headings(project):
             in_head = set(declared)
             for slug in sorted(in_head - in_body):
                 problems.append(Problem(
+                    # ЗНАЙДЕНО ПРОГОНОМ 26 серпня 2026, Devstral. Секції вона
+                    # написала — `### parse-valid-readings` під `## Scenarios`,
+                    # як пишуть у звичайному README. Засіб шукає `## scenario:
+                    # <slug>` і казав лише «секції немає»: назвати ваду, не
+                    # назвавши форми, — це відправити шукати навмання. Форму
+                    # показує приклад із `new wave`, але його вона не бачила,
+                    # бо створила файл повз засіб.
                     7, t("the header has {kind} {slug} and the body has no "
-                         "section for it", kind=kind, slug=slug),
+                         "section for it; the body needs a heading "
+                         "`## {kind}: {slug}`", kind=kind, slug=slug),
                     wave.rel, wave.line_of(slug)))
             for slug in sorted(in_body - in_head):
                 problems.append(Problem(
