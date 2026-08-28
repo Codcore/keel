@@ -334,6 +334,81 @@ transforms:
         self.assertIn("`# Навіщо`", " ".join(skarhy))
         self.assertNotIn("the Why section is empty", skarhy)
 
+    def test_transforms_nested_under_scenarios_is_named_as_such(self):
+        """ЗНАЙДЕНО ПРОГОНОМ 29 серпня 2026, Gemma 4 26B.
+
+        Вона написала трансформу правильно — з `implements`, `contracts` і
+        переліком файлів, — але з відступом у два пробіли, тобто всередині
+        `scenarios:`. Для YAML це означає, що на верхньому рівні трансформ
+        немає, і засіб казав «жодної трансформи» — стоячи над написаною.
+
+        Десять ходів поспіль модель переписувала файл цілком, щоразу
+        відтворюючи той самий відступ: зі скарги про наслідок причини не
+        вивести.
+        """
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        holova, _, khvist = text.partition("\ntransforms:")
+        # Той самий зсув, що зробила модель: два пробіли перед ключем і перед
+        # усім, що під ним.
+        zsunute = "\n".join(
+            "  " + row if row.strip() else row
+            for row in ("transforms:" + khvist.split("\n---", 1)[0]).split("\n"))
+        self.fixture.write(
+            "keel/waves/0001-session-loop.md",
+            holova + "\n" + zsunute + "\n---" + khvist.split("\n---", 1)[1])
+
+        problems = keel.gaps_problems(self.project, [self.project.waves["0001-session-loop"]])
+        skarhy = " ".join(p.message for p in problems)
+        self.assertIn("nested inside", skarhy)
+        self.assertIn("`transforms`", skarhy)
+        self.assertIn("`scenarios`", skarhy)
+        self.assertNotIn("no transforms at all", skarhy)
+
+    def test_a_key_nested_two_levels_deep_is_named_with_the_whole_path(self):
+        """Відступ з'їжджає й на два рівні, і тоді шлях треба назвати повністю.
+
+        Сказати «десь усередині» означало б лишити пошук моделі — рівно те, від
+        чого ця скарга й рятує.
+        """
+        wave = self.project.waves["0001-session-loop"]
+        front = {"scenarios": {"a": {}, "inner": {"transforms": {"t": {}}}}}
+        self.assertEqual(keel.nested_key(front, "transforms"), ["scenarios", "inner"])
+
+    def test_every_top_level_key_is_checked_not_only_the_two(self):
+        """Перевіряються всі верхні ключі, а не ті, через які це знайшли.
+
+        `depends_on` з'їжджає так само, як `transforms`, і мовчання про нього
+        означало б чекати на той самий прогін ще раз.
+        """
+        front = {"scenarios": {"depends_on": [], "verify": "щось"}}
+        zsunuti = keel.zsunuti_klyuchi(front)
+        self.assertEqual(zsunuti.get("depends_on"), ["scenarios"])
+        self.assertEqual(zsunuti.get("verify"), ["scenarios"])
+
+    def test_a_key_that_sits_where_it_belongs_is_not_reported(self):
+        """Ключ на своєму місці не згадується, навіть коли таке саме імʼя
+        трапляється й глибше: інакше скарга зринала б на кожній правильній
+        шапці, де всередині трансформи є своє поле."""
+        front = {"transforms": {"t": {"transforms": {}}}, "scenarios": {"a": {}}}
+        self.assertEqual(keel.zsunuti_klyuchi(front), {})
+
+    def test_transforms_that_are_simply_absent_still_say_so(self):
+        """Ключа немає зовсім — тоді скарга та сама, що й була.
+
+        Інакше підказка про вкладеність зринала б там, де вкладати нічого:
+        невлучний здогад заводить далі, ніж його відсутність.
+        """
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        holova, _, khvist = text.partition("\ntransforms:")
+        self.fixture.write(
+            "keel/waves/0001-session-loop.md",
+            holova + "\n---" + khvist.split("\n---", 1)[1])
+
+        problems = keel.gaps_problems(self.project, [self.project.waves["0001-session-loop"]])
+        skarhy = " ".join(p.message for p in problems)
+        self.assertIn("no transforms at all", skarhy)
+        self.assertNotIn("nested inside", skarhy)
+
     def test_a_why_that_is_simply_absent_still_says_so(self):
         """Заголовка немає зовсім — тоді скарга та сама, що й була."""
         text = self.fixture.read("keel/waves/0001-session-loop.md")

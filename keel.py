@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.30"
+VERSION = "0.8.31"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
