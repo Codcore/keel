@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.29"
+VERSION = "0.8.30"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -484,6 +484,10 @@ UK = {
         "це `## {title}`",
     "no scenarios at all": "жодного сценарію",
     "no transforms at all": "жодної трансформи",
+    "`{key}` is nested inside `{owner}`, so the header has none of its own: "
+    "move it out to the left margin of the header, level with `{owner}`":
+        "`{key}` лежить усередині `{owner}`, тож у шапці свого немає: винесіть "
+        "його до лівого краю шапки, врівень із `{owner}`",
     "transform {slug} declared no files": "трансформа {slug} не оголосила файлів",
     "transform {slug} implements no scenario":
         "трансформа {slug} не наближає жодного сценарію",
@@ -4031,6 +4035,76 @@ def misleveled(wave, titles):
     return None
 
 
+# Ключі, які в шапці живуть на верхньому рівні — і тільки там. Перелік один на
+# хвилі й контракти: шапка розбирається однаково, і ключ, що заїхав усередину
+# сусіда, однаково перестає існувати.
+VERKHNI_KLYUCHI = (
+    "depends_on", "exports", "module", "renamed_from",
+    "scenarios", "transforms", "verify",
+)
+
+
+def nested_key(front, key, _hlybyna=0):
+    """Шлях, яким ключ заїхав усередину сусіда, або `None`.
+
+    ЗНАЙДЕНО ПРОГОНОМ 29 серпня 2026, Gemma 4 26B. Вона написала трансформу
+    правильно — з `implements`, `contracts` і переліком файлів, — але з
+    відступом у два пробіли, тобто **всередині** `scenarios:`. Для YAML це
+    означає, що на верхньому рівні трансформ немає, і засіб казав «жодної
+    трансформи» — стоячи над написаною трансформою.
+
+    Десять ходів поспіль модель переписувала файл цілком, щоразу відтворюючи
+    той самий відступ: зі скарги, яка називає лише наслідок, причини не
+    вивести. Вибратись звідти можна було б хіба випадково.
+
+    Те саме, що `misleveled/2` робить для заголовків, лише на рівень нижче:
+    там `#` замість `##`, тут зайві два пробіли.
+
+    Шукається НА БУДЬ-ЯКІЙ глибині, а не на одну вкладеність: відступ буває й
+    подвійним, і тоді скарга «його немає» так само стоїть над написаним. Шлях
+    вертається повний, бо сказати «десь усередині» означало б лишити пошук
+    моделі.
+    """
+    if _hlybyna > 8 or not isinstance(front, dict):
+        return None
+
+    for name, value in front.items():
+        if name == key or not isinstance(value, dict):
+            continue
+        if key in value:
+            return [name]
+        hlybshe = nested_key(value, key, _hlybyna + 1)
+        if hlybshe:
+            return [name] + hlybshe
+    return None
+
+
+def zsunuti_klyuchi(front):
+    """Усі ключі шапки, що опинилися не на своєму рівні, — шляхами до них.
+
+    Перевіряються ВСІ верхні ключі, а не ті два, через які це знайшли:
+    відступ з'їжджає однаково скрізь, і мовчати про `depends_on`, який заїхав
+    усередину `scenarios`, означало б чекати на той самий прогін ще раз.
+    """
+    zsunuti = {}
+    for key in VERKHNI_KLYUCHI:
+        if key in (front or {}):
+            continue
+        shlyakh = nested_key(front, key)
+        if shlyakh:
+            zsunuti[key] = shlyakh
+    return zsunuti
+
+
+def vkladene(wave, key):
+    """Слово скарги: про зсунутий ключ, коли він зсунутий, інакше — як доти."""
+    shlyakh = nested_key(wave.front, key)
+    if shlyakh:
+        return t("`{key}` is nested inside `{owner}`, so the header has none of "
+                 "its own: move it out to the left margin of the header, level "
+                 "with `{owner}`", key=key, owner=" → ".join(shlyakh))
+    return t("no scenarios at all") if key == "scenarios" else t("no transforms at all")
+
 def wave_numbers_on_other_branches(project):
     """Wave numbers taken on branches this one cannot see.
 
@@ -4367,9 +4441,24 @@ def gaps_problems(project, waves):
                 else t("the Why section is empty"),
                 wave.rel))
         if not wave.scenarios:
-            problems.append(Problem(0, t("no scenarios at all"), wave.rel))
+            problems.append(Problem(0, vkladene(wave, "scenarios"), wave.rel))
         if not wave.transforms:
-            problems.append(Problem(0, t("no transforms at all"), wave.rel))
+            problems.append(Problem(0, vkladene(wave, "transforms"), wave.rel))
+
+        # Решта верхніх ключів. Про `scenarios` і `transforms` уже сказано
+        # вище — там скарга стоїть на порожнечі, і повторювати її не треба;
+        # але `depends_on` з'їжджає так само, а мовчання про нього означало б
+        # чекати на той самий прогін ще раз.
+        for klyuch, shlyakh in zsunuti_klyuchi(wave.front).items():
+            if klyuch in ("scenarios", "transforms"):
+                continue
+            problems.append(Problem(
+                0,
+                t("`{key}` is nested inside `{owner}`, so the header has none "
+                  "of its own: move it out to the left margin of the header, "
+                  "level with `{owner}`",
+                  key=klyuch, owner=" → ".join(shlyakh)),
+                wave.rel))
 
         implemented = set()
         for slug in wave.transforms:
@@ -6735,6 +6824,23 @@ HOOKS = {
 
 HOOK_MARK = "# keel hook:"
 
+# ЗНАЙДЕНО ПРОГОНОМ 28 серпня 2026, і це була тиха зелена.
+#
+# Mellum закомітила `PLAN.md` на гілці `plan/clean_readings`, коли
+# `keel/waves/` була порожня. Хук спрацював і сказав `clean`. Заслон
+# зробленості одразу по тому покликав ТУ САМУ команду й дістав
+# «branch plan/clean_readings names no wave».
+#
+# Причина: хук брав перший `keel` із `PATH` — а там лежав глобально
+# встановлений 0.8.7 від 21 серпня, тоді як проєкт возив 0.8.29. Перевірка
+# про гілку без хвилі зʼявилась у 0.8.15 і 0.8.19, тож старий засіб про неї
+# просто не знав.
+#
+# Модель заплатила за це цілою спробою: коміт, який мав бути спинений, пройшов,
+# і про ваду вона дізналась уже після того, як оголосила роботу зробленою.
+#
+# Тепер копія в проєкті стоїть перед `PATH`. `KEEL` лишається першим: коли шлях
+# названо руками, це свідомий вибір, а не те, що трапилось в оточенні.
 HOOK_SCRIPT = """#!/bin/sh
 {mark} {name}. Generated by `keel hooks --install`.
 # Edits to this file are overwritten by the next install.
@@ -6747,16 +6853,22 @@ run() {{
   esac
 }}
 
-# The tool is looked for in this order: the KEEL variable, PATH, the copy in the
-# project, and only then the path this machine had when the hook was installed.
+# The tool is looked for in this order: the KEEL variable, the copy in the
+# project, PATH, and only then the path this machine had when the hook was
+# installed.
+#
+# The project's own copy comes before PATH deliberately. A project carries keel
+# so that its checks do not depend on what happens to be installed on the
+# machine: otherwise the same commit is green for one person and red for
+# another, and neither can see why.
 if [ -n "${{KEEL:-}}" ] && [ -f "${{KEEL}}" ]; then run "${{KEEL}}"; fi
-
-tool=$(command -v keel 2>/dev/null || true)
-if [ -n "$tool" ]; then run "$tool"; fi
 
 root=$(git rev-parse --show-toplevel)
 if [ -f "$root/keel/keel.py" ]; then run "$root/keel/keel.py"; fi
 if [ -x "$root/keel/keel" ]; then run "$root/keel/keel"; fi
+
+tool=$(command -v keel 2>/dev/null || true)
+if [ -n "$tool" ]; then run "$tool"; fi
 {baked_line}
 
 echo "keel: no tool found. Set KEEL=/path/to/keel.py" >&2

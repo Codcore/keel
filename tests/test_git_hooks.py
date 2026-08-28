@@ -218,3 +218,55 @@ class TestTheHookFindsACompiledTool(ProjectCase):
         finally:
             sys.argv, sys.executable = argv, executable
             del keel.__dict__["__compiled__"]
+
+class TestTheProjectCopyWinsOverPATH(ProjectCase):
+    """Копія в проєкті йде поперед `PATH` — інакше судить чужа версія.
+
+    ЗНАЙДЕНО ПРОГОНОМ 28 серпня 2026, і це була тиха зелена.
+
+    Mellum закомітила `PLAN.md` на гілці `plan/clean_readings`, коли
+    `keel/waves/` була порожня. Хук спрацював і сказав `clean`. Заслон
+    зробленості одразу по тому покликав ТУ САМУ команду — `check --fast` — і
+    дістав «branch plan/clean_readings names no wave, and keel/waves/ is
+    empty».
+
+    Дві однакові команди на однаковому стані дали протилежне, бо кликали різні
+    засоби: хук брав перший `keel` із `PATH`, а там лежав глобально
+    встановлений 0.8.7, тоді як проєкт возив 0.8.29. Перевірка про гілку без
+    хвилі зʼявилась у 0.8.15 і 0.8.19 — старий засіб про неї не знав.
+
+    Проєкт возить свою копію саме для того, щоб перевірки не залежали від
+    того, що встановлено на машині.
+    """
+
+    def install(self):
+        keel.cmd_hooks(self.project, Args(install=True, force=False))
+        return self.fixture.read(".git/hooks/pre-commit")
+
+    def test_the_project_copy_is_tried_before_PATH(self):
+        text = self.install()
+        proekt = text.index('if [ -f "$root/keel/keel.py" ]')
+        shlyah = text.index("command -v keel")
+        self.assertLess(proekt, shlyah,
+                        "копія в проєкті мусить іти поперед PATH")
+
+    def test_an_explicit_KEEL_still_wins(self):
+        """Названий рукою шлях лишається першим: це вибір, а не оточення."""
+        text = self.install()
+        nazvanyj = text.index("${KEEL:-}")
+        proekt = text.index('if [ -f "$root/keel/keel.py" ]')
+        self.assertLess(nazvanyj, proekt)
+
+    def test_the_baked_path_stays_last(self):
+        """Запечений шлях — остання надія, і після правки він нею лишився."""
+        script = keel.hook_script("pre-commit", "/opt/keel/keel.py")
+        zapechenyj = script.index('if [ -f "/opt/keel/keel.py" ]')
+        shlyah = script.index("command -v keel")
+        self.assertLess(shlyah, zapechenyj)
+
+    def test_every_way_of_finding_the_tool_survives(self):
+        """Порядок змінено, та жодного способу не загублено."""
+        text = self.install()
+        for sposib in ("${KEEL:-}", '"$root/keel/keel.py"', '"$root/keel/keel"',
+                       "command -v keel", "keel: no tool found"):
+            self.assertIn(sposib, text)
