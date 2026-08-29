@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.31"
+VERSION = "0.8.32"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -478,6 +478,10 @@ UK = {
         "контракт — окремий файл у keel/contracts/, а трансформ, який на нього "
         "спирається, називає його: contracts: [<slug>]",
     "the Why section is empty": "секція «Навіщо» порожня",
+    "the Why section still holds the skeleton's own hint (`{slug}: …`) — "
+    "replace it with why this wave exists":
+        "у секції «Навіщо» лишилась підказка самого скелета (`{slug}: …`) — "
+        "замініть її на те, навіщо ця хвиля",
     "the heading `# {title}` is one level too high: sections of a wave are "
     "`## {title}`":
         "заголовок `# {title}` на рівень вище, ніж треба: секції хвилі — "
@@ -4438,6 +4442,13 @@ def gaps_problems(project, waves):
                 0,
                 t("the heading `# {title}` is one level too high: sections of a "
                   "wave are `## {title}`", title=wyshche) if wyshche
+                # Заглушка скелета — це не порожньо: текст під заголовком є, і
+                # сказати «порожня» означало б суперечити тому, що модель
+                # бачить у файлі. 29 серпня 2026 North-Mini-Code на цьому
+                # стала: заглушку лишила, скаргу прочитала, зміни не знайшла.
+                else t("the Why section still holds the skeleton's own hint "
+                       "(`{slug}: …`) — replace it with why this wave exists",
+                       slug=wave.slug) if unfilled_why(wave)
                 else t("the Why section is empty"),
                 wave.rel))
         if not wave.scenarios:

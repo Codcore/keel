@@ -409,6 +409,28 @@ transforms:
         self.assertIn("no transforms at all", skarhy)
         self.assertNotIn("nested inside", skarhy)
 
+    def test_a_why_left_as_the_skeleton_hint_is_named_as_such(self):
+        """ЗНАЙДЕНО ПРОГОНОМ 29 серпня 2026, North-Mini-Code.
+
+        Вона лишила під заголовком підказку, яку вписує сам `keel new wave` —
+        `0001-plan: why this wave exists and what is missing without it`, — і
+        засіб казав «секція порожня» над видимим текстом. Модель читала скаргу
+        й не знаходила, що змінити.
+        """
+        wave = self.project.waves["0001-session-loop"]
+        text = self.fixture.read("keel/waves/0001-session-loop.md")
+        holova, _, khvist = text.partition("## Навіщо")
+        pidkazka = f"{wave.slug}: {keel.UK.get(keel.WHY_HINT, keel.WHY_HINT)}"
+        reshta = khvist.split("\n## ", 1)[1]
+        self.fixture.write(
+            "keel/waves/0001-session-loop.md",
+            f"{holova}## Навіщо\n\n{pidkazka}\n\n## {reshta}")
+
+        problems = keel.gaps_problems(self.project, [self.project.waves["0001-session-loop"]])
+        skarhy = " ".join(p.message for p in problems)
+        self.assertIn("skeleton's own hint", skarhy)
+        self.assertNotIn("the Why section is empty", skarhy)
+
     def test_a_why_that_is_simply_absent_still_says_so(self):
         """Заголовка немає зовсім — тоді скарга та сама, що й була."""
         text = self.fixture.read("keel/waves/0001-session-loop.md")
