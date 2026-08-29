@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.32"
+VERSION = "0.8.33"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -72,6 +72,8 @@ UK = {
         "шапка має бути набором ключів, а не списком",
     "a list where a key was expected": "список там, де очікується ключ",
     "no key before the colon: {line}": "немає ключа перед двокрапкою: {line}",
+    "a key needs a space after its colon: {line}":
+        "після двокрапки потрібен пробіл: {line}",
     "two colons on one line: {line}": "дві двокрапки в одному рядку: {line}",
     "empty key": "порожній ключ",
     "the file is empty: a wave starts with a --- header":
@@ -1060,6 +1062,14 @@ def _parse_map(lines, index, indent):
             raise YamlError(number, t("a list where a key was expected"))
         match = re.match(r"^([^:]+):(\s|$)", text)
         if not match:
+            # ЗНАЙДЕНО ПРОГОНОМ 29 серпня 2026. Ornith вирівнювала сценарії в
+            # стовпчик і на одному рядку зʼїла пробіл: `slug:{proves: readings}`.
+            # Ключ там є, і саме його ми називали відсутнім — тобто посилали
+            # шукати не те. Пробіл після двокрапки видно оком лише тоді, коли
+            # про нього сказано.
+            if re.match(r"^[^:\s][^:]*:\S", text):
+                raise YamlError(number, t(
+                    "a key needs a space after its colon: {line}", line=repr(text)))
             raise YamlError(number, t("no key before the colon: {line}", line=repr(text)))
         key, rest = match.group(1), text[match.end(1) + 1:]
         if re.match(r"^\s*[^\s\"'\[{][^:]*:(\s|$)", rest):

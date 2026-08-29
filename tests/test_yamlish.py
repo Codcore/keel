@@ -324,6 +324,21 @@ class TestAListAcrossLines(unittest.TestCase):
         with self.assertRaises(keel.YamlError):
             keel.parse_yaml("implements: [a,\n             b\n")
 
+    def test_a_key_without_a_space_after_the_colon_names_the_space(self):
+        """ЗНАЙДЕНО ПРОГОНОМ 29 серпня 2026: Ornith вирівнювала сценарії в
+        стовпчик і на одному рядку зʼїла пробіл. Ми казали «немає ключа перед
+        двокрапкою» — про рядок, у якому ключ є, — і посилали шукати не те."""
+        with self.assertRaises(keel.YamlError) as spijmano:
+            keel.parse_yaml("a_slug:{proves: readings}\n")
+        self.assertIn("space after its colon", str(spijmano.exception))
+
+    def test_a_line_without_a_key_still_says_so(self):
+        """Поблажливість до пробілу не має проковтнути справжню відсутність
+        ключа: два різні недогляди — дві різні скарги."""
+        with self.assertRaises(keel.YamlError) as spijmano:
+            keel.parse_yaml(": value\n")
+        self.assertIn("no key before the colon", str(spijmano.exception))
+
     def test_the_next_key_does_not_get_swallowed(self):
         """Незакритий список не має права з'їдати наступні ключі мовчки."""
         with self.assertRaises(keel.YamlError):
