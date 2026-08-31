@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.33"
+VERSION = "0.8.34"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -157,8 +157,11 @@ UK = {
     "revision — it is now {now}. `keel rev` stamps the real one":
         "{who} тримає {slug}@{held}, а такої редакції цей контракт не мав ніколи "
         "— зараз {now}. Справжню ставить `keel rev`",
-    "{who} holds {slug}@{held}, and the contract is now {now}":
-        "{who} тримає редакцію {slug}@{held}, а контракт зараз {now}",
+    "{who} holds {slug}@{held}, and the contract is now {now}. Reread the "
+    "scenario against the contract, then `keel rev --write` stamps the new one":
+        "{who} тримає редакцію {slug}@{held}, а контракт зараз {now}. "
+        "Перечитайте сценарій проти контракту, тоді `keel rev --write` "
+        "впише нову",
     "this is not a git repository — nothing to check scope against":
         "це не git-репозиторій — межі перевірити нічим",
     "the head is detached and git does not know the branch name — "
@@ -426,11 +429,17 @@ UK = {
         "кожна незавершена хвиля чекає на іншу, яка ще не зроблена: {waves}. "
         "Закінчіть те, на що вони спираються, або заплануйте хвилю, якої бракує.",
     "wave {wave} is approved and {open} of {total} transforms are not closed. "
-    "The work goes on its own branch:\n"
-    "  git checkout -b {wave}":
+    "The work goes on its own branch, and until you are on it there is nothing "
+    "to hand over: the transform, its scenarios and the ready test tags with "
+    "their revisions all come with the package.\n"
+    "  git checkout -b {wave}\n"
+    "Run that, then ask again.":
         "хвиля {wave} схвалена, і {open} з {total} трансформ не закриті. Робота "
-        "йде на власній гілці:\n"
-        "  git checkout -b {wave}",
+        "йде на власній гілці, і доки ви не на ній — віддавати нічого: "
+        "трансформа, її сценарії й готові теги тестів із ревізіями йдуть "
+        "пакунком разом.\n"
+        "  git checkout -b {wave}\n"
+        "Виконайте це і спитайте знову.",
     "{name}: this is {main}, where finished work arrives — it is not where work "
     "is written. Code belongs on a branch named after a wave: check out the wave "
     "you are working on, or plan a new one with keel new wave.":
@@ -588,6 +597,8 @@ UK = {
     "Proves: {proves} · revision `{rev}`":
         "Доводить: {proves} · ревізія `{rev}`",
     "Test tag: `{tag}`": "Тег тесту: `{tag}`",
+    "The test carries this tag, on the line above it:":
+        "Тест несе цей тег, рядком вище за себе:",
     "The skills /keel-plan, /keel-work and /keel-review are in place. Start the "
     "agent in the project directory itself:\n  cd {root} && <agent>\nIf it answers "
     "\"Unknown skill\" they have not been picked up yet: /reload-skills, or simply "
@@ -1932,7 +1943,20 @@ class ElixirAdapter(Adapter):
 
     @staticmethod
     def tag_example(slug, rev):
-        return f'@tag proves: :{slug.replace("-", "_")}, rev: "{rev}"' 
+        return f'@tag proves: :{slug.replace("-", "_")}, rev: "{rev}"'
+
+    # ЗНАЙДЕНО ПРОГОНОМ 29 серпня 2026: тег сам по собі не каже, КУДИ його
+    # класти, а в Elixir атрибут мусить стояти перед `test` — усередині тіла
+    # компілятор кидає «cannot set attribute @tag inside function/macro».
+    # На цьому спіткнулись двоє з пʼяти ваг: гема клала тег у тіло й після
+    # `end` (~20 викликів), Ornith те саме, а тоді пішла шукати причину у
+    # вихідниках ExUnit (~30 викликів). Зразок коштує рядка й не додає знання
+    # про задачу — лише про форму мови, якої ми не міряємо.
+    @staticmethod
+    def tag_snippet(slug, rev):
+        words = slug.replace("-", " ").replace("_", " ")
+        return (f'@tag proves: :{slug.replace("-", "_")}, rev: "{rev}"\n'
+                f'test "{words}" do')
 
     def test_command(self, root):
         return ["mix", "test"]
@@ -2040,7 +2064,12 @@ class PythonAdapter(Adapter):
     def tag_example(slug, rev):
         # No leading colon: written as dictated, the Elixir form is invisible
         # to this adapter's own recogniser.
-        return f'# proves: {slug}, rev: "{rev}"' 
+        return f'# proves: {slug}, rev: "{rev}"'
+
+    @staticmethod
+    def tag_snippet(slug, rev):
+        return (f'# proves: {slug}, rev: "{rev}"\n'
+                f'def test_{slug.replace("-", "_")}():')
 
     def is_test_file(self, name):
         # Both spellings the ecosystem uses; the runner loads exactly this list,
@@ -2909,7 +2938,15 @@ def check_revisions(project):
                 wave.rel, line))
         elif rev_ever(project, contract, ref.rev):
             problems.append(Problem(
-                3, t("{who} holds {slug}@{held}, and the contract is now {now}",
+                # ЗНАЙДЕНО ПРОГОНОМ 29 серпня 2026. Рядок називав факт — два
+                # хеші — і не називав дії. Метод дозволяє міняти контракт під
+                # час роботи, тож ця скарга приходить саме тоді, коли модель
+                # щойно зробила дозволене; їй бракує лише слова, що редакцію
+                # треба вписати. Квен 3.6 здогадався сам і синхронізував теги
+                # двічі; гема лишила старі й із червоної перевірки 3 не вийшла.
+                3, t("{who} holds {slug}@{held}, and the contract is now {now}. "
+                     "Reread the scenario against the contract, then "
+                     "`keel rev --write` stamps the new one",
                   who=who, slug=ref.slug, held=ref.rev, now=contract.revision),
                 wave.rel, line))
         else:
@@ -4850,9 +4887,22 @@ def main_branch_answer(project):
                  "yet: {waves}. Finish what they lean on, or plan the wave that "
                  "is missing.", waves=waiting)
     wave, open_count = ready[0]
+    # НАСТИРЛИВІСТЬ НАВМИСНА. Доти тут стояло «робота йде на власній гілці:
+    # git checkout -b <хвиля>» — правильно, але тихо. Модель читала це як
+    # зауваження, не переходила на гілку й далі гадала, звідки взяти ревізії
+    # сценаріїв для тегів тестів, хоч `next` віддав би їх готовими. Один
+    # прогін Ornith 31 серпня 2026: дванадцять тисяч токенів міркування саме
+    # про це, далі читання вихідника самого засобу. З 46 прогонів на 0006 ті,
+    # хто пакунка не дістав, не перейшли за 6 зелених із 8; усі сімки — лише
+    # серед тих, хто дістав. Тому повідомлення тепер каже, ЩО САМЕ лишається
+    # за дверима, і закінчується прямою вказівкою спитати знову.
     return t("wave {wave} is approved and {open} of {total} transforms are not "
-             "closed. The work goes on its own branch:\n"
-             "  git checkout -b {wave}", wave=wave.slug,
+             "closed. The work goes on its own branch, and until you are on it "
+             "there is nothing to hand over: the transform, its scenarios and "
+             "the ready test tags with their revisions all come with the "
+             "package.\n"
+             "  git checkout -b {wave}\n"
+             "Run that, then ask again.", wave=wave.slug,
              open=open_count, total=len(wave.transforms))
 
 
@@ -4959,6 +5009,12 @@ def next_package(project, wave, slug, state):
                     if rev and project.adapter
                     and hasattr(project.adapter, "tag_example")
                     else None),
+            # Тег плюс рядок, перед яким він стоїть. Адаптер без зразка місця
+            # лишається зі своїм тегом: мовчання краще за чужу форму.
+            "tag_snippet": (project.adapter.tag_snippet(name, rev)
+                            if rev and project.adapter
+                            and hasattr(project.adapter, "tag_snippet")
+                            else None),
         })
 
     return {
@@ -5012,7 +5068,12 @@ def render_next(package):
             out.append("")
             out.append(item["body"] or t("(no body)"))
             out.append("")
-            if item.get("tag"):
+            if item.get("tag_snippet"):
+                out.append(t("The test carries this tag, on the line above it:"))
+                out.append("")
+                out += ["    " + line for line in item["tag_snippet"].split("\n")]
+                out.append("")
+            elif item.get("tag"):
                 out.append(t("Test tag: `{tag}`", tag=item["tag"]))
                 out.append("")
 
@@ -7188,8 +7249,13 @@ def cmd_rev(project, args):
         print(t("left as it is: a closed wave records the text its work was "
                 "proven against, and later text is not it."))
         for wave, who, ref, contract in settled:
+            # Той самий текст, що й у другому місці (рядок ~2947): каталог
+            # має один запис на обидва, і розбіжність тут виходила тихою
+            # англійською серед українського виводу.
             print(f"  {wave.rel}  " + t(
-                "{who} holds {slug}@{held}, and the contract is now {now}",
+                "{who} holds {slug}@{held}, and the contract is now {now}. "
+                "Reread the scenario against the contract, then "
+                "`keel rev --write` stamps the new one",
                 who=who, slug=ref.slug, held=ref.rev or "—", now=contract.revision))
 
     if not report:
