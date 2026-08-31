@@ -181,8 +181,8 @@ class TestTheHookFindsACompiledTool(ProjectCase):
 
     def test_the_project_copy_may_be_a_binary(self):
         text = self.install()
-        self.assertIn('if [ -x "$root/keel/keel" ]', text)
-        self.assertIn('if [ -f "$root/keel/keel.py" ]', text)
+        self.assertIn('if [ -x "$keel_root/keel/keel" ]', text)
+        self.assertIn('if [ -f "$keel_root/keel/keel.py" ]', text)
 
     def test_without_a_baked_path_the_hook_still_works(self):
         script = keel.hook_script("pre-commit", None)
@@ -245,7 +245,7 @@ class TestTheProjectCopyWinsOverPATH(ProjectCase):
 
     def test_the_project_copy_is_tried_before_PATH(self):
         text = self.install()
-        proekt = text.index('if [ -f "$root/keel/keel.py" ]')
+        proekt = text.index('if [ -f "$keel_root/keel/keel.py" ]')
         shlyah = text.index("command -v keel")
         self.assertLess(proekt, shlyah,
                         "копія в проєкті мусить іти поперед PATH")
@@ -254,7 +254,7 @@ class TestTheProjectCopyWinsOverPATH(ProjectCase):
         """Названий рукою шлях лишається першим: це вибір, а не оточення."""
         text = self.install()
         nazvanyj = text.index("${KEEL:-}")
-        proekt = text.index('if [ -f "$root/keel/keel.py" ]')
+        proekt = text.index('if [ -f "$keel_root/keel/keel.py" ]')
         self.assertLess(nazvanyj, proekt)
 
     def test_the_baked_path_stays_last(self):
@@ -267,6 +267,60 @@ class TestTheProjectCopyWinsOverPATH(ProjectCase):
     def test_every_way_of_finding_the_tool_survives(self):
         """Порядок змінено, та жодного способу не загублено."""
         text = self.install()
-        for sposib in ("${KEEL:-}", '"$root/keel/keel.py"', '"$root/keel/keel"',
+        for sposib in ("${KEEL:-}", '"$keel_root/keel/keel.py"',
+                       '"$keel_root/keel/keel"',
                        "command -v keel", "keel: no tool found"):
             self.assertIn(sposib, text)
+
+
+class TestAHookInstalledFromANestedRoot(unittest.TestCase):
+    """Гачок запускається з верхівки репозиторію, а корінь keel лежить глибше.
+
+    `find_root` спиняється на `.git` і не спускається нижче, тож із верхівки
+    засіб не бачив `keel/` і виходив із кодом 2 — а це для `pre-commit` відмова.
+    Один `keel hooks --install` у монорепо блокував УСІ коміти в ньому, і зняти
+    це можна було лише руками. Розкладку з keel у підтеці засіб підтримує
+    навмисно: про це є докстрінг у `Git.in_tree` і власний набір тестів.
+    """
+
+    def setUp(self):
+        self.top = tempfile.mkdtemp(prefix="keel-nested-hook-")
+        self.addCleanup(shutil.rmtree, self.top, True)
+        self.root = os.path.join(self.top, "sub")
+        for folder in ("keel/waves", "keel/contracts", "lib"):
+            os.makedirs(os.path.join(self.root, folder))
+        with open(os.path.join(self.root, "keel/waves/0001-a.md"), "w",
+                  encoding="utf-8") as handle:
+            handle.write("---\ndepends_on: []\n\ntransforms:\n  do-it:\n"
+                         "    files: [lib/foo.txt]\n---\n\n## Навіщо\n\nх.\n\n"
+                         "## transform: do-it\n\nРобить.\n\nМежі: нічого.\n")
+        with open(os.path.join(self.root, "lib/foo.txt"), "w") as handle:
+            handle.write("вміст\n")
+        self.git("init", "-q", "-b", "main", ".")
+        self.git("config", "user.email", "t@e")
+        self.git("config", "user.name", "t")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "монорепо з keel у sub/")
+        keel.cmd_hooks(keel.Project(self.root), Args(install=True, force=False))
+
+    def git(self, *args, **kwargs):
+        return subprocess.run(["git", "-C", self.top, *args], text=True,
+                              capture_output=True, **kwargs)
+
+    def hook(self):
+        with open(os.path.join(self.top, ".git/hooks/pre-commit"),
+                  encoding="utf-8") as handle:
+            return handle.read()
+
+    def test_the_keel_root_is_written_into_the_hook(self):
+        self.assertIn('keel_root="$root/sub"', self.hook())
+
+    def test_a_commit_in_that_repository_is_not_refused(self):
+        self.git("checkout", "-q", "-b", "0001-a")
+        with open(os.path.join(self.root, "lib/foo.txt"), "w") as handle:
+            handle.write("змінено\n")
+        self.git("add", "-A")
+        done = self.git("commit", "-m", "do-it: зроблено",
+                        env={**os.environ, "KEEL": os.path.abspath(keel.__file__)})
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertNotIn("not installed here", done.stdout + done.stderr)

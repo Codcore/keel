@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.38"
+VERSION = "0.8.39"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -6996,10 +6996,18 @@ set -eu
 
 run() {{
   case "$1" in
-    *.py) exec python3 "$1" {args} ;;
-    *)    exec "$1" {args} ;;
+    *.py) exec python3 "$1" -C "$keel_root" {args} ;;
+    *)    exec "$1" -C "$keel_root" {args} ;;
   esac
 }}
+
+root=$(git rev-parse --show-toplevel)
+
+# git runs a hook from the top of the repository, and the keel root may sit
+# deeper — a layout the tool supports everywhere else. Without the directory
+# named here the tool looked for keel/ at the top, did not find it, and refused
+# the commit with "Keel is not installed here" in a repository where it is.
+keel_root="$root{inside}"
 
 # The tool is looked for in this order: the KEEL variable, the copy in the
 # project, PATH, and only then the path this machine had when the hook was
@@ -7011,9 +7019,8 @@ run() {{
 # another, and neither can see why.
 if [ -n "${{KEEL:-}}" ] && [ -f "${{KEEL}}" ]; then run "${{KEEL}}"; fi
 
-root=$(git rev-parse --show-toplevel)
-if [ -f "$root/keel/keel.py" ]; then run "$root/keel/keel.py"; fi
-if [ -x "$root/keel/keel" ]; then run "$root/keel/keel"; fi
+if [ -f "$keel_root/keel/keel.py" ]; then run "$keel_root/keel/keel.py"; fi
+if [ -x "$keel_root/keel/keel" ]; then run "$keel_root/keel/keel"; fi
 
 tool=$(command -v keel 2>/dev/null || true)
 if [ -n "$tool" ]; then run "$tool"; fi
@@ -7024,11 +7031,34 @@ exit 1
 """
 
 
-def hook_script(name, baked):
+def hook_script(name, baked, inside=""):
     # Запечений шлях — остання надія, і його може не бути зовсім.
     line = f'\nif [ -f "{baked}" ]; then run "{baked}"; fi\n' if baked else ""
     return HOOK_SCRIPT.format(
-        mark=HOOK_MARK, name=name, baked_line=line, args=" ".join(HOOKS[name]))
+        mark=HOOK_MARK, name=name, baked_line=line, inside=inside,
+        args=" ".join(HOOKS[name]))
+
+
+def inside_repository(project):
+    """Корінь keel відносно верхівки репозиторію, з провідною скісною, або "".
+
+    Гачок знає лише верхівку — `git rev-parse --show-toplevel`, — а keel може
+    жити глибше. Цей шматок дописується в гачок при встановленні, а не
+    вгадується під час запуску: шлях у чужій клоні буде інший, спільним лишається
+    саме те, як глибоко корінь лежить усередині репозиторію.
+    """
+    top = project.git.out("rev-parse", "--show-toplevel")
+    if not top:
+        return ""
+    # realpath з обох боків: git відповідає розвʼязаним шляхом, а корінь проєкту
+    # приходить таким, яким його набрали. На macOS /var — це посилання на
+    # /private/var, і без цього в гачок запікався абсолютний шлях цієї машини,
+    # пройдений через десяток `..`, — у файлі, який іде під гіт до інших людей.
+    inside = os.path.relpath(os.path.realpath(project.root),
+                             os.path.realpath(top))
+    if inside == os.curdir or inside.startswith(os.pardir):
+        return ""
+    return "/" + inside.replace(os.sep, "/")
 
 
 def baked_path():
@@ -7073,6 +7103,7 @@ def cmd_hooks(project, args):
     if not folder:
         fail(t("this is not a git repository — there is nowhere to put the hooks"))
     baked = baked_path()
+    inside = inside_repository(project)
 
     problems, missing = 0, 0
     for name in HOOKS:
@@ -7093,7 +7124,7 @@ def cmd_hooks(project, args):
             continue
         os.makedirs(folder, exist_ok=True)
         with open(path, "w", encoding="utf-8") as handle:
-            handle.write(hook_script(name, baked))
+            handle.write(hook_script(name, baked, inside))
         os.chmod(path, 0o755)
         print(f"  {name}: {' '.join(('keel',) + HOOKS[name])}")
 
