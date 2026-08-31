@@ -1074,6 +1074,19 @@ class TestNextOnTheMainBranch(ProjectCase):
         self.assertIn("git checkout -b 0001-session-loop", answer)
         self.assertIn("1 of 1", answer)
 
+    def test_it_says_what_stays_behind_the_door(self):
+        """Наполегливість тут навмисна, і тримати її мусить тест.
+
+        «Робота йде на власній гілці» було правильно й тихо: модель читала це
+        як зауваження, не переходила й далі гадала, звідки взяти ревізії для
+        тегів. Відповідь називає, що саме віддається разом із пакунком, і
+        закінчується прямою вказівкою спитати знову.
+        """
+        answer = self.answer()
+        self.assertIn("nothing to hand over", answer)
+        self.assertIn("scenarios", answer)
+        self.assertIn("Run that, then ask again", answer)
+
     def test_when_everything_is_closed_it_says_plan_the_next(self):
         self.close_the_only_transform()
         self.assertIn("every wave is finished", self.answer())

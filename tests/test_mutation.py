@@ -53,7 +53,7 @@ class TestWhatItSays(MutationCase):
 
     A command named is a command offered. `none` is a decision said out loud,
     and it is silent. Nothing named is the reminder in full — the question
-    §7.12 asks has an answer whether or not a tool exists to ask it.
+    §7.14 asks has an answer whether or not a tool exists to ask it.
     """
 
     def test_nothing_is_said_before_the_close(self):
@@ -68,12 +68,12 @@ class TestWhatItSays(MutationCase):
         self.settings("")
         said = keel.mutation_reminder(self.project, at_close=True)
         self.assertIsNotNone(said)
-        self.assertIn("7.12", said)
+        self.assertIn("7.14", said)
 
     def test_with_a_command_it_offers_both(self):
         self.settings("mix muex")
         said = keel.mutation_reminder(self.project, at_close=True)
-        self.assertIn("7.12", said)
+        self.assertIn("7.14", said)
         self.assertIn("mix muex", said)
 
 
@@ -146,13 +146,13 @@ class TestWhereItAppears(MutationCase):
         self.close_the_wave()
         self.settings("mix muex")
         _, out = self.run_check()
-        self.assertIn("7.12", out)
+        self.assertIn("7.14", out)
 
     def test_it_is_absent_while_work_is_left(self):
         self.fixture.branch("0001-session-loop")
         self.settings("mix muex")
         _, out = self.run_check()
-        self.assertNotIn("7.12", out)
+        self.assertNotIn("7.14", out)
 
     def test_fast_leaves_it_out(self):
         """--fast keeps to what costs nothing, and reading git to find whether
@@ -160,14 +160,14 @@ class TestWhereItAppears(MutationCase):
         self.close_the_wave()
         self.settings("mix muex")
         _, out = self.run_check(fast=True)
-        self.assertNotIn("7.12", out)
+        self.assertNotIn("7.14", out)
 
     def test_the_json_payload_carries_it(self):
         self.close_the_wave()
         self.settings("mix muex")
         _, out = self.run_check(json=True)
         payload = json.loads(out)
-        self.assertIn("7.12", payload["mutation"]["note"])
+        self.assertIn("7.14", payload["mutation"]["note"])
 
     def test_the_payload_has_no_verdict_to_give(self):
         """Nothing about mutations can make `ok` false any more."""

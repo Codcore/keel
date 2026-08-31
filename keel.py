@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.40"
+VERSION = "0.8.41"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -201,10 +201,10 @@ UK = {
     "the tests are red ({command}):": "тести червоні ({command}):",
     "branch {branch} is already merged into {main}: the wave is finished and there is no work here. The next one starts from {main}.":
         "гілку {branch} уже злито в {main}: хвиля скінчена, роботи тут немає. Наступна починається з {main}.",
-    "this wave is closing: go through its scenarios by breaking what each one guards and watching its test go red (§7.12). A project with a mutation command of its own names it in {file}.":
-        "хвиля закривається: пройдіть її сценарії зломами — ламайте те, що стереже кожен, і дивіться, як червоніє його тест (§7.12). Проєкт, що має власну команду мутацій, називає її у {file}.",
-    "this wave is closing: go through its scenarios by breaking what each one guards (§7.12), or run the project's own: {command}":
-        "хвиля закривається: пройдіть її сценарії зломами (§7.12) або запустіть власну команду проєкту: {command}",
+    "this wave is closing: go through its scenarios by breaking what each one guards and watching its test go red (§7.14). A project with a mutation command of its own names it in {file}.":
+        "хвиля закривається: пройдіть її сценарії зломами — ламайте те, що стереже кожен, і дивіться, як червоніє його тест (§7.14). Проєкт, що має власну команду мутацій, називає її у {file}.",
+    "this wave is closing: go through its scenarios by breaking what each one guards (§7.14), or run the project's own: {command}":
+        "хвиля закривається: пройдіть її сценарії зломами (§7.14) або запустіть власну команду проєкту: {command}",
     "no mutation command: nothing here shows whether the tests can fail at all. Name one in {file} (\"mutation\": \"{example}\"), or say there is none (\"mutation\": \"none\").":
         "команди мутацій немає: ніщо тут не показує, чи здатні тести впасти взагалі. Назвіть її у {file} (\"mutation\": \"{example}\") або скажіть, що її немає (\"mutation\": \"none\").",
     "the mutation run did not finish within {seconds}s: {command}":
@@ -596,8 +596,8 @@ UK = {
     "leaving it in place":
         "{file}: у методиці його вже немає, а писав його не Keel — лишаю на місці",
     "{file} (our hook entries taken out)": "{file} (наші записи хуків вилучено)",
-    "Implements: [{slug}](../contracts/{slug}.md)@{rev}":
-        "Виконує: [{slug}](../contracts/{slug}.md)@{rev}",
+    "Leans on: [{slug}](../contracts/{slug}.md)@{rev}":
+        "Спирається на: [{slug}](../contracts/{slug}.md)@{rev}",
     "Proves: {proves} · revision `{rev}`":
         "Доводить: {proves} · ревізія `{rev}`",
     "Test tag: `{tag}`": "Тег тесту: `{tag}`",
@@ -632,10 +632,6 @@ UK = {
         "поширюється. Чи варто туди писати — вирішуй сам.",
     "wave {wave} is not on {main} yet: the plan is not approved and there is no work.":
         "хвилі {wave} ще немає на {main}: план не затверджено, і роботи немає.",
-    "Keel: wave {wave} is not on {main} yet: the plan is not approved and there "
-    "is no work.":
-        "Keel: хвилі {wave} ще немає на {main}: план не затверджено, і роботи "
-        "немає.",
     "Keel files with uncommitted changes: {count}. Commit them separately from "
     "the work:\n  git add {paths}\n  git commit -m \"Keel in the project\"":
         "Файли Keel із незакоміченими змінами: {count}. Закоміть їх окремо від "
@@ -3937,12 +3933,16 @@ def mutation_reminder(project, at_close):
     if command == CI_REFUSED:
         return None
     if not command:
+        # §7.14, а не §7.12: цей рядок приходить на закритті хвилі й переказує
+        # саме той параграф — пройти СЦЕНАРІЇ хвилі зломами. §7.12 про один
+        # тест, якого не бачили червоним, і модель, пішовши за номером,
+        # потрапляла не туди. README обома мовами посилався правильно.
         return t("this wave is closing: go through its scenarios by breaking "
-                 "what each one guards and watching its test go red (§7.12). "
+                 "what each one guards and watching its test go red (§7.14). "
                  "A project with a mutation command of its own names it in "
                  "{file}.", file=CONFIG_FILE)
     return t("this wave is closing: go through its scenarios by breaking what "
-             "each one guards (§7.12), or run the project's own: {command}",
+             "each one guards (§7.14), or run the project's own: {command}",
              command=command)
 
 
@@ -6170,9 +6170,13 @@ def session_context(project):
     # exactly the work the method's own gate refuses — the guard arguing with
     # the tool it was installed to enforce.
     if not project.git.file_in_branch(project.git.main_branch, wave.rel):
-        return t("Keel: wave {wave} is not on {main} yet: the plan is not "
-                 "approved and there is no work.", wave=wave.slug,
-                 main=project.git.main_branch)
+        # Префікс доклеюється тут, як і вісьмома рядками вище: те саме речення
+        # лежало в каталозі двічі, з ним і без нього, тож переписати його треба
+        # було в чотирьох місцях, а розійшовшись — одне з них тихо виходило
+        # англійською серед українського.
+        return "Keel: " + t("wave {wave} is not on {main} yet: the plan is not "
+                            "approved and there is no work.", wave=wave.slug,
+                            main=project.git.main_branch)
 
     slug, state = next_transform(project, wave)
     if slug is None:
@@ -7212,8 +7216,13 @@ def cmd_show(project, args):
         near = ", ".join(f"[{name}](#{name})"
                          for name in wave.transform_implements(slug))
         out.append(t("Brings closer: {names}", names=near or "—"))
+        # «Спирається на», бо це поле `contracts`, а «виконує» в цьому засобі
+        # скрізь означає сценарії: так зветься поле `implements`, і так кажуть
+        # усі скарги перевірок. Виходило, що єдина команда, чия робота — «хвиля,
+        # як її читає людина», підписувала два списки чужими іменами. `next`
+        # називає той самий список «Контракти, на які вона спирається».
         for ref in wave.transform_contracts(slug):
-            out.append(t("Implements: [{slug}](../contracts/{slug}.md)@{rev}",
+            out.append(t("Leans on: [{slug}](../contracts/{slug}.md)@{rev}",
                          slug=ref.slug, rev=ref.rev or "—"))
         out.append("")
         for name in wave.transform_files(slug):

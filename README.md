@@ -210,7 +210,7 @@ python3 -m unittest discover -s tests -t .
 They are laid out by what they check: `test_yamlish`, `test_documents`,
 `test_scope`, `test_adapters`, `test_commands`, `test_git_hooks`,
 `test_agent_hooks`, `test_skills`, `test_setup`, `test_ci`, `test_modes`,
-`test_language`, `test_install`, `test_agents`. Each runs on its own
+`test_mutation`, `test_language`, `test_install`, `test_agents`. Each runs on its own
 (`python3 -m unittest tests.test_scope`); the shared fixture is in
 `tests/support.py`. Tests are copied nowhere, so splitting them costs nothing —
 unlike the tool itself.
@@ -228,7 +228,7 @@ read by Claude and Cursor, not by it.
 | `keel gaps [wave]` | what is missing from a wave's description: slugs without sections, transforms without files, scenarios without `proves`. And it asks about a forgotten edge: the wave declares a file another wave declares too while `depends_on` does not name it |
 | `keel next` | the **package** for the next move: the transform, its files and boundaries, the scenarios it brings closer, the bodies of the contracts it leans on — and nothing beyond. On the main branch it names instead the wave that is ready to be worked and the branch to take. Markdown; `--json` for scripts |
 | `keel check` | every check — the full gate. At the close of a wave it also reminds you to go through the scenarios by breaking them (§7.14); it runs nothing for that and blocks nothing. `--fast` leaves those that run nothing, `--no-tests` skips the test run and the CI command, `--branch` names the branch where git does not know it, `--json` for scripts |
-| `keel mutate` | runs the project's own mutation command and reports what it said. Keel knows nothing about mutation testing: the project names the command, Keel reads the exit code. Its own command as well as part of `check`, because the run is long and a person may want it on demand |
+| `keel mutate` | runs the project's own mutation command and reports what it said. Keel knows nothing about mutation testing: the project names the command, Keel reads the exit code. Its own command rather than part of `check`, because the run is long and a gate nobody can afford to wait for is a gate that gets skipped. At the close of a wave `check` reminds you it exists; it runs nothing |
 | `keel rev` | shows revisions that have drifted apart; `--write` records the new ones; closed waves are left alone, and it says so |
 | `keel show` | a wave as a person reads it: the why, the scenarios and the transforms, with what is closed and what is not |
 | `keel hooks` | shows the state of `pre-commit` and `pre-push`; `--install` installs them, `--force` overwrites somebody else's |
@@ -293,6 +293,7 @@ and the two should not be conflated:
 | `docs` | which language the references arrive in | `--docs uk\|en` |
 | `lang` | what the agent writes waves and commits in, and which phrases the skills catch | `--lang uk\|en` |
 | `ci` | the project's own gate — a command, `""` for undecided, `"none"` for a refusal out loud | `--ci "<command>"` |
+| `mutation` | the project's mutation command, in the same three states as `ci`. `keel mutate` runs it; `check` only reminds you it exists, at the close of a wave | by hand in `keel/keel.json` |
 | `agents` | whom the skills and hooks are written for: `claude`, `cursor`, `keel-agent`. Empty means nobody | `--agents <list>` |
 
 The third of the agents — `keel-agent` — is off unless asked for. It is ours and
@@ -306,8 +307,8 @@ model, and it is always English. So is what neither of them reads: the CI
 workflow and the git hook scripts, down to the message somebody meets on a
 failing push.
 
-Those two, the mode, the adapter, the list of agents, the agent-hooks override
-and the CI command
+Those two, the mode, the adapter, the list of agents, the agent-hooks override,
+the CI command and the mutation command
 are what Keel keeps in that settings file, along with the digests of every file
 it generated,
 but not the whole of what may live there: the file is yours, it sits in your
@@ -339,9 +340,9 @@ translation quietly falling behind.
 
 ## Language adapters
 
-Two of the checks depend on the language: what runs the tests (§7.5) and where a
-module's exports come from (6). The adapter is chosen by a marker in the project
-root.
+Two of the seven checks depend on the language: what runs the tests (5) and
+where a module's exports come from (6). The adapter is chosen by a marker in the
+project root.
 
 | | Elixir | Python |
 |---|---|---|
