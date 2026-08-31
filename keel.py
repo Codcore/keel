@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.37"
+VERSION = "0.8.38"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -108,6 +108,10 @@ UK = {
         "корінь підходить під {count} мови ({names}), а взято {picked}, бо він "
         "перший у списку. Скажіть яку в keel/keel.json: \"adapter\": \"{picked}\"",
     "cannot be read: {reason}": "не читається: {reason}",
+    "is not UTF-8: byte {byte} at position {at} does not decode. Save the file "
+    "as UTF-8 — every document Keel reads is read that way":
+        "не в UTF-8: байт {byte} на позиції {at} не читається. Збережіть файл "
+        "як UTF-8 — усі документи Keel читає саме так",
     "this link leaves the repository: {target}":
         "це посилання виходить за межі репозиторію: {target}",
     "keel: {file} does not parse, so scope is not being checked: {reason}":
@@ -1189,6 +1193,18 @@ class Doc:
             # named problem; this one used to be a traceback out of startup.
             self.text = ""
             self.error = t("cannot be read: {reason}", reason=exc.strerror or exc)
+            return
+        except UnicodeDecodeError as exc:
+            # Сусід по except: обидва — «файл є, а тексту з нього немає». Один
+            # побитий байт — редактор із cp1251, обірваний запис — валив
+            # трейсбеком побудову `Project`, тобто будь-яку команду взагалі,
+            # разом із тією, якою це видно. `read_text` читає з errors=replace
+            # рівно з цієї причини.
+            self.text = ""
+            self.error = t("is not UTF-8: byte {byte} at position {at} does not "
+                           "decode. Save the file as UTF-8 — every document "
+                           "Keel reads is read that way",
+                           byte=f"0x{exc.object[exc.start]:02x}", at=exc.start)
             return
         self.text = text
         front_text, self.body, self.body_offset = split_front_matter(text)

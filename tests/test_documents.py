@@ -298,6 +298,23 @@ class TestHeaderShape(unittest.TestCase):
         doc = keel.Wave(path, self.root)
         self.assertIn("cannot be read", doc.error)
 
+    def test_a_file_that_is_not_utf_8_is_named(self):
+        """Один побитий байт валив трейсбеком побудову Project — тобто будь-яку
+        команду, разом із тією, якою це видно."""
+        path = os.path.join(self.root, "keel/waves/0003-bytes.md")
+        with open(path, "wb") as handle:
+            handle.write("---\ndepends_on: []\n---\n\n## Why\n\n".encode()
+                         + b"\xe9\n")
+        doc = keel.Wave(path, self.root)
+        self.assertIn("not UTF-8", doc.error)
+        self.assertIn("0xe9", doc.error)
+
+    def test_a_project_with_such_a_file_still_starts(self):
+        with open(os.path.join(self.root, "keel/waves/0003-bytes.md"), "wb") as handle:
+            handle.write(b"---\ndepends_on: []\n---\n\n## Why\n\n\xe9\n")
+        project = keel.Project(self.root)
+        self.assertIn("not UTF-8", project.waves["0003-bytes"].error)
+
 
 class TestLinksLeadSomewhere(unittest.TestCase):
     """Check 1 is named that, and a broken link leads nowhere wherever it points."""
