@@ -1001,6 +1001,54 @@ class TestPythonRunnerRunsWhatTheCollectorCounts(unittest.TestCase):
         problems = keel.check_scenarios(keel.Project(self.root))
         self.assertEqual(problems, [], [x.message for x in problems])
 
+    def test_a_bare_function_test_runs(self):
+        """`def test_x():` — форма, яку диктує `tag_snippet`.
+
+        `loadTestsFromModule` бере тільки підкласи TestCase, тож голої функції
+        прогонич не збирав: не червона, не пропущена, її просто не було, і
+        перевірка 5 казала «зелений тест» над тілом, у якому брехня.
+        """
+        body = self.scenario()
+        with open(os.path.join(self.root, "tests/greet_test.py"), "w",
+                  encoding="utf-8") as handle:
+            handle.write(keel.PythonAdapter.tag_snippet(
+                "does-a", keel.revision(body)) + "\n"
+                "    assert False, 'цей тест бреше'\n")
+        problems = keel.check_scenarios(keel.Project(self.root))
+        self.assertTrue(any("the tests are red" in x.message for x in problems),
+                        [x.message for x in problems])
+
+    def test_a_bare_function_that_holds_is_green(self):
+        body = self.scenario()
+        with open(os.path.join(self.root, "tests/greet_test.py"), "w",
+                  encoding="utf-8") as handle:
+            handle.write(keel.PythonAdapter.tag_snippet(
+                "does-a", keel.revision(body)) + "\n    assert True\n")
+        problems = keel.check_scenarios(keel.Project(self.root))
+        self.assertEqual(problems, [], [x.message for x in problems])
+
+    def test_a_function_asking_for_a_fixture_is_named_as_unrun(self):
+        """Аргумент нікому дати — але й зарахувати обіцянку нема за що."""
+        body = self.scenario()
+        with open(os.path.join(self.root, "tests/greet_test.py"), "w",
+                  encoding="utf-8") as handle:
+            handle.write(f"# proves: does-a, rev: \"{keel.revision(body)}\"\n"
+                         "def test_does_a(tmp_path):\n    assert False\n")
+        problems = keel.check_scenarios(keel.Project(self.root))
+        self.assertTrue(any("did not run" in x.message for x in problems),
+                        [x.message for x in problems])
+
+    def test_a_helper_imported_from_another_file_is_not_run_twice(self):
+        with open(os.path.join(self.root, "tests/shared.py"), "w") as handle:
+            handle.write("def test_helper():\n    raise AssertionError('чуже')\n")
+        for name in ("one_test.py", "two_test.py"):
+            with open(os.path.join(self.root, "tests", name), "w") as handle:
+                handle.write("from tests.shared import test_helper\n")
+        adapter = keel.PythonAdapter()
+        proc = subprocess.run(adapter.test_command(self.root), cwd=self.root,
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
     def test_the_start_directory_follows_test_dirs(self):
         os.rename(os.path.join(self.root, "tests"),
                   os.path.join(self.root, "test"))
@@ -1022,10 +1070,16 @@ class TestTheDictatedTagFollowsTheAdapter(unittest.TestCase):
     def test_what_is_dictated_is_what_the_collector_reads(self):
         """Написане під диктовку мусить читатися своїм же збирачем."""
         for adapter in (keel.ElixirAdapter, keel.PythonAdapter):
-            example = adapter.tag_example("does-a", "ffffff")
-            found = adapter.tag_re.search(example)
-            self.assertIsNotNone(found, adapter.name)
-            self.assertEqual(found.group(2), "ffffff", adapter.name)
+            for dictated in (adapter.tag_example("does-a", "ffffff"),
+                             adapter.tag_snippet("does-a", "ffffff")):
+                found = adapter.tag_re.search(dictated)
+                self.assertIsNotNone(found, adapter.name)
+                self.assertEqual(found.group(2), "ffffff", adapter.name)
+
+    def test_an_adapter_without_a_dictation_says_nothing(self):
+        """База описує поверхню цілком, і `None` — законна відповідь."""
+        self.assertIsNone(keel.Adapter.tag_example("does-a", "ffffff"))
+        self.assertIsNone(keel.Adapter.tag_snippet("does-a", "ffffff"))
 
 
 class TestGitEdges(unittest.TestCase):

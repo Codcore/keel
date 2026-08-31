@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.35"
+VERSION = "0.8.36"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -1786,6 +1786,20 @@ class Adapter:
     test_suffix = ()
     tag_re = None
 
+    # Оголошені тут обидва, бо база описує поверхню адаптера цілком, а `next`
+    # питав про них через `hasattr` і тим ховав від себе ж, чого бракує.
+    # `None` — законна відповідь: адаптер, який не має чого показати, лишає
+    # тег без зразка, а зразок без місця, і `next` каже рівно те, що знає.
+    @staticmethod
+    def tag_example(slug, rev):
+        """The tag this language writes above a test, as a line."""
+        return None
+
+    @staticmethod
+    def tag_snippet(slug, rev):
+        """The tag together with the declaration line it has to sit above."""
+        return None
+
     @classmethod
     def detect(cls, root):
         return any(os.path.exists(os.path.join(root, item)) for item in cls.marker)
@@ -2086,10 +2100,22 @@ class PythonAdapter(Adapter):
         paths = [os.path.relpath(path, root).replace(os.sep, "/")
                  for path in self.test_files(root)]
         script = (
-            "import importlib.util, os, sys, unittest\n"
+            "import importlib.util, inspect, os, sys, unittest\n"
             "sys.path.insert(0, os.getcwd())\n"
             "suite = unittest.TestSuite()\n"
             "loader = unittest.TestLoader()\n"
+            # `loadTestsFromModule` збирає лише підкласи TestCase, а гола
+            # `def test_thing():` — це і те, що диктує `tag_snippet`, і те, що
+            # пише пів екосистеми. Незібраний тест не червоний і не пропущений:
+            # його просто немає, і перевірка 5 казала «кожен сценарій має
+            # зелений тест» над тілом, у якому стоїть `assert False`. Обгортка
+            # носить ім'я самої функції, тож і рядок `FAIL:`, і звіт про
+            # непрогнані читаються так само, як у будь-якого іншого тесту.
+            "def wrap(func, name, where):\n"
+            "    case = type(name, (unittest.TestCase,),\n"
+            "                {name: lambda self: func()})\n"
+            "    case.__module__ = where\n"
+            "    return case(name)\n"
             f"for path in {paths!r}:\n"
             "    spec = importlib.util.spec_from_file_location(\n"
             "        os.path.splitext(path)[0].replace(os.sep, '.'), path)\n"
@@ -2100,6 +2126,24 @@ class PythonAdapter(Adapter):
             "    sys.modules[spec.name] = module\n"
             "    spec.loader.exec_module(module)\n"
             "    suite.addTests(loader.loadTestsFromModule(module))\n"
+            "    for name in sorted(vars(module)):\n"
+            "        func = getattr(module, name)\n"
+            "        if not name.startswith('test_') or not inspect.isfunction(func):\n"
+            "            continue\n"
+            # Написане тут, а не занесене імпортом: спільний помічник, який
+            # лежить у трьох файлах, інакше прогнався б тричі.
+            "        if func.__module__ != spec.name:\n"
+            "            continue\n"
+            "        needed = [p for p in inspect.signature(func).parameters.values()\n"
+            "                  if p.default is p.empty\n"
+            "                  and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]\n"
+            # Фікстура просить аргументів, яких тут нікому дати. Тоді тест
+            # називається непрогнаним, а не обминається мовчки: аргумент — не
+            # причина зарахувати обіцянку доведеною.
+            f"        if needed:\n"
+            f"            print('{SKIP_MARK}' + spec.name + '.' + name)\n"
+            "            continue\n"
+            "        suite.addTest(wrap(func, name, spec.name))\n"
             "result = unittest.TextTestRunner().run(suite)\n"
             # A skipped test is not a proof. The suite is successful with it,
             # and check 5 used to print "every scenario has a green test" over a
@@ -5009,15 +5053,11 @@ def next_package(project, wave, slug, state):
             # dictated the literal `rev: "None"`, which rev_matches can never
             # accept — a permanent red planted by the tool's own instruction.
             "tag": (project.adapter.tag_example(name, rev)
-                    if rev and project.adapter
-                    and hasattr(project.adapter, "tag_example")
-                    else None),
+                    if rev and project.adapter else None),
             # Тег плюс рядок, перед яким він стоїть. Адаптер без зразка місця
             # лишається зі своїм тегом: мовчання краще за чужу форму.
             "tag_snippet": (project.adapter.tag_snippet(name, rev)
-                            if rev and project.adapter
-                            and hasattr(project.adapter, "tag_snippet")
-                            else None),
+                            if rev and project.adapter else None),
         })
 
     return {
