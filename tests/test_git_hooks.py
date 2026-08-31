@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import sys
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -271,6 +272,32 @@ class TestTheProjectCopyWinsOverPATH(ProjectCase):
                        '"$keel_root/keel/keel"',
                        "command -v keel", "keel: no tool found"):
             self.assertIn(sposib, text)
+
+
+class TestAnEmptyProjectCopyIsNotATool(ProjectCase):
+    """Порожній `keel/keel.py` — не зламаний засіб, а мовчазний.
+
+    `python3` на порожньому файлі виходить нулем, а гачок бере копію проєкту
+    поперед PATH. Обидва гачки ставали заглушками, які пропускають усе, і
+    жодного рядка при цьому не друкували.
+    """
+
+    def test_the_hook_says_so_instead_of_passing_everything(self):
+        keel.cmd_hooks(self.project, Args(install=True, force=False))
+        with open(self.fixture.path("keel/keel.py"), "w") as handle:
+            handle.write("")
+        done = subprocess.run(
+            [os.path.join(self.fixture.root, ".git/hooks/pre-commit")],
+            cwd=self.fixture.root, capture_output=True, text=True,
+            env={k: v for k, v in os.environ.items() if k != "KEEL"})
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertIn("is empty", done.stderr)
+
+    def test_init_refuses_to_write_one(self):
+        """Джерело порожнє — писати нічого, і мовчки тим більше."""
+        with unittest.mock.patch.object(keel, "read_text", return_value=""):
+            with self.assertRaises(SystemExit):
+                keel.generated_files(self.fixture.root, dict(keel.DEFAULTS))
 
 
 class TestAHookInstalledFromANestedRoot(unittest.TestCase):

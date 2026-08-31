@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.39"
+VERSION = "0.8.40"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -738,6 +738,10 @@ UK = {
     "test {slug}": "тест {slug}",
     "{root} has no keel/ directory — Keel is not installed here":
         "у {root} немає теки keel/ — тут Keel не поставлений",
+    "the tool cannot read its own source ({path}), and an empty {vendored} "
+    "would let every commit through with no check at all":
+        "засіб не може прочитати власний вихідник ({path}), а порожній "
+        "{vendored} пропускав би кожен коміт узагалі без перевірок",
 }
 
 
@@ -5220,7 +5224,16 @@ def generated_files(root, settings):
     merged rather than tracked, and `update` refreshes them the same way `init`
     does.
     """
-    out = {VENDORED: read_text(os.path.abspath(__file__))}
+    source = read_text(os.path.abspath(__file__))
+    # `read_text` віддає порожнє на будь-якому OSError, а `write_if_changed`
+    # запише що завгодно. Порожній `keel/keel.py` — це не зламаний засіб, це
+    # мовчазний: гачок бере копію проєкту поперед PATH, `python3` на порожньому
+    # файлі виходить нулем, і кожен коміт проходить без жодної перевірки.
+    if not source.strip():
+        fail(t("the tool cannot read its own source ({path}), and an empty "
+               "{vendored} would let every commit through with no check at all",
+               path=os.path.abspath(__file__), vendored=VENDORED))
+    out = {VENDORED: source}
     for name in REFERENCES:
         source = doc_source(name, settings["docs"])
         if os.path.exists(source):
@@ -7018,6 +7031,17 @@ keel_root="$root{inside}"
 # machine: otherwise the same commit is green for one person and red for
 # another, and neither can see why.
 if [ -n "${{KEEL:-}}" ] && [ -f "${{KEEL}}" ]; then run "${{KEEL}}"; fi
+
+# A copy that is there and empty is not a tool. Passing over it would hand the
+# judgement to whatever version PATH has, and running it passes every commit:
+# python3 on an empty file exits 0, which reads as "all checks clean".
+for copy in "$keel_root/keel/keel.py" "$keel_root/keel/keel"; do
+  if [ -e "$copy" ] && [ ! -s "$copy" ]; then
+    echo "keel: $copy is empty — the copy this project carries is broken." >&2
+    echo "keel: restore it with \\`keel init\\`, or set KEEL=/path/to/keel.py" >&2
+    exit 1
+  fi
+done
 
 if [ -f "$keel_root/keel/keel.py" ]; then run "$keel_root/keel/keel.py"; fi
 if [ -x "$keel_root/keel/keel" ]; then run "$keel_root/keel/keel"; fi
