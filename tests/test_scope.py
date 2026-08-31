@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -326,6 +327,39 @@ class TestAFreshRepository(unittest.TestCase):
         git = keel.Git(self.root)
         self.assertTrue(git.has_commits)
         self.assertEqual(git.branch, "main")
+
+
+class TestGitIsNotOnThePath(unittest.TestCase):
+    """Немає чим питати git — це стан, а не збій засобу.
+
+    `Git.run` єдиний з усіх запусків підпроцесу не ловив OSError, тож порожній
+    PATH вилітав трейсбеком із побудови `Project` — до того, як хоч одна
+    перевірка встигала сказати хоч слово.
+    """
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="keel-nogit-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        for folder in ("keel/waves", "keel/contracts"):
+            os.makedirs(os.path.join(self.root, folder))
+        self.empty = tempfile.mkdtemp(prefix="keel-nopath-")
+        self.addCleanup(shutil.rmtree, self.empty, True)
+
+    def without_git(self):
+        return unittest.mock.patch.dict(os.environ, {"PATH": self.empty})
+
+    def test_the_reason_comes_back_instead_of_a_traceback(self):
+        with self.without_git():
+            code, out, err = keel.Git(self.root).run("rev-parse", "--git-dir")
+        self.assertNotEqual(code, 0)
+        self.assertEqual(out, "")
+        self.assertTrue(err)
+
+    def test_the_scope_check_says_there_is_no_repository(self):
+        with self.without_git():
+            problems = keel.check_scope(keel.Project(self.root))
+        self.assertEqual(len(problems), 1, [p.message for p in problems])
+        self.assertIn("not a git repository", problems[0].message)
 
 
 class TestNestedKeelRoot(unittest.TestCase):

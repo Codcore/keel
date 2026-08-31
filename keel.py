@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.36"
+VERSION = "0.8.37"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -1532,10 +1532,17 @@ class Git:
         # core.quotePath off: without it diff/log return octal escapes for any
         # non-ASCII path, so a file named файл.txt never matches its declared
         # name and check 4 reports gibberish twice.
-        proc = subprocess.run(
-            ["git", "-C", self.root, "-c", "core.quotePath=false", *args],
-            capture_output=True, text=True,
-        )
+        try:
+            proc = subprocess.run(
+                ["git", "-C", self.root, "-c", "core.quotePath=false", *args],
+                capture_output=True, text=True, stdin=subprocess.DEVNULL,
+            )
+        except OSError as exc:
+            # Кожен інший запуск підпроцесу тут це ловить і пояснює навіщо, а
+            # цей — ні. Без git у PATH перша ж команда вилітала трейсбеком із
+            # `Project`, хоч `available` існує рівно для того, щоб відповісти
+            # «git тут немає», а `check_scope` має на це читану скаргу.
+            return 1, "", str(exc.strerror or exc)
         return proc.returncode, proc.stdout, proc.stderr
 
     def out(self, *args, default=""):
