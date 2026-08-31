@@ -1086,6 +1086,22 @@ class TestNextOnTheMainBranch(ProjectCase):
         self.assertIn("0002-empty", answer)
         self.assertIn("the plan is not written yet", answer)
 
+    def test_a_wave_whose_ground_is_laid_is_offered(self):
+        """`depends_on` віддає Ref, а список зробленого знає слаги.
+
+        Пошук ішов за тотожністю об'єкта й не знаходив нічого, тож хвиля з
+        будь-якою залежністю — навіть закритою — читалась як блокована, і
+        відповідь звинувачувала залежність, якої вже немає.
+        """
+        self.close_the_only_transform()
+        self.add_wave("0002-later", self.fixture.read(
+            "keel/waves/0001-session-loop.md")
+            .replace("depends_on: []", "depends_on: [0001-session-loop]")
+            .replace("drive-turns", "later-turns"))
+        answer = self.answer()
+        self.assertIn("git checkout -b 0002-later", answer)
+        self.assertNotIn("waiting on another", answer)
+
     def test_a_wave_whose_ground_is_not_laid_is_not_offered(self):
         self.close_the_only_transform()
         # Своя назва трансформи: інакше комміт, що закрив `drive-turns`

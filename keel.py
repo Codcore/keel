@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "0.8.34"
+VERSION = "0.8.35"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # What the tool says
@@ -2432,7 +2432,10 @@ class Project:
                 unfinished.append((wave, len(open_now)))
         ready, blocked = [], []
         for wave, open_count in unfinished:
-            laid = all(done.get(need, False) for need in wave.depends_on)
+            # `.slug`, бо `depends_on` віддає `Ref`, а `done` знає слаги. Без
+            # нього пошук ішов за тотожністю об'єкта, ніколи нічого не знаходив,
+            # і хвиля з будь-якою залежністю лишалась блокованою назавжди.
+            laid = all(done.get(need.slug, False) for need in wave.depends_on)
             (ready if laid else blocked).append((wave, open_count))
         return ready, blocked, unplanned
 
