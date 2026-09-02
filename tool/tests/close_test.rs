@@ -485,3 +485,53 @@ fn verify_run_by_close() {
         "the failing verify named with its command:\n{out}"
     );
 }
+
+/// proves: untrusted-not-run@24df85 -- holds §7.16 at the runner:
+/// an untrusted verify does not run -- said by name, proven by a
+/// PATH shim that logs any call -- and the distrust verdict stays
+/// with check, unduplicated by close.
+#[test]
+fn untrusted_not_run() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = project("verify-untrusted", "just-work");
+    let shim = dir.join("shim");
+    fs::create_dir_all(&shim).unwrap();
+    let log = dir.join("shim-called.log");
+    write(
+        &dir,
+        "shim/evilcmd",
+        &format!("#!/bin/sh\necho called >> {}\n", log.display()),
+    );
+    let mut perms = fs::metadata(dir.join("shim/evilcmd")).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(dir.join("shim/evilcmd"), perms).unwrap();
+    write(
+        &dir,
+        "keel/contracts/ext-evil.md",
+        "---\nverify: \"evilcmd\"\n---\n\nAn untrusted promise (§2.8).\n",
+    );
+    commit_all(&dir);
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["close", dir.to_str().unwrap()])
+        .env(
+            "PATH",
+            format!("{}:{}", shim.display(), std::env::var("PATH").unwrap()),
+        )
+        .output()
+        .unwrap();
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "distrust is not close's red -- check owns that verdict:\n{text}"
+    );
+    assert!(
+        text.contains("did not run") && text.contains("not trusted"),
+        "the untrusted verify said by name:\n{text}"
+    );
+    assert!(!log.exists(), "the shim proves nothing was called:\n{text}");
+}
