@@ -7,5 +7,6 @@ edition = "2024"
 fluent-bundle = "0.16.0"
 saphyr-parser = "0.0.12"
 serde = { version = "1.0.229", features = ["derive"] }
+sha2 = "0.11.0"
 toml = "1.1.4"
 unic-langid = "0.9.6"

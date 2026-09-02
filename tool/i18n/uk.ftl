@@ -89,31 +89,48 @@ docs-exports-no-module-instead = назви одиницю коду в полі 
 docs-contract-empty = контракт нічого не обіцяє: ні exports, ні verify
 docs-contract-empty-instead = дай сигнатури з module (§2.7) або команду verify (§2.8); слова без перевірки — застереження в хвилі, не контракт (§2.10)
 
+## модуль rev
+rev-missing-section = сценарій "{ $name }" оголошений у шапці, але секції "## scenario:" у тілі не має
+rev-missing-section-instead = напиши секцію або прибери оголошення; редакції потрібне тіло, яке хешувати (§5.3)
+rev-dup-section = секція "## scenario: { $name }" стоїть у тілі більш як один раз
+rev-dup-section-instead = лиши одну секцію: методика не вгадує, котре тіло — обіцянка
+rev-empty-section = секція "## scenario: { $name }" має порожнє тіло
+rev-empty-section-instead = обіцянці потрібні слова: напиши тіло сценарію або зніми оголошення (§2.3)
+
+## команда rev
+rev-title = keel rev — чинні редакції
+rev-next = наступний крок: тримай ці редакції в proves/contracts і в тегах тестів (§5.5); застарілу онови, перечитавши текст (§5.1)
+
 ## команда check
 check-title = keel check — документи (щабель 1)
 check-config-present = конфіг: keel.toml (lang = { $lang })
 check-config-absent = keel.toml нема — діють типові значення (lang = en); типове не видає себе за прочитане
 check-config-lang-default = конфіг: keel.toml (lang не заданий — діє типове en; типове не видає себе за прочитане)
+check-refs-count = посилань на контракти звірено: { $count }
 check-header-reads = шапка читається
 check-no-documents = документів ще нема
-check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9)
-check-unchecked = ще не перевірено: звʼязки (глава 3, §7.1–§7.2), редакції (§5), scope (§4), тести (§7.5), контракти (§7.6), шапка↔тіло (§7.7) — щаблі попереду
+check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9); посилання на контракти і їхні редакції (§7.1, §7.3 — для закритої хвилі стара редакція законна, §5.6)
+check-unchecked = ще не перевірено: звʼязки (глава 3: розрізи і depends_on, §7.2), редакції сценаріїв у тегах тестів (§5.5, §7.5), scope (§4), тримання контрактів (§7.6), шапка↔тіло (§7.7) — щаблі попереду
+check-ref-missing = хвиля { $wave }: посилання { $contract }@{ $recorded } показує на контракт, файлу якого нема
+check-ref-missing-instead = створи keel/contracts/{ $contract }.md або виправ слаг (§7.1)
+check-ref-stale = хвиля { $wave }: записано { $contract }@{ $recorded }, а текст контракту зараз дає { $actual }
+check-ref-stale-instead = перечитай контракт і онови посилання свідомо (§5.1); якщо ця хвиля вже закрита — стара редакція законна (§5.6)
 check-summary = підсумок: { $docs ->
         [one] { $docs } документ
         [few] { $docs } документи
        *[many] { $docs } документів
     }, { $refusals ->
-        [one] { $refusals } відмова
-        [few] { $refusals } відмови
-       *[many] { $refusals } відмов
+        [one] { $refusals } знахідка
+        [few] { $refusals } знахідки
+       *[many] { $refusals } знахідок
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 2 — редакції (keel rev)
+check-next-rung = наступний крок: щабель 3 — scope і звʼязки (§4, глава 3)
 
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
-main-unknown-command-reason = причина: перший щабель самонаведення — команд поки одна
+main-unknown-command-reason = причина: такої команди keel не знає
 main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
-main-usage = натомість: keel check [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека]

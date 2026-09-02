@@ -89,29 +89,46 @@ docs-exports-no-module-instead = name the code unit in the module field (§2.7)
 docs-contract-empty = the contract promises nothing: neither exports nor verify
 docs-contract-empty-instead = give signatures with module (§2.7) or a verify command (§2.8); words without a check are a caveat in a wave, not a contract (§2.10)
 
+## rev module
+rev-missing-section = scenario "{ $name }" is declared in the header but has no "## scenario:" section in the body
+rev-missing-section-instead = write the section or remove the declaration; a revision needs a body to hash (§5.3)
+rev-dup-section = the "## scenario: { $name }" section appears more than once in the body
+rev-dup-section-instead = keep one section: the methodology will not guess which body is the promise
+rev-empty-section = the "## scenario: { $name }" section has an empty body
+rev-empty-section-instead = a promise needs words: write the scenario body or withdraw the declaration (§2.3)
+
+## rev command
+rev-title = keel rev -- current revisions
+rev-next = next step: hold these revisions in proves/contracts and in test tags (§5.5); reread before updating a stale one (§5.1)
+
 ## check command
 check-title = keel check -- documents (rung 1)
 check-config-present = config: keel.toml (lang = { $lang })
 check-config-absent = no keel.toml -- defaults in effect (lang = en); a default does not pass itself off as read
 check-config-lang-default = config: keel.toml (lang not set -- default en in effect; a default does not pass itself off as read)
+check-refs-count = contract references checked: { $count }
 check-header-reads = header reads
 check-no-documents = no documents yet
-check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9)
-check-unchecked = not yet checked: links (chapter 3, §7.1-§7.2), revisions (§5), scope (§4), tests (§7.5), contracts (§7.6), header-vs-body (§7.7) -- rungs ahead
+check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3 -- for a closed wave an old revision is legal, §5.6)
+check-unchecked = not yet checked: links (chapter 3: cuts and depends_on, §7.2), scenario revisions in test tags (§5.5, §7.5), scope (§4), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
+check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
+check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
+check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }
+check-ref-stale-instead = reread the contract and update the reference deliberately (§5.1); if this wave is already closed, the old revision is legal (§5.6)
 check-summary = summary: { $docs ->
         [one] { $docs } document
        *[other] { $docs } documents
     }, { $refusals ->
-        [one] { $refusals } refusal
-       *[other] { $refusals } refusals
+        [one] { $refusals } finding
+       *[other] { $refusals } findings
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 2 -- revisions (keel rev)
+check-next-rung = next step: rung 3 -- scope and links (§4, chapter 3)
 
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
-main-unknown-command-reason = reason: the first bootstrap rung -- there is one command so far
+main-unknown-command-reason = reason: this is not one of the commands keel knows
 main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
-main-usage = instead: keel check [dir]
+main-usage = instead: keel check [dir] | keel rev [dir]
