@@ -399,3 +399,47 @@ fn unknown_cut_refused() {
         "names the alien slug:\n{out}"
     );
 }
+
+/// proves: silence-forbidden@9bd959 -- holds §10.3: every cut gets
+/// exactly one answer; withdrawn covers do not count (§2.12).
+#[test]
+fn silence_forbidden() {
+    // All forty answered except one -- the missing cut is listed.
+    let dir = sandbox("silence");
+    let mut decisions = String::new();
+    for cut in keel::graph::cuts() {
+        if *cut != "functional.correctness" && *cut != "performance.capacity" {
+            decisions.push_str(&format!("  {cut}: \"n/a\"\n"));
+        }
+    }
+    write(
+        &dir,
+        "keel/waves/0005-w.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\ndecisions:\n{decisions}---\n\n## scenario: s\n\nbody\n"
+        ),
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "silence is a finding:\n{out}");
+    assert!(
+        out.contains("performance.capacity"),
+        "lists the missing cut:\n{out}"
+    );
+
+    // A withdrawn scenario's covers do not close a cut: the promise
+    // died (§2.12), so the cut is silent again.
+    let dir = sandbox("dead-cover");
+    write(
+        &dir,
+        "keel/waves/0005-w.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\n  gone:\n    covers: [performance.capacity]\n    withdrawn: \"знято\"\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\ndecisions:\n{decisions}---\n\n## scenario: s\n\nbody\n\n## scenario: gone\n\nold body\n"
+        ),
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a dead cover is not an answer:\n{out}");
+    assert!(
+        out.contains("performance.capacity"),
+        "the cut held only by a withdrawn cover is listed missing:\n{out}"
+    );
+}
