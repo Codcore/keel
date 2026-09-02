@@ -229,3 +229,40 @@ fn work_commit_needs_green() {
         "the pass carries its word:\n{out}"
     );
 }
+
+/// proves: build-break-is-not-red@b34ba9 -- holds journal A3: "did
+/// not compile" and "did not run" are not "failed". A red claimed on
+/// a test that does not build, and on a test the run never executes,
+/// both refuse with the reason and cargo's words.
+#[test]
+fn build_break_is_not_red() {
+    // The test file does not compile -- no birth.
+    let dir = project(
+        "redbroken",
+        "",
+        "let broken_on_purpose: i32 = \"not a number\";",
+    );
+    let (out, code) = gate(&dir, "red: s");
+    assert_eq!(code, 1, "a build break earns nothing:\n{out}");
+    assert!(
+        out.contains("do not compile"),
+        "the refusal says the tests do not compile:\n{out}"
+    );
+
+    // The run executes no test -- the tag names a test compiled out.
+    let dir = project("rednotrun", "", "assert!(false);");
+    let s_rev = keel::rev::text_rev("body of s\n");
+    write(
+        &dir,
+        "tests/t_test.rs",
+        &format!(
+            "/// proves: s@{s_rev}\n#[cfg(feature = \"never\")]\n#[test]\nfn holds_s() {{ assert!(false); }}\n"
+        ),
+    );
+    let (out, code) = gate(&dir, "red: s");
+    assert_eq!(code, 1, "zero executed tests earn nothing:\n{out}");
+    assert!(
+        out.contains("executed no test"),
+        "the refusal says the run executed nothing:\n{out}"
+    );
+}
