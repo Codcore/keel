@@ -2,8 +2,8 @@
 //! a text, held by whoever leans on it; this rung takes the counting
 //! over from the author's hands.
 
-use crate::docs::{self, Refusal};
-use crate::i18n::ta;
+use crate::docs::{self, Refusal, Wave};
+use crate::i18n::{t, ta};
 use crate::targs;
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -173,4 +173,78 @@ fn read(path: &Path) -> Result<String, Refusal> {
             crate::i18n::t("docs-unreadable-instead")
         },
     })
+}
+
+/// §7.7's other half: the set of names in the header equals the set
+/// of section headings in the body, both ways. A header transform
+/// with no "## transform:" section and a section declared by no
+/// header entry are findings by name -- an orphan does not live in
+/// silence. The header-scenario side is held by scenario_revs'
+/// refusals, as before. Pairs of (reason, instead); the verdicts
+/// are check's to print.
+pub fn body_court(path: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refusal> {
+    let text = read(path)?.replace("\r\n", "\n");
+    let mut body_scenarios: Vec<String> = Vec::new();
+    let mut body_transforms: Vec<String> = Vec::new();
+    let mut out = Vec::new();
+    for part in text.split("\n## ").skip(1) {
+        let heading = part.lines().next().unwrap_or("").trim();
+        if let Some(name) = heading.strip_prefix("scenario: ") {
+            body_scenarios.push(name.trim().to_string());
+        } else if let Some(name) = heading.strip_prefix("transform: ") {
+            body_transforms.push(name.trim().to_string());
+        } else if heading.starts_with("scenario:") || heading.starts_with("transform:") {
+            // The very word without its space is not free prose
+            // (review 0011 R-6): a near-miss is named, never silent.
+            out.push((
+                ta("rev-nearmiss", targs!("heading" => heading.to_string())),
+                t("rev-nearmiss-instead"),
+            ));
+        }
+    }
+    // A duplicated transform section is not guessed between (review
+    // 0011 R-7) -- the same court scenario sections get from
+    // scenario_revs' refusals.
+    let mut seen: Vec<&String> = Vec::new();
+    for name in &body_transforms {
+        if seen.contains(&name) {
+            out.push((
+                ta("rev-dup-transform", targs!("name" => name.clone())),
+                t("rev-dup-transform-instead"),
+            ));
+        } else {
+            seen.push(name);
+        }
+    }
+    for (name, _) in &wave.transforms {
+        if !body_transforms.iter().any(|b| b == name) {
+            out.push((
+                ta("rev-transform-no-body", targs!("name" => name.clone())),
+                t("rev-transform-no-body-instead"),
+            ));
+        }
+    }
+    for name in &body_scenarios {
+        if !wave.scenarios.iter().any(|(n, _)| n == name) {
+            out.push((
+                ta(
+                    "rev-orphan-section",
+                    targs!("kind" => "scenario".to_string(), "name" => name.clone()),
+                ),
+                t("rev-orphan-section-instead"),
+            ));
+        }
+    }
+    for name in &body_transforms {
+        if !wave.transforms.iter().any(|(n, _)| n == name) {
+            out.push((
+                ta(
+                    "rev-orphan-section",
+                    targs!("kind" => "transform".to_string(), "name" => name.clone()),
+                ),
+                t("rev-orphan-section-instead"),
+            ));
+        }
+    }
+    Ok(out)
 }

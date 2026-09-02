@@ -228,3 +228,192 @@ fn git2(dir: &Path, args: &[&str]) {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+/// proves: plan-window-forgiven@a68ef9 -- holds §6.5 and §6.7 (0010
+/// review R-1b): a contract whose exports grew ahead of the code,
+/// held only by a wave with no tag on any live scenario, is not
+/// judged for form -- the approved-not-started window is lawful and
+/// said aloud by name; the wave's first tag brings the court back.
+#[test]
+fn plan_window_forgiven() {
+    let dir = sandbox("window");
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(&dir, "src/lib.rs", "pub mod alpha;\n");
+    write(
+        &dir,
+        "src/alpha.rs",
+        "pub fn stays(x: u32) -> u32 {\n    x\n}\n",
+    );
+    write(
+        &dir,
+        "keel/contracts/toy-alpha.md",
+        "---\nmodule: toy::alpha\nexports:\n  - \"pub fn stays(x: u32) -> u32\"\n  - \"pub fn planned_ahead() -> bool\"\n---\n\nThe plan grew this promise ahead of the code (§4.9).\n",
+    );
+    let contract_rev = keel::rev::contract_rev(&dir.join("keel/contracts/toy-alpha.md")).unwrap();
+    let mut decided = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        if *cut != "functional.correctness" {
+            decided.push_str(&format!("  {cut}: \"n/a for the window sandbox\"\n"));
+        }
+    }
+    write(
+        &dir,
+        "keel/waves/0080-w.md",
+        &format!(
+            "---\nscenarios:\n  s:\n    proves: toy-alpha@{contract_rev}\n    covers: [functional.correctness]\ntransforms:\n  t:\n    implements: [s]\n    contracts: [toy-alpha@{contract_rev}]\n    files: [src/alpha.rs]\n{decided}---\n\n## scenario: s\n\nbody of s\n\n## transform: t\n\nthe work ahead.\n",
+        ),
+    );
+
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 0,
+        "the approved-not-started window is lawful, not red (§6.5):\n{out}"
+    );
+    assert!(
+        out.contains("toy-alpha") && out.contains("approved, not started"),
+        "the window is said aloud by name:\n{out}"
+    );
+
+    // The wave's first tag brings the court back.
+    let s_rev = keel::rev::text_rev("body of s\n");
+    write(
+        &dir,
+        "tests/t_test.rs",
+        &format!("/// proves: s@{s_rev}\n#[test]\nfn holds_s() {{}}\n"),
+    );
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "the first tag brings the form court back:\n{out}");
+    assert!(
+        out.contains("\"planned_ahead\"") && out.contains("no such unit"),
+        "the grown promise is judged again once the wave starts:\n{out}"
+    );
+}
+
+/// proves: plan-window-forgiven@a68ef9 -- the second birth out of
+/// review 0011 (R-1/R-9): a wave with every scenario withdrawn is
+/// not a plan -- the window never opens for the dead, the court
+/// stays; and a namesake tag from a foreign wave does not slam the
+/// window on a lawful plan -- started is judged by this wave's own
+/// scenario revision.
+#[test]
+fn plan_window_forgiven_second_birth() {
+    // Dead holder: all scenarios withdrawn -- no window, ever.
+    let dir = sandbox("deadwave");
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(&dir, "src/lib.rs", "pub mod alpha;\n");
+    write(
+        &dir,
+        "src/alpha.rs",
+        "pub fn stays(x: u32) -> u32 {\n    x\n}\n",
+    );
+    write(
+        &dir,
+        "keel/contracts/toy-alpha.md",
+        "---\nmodule: toy::alpha\nexports:\n  - \"pub fn stays(x: u32) -> u32\"\n  - \"pub fn grown_and_orphaned() -> bool\"\n---\n\nGrown by a wave that then died whole (§2.12).\n",
+    );
+    let contract_rev = keel::rev::contract_rev(&dir.join("keel/contracts/toy-alpha.md")).unwrap();
+    let mut decided = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        decided.push_str(&format!("  {cut}: \"n/a for the window sandbox\"\n"));
+    }
+    write(
+        &dir,
+        "keel/waves/0081-dead.md",
+        &format!(
+            "---\nscenarios:\n  gone:\n    proves: toy-alpha@{contract_rev}\n    withdrawn: \"folded\"\ntransforms:\n  t:\n    chore: \"the leftovers\"\n    contracts: [toy-alpha@{contract_rev}]\n    files: [src/alpha.rs]\n{decided}---\n\n## scenario: gone\n\nold body\n\n## transform: t\n\nleftover work\n",
+        ),
+    );
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 1,
+        "a dead wave is not a plan -- the court stays (R-1):\n{out}"
+    );
+    assert!(
+        out.contains("\"grown_and_orphaned\"") && out.contains("no such unit"),
+        "the grown promise is judged, not forgiven forever:\n{out}"
+    );
+    assert!(
+        !out.contains("approved, not started"),
+        "no window word over the dead:\n{out}"
+    );
+
+    // Namesake tag from a foreign wave: this wave's plan stays a
+    // plan -- started is this wave's own revision, not a name match.
+    let dir = sandbox("namesake");
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(&dir, "src/lib.rs", "pub mod alpha;\n");
+    write(
+        &dir,
+        "src/alpha.rs",
+        "pub fn stays(x: u32) -> u32 {\n    x\n}\n",
+    );
+    write(
+        &dir,
+        "keel/contracts/toy-alpha.md",
+        "---\nmodule: toy::alpha\nexports:\n  - \"pub fn stays(x: u32) -> u32\"\n  - \"pub fn planned_ahead() -> bool\"\n---\n\nGrown ahead by the plan (§4.9).\n",
+    );
+    let contract_rev = keel::rev::contract_rev(&dir.join("keel/contracts/toy-alpha.md")).unwrap();
+    let mut decided = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        if *cut != "functional.correctness" {
+            decided.push_str(&format!("  {cut}: \"n/a for the window sandbox\"\n"));
+        }
+    }
+    write(
+        &dir,
+        "keel/waves/0082-plan.md",
+        &format!(
+            "---\nscenarios:\n  s:\n    proves: toy-alpha@{contract_rev}\n    covers: [functional.correctness]\ntransforms:\n  t:\n    implements: [s]\n    contracts: [toy-alpha@{contract_rev}]\n    files: [src/alpha.rs]\n{decided}---\n\n## scenario: s\n\nthe planned body\n\n## transform: t\n\nthe work ahead\n",
+        ),
+    );
+    write(
+        &dir,
+        "keel/waves/0083-other.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [performance.capacity]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\ndecisions:\n  functional.correctness: \"the other wave decides it\"\n{}---\n\n## scenario: s\n\na different body entirely\n\n## transform: t\n\nother work\n",
+            {
+                let mut block = String::new();
+                for cut in keel::graph::cuts() {
+                    if *cut != "functional.correctness" && *cut != "performance.capacity" {
+                        block.push_str(&format!("  {cut}: \"n/a for the window sandbox\"\n"));
+                    }
+                }
+                block
+            }
+        ),
+    );
+    let other_rev = keel::rev::text_rev("a different body entirely\n");
+    write(
+        &dir,
+        "tests/t_test.rs",
+        &format!("/// proves: s@{other_rev}\n#[test]\nfn holds_other_s() {{}}\n"),
+    );
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 0,
+        "a foreign namesake tag does not slam the window (R-9):\n{out}"
+    );
+    assert!(
+        out.contains("approved, not started"),
+        "the lawful plan keeps its window:\n{out}"
+    );
+}

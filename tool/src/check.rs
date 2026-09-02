@@ -153,9 +153,33 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         rows.push((path, Some(text)));
     }
 
-    // The graph floor (chapter 3): in-wave and cross-wave links.
+    // The graph floor (chapter 3): in-wave and cross-wave links --
+    // and §7.7's other half beside it: the header and the body agree
+    // both ways, an orphan section does not live in silence.
+    let tags_judged = matches!(&found_tags, Some(Ok(_)));
     for wave in &scan.waves {
         let wave_path = format!("keel/waves/{}.md", wave.slug);
+        // The scenario side of §7.7 runs adapter-free too (review
+        // 0011 R-2): where the tag floor did not read the file's
+        // scenario revisions, their refusals surface here -- "both
+        // ways" stays true for every project, not only cargo.
+        if !tags_judged && let Err(refusal) = rev::scenario_revs(&root.join(&wave_path)) {
+            push_refusal_row(&mut rows, root, &refusal);
+        }
+        match rev::body_court(&root.join(&wave_path), wave) {
+            Ok(findings) => {
+                for (reason, instead) in findings {
+                    rows.push((
+                        wave_path.clone(),
+                        Some(format!(
+                            "{reason}\n           {}: {instead}",
+                            t("word-instead")
+                        )),
+                    ));
+                }
+            }
+            Err(refusal) => push_refusal_row(&mut rows, root, &refusal),
+        }
         for (reason, instead) in graph::wave_findings(wave) {
             rows.push((
                 wave_path.clone(),
@@ -312,7 +336,22 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let holding_status = if plan_branch {
         t("check-holding-plan")
     } else {
-        for (place, reason, instead) in holding::court(root, config, &scan.contracts) {
+        // The approved-not-started window (§6.5; 0010 review R-1b):
+        // a contract grown ahead of the code by a lawful plan is not
+        // judged for form while no holding wave has started -- and
+        // only when the tags were actually read: distrust of unread
+        // tags never widens the window.
+        let window = match &found_tags {
+            Some(Ok(found)) => holding::plan_window(root, &scan.waves, found, &scan.contracts),
+            _ => Vec::new(),
+        };
+        let judged_contracts: Vec<docs::Contract> = scan
+            .contracts
+            .iter()
+            .filter(|c| !window.iter().any(|(slug, _)| slug == &c.slug))
+            .cloned()
+            .collect();
+        for (place, reason, instead) in holding::court(root, config, &judged_contracts) {
             rows.push((
                 place,
                 Some(format!(
@@ -321,11 +360,18 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 )),
             ));
         }
-        let (signatures_checked, uncompared) = holding::survey(root, config, &scan.contracts);
+        let (signatures_checked, uncompared) = holding::survey(root, config, &judged_contracts);
         let mut status = ta("check-holding-count", targs!("count" => signatures_checked));
         for line in uncompared {
             status.push('\n');
             status.push_str(&line);
+        }
+        for (contract, wave) in &window {
+            status.push('\n');
+            status.push_str(&ta(
+                "check-holding-window",
+                targs!("contract" => contract.clone(), "wave" => wave.clone()),
+            ));
         }
         status
     };
@@ -398,7 +444,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         holding_status,
         scope_status,
         t("check-checked"),
-        t("check-unchecked"),
+        t("check-borders"),
         ta(
             "check-summary",
             targs!("docs" => documents as u64, "refusals" => findings as u64)

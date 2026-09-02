@@ -96,6 +96,14 @@ rev-dup-section = the "## scenario: { $name }" section appears more than once in
 rev-dup-section-instead = keep one section: the methodology will not guess which body is the promise
 rev-empty-section = the "## scenario: { $name }" section has an empty body
 rev-empty-section-instead = a promise needs words: write the scenario body or withdraw the declaration (§2.3)
+rev-transform-no-body = transform "{ $name }" is declared in the header but has no body section "## transform:" (§7.7)
+rev-transform-no-body-instead = write the section -- the work's words live in the body -- or remove the declaration
+rev-orphan-section = the body carries an orphan section "## { $kind }: { $name }" -- "{ $name }" is declared by no header entry, and an orphan does not live in silence (§7.7)
+rev-orphan-section-instead = declare it in the header, or remove the section deliberately
+rev-nearmiss = the heading "## { $heading }" spells the section word without its space -- not recognised as a section, and not free prose either (§7.7)
+rev-nearmiss-instead = write "## scenario: <name>" / "## transform: <name>" with the space, or rename the heading away from the section words
+rev-dup-transform = the body carries the "## transform: { $name }" section more than once — "{ $name }" is not guessed between (§7.7)
+rev-dup-transform-instead = keep one section: the methodology will not guess which body carries the work's words (§2.10)
 
 ## graph module
 graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
@@ -174,6 +182,7 @@ holding-why-no-adapter = no adapter named in keel.toml
 holding-why-deep = the module path is deeper than this generation compares
 holding-why-no-file = the module's file was not found in the crate
 check-holding-plan = a plan branch: the form court does not run (§8.3) — exports may grow ahead of the code (§4.9)
+check-holding-window = { $contract } — the form is not judged: the promise is grown by the approved, not started wave { $wave } (§6.5); the wave's first tag brings the court back
 
 # -- review: the reviewer's package (§9.9) --------------------------
 review-title = keel review — the reviewer's package (§9.9)
@@ -280,8 +289,8 @@ check-scope-skipped-no-git = scope not compared: git serves no branch for this r
 check-scope-skipped-refused = scope not compared: git refused mid-way -- its refusal stands among the findings
 check-header-reads = header reads
 check-no-documents = no documents yet
-check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); trust of verify/ci commands against recorded fingerprints (§7.16, §2.8); the form of contracts held (§7.6, §2.9); closure is judged by keel close (§6.5)
-check-unchecked = not yet checked: header-vs-body (§7.7) -- a rung ahead
+check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); trust of verify/ci commands against recorded fingerprints (§7.16, §2.8); the form of contracts held (§7.6, §2.9); header-vs-body both ways (§7.7); closure is judged by keel close (§6.5)
+check-borders = the border of green (§7.8): a green test means it exists, matches and passes -- not that the promise is proven in essence; green form is not yet meaning. No mechanics closes that gap: the fresh reviewer holds it with the four questions (§9.9)
 check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
 check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
 check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }
@@ -295,7 +304,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 10 -- header-vs-body (§7.7)
+check-next-rung = next step: rung 11 -- the loop's stages (keel status and next)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)

@@ -75,7 +75,7 @@ fn all_decided_except(covered: &[&str]) -> String {
 /// (yaml lines, six spaces deep).
 fn wave_declaring(files_yaml: &str) -> String {
     format!(
-        "---\nscenarios:\n  s:\n    covers: [functional.correctness]\ntransforms:\n  t:\n    implements: [s]\n    files:\n{files_yaml}{}---\n\n## Why\n\na scope sandbox wave\n\n## scenario: s\n\nbody\n",
+        "---\nscenarios:\n  s:\n    covers: [functional.correctness]\ntransforms:\n  t:\n    implements: [s]\n    files:\n{files_yaml}{}---\n\n## Why\n\na scope sandbox wave\n\n## scenario: s\n\nbody\n\n## transform: t\n\nwork\n",
         all_decided_except(&["functional.correctness"])
     )
 }
