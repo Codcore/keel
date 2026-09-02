@@ -23,6 +23,7 @@ transforms:
       - tool/tests/check_test.rs
       - tool/tests/scope_test.rs
       - tool/tests/trust_test.rs
+      - tool/tests/close_test.rs
   form-window:
     implements:
       - plan-window-forgiven
