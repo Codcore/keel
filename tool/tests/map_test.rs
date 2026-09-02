@@ -130,6 +130,47 @@ fn map_drawn_per_wave() {
     for cut in keel::graph::cuts() {
         assert!(out.contains(cut), "the map has a row for {cut}:\n{out}");
     }
+
+    // Second birth (review R-3): a multiline decisions reason must
+    // not break the one-row-per-cut shape -- the words are quoted
+    // word for word, the whitespace runs collapse to one space
+    // (§5.4's school), and the map stays forty rows.
+    let dir = sandbox("multiline");
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    let mut decisions = String::from("decisions:\n  performance.capacity: |\n    line one\n    line two\n");
+    for cut in keel::graph::cuts() {
+        if *cut != "functional.correctness" && *cut != "performance.capacity" {
+            decisions.push_str(&format!("  {cut}: \"n/a for the map sandbox\"\n"));
+        }
+    }
+    write(
+        &dir,
+        "keel/waves/0043-w.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{decisions}---\n\n## scenario: s\n\nbody of s\n",
+        ),
+    );
+    git(&dir, &["init", "-q", "-b", "0043-w"]);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "the wave rides its branch"]);
+
+    let (out, err, code) = keel(&["map", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the map draws over a multiline reason:\n{out}");
+    assert!(
+        out.contains("line one line two"),
+        "the words quoted word for word, runs collapsed:\n{out}"
+    );
+    let rows = out.lines().filter(|l| l.starts_with("  ")).count();
+    assert_eq!(
+        rows, 40,
+        "one row per cut, forty rows -- a multiline reason does not break the shape:\n{out}"
+    );
 }
 
 /// proves: map-drawn-for-project@e96d48 -- holds §10.7 across waves:
