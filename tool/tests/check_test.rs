@@ -859,3 +859,64 @@ fn open_wave_stale_is_red_again() {
         "the closed wave carries no finding:\n{out}"
     );
 }
+
+/// proves: double-answer-found@e47a77 -- holds §10.3 "exactly one":
+/// a cut closed by two live covers, or closed by a live cover and
+/// decided at once, is a finding naming the cut and both holders; a
+/// dead cover next to a decision is the lawful §2.12 pair.
+#[test]
+fn double_answer_found() {
+    // Two live covers of one cut.
+    let dir = sandbox("doublecover");
+    write(
+        &dir,
+        "keel/waves/0030-w.md",
+        &format!(
+            "---\nscenarios:\n  p: {{covers: [functional.correctness]}}\n  q: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [p, q]\n    files: [src/lib.rs]\n{}---\n\n## scenario: p\n\nbody of p\n\n## scenario: q\n\nbody of q\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "two live covers are a finding (§10.3):\n{out}");
+    assert!(
+        out.contains("functional.correctness") && out.contains("\"p\"") && out.contains("\"q\""),
+        "the cut and both holders named:\n{out}"
+    );
+    assert!(
+        out.contains("2 live covers"),
+        "the finding counts the holders (review R-7):\n{out}"
+    );
+
+    // A live cover and a decision of the same cut at once.
+    let dir = sandbox("coveranddecided");
+    write(
+        &dir,
+        "keel/waves/0031-w.md",
+        &format!(
+            "---\nscenarios:\n  r: {{covers: [performance.capacity]}}\ntransforms:\n  t:\n    implements: [r]\n    files: [src/lib.rs]\n{}---\n\n## scenario: r\n\nbody of r\n",
+            all_decided()
+        ),
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a cover next to a decision is a finding:\n{out}");
+    assert!(
+        out.contains("performance.capacity") && out.contains("\"r\"") && out.contains("decided"),
+        "the cut, the scenario and the decision named:\n{out}"
+    );
+
+    // The lawful pair: a dead cover and the decision that remains.
+    let dir = sandbox("deadpair");
+    write(
+        &dir,
+        "keel/waves/0032-w.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\n  gone:\n    covers: [security.integrity]\n    withdrawn: \"folded\"\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nbody of s\n\n## scenario: gone\n\nold body\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "a dead cover next to a decision is the lawful §2.12 pair:\n{out}"
+    );
+}

@@ -100,6 +100,10 @@ rev-empty-section-instead = a promise needs words: write the scenario body or wi
 ## graph module
 graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
 graph-unknown-cut-instead = the forty cuts ship with the release (§3.4); pick one of them or fix the typo
+graph-double-cover = the cut "{ $slug }" has { $count } live covers: scenarios { $holders } (§10.3 -- exactly one answer)
+graph-double-cover-instead = keep one cover; the other scenario stands on its proves or another cut (§3.3)
+graph-double-decided = the cut "{ $slug }" is closed by scenario "{ $holder }" and decided at once (§10.3)
+graph-double-decided-instead = drop the decisions line -- the scenario answers; or withdraw the cover deliberately (§2.12)
 graph-silence = cuts without an answer: { $missing }
 graph-silence-instead = every cut gets exactly one answer -- a covers or a decisions line (§10.3); silence is forbidden
 graph-implements-missing = transform "{ $transform }" implements "{ $scenario }", which is not in the header
@@ -208,7 +212,7 @@ check-scope-skipped-refused = scope not compared: git refused mid-way -- its ref
 check-header-reads = header reads
 check-no-documents = no documents yet
 check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); closure is judged by keel close (§6.5)
-check-unchecked = not yet checked: a doubled answer per cut (§10.3), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
+check-unchecked = not yet checked: contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
 check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
 check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
 check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }
@@ -222,7 +226,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 6 -- the quality map (§10.7)
+check-next-rung = next step: rung 7 -- TOFU trust (§7.16) and the CLI
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
@@ -244,6 +248,18 @@ close-blockers = blockers of this branch's wave { $wave }: { $count } -- a full 
 close-no-blockers = no blockers: this branch is named as no unclosed wave -- the states above inform
 close-plan-own = the wave of this branch is approved, not started -- a plan PR merges as a plan (§6.6); the work is issued after
 
+## map command (§10.7)
+map-title = keel map -- the quality map (§10.7)
+map-view-wave = the map of wave { $wave }: this branch is named as it (§8.2) -- the reviewer package item (§9.9); honesty per row stays the reviewer's work
+map-view-project = the project map: branch "{ $branch }" is named as no wave -- per cut, the youngest answering wave's word
+map-covered = closed: "{ $scenario }" -- { $proof }
+map-proof-proven = proven (the tag matches, §6.3; the test's green is keel close's court)
+map-proof-unproven = not yet proven (no matching tag)
+map-proof-unread = proof not read (no adapter named in keel.toml)
+map-decided = decided: "{ $reason }"
+map-unanswered = no answer -- the silence court is keel check (§10.3)
+map-older = older answers: { $count }
+
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: this is not one of the commands keel knows
@@ -251,4 +267,4 @@ main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
 main-gate-no-message = refusal: gate needs the commit message file
 main-gate-no-message-reason = reason: the judgement reads the message the commit-msg hook hands over
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel hook [dir]
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel hook [dir]

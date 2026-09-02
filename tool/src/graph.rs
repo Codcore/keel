@@ -88,17 +88,47 @@ pub fn wave_findings(wave: &Wave) -> Vec<(String, String)> {
         }
     }
 
-    let mut answered: BTreeSet<&str> = BTreeSet::new();
-    for (_, scenario) in &wave.scenarios {
+    // §10.3 wants exactly one answer per cut: silence is a finding,
+    // and so is a double -- two live covers, or a live cover next to
+    // a decision of the same wave. A dead cover does not count
+    // (§2.12), so "dead cover + decision" stays the lawful pair.
+    let mut live_covers: std::collections::BTreeMap<&str, Vec<&str>> = Default::default();
+    for (name, scenario) in &wave.scenarios {
         if scenario.withdrawn.is_none() {
             for cut in &scenario.covers {
-                answered.insert(cut.as_str());
+                live_covers.entry(cut.as_str()).or_default().push(name);
             }
         }
     }
-    for (cut, _) in &wave.decisions {
-        answered.insert(cut.as_str());
+    let decided: BTreeSet<&str> = wave.decisions.iter().map(|(c, _)| c.as_str()).collect();
+    for (cut, holders) in &live_covers {
+        if holders.len() > 1 {
+            let named = holders
+                .iter()
+                .map(|h| format!("\"{h}\""))
+                .collect::<Vec<_>>()
+                .join(", ");
+            out.push((
+                ta(
+                    "graph-double-cover",
+                    targs!("slug" => cut.to_string(), "count" => holders.len() as u64, "holders" => named),
+                ),
+                t("graph-double-cover-instead"),
+            ));
+        }
+        if decided.contains(cut) {
+            out.push((
+                ta(
+                    "graph-double-decided",
+                    targs!("slug" => cut.to_string(), "holder" => holders[0].to_string()),
+                ),
+                t("graph-double-decided-instead"),
+            ));
+        }
     }
+
+    let mut answered: BTreeSet<&str> = live_covers.keys().copied().collect();
+    answered.extend(decided);
     let missing: Vec<&str> = CUTS
         .iter()
         .copied()

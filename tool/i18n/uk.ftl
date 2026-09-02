@@ -100,6 +100,10 @@ rev-empty-section-instead = обіцянці потрібні слова: нап
 ## модуль graph
 graph-unknown-cut = "{ $holder }" показує на розріз "{ $slug }", якого у словнику нема
 graph-unknown-cut-instead = сорок розрізів їдуть з релізом (§3.4); вибери один із них або виправ одрук
+graph-double-cover = розріз "{ $slug }" має { $count } живих covers: сценарії { $holders } (§10.3 — рівно одна відповідь)
+graph-double-cover-instead = лиши один cover; другий сценарій стоїть на своєму proves або іншому розрізі (§3.3)
+graph-double-decided = розріз "{ $slug }" закритий сценарієм "{ $holder }" і водночас вирішений (§10.3)
+graph-double-decided-instead = прибери рядок decisions — відповідає сценарій; або зніми cover свідомо (§2.12)
 graph-silence = розрізи без відповіді: { $missing }
 graph-silence-instead = кожен розріз дістає рівно одну відповідь — рядок covers або decisions (§10.3); тиша заборонена
 graph-implements-missing = трансформа "{ $transform }" реалізує "{ $scenario }", якого нема в шапці
@@ -208,7 +212,7 @@ check-scope-skipped-refused = scope не звірявся: git відмовив 
 check-header-reads = шапка читається
 check-no-documents = документів ще нема
 check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9); посилання на контракти і їхні редакції (§7.1, §7.3), стара редакція судиться по історії файлу для закритих хвиль (§5.6); звʼязки графа (глава 3: розрізи, тиша, implements, depends_on, наступники; §7.2, §10.3); scope гілки, що зветься як хвиля (§4.1, §4.4–§4.6, §4.8); редакції сценаріїв у тегах тестів (§5.5, §7.5) і зниклі теги проти точки розгалуження (§7.15); закриття судить keel close (§6.5)
-check-unchecked = ще не перевірено: подвійна відповідь по розрізу (§10.3), тримання контрактів (§7.6), шапка↔тіло (§7.7) — щаблі попереду
+check-unchecked = ще не перевірено: тримання контрактів (§7.6), шапка↔тіло (§7.7) — щаблі попереду
 check-ref-missing = хвиля { $wave }: посилання { $contract }@{ $recorded } показує на контракт, файлу якого нема
 check-ref-missing-instead = створи keel/contracts/{ $contract }.md або виправ слаг (§7.1)
 check-ref-stale = хвиля { $wave }: записано { $contract }@{ $recorded }, а текст контракту зараз дає { $actual }
@@ -224,7 +228,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 6 — карта якості (§10.7)
+check-next-rung = наступний крок: щабель 7 — довіра TOFU (§7.16) і CLI
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -246,6 +250,18 @@ close-blockers = блокери хвилі цієї гілки { $wave }: { $cou
 close-no-blockers = блокерів нема: гілка не зветься як незакрита хвиля — стани вище інформують
 close-plan-own = хвиля цієї гілки — затверджена, ще не почата: план-PR зливається планом (§6.6), робота видається після
 
+## команда map (§10.7)
+map-title = keel map — мапа якості (§10.7)
+map-view-wave = мапа хвилі { $wave }: гілка зветься нею (§8.2) — пункт пакета рецензента (§9.9); чесність кожного рядка лишається роботою рецензента
+map-view-project = мапа проєкту: гілка "{ $branch }" не зветься хвилею — по кожному розрізу слово наймолодшої хвилі, що відповіла
+map-covered = закрито: "{ $scenario }" — { $proof }
+map-proof-proven = доведений (тег збіжний, §6.3; зелень тесту — суд keel close)
+map-proof-unproven = ще не доведений (збіжного тега нема)
+map-proof-unread = доведеність не читалась (адаптер у keel.toml не названий)
+map-decided = вирішено: "{ $reason }"
+map-unanswered = без відповіді — суд тиші в keel check (§10.3)
+map-older = давніших відповідей: { $count }
+
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
 main-unknown-command-reason = причина: такої команди keel не знає
@@ -253,4 +269,4 @@ main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
 main-gate-no-message = відмова: gate потребує файл повідомлення commit-а
 main-gate-no-message-reason = причина: суд читає повідомлення, яке віддає commit-msg hook
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel hook [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel hook [тека]
