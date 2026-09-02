@@ -2,6 +2,9 @@
 module: keel::config
 exports:
   - "pub fn read(root: &Path) -> Result<Config, Refusal>"
+  - "pub struct Config { version, adapter, ci, lang, mode, trust, generated, present, lang_set, mode_set }"
+  - "pub const LANGUAGES: [&str; 2]"
+  - "pub const MODES: [&str; 3]"
 ---
 
 Читання `keel.toml` — єдиного конфіга проєкту (рішення оператора:
@@ -22,4 +25,8 @@ exports:
   суд вимкнено, дисципліна руками, як у v1. Відсутнє поле — strict,
   і вивід каже «mode: strict (типове)»: типове не видає себе за
   прочитане. Інше значення — відмова з переліком трьох.
+- Структура Config з полями словника, прапорцями present/lang_set/
+  mode_set і константами LANGUAGES/MODES — обіцяна поверхня: на неї
+  спираються check, gate і main (школа R-8 рецензії 0004: контракт
+  обіцяє все, чим користуються сусіди).
 - Модуль нічого не пише на диск.

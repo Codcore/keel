@@ -8,19 +8,19 @@ scenarios:
   old-revision-legal-when-historic:
     covers: [security.authenticity]
   red-commit-needs-failing-test:
-    proves: tool-gate@4270e9
+    proves: tool-gate@ef42fc
     covers: [safety.operational-constraints, security.integrity]
   work-commit-needs-green:
-    proves: tool-gate@4270e9
+    proves: tool-gate@ef42fc
     covers: [functional.completeness]
   build-break-is-not-red:
     proves: tool-adapter-cargo@77e38c
     covers: [reliability.faultlessness, interaction.user-error-protection]
   gate-modes-obeyed:
-    proves: tool-config@684c79
+    proves: tool-config@2b1bf3
     covers: [interaction.operability, interaction.self-descriptiveness]
   hook-installed-aloud:
-    proves: tool-gate@4270e9
+    proves: tool-gate@ef42fc
     covers: [flexibility.installability, compatibility.co-existence, safety.safe-integration]
 
 transforms:
@@ -45,7 +45,7 @@ transforms:
       - work-commit-needs-green
       - build-break-is-not-red
       - gate-modes-obeyed
-    contracts: [tool-gate@4270e9, tool-adapter-cargo@77e38c, tool-tags@ffb8af, tool-config@684c79, tool-scope@b8ada4]
+    contracts: [tool-gate@ef42fc, tool-adapter-cargo@77e38c, tool-tags@ffb8af, tool-config@2b1bf3, tool-scope@b8ada4, tool-rev@882dea, tool-docs@2ab9a9]
     files:
       - tool/src/gate.rs
       - tool/src/adapter.rs
@@ -59,7 +59,7 @@ transforms:
   hook-install:
     implements:
       - hook-installed-aloud
-    contracts: [tool-gate@4270e9]
+    contracts: [tool-gate@ef42fc]
     files:
       - tool/src/gate.rs
       - tool/src/main.rs
@@ -235,3 +235,11 @@ BuildBroken / NotRun). `config` дістає поле mode зі строгим �
 у Why; суд «рівно однієї» відповіді §10.3, дельта тегів у точці
 розгалуження (§7.15 — «тег був і зник») і закриття (§6.5) — щаблі
 попереду, рядок «ще не перевірено» їх називає далі.
+
+Застереження після рецензії, вголос: §5.6-благословення історією
+поки не відрізняє відкриту хвилю від закритої — закриття (§6.5)
+звузить його, і поіменний список historic-редакцій — теж його
+щабель; редакція тега при `red:`-народженні не судиться — її тримають
+floor тегів і суд роботи; exports tool-docs вужчі за фактичну
+поверхню (Wave, Transform — ними користується gate) — борг, названий
+щаблю тримання контрактів (§7.6).
