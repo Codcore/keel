@@ -244,9 +244,11 @@ fn review_lists_drawn() {
         out.contains("src/b.rs"),
         "the drifted file is named:\n{out}"
     );
+    // The negative held for real (review 0009 R-6): the vacuum
+    // "contains drift" check could never fire -- pin the actual
+    // drift-line wording instead.
     assert!(
-        !out.lines()
-            .any(|l| l.contains("src/a.rs") && l.contains("drift")),
+        !out.contains("src/a.rs — added after the anchor"),
         "the planned file is not drift:\n{out}"
     );
     assert!(out.contains("anchor"), "the anchor is named aloud:\n{out}");
@@ -280,5 +282,78 @@ fn review_lists_drawn() {
     assert!(
         out.contains("not verified"),
         "the drift says the word instead of posing as empty:\n{out}"
+    );
+    fs::remove_file(dir.join(".git/shallow")).unwrap();
+
+    // Second birth (review 0009 R-4): the full diff is the BRANCH's
+    // -- base..HEAD -- never the working tree's: an uncommitted
+    // edit does not ride into the reviewer's package.
+    let toml_text = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    write(
+        &dir,
+        "keel.toml",
+        &format!("{toml_text}# never on the branch\n"),
+    );
+    let (out, err, code) = keel(&["review", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the package assembles beside a dirty tree:\n{out}");
+    assert!(
+        !out.contains("never on the branch"),
+        "an uncommitted edit stays out of the branch diff (R-4):\n{out}"
+    );
+    write(&dir, "keel.toml", &toml_text);
+
+    // Second birth (review 0009 R-5): a file quietly REMOVED from
+    // scope after the anchor is drift too -- §9.9's "quiet
+    // narrowing" -- and is named with its own word.
+    let narrowed = fs::read_to_string(dir.join("keel/waves/0062-w.md"))
+        .unwrap()
+        .replace("files: [src/a.rs, src/b.rs]", "files: [src/b.rs]");
+    write(&dir, "keel/waves/0062-w.md", &narrowed);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "the scope narrows in silence"]);
+    let (out, err, code) = keel(&["review", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the package assembles over the narrowing:\n{out}");
+    assert!(
+        out.contains("src/a.rs — removed from scope after the anchor"),
+        "the removed file is named as drift (R-5):\n{out}"
+    );
+    assert!(
+        out.contains("src/b.rs — added after the anchor"),
+        "the added file still stands in the drift:\n{out}"
+    );
+
+    // And a renamed wave (renamed_from) keeps its true anchor: the
+    // first commit of the OLD name, so growth before the rename is
+    // not blessed as planned.
+    let dir = sandbox("renamed");
+    write(&dir, "keel.toml", "lang = \"en\"\n");
+    write(
+        &dir,
+        "keel/waves/0064-old-name.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/a.rs]\n{}---\n\n## scenario: s\n\nbody of s\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    git(&dir, &["init", "-q", "-b", "0064-old-name"]);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "the wave is born under its old name"]);
+    git(&dir, &["checkout", "-q", "-b", "0065-new"]);
+    let renamed = fs::read_to_string(dir.join("keel/waves/0064-old-name.md"))
+        .unwrap()
+        .replace("---\nscenarios:", "---\nrenamed_from: 0064-old-name\nscenarios:")
+        .replace("files: [src/a.rs]", "files: [src/a.rs, src/b.rs]");
+    fs::remove_file(dir.join("keel/waves/0064-old-name.md")).unwrap();
+    write(&dir, "keel/waves/0065-new.md", &renamed);
+    git(&dir, &["add", "-A", "."]);
+    git(&dir, &["commit", "-q", "-m", "renamed and grown in one step"]);
+    let (out, err, code) = keel(&["review", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the renamed wave's package assembles:\n{out}");
+    assert!(
+        out.contains("src/b.rs — added after the anchor"),
+        "growth at the rename is drift against the true anchor (R-5):\n{out}"
     );
 }
