@@ -3,13 +3,13 @@ depends_on: [0003-revisions]
 
 scenarios:
   unknown-cut-refused:
-    proves: tool-graph@80a390
+    proves: tool-graph@31feb7
     covers: [interaction.user-error-protection]
   silence-forbidden:
-    proves: tool-graph@80a390
+    proves: tool-graph@31feb7
     covers: [functional.completeness, safety.hazard-warning]
   broken-links-named:
-    proves: tool-graph@80a390
+    proves: tool-graph@31feb7
     covers: [reliability.faultlessness]
   scope-both-ways:
     proves: tool-scope@14384c
@@ -27,7 +27,7 @@ transforms:
       - unknown-cut-refused
       - silence-forbidden
       - broken-links-named
-    contracts: [tool-graph@80a390, tool-docs@2ab9a9]
+    contracts: [tool-graph@31feb7, tool-docs@2ab9a9]
     files:
       - tool/src/graph.rs
       - tool/src/check.rs
