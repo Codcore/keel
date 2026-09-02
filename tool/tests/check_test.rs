@@ -349,6 +349,10 @@ fn rev_command_prints() {
         out.contains("наступний крок"),
         "prints the next step in uk:\n{out}"
     );
+    assert!(
+        out.contains("конфіг: keel.toml (lang = uk)"),
+        "rev names its config source like check does (Z-3):\n{out}"
+    );
 
     // A broken document stands next to the revisions as a refusal.
     write(&dir, "keel/contracts/broken.md", "---\nmodule: X\n");
@@ -361,5 +365,19 @@ fn rev_command_prints() {
     assert!(
         out.contains(&format!("anchor@{anchor}")),
         "intact revisions still printed:\n{out}"
+    );
+
+    // Without keel.toml the defaults are said aloud here too (Z-3).
+    let dir = sandbox("rev-nocfg");
+    write(
+        &dir,
+        "keel/waves/0009-w.md",
+        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+    );
+    let (out, _err, code) = keel(&["rev", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "{out}");
+    assert!(
+        out.contains("no keel.toml"),
+        "the defaults do not pass themselves off as read, in rev too:\n{out}"
     );
 }
