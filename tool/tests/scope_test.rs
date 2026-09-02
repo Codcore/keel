@@ -1,0 +1,165 @@
+//! Scenario tests of wave 0004-scope-and-links, transform scope-checks:
+//! chapter 4 judged against real git repositories built in sandboxes --
+//! the tool asks git the same way it will in the field.
+//!
+//! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+fn sandbox(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("keel-0004s-{}-{name}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(dir.join("keel/waves")).unwrap();
+    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
+    dir
+}
+
+fn write(dir: &Path, rel: &str, text: &str) {
+    let path = dir.join(rel);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, text).unwrap();
+}
+
+/// git as the command of the system, exactly how the tool itself will
+/// call it; sandbox commits need an identity and no signing, whatever
+/// the host machine thinks.
+fn git(dir: &Path, args: &[&str]) {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args([
+            "-c",
+            "user.email=keel@test",
+            "-c",
+            "user.name=keel-test",
+            "-c",
+            "commit.gpgsign=false",
+        ])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {args:?}:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+fn keel(args: &[&str]) -> (String, String, i32) {
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(args)
+        .output()
+        .unwrap();
+    (
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+        out.status.code().unwrap_or(-1),
+    )
+}
+
+/// Waves in these sandboxes obey §10.3 like any wave: a full
+/// decisions block, minus the cuts the fixture covers itself.
+fn all_decided_except(covered: &[&str]) -> String {
+    let mut block = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        if !covered.contains(cut) {
+            block.push_str(&format!("  {cut}: \"n/a\"\n"));
+        }
+    }
+    block
+}
+
+/// A wave whose one transform declares exactly the given files list
+/// (yaml lines, six spaces deep).
+fn wave_declaring(files_yaml: &str) -> String {
+    format!(
+        "---\nscenarios:\n  s:\n    covers: [functional.correctness]\ntransforms:\n  t:\n    implements: [s]\n    files:\n{files_yaml}{}---\n\n## Why\n\na scope sandbox wave\n\n## scenario: s\n\nbody\n",
+        all_decided_except(&["functional.correctness"])
+    )
+}
+
+/// proves: scope-both-ways@f77c1b -- holds §4.4-§4.6 and §4.8: on a
+/// branch named as the wave, a touched file outside the declared list
+/// and a declared file left untouched are both findings by name;
+/// keel/ stays outside the comparison; and the report says which base
+/// it took -- the merge-base with main, or, where main never existed,
+/// the first commit of the branch.
+#[test]
+fn scope_both_ways() {
+    let dir = sandbox("bothways");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    write(&dir, "lib/a.txt", "one\n");
+    write(&dir, "lib/b.txt", "two\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+
+    git(&dir, &["checkout", "-q", "-b", "0005-scope-w"]);
+    // The wave itself is born on its branch -- keel/ is exempt (§4.8),
+    // or every wave would drift by existing.
+    write(
+        &dir,
+        "keel/waves/0005-scope-w.md",
+        &wave_declaring("      - lib/a.txt\n      - lib/b.txt\n"),
+    );
+    write(&dir, "lib/a.txt", "one, changed\n"); // declared and touched
+    write(&dir, "lib/c.txt", "drift\n"); // touched, never declared
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "work"]);
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "both sides make the run red:\n{out}");
+    assert!(
+        out.contains("scope: branch \"0005-scope-w\""),
+        "the comparison said aloud:\n{out}"
+    );
+    assert!(
+        out.contains("merge-base with main"),
+        "the base named:\n{out}"
+    );
+    assert!(
+        out.contains("\"lib/c.txt\"") && out.contains("no transform"),
+        "drift named by file (§4.6):\n{out}"
+    );
+    assert!(
+        out.contains("\"lib/b.txt\" is untouched"),
+        "the declared-yet-untouched file named (§4.4):\n{out}"
+    );
+    assert!(
+        !out.contains("\"lib/a.txt\""),
+        "declared and touched is silence:\n{out}"
+    );
+    assert!(
+        !out.contains("\"keel/waves/0005-scope-w.md\""),
+        "keel/ outside the comparison (§4.8):\n{out}"
+    );
+
+    // Where main never existed, the base falls back to the first
+    // commit of the branch -- and the report says what it took.
+    let dir = sandbox("firstbase");
+    git(&dir, &["init", "-q", "-b", "0005-scope-w"]);
+    write(
+        &dir,
+        "keel/waves/0005-scope-w.md",
+        &wave_declaring("      - lib/a.txt\n      - lib/b.txt\n"),
+    );
+    write(&dir, "lib/a.txt", "one\n");
+    write(&dir, "lib/b.txt", "two\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "everything at once"]);
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 1,
+        "declared files the branch never touched are findings:\n{out}"
+    );
+    assert!(
+        out.contains("the first commit of the branch"),
+        "the fallback base said aloud:\n{out}"
+    );
+    assert!(
+        out.contains("\"lib/a.txt\" is untouched") && out.contains("\"lib/b.txt\" is untouched"),
+        "both named:\n{out}"
+    );
+}
