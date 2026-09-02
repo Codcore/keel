@@ -228,7 +228,7 @@ fn scope_both_ways() {
 /// the count is fixed, there is no glob liberty.
 #[test]
 fn one_new_in_counted() {
-    let branch_with = |name: &str, extra: &[(&str, &str)]| -> PathBuf {
+    let branch_with = |name: &str, files_yaml: &str, extra: &[(&str, &str)]| -> PathBuf {
         let dir = sandbox(name);
         git(&dir, &["init", "-q", "-b", "main"]);
         write(&dir, "lib/seed.txt", "seed\n");
@@ -238,7 +238,7 @@ fn one_new_in_counted() {
         write(
             &dir,
             "keel/waves/0005-scope-w.md",
-            &wave_declaring("      - one new in priv/migrations/\n"),
+            &wave_declaring(files_yaml),
         );
         for (rel, text) in extra {
             write(&dir, rel, text);
@@ -247,9 +247,10 @@ fn one_new_in_counted() {
         git(&dir, &["commit", "-q", "-m", "work"]);
         dir
     };
+    let one_line = "      - one new in priv/migrations/\n";
 
     // Zero new files where exactly one was promised.
-    let dir = branch_with("newzero", &[]);
+    let dir = branch_with("newzero", one_line, &[]);
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "zero is a finding:\n{out}");
     assert!(
@@ -260,6 +261,7 @@ fn one_new_in_counted() {
     // Exactly one -- silence, and the whole run is green end to end.
     let dir = branch_with(
         "newone",
+        one_line,
         &[("priv/migrations/001.sql", "create table t;\n")],
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
@@ -276,6 +278,7 @@ fn one_new_in_counted() {
     // Two new files where exactly one was promised.
     let dir = branch_with(
         "newtwo",
+        one_line,
         &[
             ("priv/migrations/001.sql", "create table t;\n"),
             ("priv/migrations/002.sql", "drop table t;\n"),
@@ -290,6 +293,37 @@ fn one_new_in_counted() {
     assert!(
         out.contains("priv/migrations/001.sql") && out.contains("priv/migrations/002.sql"),
         "both files named:\n{out}"
+    );
+
+    // Second birth (review R-1): §4.1 says "need two -- write two
+    // lines". Two lines over the same directory and two new files
+    // must meet in green; today every line judges the full count and
+    // the truthful author gets two findings and no green state at all.
+    let two_lines =
+        "      - one new in priv/migrations/\n      - one new in priv/migrations/\n";
+    let dir = branch_with(
+        "newtwolines",
+        two_lines,
+        &[
+            ("priv/migrations/001.sql", "create table t;\n"),
+            ("priv/migrations/002.sql", "drop table t;\n"),
+        ],
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "two lines, two files -- the counts meet:\n{out}");
+
+    // And a mismatch against several lines is one counted finding.
+    let dir = branch_with(
+        "newtwoone",
+        two_lines,
+        &[("priv/migrations/001.sql", "create table t;\n")],
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "one file against two lines is a finding:\n{out}");
+    assert!(
+        out.contains("promise 2 new files in \"priv/migrations/\"")
+            && out.contains("the branch adds 1"),
+        "the counts named:\n{out}"
     );
 }
 
