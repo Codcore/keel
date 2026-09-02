@@ -9,7 +9,7 @@ scenarios:
     proves: tool-review@aa0a73
     covers: [functional.correctness, maintainability.analysability]
   battery-isolated:
-    proves: tool-adapter-cargo@cc7ef1
+    proves: tool-adapter-cargo@348769
     covers: [reliability.faultlessness]
 
 transforms:
@@ -22,16 +22,21 @@ transforms:
       - tool/src/review.rs
       - tool/src/main.rs
       - tool/src/lib.rs
+      - tool/src/check.rs
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/review_test.rs
   gate-isolation:
     implements:
       - battery-isolated
-    contracts: [tool-adapter-cargo@cc7ef1]
+    contracts: [tool-adapter-cargo@348769]
     files:
       - tool/src/adapter.rs
       - tool/tests/gate_test.rs
+  journal:
+    chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
+    files:
+      - docs/uk/V2-PROCESS.md
 
 decisions:
   functional.appropriateness: "свідомо без тесту: доречність пакета судить перший же рецензент, що його отримає, — наступної ж хвилі"
@@ -118,8 +123,9 @@ chore, повний diff гілки; а на гілці, що не зветьс�
 
 ## scenario: battery-isolated
 
-**Дано** довкілля з успадкованим CARGO_TARGET_DIR, що вказує на чужу
-спільну теку target, і проєкт-пісочницю з червоним тегованим тестом,
+**Дано** довкілля з успадкованим CARGO_TARGET_DIR або його
+cargo-аліасом CARGO_BUILD_TARGET_DIR, що вказує на чужу спільну теку
+target, і проєкт-пісочницю з червоним тегованим тестом,
 **коли** суд жене тест через адаптер (gate судить red-комміт),
 **тоді** вирок чесний: тест бачений червоним у власній теці target
 проєкту — спільний кеш вироків не зсуває (§7.12; §6.7 за R-8
