@@ -20,8 +20,12 @@ transforms:
       - revision-recipe-reproduced
     contracts: [tool-rev@10ecc9]
     files:
+      - tool/Cargo.toml
+      - tool/Cargo.lock
       - tool/src/rev.rs
       - tool/src/lib.rs
+      - tool/i18n/en.ftl
+      - tool/i18n/uk.ftl
       - tool/tests/rev_test.rs
   check-verifies-refs:
     implements:
