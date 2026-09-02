@@ -285,4 +285,83 @@ fn trust_recorded() {
         out.contains("nowhere to prepare"),
         "the refusal says why:\n{out}"
     );
+
+    // Second birth (review R-1/R-2/R-3): the surgery must not
+    // understand less TOML than the strict parser reads. A commented
+    // [trust] header, a literal key and a collapse-twin are all
+    // valid TOML -- after the run the file must still parse, the
+    // command must stand as ONE canonical line, and the header
+    // comment must live. Corruption with a success report is the
+    // one forbidden outcome.
+    let dir = sandbox("hard-toml");
+    write(&dir, "keel/waves/0050-w.md", &quiet_wave());
+    write(
+        &dir,
+        "keel.toml",
+        &format!(
+            "ci = \"cargo test\"\n\n[trust]  # recorded by hand\n'cargo test' = \"000000000000\"\n\"cargo  test\" = \"{CARGO_TEST_FP}\"\n"
+        ),
+    );
+    let (out, err, code) = keel(&["trust", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the surgery understands its own TOML:\n{out}");
+    let toml = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        toml.contains("# recorded by hand"),
+        "the header comment lives:\n{toml}"
+    );
+    assert_eq!(
+        toml.matches(CARGO_TEST_FP).count(),
+        1,
+        "one canonical line for one command -- twins consolidated:\n{toml}"
+    );
+    assert!(
+        !toml.contains("000000000000"),
+        "the crooked twin is gone:\n{toml}"
+    );
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the file still parses and the command is trusted:\n{out}");
+
+    // A control character inside a verify command (hostile or
+    // accidental) must not become a dead config: the line is written
+    // escaped, reads back, and the command stands trusted.
+    let dir = sandbox("bell");
+    write(&dir, "keel.toml", "ci = \"none\"\n");
+    write(&dir, "keel/waves/0050-w.md", &quiet_wave());
+    write(
+        &dir,
+        "keel/contracts/ext-bell.md",
+        "---\nverify: \"run \u{0007} bell\"\n---\n\nA foreign promise with a bell inside (§2.8).\n",
+    );
+    let (out, err, code) = keel(&["trust", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "a control character does not kill the run:\n{out}");
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 0,
+        "the config parses after the bell and the command is trusted:\n{out}"
+    );
+    assert!(
+        !out.contains("does not parse"),
+        "no dead config with a success report behind it:\n{out}"
+    );
+
+    // CRLF endings survive the surgery: the promise is byte for
+    // byte outside the [trust] block, on Windows files too.
+    let dir = sandbox("crlf");
+    write(&dir, "keel/waves/0050-w.md", &quiet_wave());
+    write(&dir, "keel.toml", "# gate\r\nci = \"cargo test\"\r\n");
+    let (out, err, code) = keel(&["trust", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the CRLF file is recorded too:\n{out}");
+    let toml = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        toml.contains("# gate\r\n"),
+        "the untouched line keeps its CRLF ending:\n{toml:?}"
+    );
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the CRLF config parses and is trusted:\n{out}");
 }
