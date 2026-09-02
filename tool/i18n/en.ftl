@@ -140,6 +140,32 @@ adapter-no-crate = no Cargo.toml at the root and none exactly one level down
 adapter-no-crate-instead = the cargo adapter needs a crate: put Cargo.toml at the root or in one first-level directory
 adapter-many-crates = several first-level crates: { $found }
 adapter-many-crates-instead = the adapter does not guess; keep one crate at the first level or run keel from the crate's own project
+adapter-cargo-failed = cargo refuses: { $error }
+adapter-cargo-failed-instead = the judgement needs cargo running (journal A3); make cargo answer here and retry
+
+## gate module
+gate-mode = mode: { $mode }
+gate-mode-default = mode: strict (the default -- it does not pass itself off as read)
+gate-manual = mode: manual -- the judgement is off, discipline by hand (as in v1)
+gate-not-wave = branch "{ $branch }" is not named as any wave that reads -- nothing to judge, passing with this word
+gate-outside = the message is neither a birth nor transform work -- outside the judgement, passing with this word
+gate-chore = the transform is a chore -- no promises to run (§2.11), passing
+gate-red-pass = red birth of "{ $scenario }": the test "{ $test }" truly fails -- the commit passes (§7.12)
+gate-red-green = red birth of "{ $scenario }" claimed, but the test "{ $test }" is green -- an unearned "seen red" does not enter history (§7.12)
+gate-red-unknown = red: names "{ $slug }", not a scenario of wave { $wave }
+gate-red-withdrawn = "{ $scenario }" is withdrawn -- a dead promise is not born (§2.12)
+gate-red-untagged = red birth of "{ $scenario }" claimed, but no test carries its proves tag (§5.5)
+gate-red-many-tags = "{ $scenario }" carries { $count } proves tags -- which one is being born is not guessed
+gate-red-broken = red birth of "{ $scenario }" claimed, but the tests do not compile -- a build break is not a failure (A3): { $words }
+gate-red-notrun = red birth of "{ $scenario }" claimed, but the run executed no test named "{ $test }" -- zero runs is not a failure (A3)
+gate-work-pass = transform "{ $transform }": { $count } scenario tests green with matching tags -- the work passes (§8.4)
+gate-work-red = transform "{ $transform }": the test "{ $test }" of scenario "{ $scenario }" fails -- the work is not done
+gate-work-stale = transform "{ $transform }": the tag of scenario "{ $scenario }" holds { $recorded }, the text gives { $actual } (§7.5)
+gate-work-untagged = transform "{ $transform }": scenario "{ $scenario }" has no proves tag in the tests (§5.5)
+gate-work-broken = transform "{ $transform }": the tests do not compile: { $words }
+gate-work-notrun = transform "{ $transform }": the run executed no test named "{ $test }" for scenario "{ $scenario }"
+gate-unknown-slug = "{ $slug }" is neither red: nor a transform of wave { $wave } -- a typo does not pass as "outside the judgement" (§8.4)
+gate-soft = mode: soft -- the same words, a warning only
 
 ## rev command
 rev-title = keel rev -- current revisions
@@ -180,11 +206,13 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 4 -- the red gate and the cargo adapter (§7.12, §8.4)
+check-next-rung = next step: rung 5 -- the closure of waves (§6.5)
 
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: this is not one of the commands keel knows
 main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
-main-usage = instead: keel check [dir] | keel rev [dir]
+main-gate-no-message = refusal: gate needs the commit message file
+main-gate-no-message-reason = reason: the judgement reads the message the commit-msg hook hands over
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir]

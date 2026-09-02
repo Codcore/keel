@@ -138,10 +138,7 @@ fn red_commit_needs_failing_test() {
     let dir = project("redgone", "", "assert!(false);");
     let (out, code) = gate(&dir, "red: gone");
     assert_eq!(code, 1, "a dead promise is not born:\n{out}");
-    assert!(
-        out.contains("withdrawn"),
-        "the refusal says why:\n{out}"
-    );
+    assert!(out.contains("withdrawn"), "the refusal says why:\n{out}");
 
     // Two tags of one scenario at birth -- no guessing which is new.
     let dir = project("redtwotags", "", "assert!(false);");
@@ -153,10 +150,7 @@ fn red_commit_needs_failing_test() {
     );
     let (out, code) = gate(&dir, "red: s");
     assert_eq!(code, 1, "several tags at birth refuse:\n{out}");
-    assert!(
-        out.contains("tags"),
-        "the refusal counts the tags:\n{out}"
-    );
+    assert!(out.contains("tags"), "the refusal counts the tags:\n{out}");
 }
 
 /// proves: work-commit-needs-green@12c44c -- holds §8.4/§2.4: a work
@@ -176,10 +170,7 @@ fn work_commit_needs_green() {
     let dir = project("workred", "", "assert!(false);");
     let (out, code) = gate(&dir, "t: does the declared work");
     assert_eq!(code, 1, "red scenarios block the work:\n{out}");
-    assert!(
-        out.contains("\"s\""),
-        "the failing scenario named:\n{out}"
-    );
+    assert!(out.contains("\"s\""), "the failing scenario named:\n{out}");
 
     // A stale tag revision refuses -- the record no longer holds.
     let dir = project("workstale", "", "assert!(true);");
@@ -190,10 +181,7 @@ fn work_commit_needs_green() {
     );
     let (out, code) = gate(&dir, "t: does the declared work");
     assert_eq!(code, 1, "a stale tag blocks the work:\n{out}");
-    assert!(
-        out.contains("aaaaaa"),
-        "the stale record named:\n{out}"
-    );
+    assert!(out.contains("aaaaaa"), "the stale record named:\n{out}");
 
     // No tag at all -- the scenario is not held by any test.
     let dir = project("workuntagged", "", "assert!(true);");
@@ -223,7 +211,10 @@ fn work_commit_needs_green() {
         "the pass carries its word:\n{out}"
     );
     let (out, code) = gate(&dir, "Journal: a decision recorded");
-    assert_eq!(code, 0, "a decision record is outside the judgement:\n{out}");
+    assert_eq!(
+        code, 0,
+        "a decision record is outside the judgement:\n{out}"
+    );
     assert!(
         out.contains("outside the judgement"),
         "the pass carries its word:\n{out}"

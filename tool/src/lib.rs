@@ -8,6 +8,7 @@ pub mod adapter;
 pub mod check;
 pub mod config;
 pub mod docs;
+pub mod gate;
 pub mod graph;
 pub mod i18n;
 pub mod refusal;

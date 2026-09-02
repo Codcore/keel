@@ -65,6 +65,38 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Some("gate") => {
+            let Some(message_file) = args.get(1).map(PathBuf::from) else {
+                eprintln!(
+                    "{}\n  {}\n  {}",
+                    t("main-gate-no-message"),
+                    t("main-gate-no-message-reason"),
+                    t("main-usage")
+                );
+                return ExitCode::from(2);
+            };
+            let root = args
+                .get(2)
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let config = match keel::config::read(&root) {
+                Ok(config) => config,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
+            keel::i18n::init(&config.lang);
+            match keel::gate::run(&root, &message_file) {
+                Ok((report, code)) => {
+                    print!("{report}");
+                    ExitCode::from(code as u8)
+                }
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    ExitCode::from(2)
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
                 "{}\n  {}\n  {}",
