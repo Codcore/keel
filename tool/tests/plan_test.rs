@@ -151,3 +151,60 @@ fn plan_skeleton_born() {
         "the next free number is counted across branches:\n{out}"
     );
 }
+
+/// proves: contract-skeleton-born@913fa1 -- holds §2.7-§2.9/§1.2:
+/// the born contract skeleton carries the module scaffolding and the
+/// commented vocabulary, says aloud it deliberately promises nothing
+/// yet (check leads by the §2.9 refusal), refuses over an existing
+/// file and a crooked slug, and `keel new` with an unknown kind
+/// refuses naming what it knows.
+#[test]
+fn contract_skeleton_born() {
+    let dir = sandbox("contractbirth");
+    write(&dir, "keel.toml", "lang = \"en\"\n");
+    let (out, err, code) = keel(&["new", "contract", "session-run", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "a birth is an answer:\n{out}");
+    assert!(
+        dir.join("keel/contracts/session-run.md").is_file(),
+        "the contract skeleton is born:\n{out}"
+    );
+    assert!(
+        out.contains("keel/contracts/session-run.md")
+            && out.contains("deliberately promises nothing yet"),
+        "the print names the file and the red-by-design word (§2.9):\n{out}"
+    );
+    let text = fs::read_to_string(dir.join("keel/contracts/session-run.md")).unwrap();
+    assert!(
+        text.contains("module:") && text.contains("# exports:") && text.contains("# verify:"),
+        "the scaffolding carries the §2.7-§2.8 vocabulary:\n{text}"
+    );
+
+    // The born skeleton is deliberately red: check leads by §2.9.
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "the skeleton is red until it promises:\n{out}");
+    assert!(
+        out.contains("promises nothing"),
+        "check leads the author by the §2.9 refusal:\n{out}"
+    );
+
+    // Nothing existing is ever overwritten.
+    let (out, err, code) = keel(&["new", "contract", "session-run", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "an existing file refuses:\n{out}");
+
+    // A crooked slug refuses (§1.2).
+    let (out, err, code) = keel(&["new", "contract", "Bad_Slug", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "a crooked slug refuses (§1.2):\n{out}");
+
+    // An unknown kind refuses naming what keel new knows.
+    let (out, err, code) = keel(&["new", "wave", "0300-x", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "an unknown kind refuses:\n{out}");
+    assert!(
+        out.contains("contract"),
+        "the refusal names the known kind:\n{out}"
+    );
+}
