@@ -879,9 +879,7 @@ fn double_answer_found() {
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "two live covers are a finding (§10.3):\n{out}");
     assert!(
-        out.contains("functional.correctness")
-            && out.contains("\"p\"")
-            && out.contains("\"q\""),
+        out.contains("functional.correctness") && out.contains("\"p\"") && out.contains("\"q\""),
         "the cut and both holders named:\n{out}"
     );
     assert!(

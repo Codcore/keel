@@ -14,7 +14,6 @@ scenarios:
     covers: [functional.completeness]
   duplicate-name-refuses:
     proves: tool-docs@2ab9a9
-    covers: [interaction.user-error-protection]
   check-reports-every-file:
     proves: tool-docs@2ab9a9
     covers: [reliability.fault-tolerance, safety.hazard-warning, interaction.self-descriptiveness]
