@@ -41,7 +41,7 @@ pub fn step(root: &Path) -> Result<String, Refusal> {
     let branch = scope::current_branch(root);
     if let Some(name) = &branch {
         if let Some(wave) = scan.waves.iter().find(|w| w.slug == *name) {
-            report.push_str(&wave_step(root, wave)?);
+            report.push_str(&wave_step(root, wave, &scan.waves)?);
             return Ok(report);
         }
         if let Some(rest) = name.strip_prefix("plan/")
@@ -107,7 +107,7 @@ pub fn step(root: &Path) -> Result<String, Refusal> {
 /// untagged scenario births its test; a drifted tag updates it; then
 /// the first transform whose declared files are not all touched;
 /// then the review; then the PR.
-fn wave_step(root: &Path, wave: &docs::Wave) -> Result<String, Refusal> {
+fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<String, Refusal> {
     let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
     let revs = match rev::scenario_revs(&path) {
         Ok(revs) => revs,
@@ -115,6 +115,21 @@ fn wave_step(root: &Path, wave: &docs::Wave) -> Result<String, Refusal> {
     };
     let text = std::fs::read_to_string(&path).unwrap_or_default();
     let found = tags::scan(&adapter::test_files(root)?)?;
+    // The legal revisions of every wave feed the namesake court
+    // (review 0012 R-1, the close school): a tag holding another
+    // wave's legal revision is that wave's proof, never this drift.
+    let mut legal: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for other in waves {
+        let other_path = root.join("keel/waves").join(format!("{}.md", other.slug));
+        match rev::scenario_revs(&other_path) {
+            Ok(revs) => {
+                for (name, revision) in revs {
+                    legal.entry(name).or_default().push(revision);
+                }
+            }
+            Err(refusal) => return Ok(fix_step(root, &refusal, 1)),
+        }
+    }
     let mut out = String::new();
 
     for (name, sc) in &wave.scenarios {
@@ -127,47 +142,69 @@ fn wave_step(root: &Path, wave: &docs::Wave) -> Result<String, Refusal> {
             .map(|(_, r)| r.clone())
             .unwrap_or_default();
         let mine: Vec<_> = found.iter().filter(|t| t.scenario == *name).collect();
-        if mine.is_empty() {
-            out.push_str(&ta("next-step-red", targs!("scenario" => name.clone())));
-            out.push('\n');
-            out.push_str(&ta(
-                "next-body-label",
-                targs!("scenario" => name.clone(), "rev" => current.clone()),
-            ));
-            out.push('\n');
-            let body = rev::section(&text, &format!("scenario: {name}")).unwrap_or_default();
-            for line in body.lines() {
-                out.push_str(&format!("    {line}\n"));
-            }
-            out.push_str(&ta(
-                "next-tag-line",
-                targs!("scenario" => name.clone(), "rev" => current.clone()),
-            ));
-            out.push('\n');
-            let tests = adapter::crate_root(root)?.join("tests");
-            let shown = tests.strip_prefix(root).unwrap_or(&tests);
-            out.push_str(&ta(
-                "next-tests-dir",
-                targs!("dir" => format!("{}/", shown.display())),
-            ));
-            out.push('\n');
-            return Ok(out);
+        if !mine.is_empty() && mine.iter().any(|t| rev::matches(&t.rev, &current)) {
+            continue;
         }
-        if !mine.iter().any(|t| rev::matches(&t.rev, &current)) {
+        // No proof of our own. A namesake tag that legally proves
+        // another wave is not ours to rewrite (review 0012 R-1,
+        // §5.6): only a record matching no wave at all is this
+        // wave's own drift to mend; otherwise the step is the birth
+        // of this wave's own test.
+        let foreign = |t: &&crate::tags::TestTag| {
+            legal
+                .get(name)
+                .is_some_and(|revs| revs.iter().any(|r| rev::matches(&t.rev, r)))
+        };
+        if let Some(crooked) = mine.iter().find(|t| !foreign(t)) {
             out.push_str(&ta(
                 "next-step-stale",
-                targs!("scenario" => name.clone(), "recorded" => mine[0].rev.clone(), "actual" => current.clone()),
+                targs!("scenario" => name.clone(), "recorded" => crooked.rev.clone(), "actual" => current.clone()),
             ));
             out.push('\n');
             return Ok(out);
         }
+        out.push_str(&ta("next-step-red", targs!("scenario" => name.clone())));
+        out.push('\n');
+        out.push_str(&ta(
+            "next-body-label",
+            targs!("scenario" => name.clone(), "rev" => current.clone()),
+        ));
+        out.push('\n');
+        let body = rev::section(&text, &format!("scenario: {name}")).unwrap_or_default();
+        for line in body.lines() {
+            out.push_str(&format!("    {line}\n"));
+        }
+        out.push_str(&ta(
+            "next-tag-line",
+            targs!("scenario" => name.clone(), "rev" => current.clone()),
+        ));
+        out.push('\n');
+        let tests = adapter::crate_root(root)?.join("tests");
+        let shown = tests.strip_prefix(root).unwrap_or(&tests);
+        out.push_str(&ta(
+            "next-tests-dir",
+            targs!("dir" => format!("{}/", shown.display())),
+        ));
+        out.push('\n');
+        return Ok(out);
     }
 
     let (changed, added) = branch_files(root)?;
     for (name, transform) in &wave.transforms {
+        // Every `one new in` line promises exactly one file (§4.1;
+        // review 0012 R-8): any other count leaves the transform the
+        // step -- "assembled" is not said over what scope reddens.
+        let mut dirs: BTreeMap<&str, usize> = BTreeMap::new();
+        for line in &transform.files {
+            if let docs::ScopeLine::OneNewIn(d) = line {
+                *dirs.entry(d.as_str()).or_insert(0) += 1;
+            }
+        }
         let untouched = transform.files.iter().any(|line| match line {
             docs::ScopeLine::Path(p) => !changed.contains(p),
-            docs::ScopeLine::OneNewIn(d) => !added.iter().any(|f| f.starts_with(d)),
+            docs::ScopeLine::OneNewIn(d) => {
+                added.iter().filter(|f| f.starts_with(d.as_str())).count() != dirs[d.as_str()]
+            }
         });
         if !untouched {
             continue;
@@ -193,11 +230,19 @@ fn wave_step(root: &Path, wave: &docs::Wave) -> Result<String, Refusal> {
             };
             out.push_str(&format!("    {shown}\n"));
         }
-        if let Some(body) = rev::section(&text, &format!("transform: {name}")) {
-            out.push_str(&ta("next-section-label", targs!("name" => name.clone())));
-            out.push('\n');
-            for line in body.lines() {
-                out.push_str(&format!("    {line}\n"));
+        match rev::section(&text, &format!("transform: {name}")) {
+            Some(body) => {
+                out.push_str(&ta("next-section-label", targs!("name" => name.clone())));
+                out.push('\n');
+                for line in body.lines() {
+                    out.push_str(&format!("    {line}\n"));
+                }
+            }
+            None => {
+                // A silently incomplete package is no package
+                // (review 0012 R-3): the missing section is a word.
+                out.push_str(&ta("next-section-missing", targs!("name" => name.clone())));
+                out.push('\n');
             }
         }
         for reference in &transform.contracts {
@@ -227,8 +272,7 @@ fn wave_step(root: &Path, wave: &docs::Wave) -> Result<String, Refusal> {
             }
         }
         if let docs::TransformKind::Implements(scenarios) = &transform.kind {
-            out.push_str(&t("next-run-label"));
-            out.push('\n');
+            let mut runs: Vec<String> = Vec::new();
             for scenario in scenarios {
                 for tag in found.iter().filter(|t| t.scenario == *scenario) {
                     let stem = tag
@@ -236,20 +280,36 @@ fn wave_step(root: &Path, wave: &docs::Wave) -> Result<String, Refusal> {
                         .file_stem()
                         .map(|s| s.to_string_lossy().into_owned())
                         .unwrap_or_default();
-                    out.push_str(&format!(
+                    runs.push(format!(
                         "    cargo test --test {stem} {} -- --exact\n",
                         tag.test
                     ));
+                }
+            }
+            if runs.is_empty() {
+                // A bare label over nothing paints the unchecked
+                // (review 0012 R-7): the empty run list is a word.
+                out.push_str(&t("next-run-none"));
+                out.push('\n');
+            } else {
+                out.push_str(&t("next-run-label"));
+                out.push('\n');
+                for run in &runs {
+                    out.push_str(run);
                 }
             }
         }
         return Ok(out);
     }
 
-    if !root
-        .join("keel/reviews")
-        .join(format!("{}.md", wave.slug))
-        .is_file()
+    // §9.9 asks the report of a full wave only (review 0012 R-5): a
+    // light wave rides one PR and one human look -- the closure
+    // court says the same with its light verdict.
+    if !close::light(wave)
+        && !root
+            .join("keel/reviews")
+            .join(format!("{}.md", wave.slug))
+            .is_file()
     {
         out.push_str(&ta("next-step-review", targs!("wave" => wave.slug.clone())));
         out.push('\n');

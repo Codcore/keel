@@ -67,6 +67,22 @@ pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
         {
             ta("status-branch-plan", targs!("branch" => name.clone()))
         }
+        // A branch named after a wave whose document refused is said
+        // so (review 0012 R-9): "named as no wave" would be a lie
+        // with the wave's broken file right there.
+        Some(name)
+            if refusals.iter().any(|r| {
+                r.file
+                    .file_stem()
+                    .is_some_and(|s| s.to_string_lossy() == name.as_str())
+                    && r.file
+                        .parent()
+                        .and_then(|p| p.file_name())
+                        .is_some_and(|d| d == "waves")
+            }) =>
+        {
+            ta("status-branch-broken", targs!("branch" => name.clone()))
+        }
         Some(name) => ta("status-branch-other", targs!("branch" => name.clone())),
         None => t("status-branch-none"),
     };
@@ -96,11 +112,22 @@ pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
                 report.push('\n');
             }
             State::ClosedLight => {
-                closed += 1;
-                report.push_str(&ta(
-                    "status-wave-closed-light",
-                    targs!("wave" => wave.slug.clone()),
-                ));
+                // On its own branch a light wave rides -- no merge
+                // happened, so its fact is not claimed (review 0012
+                // R-6): the state is derived, never guessed.
+                if branch.as_deref() == Some(wave.slug.as_str()) {
+                    working += 1;
+                    report.push_str(&ta(
+                        "status-wave-light-own",
+                        targs!("wave" => wave.slug.clone()),
+                    ));
+                } else {
+                    closed += 1;
+                    report.push_str(&ta(
+                        "status-wave-closed-light",
+                        targs!("wave" => wave.slug.clone()),
+                    ));
+                }
                 report.push('\n');
             }
             State::Plan => {

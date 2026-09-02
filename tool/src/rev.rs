@@ -177,8 +177,10 @@ fn read(path: &Path) -> Result<String, Refusal> {
 
 /// The body of one `## <title>` section, verbatim -- the packages of
 /// §9.10 hand bodies out through the same court that revisions them.
-/// None where the section is absent.
+/// None where the section is absent. Verbatim means the words, not
+/// the carriage returns (the 0009 R-3 school; review 0012 R-4).
 pub(crate) fn section(text: &str, title: &str) -> Option<String> {
+    let text = text.replace("\r\n", "\n");
     for part in text.split("\n## ") {
         if let Some(rest) = part.strip_prefix(title)
             && rest.starts_with('\n')
