@@ -131,3 +131,72 @@ fn map_drawn_per_wave() {
         assert!(out.contains(cut), "the map has a row for {cut}:\n{out}");
     }
 }
+
+/// proves: map-drawn-for-project@e96d48 -- holds §10.7 across waves:
+/// off a wave branch the map is the project's -- per cut, the word
+/// of the youngest wave that answered (by wave names), with the
+/// count of older answers next to it -- and the view is named aloud.
+#[test]
+fn map_drawn_for_project() {
+    let dir = sandbox("project");
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    // The same cut answered in two waves of different age: the old
+    // wave covers it, the young wave decides it -- the map speaks
+    // the young word and counts the old one.
+    write(
+        &dir,
+        "keel/waves/0041-old.md",
+        &format!(
+            "---\nscenarios:\n  early: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [early]\n    files: [src/lib.rs]\n{}---\n\n## scenario: early\n\nbody of early\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    write(
+        &dir,
+        "keel/waves/0042-young.md",
+        &format!(
+            "---\nscenarios:\n  later: {{covers: [performance.capacity]}}\ntransforms:\n  t:\n    implements: [later]\n    files: [src/lib.rs]\ndecisions:\n  functional.correctness: \"the young word wins\"\n{}---\n\n## scenario: later\n\nbody of later\n",
+            {
+                let mut block = String::new();
+                for cut in keel::graph::cuts() {
+                    if *cut != "functional.correctness" && *cut != "performance.capacity" {
+                        block.push_str(&format!("  {cut}: \"n/a for the map sandbox\"\n"));
+                    }
+                }
+                block
+            }
+        ),
+    );
+    git(&dir, &["init", "-q", "-b", "just-work"]);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "two waves, no wave branch"]);
+
+    let (out, err, code) = keel(&["map", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the project map draws:\n{out}");
+    assert!(
+        out.contains("the young word wins"),
+        "the youngest wave's word speaks for the cut:\n{out}"
+    );
+    assert!(
+        out.contains("0042-young"),
+        "the youngest wave named:\n{out}"
+    );
+    let line = out
+        .lines()
+        .find(|l| l.contains("functional.correctness"))
+        .expect("the cut has a row");
+    assert!(
+        line.contains("1"),
+        "the count of older answers stands next to the young word:\n{line}"
+    );
+    assert!(
+        !line.contains("\"early\""),
+        "the old answer does not speak over the young one:\n{line}"
+    );
+}
