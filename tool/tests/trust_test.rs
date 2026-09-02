@@ -186,7 +186,10 @@ fn trust_line_stale_red() {
     );
     let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
-    assert_eq!(code, 1, "a withdrawn verify leaves its trust line orphaned:\n{out}");
+    assert_eq!(
+        code, 1,
+        "a withdrawn verify leaves its trust line orphaned:\n{out}"
+    );
     assert!(
         out.contains("door opened in advance"),
         "the withdrawn contract's line is the same door:\n{out}"

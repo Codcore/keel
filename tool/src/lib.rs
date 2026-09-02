@@ -17,3 +17,4 @@ pub mod refusal;
 pub mod rev;
 pub mod scope;
 pub mod tags;
+pub mod trust;

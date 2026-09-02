@@ -145,6 +145,16 @@ tags-vanished-instead = bring the test back or withdraw the scenario deliberatel
 tags-vanished-gone = the tag of scenario "{ $scenario }" was at the fork point and is gone at HEAD -- gone with its wave: the promise was erased whole
 tags-vanished-gone-instead = documents are not deleted (§4.12): bring the wave back and withdraw the scenario in its file (§2.12) -- destruction without a trace is forbidden
 
+# -- trust: the TOFU court of commands (§7.16, §2.8) ----------------
+trust-untrusted = the command "{ $command }" is not trusted (§7.16 -- new or changed does not run)
+trust-untrusted-instead = record the trust: keel trust -- the line lands in the diff the merge approves
+trust-ci-empty = ci is written empty -- undecided
+trust-ci-empty-instead = name the command, or say "none" aloud
+trust-crooked = the trust line for "{ $command }" carries a crooked fingerprint
+trust-crooked-instead = rerun keel trust to rewrite it, if the command is meant to be trusted
+trust-door = the trust line "{ $command }" answers to no live command -- a door opened in advance
+trust-door-instead = remove the line: change or withdrawal does not inherit trust (§7.16)
+
 ## adapter module
 adapter-no-crate = no Cargo.toml at the root and none exactly one level down
 adapter-no-crate-instead = the cargo adapter needs a crate: put Cargo.toml at the root or in one first-level directory
@@ -200,6 +210,8 @@ check-refs-historic-item = { $wave }: { $contract }@{ $recorded } -- old, true i
 check-refs-shallow = history is truncated (shallow clone) -- old revisions cannot be verified, and are not judged
 check-refs-no-history = no git history here -- old revisions cannot be verified, and are not judged (§5.6)
 check-tags-count = test tags checked: { $count }
+check-trust-count = commands verify/ci judged: { $count }
+check-trust-ci-none = ; ci is a refusal aloud: none
 check-tags-skipped-no-adapter = test tags not compared: no adapter named in keel.toml -- said aloud, not painted green
 check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not served on this rung (only cargo is) -- said aloud, not painted green
 check-tags-skipped-refused = test tags not compared: the adapter refused mid-way -- its refusal stands among the findings
@@ -211,7 +223,7 @@ check-scope-skipped-no-git = scope not compared: git serves no branch for this r
 check-scope-skipped-refused = scope not compared: git refused mid-way -- its refusal stands among the findings
 check-header-reads = header reads
 check-no-documents = no documents yet
-check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); closure is judged by keel close (§6.5)
+check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); trust of verify/ci commands against recorded fingerprints (§7.16, §2.8); closure is judged by keel close (§6.5)
 check-unchecked = not yet checked: contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
 check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
 check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
@@ -226,7 +238,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 7 -- TOFU trust (§7.16) and the CLI
+check-next-rung = next step: rung 8 -- the reviewer's package (keel review, §9.9)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
