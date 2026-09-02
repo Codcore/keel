@@ -426,4 +426,36 @@ fn scope_honest_when_unknown() {
         out.contains("scope not compared: git"),
         "the reason is git, said aloud:\n{out}"
     );
+
+    // Second birth (review R-4): a keel root that is not the top of
+    // its own git tree -- a subdirectory inside some parent repo --
+    // must not be judged by the parent's branch: the parent's paths
+    // and the root's declared names would never meet, and every
+    // verdict would be a lie. Honesty instead: not compared, aloud.
+    let parent = sandbox("parenttop");
+    git(&parent, &["init", "-q", "-b", "main"]);
+    write(
+        &parent,
+        "proj/keel/waves/0005-scope-w.md",
+        &wave_declaring("      - lib/a.txt\n"),
+    );
+    write(&parent, "proj/lib/a.txt", "one\n");
+    git(&parent, &["add", "."]);
+    git(&parent, &["commit", "-q", "-m", "base"]);
+    git(&parent, &["checkout", "-q", "-b", "0005-scope-w"]);
+    write(&parent, "proj/lib/a.txt", "one, changed\n");
+    git(&parent, &["add", "."]);
+    git(&parent, &["commit", "-q", "-m", "work"]);
+
+    let root = parent.join("proj");
+    fs::create_dir_all(root.join("keel/contracts")).unwrap();
+    let (out, _err, code) = keel(&["check", root.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "a foreign git above the root judges nothing:\n{out}"
+    );
+    assert!(
+        out.contains("scope not compared: git"),
+        "the foreign tree named as a git reason, aloud:\n{out}"
+    );
 }
