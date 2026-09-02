@@ -326,3 +326,26 @@ fn dir_among_docs_refuses() {
         );
     }
 }
+
+/// proves: bare-scenario-refuses@0d40d4 — тримає §3.3: сценарій без
+/// жодної опори — помилка.
+#[test]
+fn bare_scenario_refuses() {
+    let dir = sandbox("bare");
+    let p = write(
+        &dir,
+        "keel/waves/0010-bare.md",
+        "---\nscenarios:\n  floating: {}\ntransforms:\n  t:\n    implements: [floating]\n    files: [lib/a.ex]\n---\n",
+    );
+    let r = docs::read_wave(&p).unwrap_err();
+    assert!(r.reason.contains("floating"), "називає сценарій: {}", r.reason);
+    assert!(r.reason.contains("не спирається"), "причина: {}", r.reason);
+
+    // Знятий сценарій без опори — законний: він поза судом (§6.3).
+    let p = write(
+        &dir,
+        "keel/waves/0011-gone.md",
+        "---\nscenarios:\n  gone: {withdrawn: \"знято хвилею 0012\"}\ntransforms:\n  t: {chore: \"прибирання\", files: [a]}\n---\n",
+    );
+    assert!(docs::read_wave(&p).is_ok(), "withdrawn без опори — не помилка");
+}
