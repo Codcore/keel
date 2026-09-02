@@ -230,6 +230,27 @@ fn work_commit_needs_green() {
         out.contains("outside the judgement"),
         "the pass carries its word:\n{out}"
     );
+
+    // Second birth (review R-10): a transform whose every implements
+    // scenario is withdrawn passes on a vacuum -- the pass must say
+    // no live scenario was judged (§2.12), not count zero quietly.
+    let dir = project("workvacuum", "", "assert!(true);");
+    write(
+        &dir,
+        "keel/waves/0009-w.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\n  gone:\n    covers: [performance.capacity]\n    withdrawn: \"folded\"\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n  empty-t:\n    implements: [gone]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nbody of s\n\n## scenario: gone\n\nold body\n",
+            all_decided_except(&["functional.correctness", "performance.capacity"])
+        ),
+    );
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "empty-t: declared"]);
+    let (out, code) = gate(&dir, "empty-t: only the dead remain");
+    assert_eq!(code, 0, "a vacuum is not a refusal:\n{out}");
+    assert!(
+        out.contains("no live scenario"),
+        "the vacuum said aloud (§2.12):\n{out}"
+    );
 }
 
 /// proves: build-break-is-not-red@b34ba9 -- holds journal A3: "did
