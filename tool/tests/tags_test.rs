@@ -104,4 +104,34 @@ fn stale_tag_found() {
         out.contains("test tags checked: 1"),
         "the one matching tag counted aloud:\n{out}"
     );
+
+    // Second birth (review R-8): a revision written outside the §5.2
+    // shape (4-6 hex) is a crooked record, and the refusal must say
+    // that -- not dress it up as a stale comparison.
+    let dir = sandbox("badrev");
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(
+        &dir,
+        "keel/waves/0009-w.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nbody of s\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    write(
+        &dir,
+        "tests/x_test.rs",
+        "/// proves: s@abc\n#[test]\nfn holds_s() {}\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a crooked revision record is a finding:\n{out}");
+    assert!(
+        out.contains("4") && out.contains("hex") && out.contains("§5.2"),
+        "the refusal names the shape, not a fake staleness:\n{out}"
+    );
 }
