@@ -3,10 +3,10 @@ depends_on: [0005-commit-gate]
 
 scenarios:
   wave-closure-judged:
-    proves: tool-close@9bfcf2
+    proves: tool-close@0bc96a
     covers: [functional.completeness, interaction.self-descriptiveness]
   closure-needs-review-file:
-    proves: tool-close@9bfcf2
+    proves: tool-close@0bc96a
     covers: [security.non-repudiation]
   vanished-tag-is-red:
     proves: tool-tags@4a0d5e
@@ -14,7 +14,7 @@ scenarios:
   open-wave-stale-is-red-again:
     covers: [security.authenticity, functional.correctness]
   battery-read-once:
-    proves: tool-adapter-cargo@36768e
+    proves: tool-adapter-cargo@2a9d87
     covers: [performance.time-behaviour]
 
 transforms:
@@ -23,7 +23,7 @@ transforms:
       - wave-closure-judged
       - closure-needs-review-file
       - battery-read-once
-    contracts: [tool-close@9bfcf2, tool-adapter-cargo@36768e, tool-tags@4a0d5e, tool-scope@b8ada4, tool-rev@882dea, tool-docs@2ab9a9, tool-config@2b1bf3]
+    contracts: [tool-close@0bc96a, tool-adapter-cargo@2a9d87, tool-tags@4a0d5e, tool-scope@b8ada4, tool-rev@882dea, tool-docs@2ab9a9, tool-config@2b1bf3]
     files:
       - tool/src/close.rs
       - tool/src/adapter.rs
@@ -39,7 +39,7 @@ transforms:
     implements:
       - vanished-tag-is-red
       - open-wave-stale-is-red-again
-    contracts: [tool-tags@4a0d5e, tool-close@9bfcf2, tool-scope@b8ada4, tool-rev@882dea, tool-docs@2ab9a9]
+    contracts: [tool-tags@4a0d5e, tool-close@0bc96a, tool-scope@b8ada4, tool-rev@882dea, tool-docs@2ab9a9]
     files:
       - tool/src/tags.rs
       - tool/src/check.rs
@@ -62,7 +62,7 @@ decisions:
   interaction.user-assistance: "свідомо без нового тесту: кожна нестача закриття називається поіменно з «натомість»-школою пʼяти хвиль"
   interaction.user-engagement: "не застосовується: інструмент перевірки"
   interaction.inclusivity: "свідомо без нового тесту: всі нові тексти — ключами через i18n, доведеними в 0002"
-  reliability.fault-tolerance: "свідомо без окремого тесту: зіпсовані документи не валять суд — тримає scan (0004); зламана збірка — відмова вголос батареї, її тримає battery-read-once"
+  reliability.fault-tolerance: "свідомо без окремого тесту: зіпсований документ — відмова суду вголос першим же файлом (решту називає check; суд не вгадує по уламках), а збір не панікує — тримає scan (0004); зламана збірка — відмова вголос батареї, її тримає battery-read-once"
   reliability.availability: "не застосовується: локальний бінарник"
   reliability.recoverability: "не застосовується: стану нема"
   security.confidentiality: "не застосовується: читає репозиторій і git-метадані, жене локальні тести, нікуди не шле"
@@ -95,9 +95,10 @@ decisions:
 поруч), «затверджена, ще не почата» (план на main без тестів — не
 червоне) або «в роботі» з поіменним переліком нестач. Легка хвиля —
 самі chore — закрита фактом merge. Заслон §9.9 відтепер тримає
-механіка: хвиля власної гілки, не закрита або без
-keel/reviews/<хвиля>.md, — червоний вихід close, і повна хвиля не
-зливається недоведеною.
+механіка: розпочата хвиля власної гілки, недоведена або без
+keel/reviews/<хвиля>.md, — червоний вихід close; хвиля-план не
+блокує, бо план-PR зливається планом (§6.6), і підсумковий рядок
+каже саме це.
 
 Разом гілка дістає §7.15: тег, що був у точці розгалуження і зник у
 HEAD при не знятому сценарії, — знахідка там, де зникнення сталося.
