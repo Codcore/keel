@@ -136,6 +136,37 @@ fn review_package_built() {
         out.contains("not named as a wave"),
         "the refusal says why and hints:\n{out}"
     );
+
+    // Second birth (review 0009 R-3/R-7): a CRLF wave file must not
+    // turn the package into quiet lies -- the Why and the caveats
+    // ride on Windows line endings too; and a transform with no
+    // body section is named with a word, never dropped in silence.
+    let dir = sandbox("crlf");
+    write(&dir, "keel.toml", "lang = \"en\"\n");
+    let wave = format!(
+        "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n  silent-t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## Why\n\ncarriage returns ride too\n\n## scenario: s\n\nbody of s\n\n## transform: t\n\nZasterezhennia: the crlf caveat rides.\n",
+        all_decided_except(&["functional.correctness"])
+    )
+    .replace('\n', "\r\n");
+    write(&dir, "keel/waves/0063-w.md", &wave);
+    git(&dir, &["init", "-q", "-b", "0063-w"]);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "the crlf wave rides"]);
+    let (out, err, code) = keel(&["review", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the crlf package assembles:\n{out}");
+    assert!(
+        out.contains("carriage returns ride too"),
+        "the Why rides verbatim on CRLF too (R-3):\n{out}"
+    );
+    assert!(
+        out.contains("Zasterezhennia: the crlf caveat rides."),
+        "the caveat is not lost to CRLF (R-3):\n{out}"
+    );
+    assert!(
+        out.contains("silent-t") && out.contains("no body"),
+        "a bodiless transform is named with a word, not dropped (R-7):\n{out}"
+    );
 }
 
 /// proves: review-lists-drawn@36b795 -- holds the three mandatory
