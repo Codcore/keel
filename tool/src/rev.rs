@@ -64,6 +64,13 @@ pub fn scenario_revs(path: &Path) -> Result<Vec<(String, String)>, Refusal> {
     let mut out = Vec::new();
     for (name, _) in &wave.scenarios {
         match sections.iter().find(|(n, _)| n == name) {
+            Some((_, body)) if body.split_whitespace().next().is_none() => {
+                return Err(Refusal {
+                    file: path.to_path_buf(),
+                    reason: ta("rev-empty-section", targs!("name" => name.clone())),
+                    instead: ta("rev-empty-section-instead", targs!("name" => name.clone())),
+                });
+            }
             Some((_, body)) => out.push((name.clone(), text_rev(body))),
             None => {
                 return Err(Refusal {
@@ -89,7 +96,7 @@ pub fn matches(recorded: &str, actual: &str) -> bool {
 /// The `keel rev` report: current revisions of every document, in
 /// the project language; broken documents stand next to them as
 /// refusals, never silence (the command inherits scan's refusals).
-pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
+pub fn report(root: &Path, config: &crate::config::Config) -> Result<(String, usize), Refusal> {
     let scan = docs::scan(root)?;
     let mut refusals: Vec<Refusal> = scan.refusals;
 
@@ -116,6 +123,18 @@ pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
     }
 
     let mut report = crate::i18n::t("rev-title");
+    report.push('\n');
+    let config_line = if !config.present {
+        crate::i18n::t("check-config-absent")
+    } else if config.lang_set {
+        ta(
+            "check-config-present",
+            targs!("lang" => config.lang.clone()),
+        )
+    } else {
+        crate::i18n::t("check-config-lang-default")
+    };
+    report.push_str(&config_line);
     report.push('\n');
     report.push('\n');
     for line in &lines {

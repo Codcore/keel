@@ -47,11 +47,15 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // The second floor (§7.1/§7.3): every contract reference in a
     // wave header is followed to its file and its revision compared.
     let mut ref_rows: std::collections::BTreeSet<(String, String)> = Default::default();
+    let mut refs_checked: u64 = 0;
     for wave in &scan.waves {
         let wave_path = format!("keel/waves/{}.md", wave.slug);
+        // A withdrawn scenario is outside judgement (§2.12): its
+        // proves is not followed -- a guard that lies gets deleted.
         let mut refs: Vec<&docs::ContractRef> = wave
             .scenarios
             .iter()
+            .filter(|(_, sc)| sc.withdrawn.is_none())
             .filter_map(|(_, sc)| sc.proves.as_ref())
             .collect();
         for (_, transform) in &wave.transforms {
@@ -74,7 +78,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 ))
             } else {
                 match rev::contract_rev(&contract_path) {
-                    Ok(actual) if rev::matches(&reference.rev, &actual) => None,
+                    Ok(actual) if rev::matches(&reference.rev, &actual) => {
+                        refs_checked += 1;
+                        None
+                    }
                     Ok(actual) => Some((
                         ta(
                             "check-ref-stale",
@@ -136,7 +143,8 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let documents = scan.waves.len() + scan.contracts.len();
     writeln!(
         report,
-        "\n{}\n{}\n{}",
+        "\n{}\n{}\n{}\n{}",
+        ta("check-refs-count", targs!("count" => refs_checked)),
         t("check-checked"),
         t("check-unchecked"),
         ta(

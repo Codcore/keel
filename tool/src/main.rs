@@ -50,7 +50,7 @@ fn main() -> ExitCode {
                 }
             };
             keel::i18n::init(&config.lang);
-            match keel::rev::report(&root) {
+            match keel::rev::report(&root, &config) {
                 Ok((report, findings)) => {
                     print!("{report}");
                     if findings == 0 {

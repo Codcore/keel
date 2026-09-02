@@ -94,6 +94,8 @@ rev-missing-section = сценарій "{ $name }" оголошений у ша�
 rev-missing-section-instead = напиши секцію або прибери оголошення; редакції потрібне тіло, яке хешувати (§5.3)
 rev-dup-section = секція "## scenario: { $name }" стоїть у тілі більш як один раз
 rev-dup-section-instead = лиши одну секцію: методика не вгадує, котре тіло — обіцянка
+rev-empty-section = секція "## scenario: { $name }" має порожнє тіло
+rev-empty-section-instead = обіцянці потрібні слова: напиши тіло сценарію або зніми оголошення (§2.3)
 
 ## команда rev
 rev-title = keel rev — чинні редакції
@@ -104,6 +106,7 @@ check-title = keel check — документи (щабель 1)
 check-config-present = конфіг: keel.toml (lang = { $lang })
 check-config-absent = keel.toml нема — діють типові значення (lang = en); типове не видає себе за прочитане
 check-config-lang-default = конфіг: keel.toml (lang не заданий — діє типове en; типове не видає себе за прочитане)
+check-refs-count = посилань на контракти звірено: { $count }
 check-header-reads = шапка читається
 check-no-documents = документів ще нема
 check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9); посилання на контракти і їхні редакції (§7.1, §7.3 — для закритої хвилі стара редакція законна, §5.6)
@@ -117,9 +120,9 @@ check-summary = підсумок: { $docs ->
         [few] { $docs } документи
        *[many] { $docs } документів
     }, { $refusals ->
-        [one] { $refusals } відмова
-        [few] { $refusals } відмови
-       *[many] { $refusals } відмов
+        [one] { $refusals } знахідка
+        [few] { $refusals } знахідки
+       *[many] { $refusals } знахідок
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
@@ -127,7 +130,7 @@ check-next-rung = наступний крок: щабель 3 — scope і зв�
 
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
-main-unknown-command-reason = причина: перший щабель самонаведення — команд поки одна
+main-unknown-command-reason = причина: такої команди keel не знає
 main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
 main-usage = натомість: keel check [тека] | keel rev [тека]
