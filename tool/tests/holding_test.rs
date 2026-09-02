@@ -129,3 +129,94 @@ fn exports_held() {
         "the skip is said aloud with its reason:\n{out}"
     );
 }
+
+/// Second birth (review 0010 R-1a/R-3/R-6), riding exports-held:
+/// green must mean the form stands -- a short-form promise is not
+/// satisfied by a longer neighbour's name, a signature surviving
+/// only in a comment is vanished, the verdict words tell divergence
+/// from disappearance apart; and on a plan branch the form court
+/// does not run at all (§8.3) -- said aloud, not judged.
+#[test]
+fn exports_held_second_birth() {
+    // Short form against a longer neighbour: `pub fn run` with only
+    // run_all in the code is a vanished unit, never green (F1); and
+    // the words say "no such unit", not "does not match" (F2/R-6).
+    let dir = sandbox("boundary");
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(&dir, "src/lib.rs", "pub mod gamma;\n");
+    write(
+        &dir,
+        "src/gamma.rs",
+        "pub fn run_all(x: u32) -> u32 {\n    x\n}\n// pub fn ghost(x: u32) -> u32 -- only remembered here\n",
+    );
+    write(
+        &dir,
+        "keel/contracts/toy-gamma.md",
+        "---\nmodule: toy::gamma\nexports:\n  - \"pub fn run\"\n  - \"pub fn ghost(x: u32) -> u32\"\n---\n\nShort and remembered promises.\n",
+    );
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "both green lies are findings now:\n{out}");
+    assert!(
+        out.contains("\"run\"") && out.contains("no such unit"),
+        "the short form is vanished, not green and not 'does not match' (R-3/R-6):\n{out}"
+    );
+    assert!(
+        out.contains("\"ghost\"") && out.contains("no such unit"),
+        "a promise surviving only in a comment is vanished (R-3):\n{out}"
+    );
+
+    // A plan branch runs no form court (§8.3): exports may grow
+    // ahead of the code there, and the skip is a word aloud.
+    let dir = sandbox("planbranch");
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(&dir, "src/lib.rs", "pub mod alpha;\n");
+    write(&dir, "src/alpha.rs", "pub fn stays(x: u32) -> u32 {\n    x\n}\n");
+    write(
+        &dir,
+        "keel/contracts/toy-alpha.md",
+        "---\nmodule: toy::alpha\nexports:\n  - \"pub fn stays(x: u32) -> u32\"\n  - \"pub fn planned_ahead() -> bool\"\n---\n\nThe plan grows the promise ahead of the code (§4.9).\n",
+    );
+    git2(&dir, &["init", "-q", "-b", "plan/0070-x"]);
+    git2(&dir, &["add", "."]);
+    git2(&dir, &["commit", "-q", "-m", "the plan rides its branch"]);
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "a plan branch is not red for growing exports (§8.3):\n{out}");
+    assert!(
+        out.contains("plan branch") && out.contains("form court does not run"),
+        "the skip is said aloud (§8.3):\n{out}"
+    );
+}
+
+fn git2(dir: &Path, args: &[&str]) {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args([
+            "-c",
+            "user.email=keel@test",
+            "-c",
+            "user.name=keel-test",
+            "-c",
+            "commit.gpgsign=false",
+        ])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {args:?}:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
