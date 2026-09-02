@@ -3,10 +3,10 @@ depends_on: [0012-loop-stages]
 
 scenarios:
   plan-skeleton-born:
-    proves: tool-plan@113a05
+    proves: tool-plan@5d861c
     covers: [functional.correctness, interaction.learnability]
   contract-skeleton-born:
-    proves: tool-plan@113a05
+    proves: tool-plan@5d861c
     covers: [functional.completeness, interaction.user-error-protection]
 
 transforms:
@@ -14,7 +14,7 @@ transforms:
     implements:
       - plan-skeleton-born
       - contract-skeleton-born
-    contracts: [tool-plan@113a05, tool-docs@2ab9a9, tool-config@7dd1d7]
+    contracts: [tool-plan@5d861c, tool-docs@2ab9a9, tool-config@7dd1d7]
     files:
       - tool/src/plan.rs
       - tool/src/lib.rs
@@ -119,11 +119,12 @@ module-риштуванням і закоментованим словником
 збирає скелет контракту. main.rs дістає команди `plan` і
 `new contract`; usage росте.
 
-Застереження: зміст не пишеться — лише форма і нагадування; суд
-числа крізь биті документи не судить (відмова scan-у першою,
-§7.9); де git мовчить, судяться лише хвилі диска — словом у друці;
-наступне вільне число — максимум зайнятих плюс один, шириною
-чотири знаки цього покоління.
+Застереження: зміст не пишеться — лише форма і нагадування; числа
+диска читаються з імен файлів keel/waves/, не з шапок (§1.4 — імʼя
+свідчить саме), тож битий документ числа не ховає і власне червоне
+риштування не заступає наступному народженню; де git мовчить,
+судяться лише хвилі диска — словом у друці; наступне вільне число —
+максимум зайнятих плюс один, шириною чотири знаки цього покоління.
 
 ## transform: journal
 

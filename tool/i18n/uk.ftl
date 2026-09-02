@@ -306,7 +306,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 12 — скелети планування (keel plan і new contract)
+check-next-rung = наступний крок: щабель 13 — у поле (keel init і чужий проєкт)
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -397,6 +397,31 @@ next-ready = { "  " }стартуй гілку "{ $wave }" — хвиля зат
 next-working = { "  " }гілка "{ $wave }" триває — хвиля в роботі
 next-all-closed = всі хвилі закриті і жодна не чекає — час планувати нову хвилю: план цього покоління пишеться рукою, затвердження — merge файлу хвилі (§6.6)
 
+## команда plan (§10.2, §8.2, §8.5)
+plan-created = народжено { $file } — риштування свідомо червоне: keel check веде (§3.3), поки план не стане повним, — тож недописане не зливається помилково
+plan-branches = гілки §8.2: повна хвиля планується на "plan/{ $slug }" і працює на "{ $slug }"; легка (§6.8) вся їде "{ $slug }"
+plan-branches-unread = git тут не назвав гілок — число суджено лише по хвилях диска (§8.8), сказано вголос
+plan-cuts = прохід автора (§10.2): кожен із сорока розрізів дістає відповідь у covers або decisions ще до коду (§10.3); мовчання судить keel check
+plan-next = далі: заповни скелет рукою — змісту плану інструмент не пише ніколи — і жени keel check (§8.3)
+plan-no-number = імʼя хвилі "{ $slug }" не починається числом (§8.5)
+plan-no-number-instead = почни імʼя числом хвилі, як-от 0042-session-loop — число є унікальним префіксом, ніколи не порядком
+plan-number-taken = число { $number } уже тримає хвиля або гілка (§8.8)
+plan-number-taken-instead = візьми наступне вільне число: { $next } — інструмент шукав по хвилях диска і всіх гілках, не лише по main
+plan-bad-slug = імʼя "{ $slug }" — не слаг
+plan-bad-slug-instead = імʼя документа стає гілкою і тегом (§1.2, §8.2): лише малі латинські літери, цифри і дефіс
+plan-exists = keel/waves/{ $slug }.md уже існує — ніщо ніколи не перезаписується
+plan-exists-instead = заповни наявний файл або вибери нове імʼя для нової хвилі
+plan-skel-header = риштування хвилі { $slug } — заповни обіцянки рукою і прибери ці слова (§10.2)
+plan-skel-why = чому ця хвиля мусить існувати — своїми словами (§2.2)
+plan-skel-scenario = **Дано** ..., **коли** ..., **тоді** ... (§2.3); кожна обіцянка спирається на proves або covers (§3.3)
+plan-skel-transform = слова роботи; застереження живуть тут (§2.10)
+newc-created = народжено { $file } — він свідомо ще не обіцяє нічого: keel check веде (§2.9), поки не стануть exports із module або verify
+newc-next = далі: дай сигнатури з module (§2.7) або команду verify (§2.8) рукою — keel check скаже, чого бракує
+newc-exists = keel/contracts/{ $slug }.md уже існує — ніщо ніколи не перезаписується
+newc-exists-instead = заповни наявний файл або вибери нове імʼя для нового контракту
+newc-skel-header = риштування контракту { $slug }: обіцянки ще нема — заповни §2.7 або §2.8 і прибери риштування
+newc-skel-body = чиїм словам цей контракт дає пережити хвилю — і чому (§2.6)
+
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
 main-unknown-command-reason = причина: такої команди keel не знає
@@ -404,4 +429,10 @@ main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
 main-gate-no-message = відмова: gate потребує файл повідомлення commit-а
 main-gate-no-message-reason = причина: суд читає повідомлення, яке віддає commit-msg hook
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel trust [тека] | keel hook [тека]
+main-plan-no-slug = відмова: plan потребує імени нової хвилі
+main-plan-no-slug-reason = причина: скелет народжується під імʼям, що стане його файлом і гілками (§8.2)
+main-new-unknown = відмова: keel new знає лише: contract
+main-new-unknown-reason = причина: інші види документів народжуються своїми командами (хвилі — keel plan)
+main-new-no-slug = відмова: new contract потребує імени контракту
+main-new-no-slug-reason = причина: скелет народжується під імʼям, що стане його файлом (§1.4)
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel trust [тека] | keel hook [тека]
