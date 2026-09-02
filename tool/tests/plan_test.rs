@@ -1,0 +1,284 @@
+//! Scenario tests of wave 0013-planning-skeletons, transform
+//! skeleton-hand: `keel plan` and `keel new contract` hand the form
+//! of a plan -- deliberately red scaffolding, the §8.2 branches, the
+//! §10.2 author's pass and the §8.5/§8.8 number court -- and never
+//! the content.
+//!
+//! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+fn sandbox(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("keel-0013p-{}-{name}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(dir.join("keel/waves")).unwrap();
+    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
+    dir
+}
+
+fn write(dir: &Path, rel: &str, text: &str) {
+    let path = dir.join(rel);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, text).unwrap();
+}
+
+fn git(dir: &Path, args: &[&str]) {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args([
+            "-c",
+            "user.email=keel@test",
+            "-c",
+            "user.name=keel-test",
+            "-c",
+            "commit.gpgsign=false",
+        ])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {args:?}:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+fn keel(args: &[&str]) -> (String, String, i32) {
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(args)
+        .output()
+        .unwrap();
+    (
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+        out.status.code().unwrap_or(-1),
+    )
+}
+
+/// proves: plan-skeleton-born@11d9f8 -- holds §10.2/§8.2/§8.5/§8.8:
+/// the born skeleton is a full-form wave file said aloud to be
+/// deliberately red (check leads by the §3.3 refusal), the print
+/// names the branches and the forty-cut author's pass, a name
+/// without a number refuses, a taken number refuses with the next
+/// free one, a taken branch number refuses too, and nothing existing
+/// is ever overwritten.
+#[test]
+fn plan_skeleton_born() {
+    let dir = sandbox("wavebirth");
+    write(&dir, "keel.toml", "lang = \"en\"\n");
+    let (out, err, code) = keel(&["plan", "0100-first-steps", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "a birth is an answer:\n{out}");
+    assert!(
+        dir.join("keel/waves/0100-first-steps.md").is_file(),
+        "the skeleton file is born:\n{out}"
+    );
+    assert!(
+        out.contains("keel/waves/0100-first-steps.md") && out.contains("deliberately red"),
+        "the print names the file and says the scaffolding is red (§3.3):\n{out}"
+    );
+    assert!(
+        out.contains("plan/0100-first-steps") && out.contains("\"0100-first-steps\""),
+        "the §8.2 branches are named -- plan and work:\n{out}"
+    );
+    assert!(
+        out.contains("forty cuts"),
+        "the §10.2 author's pass is the reminder:\n{out}"
+    );
+    assert!(
+        out.contains("keel check"),
+        "the next word points at the fullness court (§8.3):\n{out}"
+    );
+
+    // The born skeleton is deliberately red: check leads by §3.3.
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "the skeleton is red until it is a plan:\n{out}");
+    assert!(
+        out.contains("leans on nothing"),
+        "check leads the author by the §3.3 refusal:\n{out}"
+    );
+
+    // Nothing existing is ever overwritten.
+    let (out, err, code) = keel(&["plan", "0100-first-steps", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "an existing file refuses:\n{out}");
+    assert!(
+        out.contains("already exists"),
+        "the refusal says the file stands:\n{out}"
+    );
+
+    // A taken number refuses with the next free one (§8.8).
+    let (out, err, code) = keel(&["plan", "0100-other-name", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "a taken number refuses:\n{out}");
+    assert!(
+        out.contains("0101"),
+        "the next free number rides in the instead (§8.8):\n{out}"
+    );
+
+    // A name without a number refuses (§8.5).
+    let (out, err, code) = keel(&["plan", "no-number-here", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "a name without a number refuses:\n{out}");
+    assert!(
+        out.contains("starts with no number"),
+        "the §8.5 word is said:\n{out}"
+    );
+
+    // A crooked slug refuses (§1.2).
+    let (out, err, code) = keel(&["plan", "0102_Bad_Slug", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "a crooked slug refuses (§1.2):\n{out}");
+
+    // A number taken by a branch refuses too (§8.8 reads all
+    // branches, not only main).
+    let dir = sandbox("branchnumber");
+    write(&dir, "keel.toml", "lang = \"en\"\n");
+    write(&dir, "seed.txt", "seed\n");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "seed"]);
+    git(&dir, &["branch", "0200-taken-elsewhere"]);
+    let (out, err, code) = keel(&["plan", "0200-mine", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "a branch holds the number (§8.8):\n{out}");
+    assert!(
+        out.contains("0201"),
+        "the next free number is counted across branches:\n{out}"
+    );
+}
+
+/// proves: contract-skeleton-born@913fa1 -- holds §2.7-§2.9/§1.2:
+/// the born contract skeleton carries the module scaffolding and the
+/// commented vocabulary, says aloud it deliberately promises nothing
+/// yet (check leads by the §2.9 refusal), refuses over an existing
+/// file and a crooked slug, and `keel new` with an unknown kind
+/// refuses naming what it knows.
+#[test]
+fn contract_skeleton_born() {
+    let dir = sandbox("contractbirth");
+    write(&dir, "keel.toml", "lang = \"en\"\n");
+    let (out, err, code) = keel(&["new", "contract", "session-run", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "a birth is an answer:\n{out}");
+    assert!(
+        dir.join("keel/contracts/session-run.md").is_file(),
+        "the contract skeleton is born:\n{out}"
+    );
+    assert!(
+        out.contains("keel/contracts/session-run.md")
+            && out.contains("deliberately promises nothing yet"),
+        "the print names the file and the red-by-design word (§2.9):\n{out}"
+    );
+    let text = fs::read_to_string(dir.join("keel/contracts/session-run.md")).unwrap();
+    assert!(
+        text.contains("module:") && text.contains("# exports:") && text.contains("# verify:"),
+        "the scaffolding carries the §2.7-§2.8 vocabulary:\n{text}"
+    );
+
+    // The born skeleton is deliberately red: check leads by §2.9.
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "the skeleton is red until it promises:\n{out}");
+    assert!(
+        out.contains("promises nothing"),
+        "check leads the author by the §2.9 refusal:\n{out}"
+    );
+
+    // Nothing existing is ever overwritten.
+    let (out, err, code) = keel(&["new", "contract", "session-run", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "an existing file refuses:\n{out}");
+
+    // A crooked slug refuses (§1.2).
+    let (out, err, code) = keel(&["new", "contract", "Bad_Slug", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "a crooked slug refuses (§1.2):\n{out}");
+
+    // An unknown kind refuses naming what keel new knows.
+    let (out, err, code) = keel(&["new", "wave", "0300-x", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "an unknown kind refuses:\n{out}");
+    assert!(
+        out.contains("contract"),
+        "the refusal names the known kind:\n{out}"
+    );
+}
+
+/// proves: plan-skeleton-born@11d9f8 -- the second birth out of
+/// review 0013 (R-1/R-2/R-3/R-6): the wave's own branch -- work or
+/// plan/ -- is its name, never a rival number; a silent git makes
+/// the refusal say the disk alone was judged, not "every branch"; a
+/// number too large for the counting refuses with the true reason;
+/// and the born skeleton is asserted whole -- Why, scenario and
+/// transform sections.
+#[test]
+fn plan_skeleton_born_second_birth() {
+    // R-2: the plan branch of the very wave being born holds its
+    // name, not a rival number -- the birth passes.
+    let dir = sandbox("ownbranch");
+    write(&dir, "keel.toml", "lang = \"en\"\n");
+    write(&dir, "seed.txt", "seed\n");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "seed"]);
+    git(&dir, &["checkout", "-q", "-b", "plan/0501-planned"]);
+    let (out, err, code) = keel(&["plan", "0501-planned", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 0,
+        "the wave's own plan branch is its name, no rival (R-2, §8.2):\n{out}"
+    );
+    assert!(
+        dir.join("keel/waves/0501-planned.md").is_file(),
+        "the skeleton is born next to its own branch:\n{out}"
+    );
+    git(&dir, &["checkout", "-q", "-b", "0502-work-first"]);
+    let (out, err, code) = keel(&["plan", "0502-work-first", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 0,
+        "the wave's own work branch is its name too (R-2):\n{out}"
+    );
+
+    // R-6: the born skeleton is whole -- the full form by sections.
+    let text = fs::read_to_string(dir.join("keel/waves/0502-work-first.md")).unwrap();
+    assert!(
+        text.contains("the scaffolding of wave 0502-work-first")
+            && text.contains("## Why")
+            && text.contains("## scenario: first-promise")
+            && text.contains("## transform: first-work"),
+        "the skeleton carries the full form, not a corner (R-6):\n{text}"
+    );
+
+    // R-1: where git is silent the refusal says the disk alone was
+    // judged -- "every branch" would be a painted word.
+    let dir = sandbox("silentgit");
+    write(&dir, "keel.toml", "lang = \"en\"\n");
+    write(&dir, "keel/waves/0001-held.md", "held by name\n");
+    let (out, err, code) = keel(&["plan", "0001-clash", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "the taken number still refuses:\n{out}");
+    assert!(
+        out.contains("disk waves alone") && !out.contains("every branch"),
+        "the instead tells the truth about the silent git (R-1, §8.8):\n{out}"
+    );
+
+    // R-3: a number too large for the counting refuses with the
+    // true reason, never "starts with no number".
+    let (out, err, code) = keel(&[
+        "plan",
+        "99999999999999999999-overflow",
+        dir.to_str().unwrap(),
+    ]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "the huge number refuses:\n{out}");
+    assert!(
+        out.contains("does not fit") && !out.contains("starts with no number"),
+        "the reason is true -- the number is there, it does not fit (R-3, §9.7):\n{out}"
+    );
+}

@@ -304,7 +304,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 12 -- the planning skeletons (keel plan and new contract)
+check-next-rung = next step: rung 13 -- into the field (keel init and a foreign project)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
@@ -394,6 +394,36 @@ next-ready = { "  " }start the branch "{ $wave }" — the wave is approved and n
 next-working = { "  " }the branch "{ $wave }" continues — the wave is in progress
 next-all-closed = every wave is closed and none awaits — plan a new wave: this generation writes plans by hand, approval is the merge of the wave file (§6.6)
 
+## plan command (§10.2, §8.2, §8.5)
+plan-created = born { $file } — the scaffolding is deliberately red: keel check leads (§3.3) until the plan is full, so the unfinished never merges by accident
+plan-branches = the branches of §8.2: a full wave plans on "plan/{ $slug }" and works on "{ $slug }"; a light one (§6.8) rides "{ $slug }" whole
+plan-branches-unread = git named no branches here — the number was judged against the disk waves only (§8.8), said aloud
+plan-cuts = the author's pass (§10.2): each of the forty cuts gets its answer in covers or decisions before the code (§10.3); silence is judged by keel check
+plan-next = onwards: fill the skeleton by hand — the plan's content is never written by the tool — and run keel check (§8.3)
+plan-no-number = the wave name "{ $slug }" starts with no number (§8.5)
+plan-no-number-instead = begin the name with the wave's number, e.g. 0042-session-loop — the number is a unique prefix, never an order
+plan-number-taken = the number { $number } is already held by a wave or a branch (§8.8)
+plan-number-taken-instead = take the next free number: { $next } — the tool searched the disk waves and every branch, not only main
+plan-number-taken-instead-disk = take the next free number: { $next } — git named no branches here, the disk waves alone were judged (§8.8)
+plan-number-huge = the number { $head } does not fit this generation's counting (§8.5)
+plan-number-huge-instead = take a shorter number — the width of this generation is four digits, growing only as far as it counts
+plan-write-failed = the file was not born: { $error }
+plan-write-failed-instead = check the rights on the keel/ directories and repeat the birth — no stub is left behind
+plan-bad-slug = the name "{ $slug }" is not a slug
+plan-bad-slug-instead = a document's name becomes a branch and a tag (§1.2, §8.2): lowercase latin letters, digits and hyphens only
+plan-exists = keel/waves/{ $slug }.md already exists — nothing is ever overwritten
+plan-exists-instead = fill the existing file, or pick another name for a new wave
+plan-skel-header = the scaffolding of wave { $slug } — fill the promises by hand, then remove these words (§10.2)
+plan-skel-why = why must this wave exist — in your own words (§2.2)
+plan-skel-scenario = **Given** ..., **when** ..., **then** ... (§2.3); every promise leans on proves or covers (§3.3)
+plan-skel-transform = the words of the work; caveats live here (§2.10)
+newc-created = born { $file } — it deliberately promises nothing yet: keel check leads (§2.9) until exports with module or verify stand
+newc-next = onwards: give signatures with module (§2.7) or a verify command (§2.8) by hand — keel check says what is missing
+newc-exists = keel/contracts/{ $slug }.md already exists — nothing is ever overwritten
+newc-exists-instead = fill the existing file, or pick another name for a new contract
+newc-skel-header = the scaffolding of contract { $slug }: no promise given yet — fill §2.7 or §2.8 and remove the scaffolding
+newc-skel-body = whose words this contract lets outlive the wave — and why (§2.6)
+
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: this is not one of the commands keel knows
@@ -401,4 +431,10 @@ main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
 main-gate-no-message = refusal: gate needs the commit message file
 main-gate-no-message-reason = reason: the judgement reads the message the commit-msg hook hands over
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel trust [dir] | keel hook [dir]
+main-plan-no-slug = refusal: plan needs the new wave's name
+main-plan-no-slug-reason = reason: the skeleton is born under the name that becomes its file and its branches (§8.2)
+main-new-unknown = refusal: keel new knows only: contract
+main-new-unknown-reason = reason: other document kinds are born by their own commands (waves by keel plan)
+main-new-no-slug = refusal: new contract needs the contract's name
+main-new-no-slug-reason = reason: the skeleton is born under the name that becomes its file (§1.4)
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel trust [dir] | keel hook [dir]

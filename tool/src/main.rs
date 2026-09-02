@@ -170,6 +170,79 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Some("plan") => {
+            let Some(slug) = args.get(1) else {
+                eprintln!(
+                    "{}\n  {}\n  {}",
+                    t("main-plan-no-slug"),
+                    t("main-plan-no-slug-reason"),
+                    t("main-usage")
+                );
+                return ExitCode::from(2);
+            };
+            let root = args
+                .get(2)
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let config = match keel::config::read(&root) {
+                Ok(config) => config,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
+            keel::i18n::init(&config.lang);
+            match keel::plan::wave(&root, slug) {
+                Ok(report) => {
+                    print!("{report}");
+                    ExitCode::SUCCESS
+                }
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    ExitCode::from(2)
+                }
+            }
+        }
+        Some("new") => {
+            if args.get(1).map(String::as_str) != Some("contract") {
+                eprintln!(
+                    "{}\n  {}\n  {}",
+                    t("main-new-unknown"),
+                    t("main-new-unknown-reason"),
+                    t("main-usage")
+                );
+                return ExitCode::from(2);
+            }
+            let Some(slug) = args.get(2) else {
+                eprintln!(
+                    "{}\n  {}\n  {}",
+                    t("main-new-no-slug"),
+                    t("main-new-no-slug-reason"),
+                    t("main-usage")
+                );
+                return ExitCode::from(2);
+            };
+            let root = args
+                .get(3)
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let config = match keel::config::read(&root) {
+                Ok(config) => config,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
+            keel::i18n::init(&config.lang);
+            match keel::plan::contract(&root, slug) {
+                Ok(report) => {
+                    print!("{report}");
+                    ExitCode::SUCCESS
+                }
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    ExitCode::from(2)
+                }
+            }
+        }
         Some("status") => {
             let root = args
                 .get(1)
