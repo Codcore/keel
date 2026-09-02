@@ -220,6 +220,56 @@ fn scope_both_ways() {
         out.contains("merge-base with main"),
         "the base still named as main's:\n{out}"
     );
+
+    // Second birth (review R-2): a rename with both names declared is
+    // honest work -- and the verdict must not depend on whatever
+    // diff.renames the host machine fancies.
+    let dir = sandbox("renamed");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    write(&dir, "lib/old.txt", "the text\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    git(&dir, &["checkout", "-q", "-b", "0005-scope-w"]);
+    write(
+        &dir,
+        "keel/waves/0005-scope-w.md",
+        &wave_declaring("      - lib/old.txt\n      - lib/new.txt\n"),
+    );
+    git(&dir, &["mv", "lib/old.txt", "lib/new.txt"]);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "rename"]);
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "a declared rename is green -- the old name went, the new one came:\n{out}"
+    );
+
+    // Second birth (review R-3): "keel/ does not enter the comparison"
+    // holds on the untouched side too -- a declared keel/ file the
+    // branch never touched is not a finding.
+    let dir = sandbox("keeldecl");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    write(&dir, "lib/a.txt", "one\n");
+    write(&dir, "keel/notes.md", "furniture\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    git(&dir, &["checkout", "-q", "-b", "0005-scope-w"]);
+    write(
+        &dir,
+        "keel/waves/0005-scope-w.md",
+        &wave_declaring("      - lib/a.txt\n      - keel/notes.md\n"),
+    );
+    write(&dir, "lib/a.txt", "one, changed\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "work"]);
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "keel/ stays outside, both ways (§4.8):\n{out}");
+    assert!(
+        !out.contains("\"keel/notes.md\""),
+        "the declared keel/ file is not judged:\n{out}"
+    );
 }
 
 /// proves: one-new-in-counted@327a30 -- holds §4.1: `one new in
