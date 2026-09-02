@@ -49,14 +49,20 @@ pub fn draw(root: &Path) -> Result<String, Refusal> {
         let branch = scope::current_branch(root).unwrap_or_else(|| "?".to_string());
         report.push_str(&ta("map-view-project", targs!("branch" => branch)));
         report.push_str("\n\n");
+        // Every wave's scenario revisions read once, not once per
+        // cut (review R-2): the truth is the same, the reading is
+        // one per wave.
+        let mut per_wave: Vec<(&docs::Wave, Vec<(String, String)>)> = Vec::new();
+        for wave in &scan.waves {
+            let wave_path = root.join("keel/waves").join(format!("{}.md", wave.slug));
+            per_wave.push((wave, rev::scenario_revs(&wave_path)?));
+        }
         for cut in graph::cuts() {
             // Answers gathered wave by wave, in name order: the
             // youngest wave's word speaks, the older are counted.
             let mut answers: Vec<String> = Vec::new();
-            for wave in &scan.waves {
-                let wave_path = root.join("keel/waves").join(format!("{}.md", wave.slug));
-                let revs = rev::scenario_revs(&wave_path)?;
-                if let Some(answer) = wave_answer_if_any(wave, cut, &revs, found.as_deref()) {
+            for (wave, revs) in &per_wave {
+                if let Some(answer) = wave_answer_if_any(wave, cut, revs, found.as_deref()) {
                     answers.push(format!("{answer} ({})", wave.slug));
                 }
             }
@@ -130,5 +136,11 @@ fn wave_answer_if_any(
     wave.decisions
         .iter()
         .find(|(c, _)| c == cut)
-        .map(|(_, reason)| ta("map-decided", targs!("reason" => reason.clone())))
+        .map(|(_, reason)| {
+            // Word for word, with whitespace runs collapsed to one space
+            // (§5.4's school; review R-3): a multiline reason must not
+            // break the one-row-per-cut shape.
+            let flat = reason.split_whitespace().collect::<Vec<_>>().join(" ");
+            ta("map-decided", targs!("reason" => flat))
+        })
 }

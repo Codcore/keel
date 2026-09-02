@@ -126,9 +126,24 @@ fn map_drawn_per_wave() {
         out.contains("security.integrity") && !out.contains("\"gone\""),
         "a dead cover's cut shows the answer that remains (§2.12):\n{out}"
     );
-    // Forty rows: every cut of the vocabulary appears.
+    // Forty rows, in vocabulary order, and the view named right
+    // after the title -- held tight (review R-6).
+    assert!(
+        out.lines().nth(1).is_some_and(|l| l.contains("0040-w")),
+        "the view is the first line after the title:\n{out}"
+    );
+    let rows = out.lines().filter(|l| l.starts_with("  ")).count();
+    assert_eq!(rows, 40, "exactly forty rows:\n{out}");
+    let mut position = 0;
     for cut in keel::graph::cuts() {
-        assert!(out.contains(cut), "the map has a row for {cut}:\n{out}");
+        let here = out
+            .find(cut)
+            .unwrap_or_else(|| panic!("no row for {cut}:\n{out}"));
+        assert!(
+            here >= position,
+            "the rows follow the vocabulary order at {cut}:\n{out}"
+        );
+        position = here;
     }
 
     // Second birth (review R-3): a multiline decisions reason must
@@ -142,7 +157,8 @@ fn map_drawn_per_wave() {
         "Cargo.toml",
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     );
-    let mut decisions = String::from("decisions:\n  performance.capacity: |\n    line one\n    line two\n");
+    let mut decisions =
+        String::from("decisions:\n  performance.capacity: |\n    line one\n    line two\n");
     for cut in keel::graph::cuts() {
         if *cut != "functional.correctness" && *cut != "performance.capacity" {
             decisions.push_str(&format!("  {cut}: \"n/a for the map sandbox\"\n"));
@@ -221,6 +237,12 @@ fn map_drawn_for_project() {
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "the project map draws:\n{out}");
     assert!(
+        out.lines()
+            .nth(1)
+            .is_some_and(|l| l.contains("project map")),
+        "the view is named aloud right after the title (review R-6):\n{out}"
+    );
+    assert!(
         out.contains("the young word wins"),
         "the youngest wave's word speaks for the cut:\n{out}"
     );
@@ -233,7 +255,7 @@ fn map_drawn_for_project() {
         .find(|l| l.contains("functional.correctness"))
         .expect("the cut has a row");
     assert!(
-        line.contains("1"),
+        line.contains("older answers: 1"),
         "the count of older answers stands next to the young word:\n{line}"
     );
     assert!(

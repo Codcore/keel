@@ -883,8 +883,8 @@ fn double_answer_found() {
         "the cut and both holders named:\n{out}"
     );
     assert!(
-        out.contains("closed twice"),
-        "the finding says what happened:\n{out}"
+        out.contains("2 live covers"),
+        "the finding counts the holders (review R-7):\n{out}"
     );
 
     // A live cover and a decision of the same cut at once.

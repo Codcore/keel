@@ -100,7 +100,7 @@ rev-empty-section-instead = a promise needs words: write the scenario body or wi
 ## graph module
 graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
 graph-unknown-cut-instead = the forty cuts ship with the release (§3.4); pick one of them or fix the typo
-graph-double-cover = the cut "{ $slug }" is closed twice: scenarios { $holders } (§10.3 -- exactly one answer)
+graph-double-cover = the cut "{ $slug }" has { $count } live covers: scenarios { $holders } (§10.3 -- exactly one answer)
 graph-double-cover-instead = keep one cover; the other scenario stands on its proves or another cut (§3.3)
 graph-double-decided = the cut "{ $slug }" is closed by scenario "{ $holder }" and decided at once (§10.3)
 graph-double-decided-instead = drop the decisions line -- the scenario answers; or withdraw the cover deliberately (§2.12)

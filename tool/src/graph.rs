@@ -111,7 +111,7 @@ pub fn wave_findings(wave: &Wave) -> Vec<(String, String)> {
             out.push((
                 ta(
                     "graph-double-cover",
-                    targs!("slug" => cut.to_string(), "holders" => named),
+                    targs!("slug" => cut.to_string(), "count" => holders.len() as u64, "holders" => named),
                 ),
                 t("graph-double-cover-instead"),
             ));

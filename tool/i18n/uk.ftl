@@ -100,7 +100,7 @@ rev-empty-section-instead = обіцянці потрібні слова: нап
 ## модуль graph
 graph-unknown-cut = "{ $holder }" показує на розріз "{ $slug }", якого у словнику нема
 graph-unknown-cut-instead = сорок розрізів їдуть з релізом (§3.4); вибери один із них або виправ одрук
-graph-double-cover = розріз "{ $slug }" закритий двічі: сценарії { $holders } (§10.3 — рівно одна відповідь)
+graph-double-cover = розріз "{ $slug }" має { $count } живих covers: сценарії { $holders } (§10.3 — рівно одна відповідь)
 graph-double-cover-instead = лиши один cover; другий сценарій стоїть на своєму proves або іншому розрізі (§3.3)
 graph-double-decided = розріз "{ $slug }" закритий сценарієм "{ $holder }" і водночас вирішений (§10.3)
 graph-double-decided-instead = прибери рядок decisions — відповідає сценарій; або зніми cover свідомо (§2.12)
