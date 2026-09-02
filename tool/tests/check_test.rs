@@ -272,3 +272,19 @@ fn contract_refs_verified() {
     assert!(out.contains(&good), "names the current revision:\n{out}");
     assert!(out.contains("§5.6"), "says the closed-wave caveat aloud:\n{out}");
 }
+
+/// proves: missing-contract-named@73cf9e -- holds §7.1: a reference
+/// into nowhere is a finding with names, not silence and not a crash.
+#[test]
+fn missing_contract_named() {
+    let dir = sandbox("ghost-ref");
+    write(
+        &dir,
+        "keel/waves/0007-w.md",
+        "---\nscenarios:\n  s: {proves: ghost@abcd12}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a dangling reference is a finding:\n{out}");
+    assert!(out.contains("ghost"), "names the missing contract:\n{out}");
+    assert!(out.contains("0007-w"), "names the wave that points at it:\n{out}");
+}
