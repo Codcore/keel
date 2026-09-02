@@ -100,6 +100,10 @@ rev-transform-no-body = transform "{ $name }" is declared in the header but has 
 rev-transform-no-body-instead = write the section -- the work's words live in the body -- or remove the declaration
 rev-orphan-section = the body carries an orphan section "## { $kind }: { $name }" -- "{ $name }" is declared by no header entry, and an orphan does not live in silence (§7.7)
 rev-orphan-section-instead = declare it in the header, or remove the section deliberately
+rev-nearmiss = the heading "## { $heading }" spells the section word without its space -- not recognised as a section, and not free prose either (§7.7)
+rev-nearmiss-instead = write "## scenario: <name>" / "## transform: <name>" with the space, or rename the heading away from the section words
+rev-dup-transform = the body carries the "## transform: { $name }" section more than once — "{ $name }" is not guessed between (§7.7)
+rev-dup-transform-instead = keep one section: the methodology will not guess which body carries the work's words (§2.10)
 
 ## graph module
 graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary

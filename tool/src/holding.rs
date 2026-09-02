@@ -104,6 +104,7 @@ pub(crate) fn survey(root: &Path, config: &Config, contracts: &[Contract]) -> (u
 /// is not judged, and the skip is said aloud by name; any tag of a
 /// holding wave brings the court back. Pairs of (contract, wave).
 pub(crate) fn plan_window(
+    root: &Path,
     waves: &[Wave],
     tags: &[TestTag],
     contracts: &[Contract],
@@ -128,9 +129,34 @@ pub(crate) fn plan_window(
             holders.entry(slug).or_default().push(wave);
         }
     }
-    let started = |wave: &Wave| {
-        wave.scenarios.iter().any(|(name, scenario)| {
-            scenario.withdrawn.is_none() && tags.iter().any(|t| t.scenario == *name)
+    // A plan is a wave with at least one live scenario and none of
+    // them tagged BY ITS OWN revision (review 0011 R-1/R-9): a wave
+    // with every scenario withdrawn is not a plan -- the promised
+    // first tag can never arrive, so the court stays; and a
+    // namesake tag from a foreign wave, holding a foreign revision,
+    // does not start this one.
+    let is_plan = |wave: &Wave| {
+        let live: Vec<&String> = wave
+            .scenarios
+            .iter()
+            .filter(|(_, sc)| sc.withdrawn.is_none())
+            .map(|(name, _)| name)
+            .collect();
+        if live.is_empty() {
+            return false;
+        }
+        let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
+        let Ok(revs) = crate::rev::scenario_revs(&path) else {
+            return false;
+        };
+        !live.iter().any(|name| {
+            let own = revs
+                .iter()
+                .find(|(n, _)| &n == name)
+                .map(|(_, r)| r.as_str())
+                .unwrap_or("");
+            tags.iter()
+                .any(|t| t.scenario == **name && crate::rev::matches(&t.rev, own))
         })
     };
     let mut out = Vec::new();
@@ -141,7 +167,7 @@ pub(crate) fn plan_window(
         let Some(held) = holders.get(contract.slug.as_str()) else {
             continue;
         };
-        if !held.is_empty() && held.iter().all(|w| !started(w)) {
+        if !held.is_empty() && held.iter().all(|w| is_plan(w)) {
             out.push((contract.slug.clone(), held[0].slug.clone()));
         }
     }

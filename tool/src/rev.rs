@@ -183,23 +183,39 @@ fn read(path: &Path) -> Result<String, Refusal> {
 /// refusals, as before. Pairs of (reason, instead); the verdicts
 /// are check's to print.
 pub fn body_court(path: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refusal> {
-    let text = std::fs::read_to_string(path).map_err(|e| Refusal {
-        file: path.to_path_buf(),
-        reason: format!("the wave file cannot be read: {e}"),
-        instead: "check the path and file permissions".to_string(),
-    })?;
-    let text = text.replace("\r\n", "\n");
+    let text = read(path)?.replace("\r\n", "\n");
     let mut body_scenarios: Vec<String> = Vec::new();
     let mut body_transforms: Vec<String> = Vec::new();
+    let mut out = Vec::new();
     for part in text.split("\n## ").skip(1) {
         let heading = part.lines().next().unwrap_or("").trim();
         if let Some(name) = heading.strip_prefix("scenario: ") {
             body_scenarios.push(name.trim().to_string());
         } else if let Some(name) = heading.strip_prefix("transform: ") {
             body_transforms.push(name.trim().to_string());
+        } else if heading.starts_with("scenario:") || heading.starts_with("transform:") {
+            // The very word without its space is not free prose
+            // (review 0011 R-6): a near-miss is named, never silent.
+            out.push((
+                ta("rev-nearmiss", targs!("heading" => heading.to_string())),
+                t("rev-nearmiss-instead"),
+            ));
         }
     }
-    let mut out = Vec::new();
+    // A duplicated transform section is not guessed between (review
+    // 0011 R-7) -- the same court scenario sections get from
+    // scenario_revs' refusals.
+    let mut seen: Vec<&String> = Vec::new();
+    for name in &body_transforms {
+        if seen.contains(&name) {
+            out.push((
+                ta("rev-dup-transform", targs!("name" => name.clone())),
+                t("rev-dup-transform-instead"),
+            ));
+        } else {
+            seen.push(name);
+        }
+    }
     for (name, _) in &wave.transforms {
         if !body_transforms.iter().any(|b| b == name) {
             out.push((

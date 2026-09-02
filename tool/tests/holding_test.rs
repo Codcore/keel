@@ -313,7 +313,11 @@ fn plan_window_forgiven_second_birth() {
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     );
     write(&dir, "src/lib.rs", "pub mod alpha;\n");
-    write(&dir, "src/alpha.rs", "pub fn stays(x: u32) -> u32 {\n    x\n}\n");
+    write(
+        &dir,
+        "src/alpha.rs",
+        "pub fn stays(x: u32) -> u32 {\n    x\n}\n",
+    );
     write(
         &dir,
         "keel/contracts/toy-alpha.md",
@@ -356,7 +360,11 @@ fn plan_window_forgiven_second_birth() {
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     );
     write(&dir, "src/lib.rs", "pub mod alpha;\n");
-    write(&dir, "src/alpha.rs", "pub fn stays(x: u32) -> u32 {\n    x\n}\n");
+    write(
+        &dir,
+        "src/alpha.rs",
+        "pub fn stays(x: u32) -> u32 {\n    x\n}\n",
+    );
     write(
         &dir,
         "keel/contracts/toy-alpha.md",
@@ -365,7 +373,7 @@ fn plan_window_forgiven_second_birth() {
     let contract_rev = keel::rev::contract_rev(&dir.join("keel/contracts/toy-alpha.md")).unwrap();
     let mut decided = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
-        if *cut != "functional.correctness" && *cut != "performance.capacity" {
+        if *cut != "functional.correctness" {
             decided.push_str(&format!("  {cut}: \"n/a for the window sandbox\"\n"));
         }
     }

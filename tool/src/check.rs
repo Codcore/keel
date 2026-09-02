@@ -156,8 +156,16 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // The graph floor (chapter 3): in-wave and cross-wave links --
     // and §7.7's other half beside it: the header and the body agree
     // both ways, an orphan section does not live in silence.
+    let tags_judged = matches!(&found_tags, Some(Ok(_)));
     for wave in &scan.waves {
         let wave_path = format!("keel/waves/{}.md", wave.slug);
+        // The scenario side of §7.7 runs adapter-free too (review
+        // 0011 R-2): where the tag floor did not read the file's
+        // scenario revisions, their refusals surface here -- "both
+        // ways" stays true for every project, not only cargo.
+        if !tags_judged && let Err(refusal) = rev::scenario_revs(&root.join(&wave_path)) {
+            push_refusal_row(&mut rows, root, &refusal);
+        }
         match rev::body_court(&root.join(&wave_path), wave) {
             Ok(findings) => {
                 for (reason, instead) in findings {
@@ -334,7 +342,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         // only when the tags were actually read: distrust of unread
         // tags never widens the window.
         let window = match &found_tags {
-            Some(Ok(found)) => holding::plan_window(&scan.waves, found, &scan.contracts),
+            Some(Ok(found)) => holding::plan_window(root, &scan.waves, found, &scan.contracts),
             _ => Vec::new(),
         };
         let judged_contracts: Vec<docs::Contract> = scan
