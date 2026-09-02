@@ -500,3 +500,42 @@ fn hook_installed_aloud() {
         &["worktree", "remove", "--force", wt.to_str().unwrap()],
     );
 }
+
+/// proves: battery-isolated@825e65 -- holds §7.12 and §6.7 (0008
+/// review R-8): the adapter's cargo runs ignore an inherited
+/// CARGO_TARGET_DIR -- the judged project builds into its own
+/// target directory and nothing leaks into the shared cache, so a
+/// shared cache cannot shift verdicts.
+#[test]
+fn battery_isolated() {
+    let dir = project("isolated", "", "assert!(false);");
+    let poison = std::env::temp_dir().join(format!("keel-0009-poison-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&poison);
+    fs::create_dir_all(&poison).unwrap();
+    let msg = dir.join("COMMIT_EDITMSG");
+    fs::write(&msg, "red: s").unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["gate", msg.to_str().unwrap(), dir.to_str().unwrap()])
+        .env("CARGO_TARGET_DIR", &poison)
+        .output()
+        .unwrap();
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "the red verdict stays honest under a poisoned environment:\n{text}"
+    );
+    assert!(
+        dir.join("target").exists(),
+        "the judged project builds into its own target directory:\n{text}"
+    );
+    assert_eq!(
+        fs::read_dir(&poison).unwrap().count(),
+        0,
+        "nothing leaks into the inherited CARGO_TARGET_DIR:\n{text}"
+    );
+}
