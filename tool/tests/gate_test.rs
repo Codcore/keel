@@ -151,6 +151,17 @@ fn red_commit_needs_failing_test() {
     let (out, code) = gate(&dir, "red: s");
     assert_eq!(code, 1, "several tags at birth refuse:\n{out}");
     assert!(out.contains("tags"), "the refusal counts the tags:\n{out}");
+
+    // Second birth (review R-3): the capitalized twin of a birth --
+    // the likeliest field typo, git convention loves a capital -- must
+    // not walk past as "outside the judgement".
+    let dir = project("redcapital", "", "assert!(true);");
+    let (out, code) = gate(&dir, "Red: s");
+    assert_eq!(code, 1, "a capitalized twin does not slip past:\n{out}");
+    assert!(
+        out.contains("lowercase"),
+        "the refusal teaches the shape:\n{out}"
+    );
 }
 
 /// proves: work-commit-needs-green@12c44c -- holds §8.4/§2.4: a work
