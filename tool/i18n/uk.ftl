@@ -154,6 +154,12 @@ trust-crooked = запис довіри команди "{ $command }" несе �
 trust-crooked-instead = перезапиши через keel trust, якщо команді справді довіряєш
 trust-door = запис довіри "{ $command }" не відповідає жодній живій команді — двері, відчинені наперед
 trust-door-instead = прибери рядок: зміна чи зняття довіри не успадковує (§7.16)
+trust-title = keel trust — запис довіри відбитком (§7.16)
+trust-recorded-line = записано: "{ $command }" = { $fingerprint }
+trust-nothing-new = нового нема: кожна команда verify/ci вже несе свій відбиток
+trust-approves = рядки лягають у diff, який затверджує merge (§7.16)
+trust-no-config = keel.toml нема — рядок довіри нема куди готувати
+trust-no-config-instead = спершу створи конфіг: команда trust нічого не вигадує
 
 ## модуль adapter
 adapter-no-crate = Cargo.toml нема ні в корені, ні рівно одного на першому рівні тек
@@ -281,4 +287,4 @@ main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
 main-gate-no-message = відмова: gate потребує файл повідомлення commit-а
 main-gate-no-message-reason = причина: суд читає повідомлення, яке віддає commit-msg hook
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel hook [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel trust [тека] | keel hook [тека]

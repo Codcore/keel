@@ -7,8 +7,10 @@
 use crate::config::Config;
 use crate::docs::Contract;
 use crate::i18n::{t, ta};
+use crate::refusal::Refusal;
 use crate::targs;
 use sha2::{Digest, Sha256};
+use std::path::Path;
 
 /// The §5.3 school over a command's text -- whitespace runs to one
 /// space, edges trimmed, sha256 -- but twelve hex characters, not
@@ -94,5 +96,154 @@ pub fn court(config: &Config, contracts: &[Contract]) -> Vec<(String, String, St
         }
     }
 
+    out
+}
+
+/// The recording hand of §7.16 (`keel trust`): writes the
+/// fingerprints of untrusted commands as `[trust]` lines -- surgery
+/// on that block only, the rest of keel.toml stays as the human
+/// wrote it -- and rewrites a crooked line of a live command (the
+/// run itself is the human's word). Nothing new -- says so and does
+/// not touch the file. Doors opened in advance are not removed
+/// here: that is a human line in the diff, hinted by the court.
+pub fn record(root: &Path) -> Result<String, Refusal> {
+    let config = crate::config::read(root)?;
+    if !config.present {
+        return Err(Refusal {
+            file: root.join("keel.toml"),
+            reason: t("trust-no-config"),
+            instead: t("trust-no-config-instead"),
+        });
+    }
+    let scan = crate::docs::scan(root)?;
+    if let Some(refusal) = scan.refusals.into_iter().next() {
+        // Trust recorded over unread documents would guess; check
+        // names every broken file -- fix them first.
+        return Err(refusal);
+    }
+
+    let mut to_write: Vec<(String, String)> = Vec::new();
+    for (_, command) in live_commands(&config, &scan.contracts) {
+        let flat = collapse(&command);
+        if to_write.iter().any(|(c, _)| collapse(c) == flat) {
+            continue;
+        }
+        let print = fingerprint(&command);
+        match config.trust.iter().find(|(key, _)| collapse(key) == flat) {
+            Some((_, recorded)) if *recorded == print => {}
+            _ => to_write.push((command, print)),
+        }
+    }
+
+    let mut report = t("trust-title");
+    report.push('\n');
+    if to_write.is_empty() {
+        report.push_str(&t("trust-nothing-new"));
+        report.push('\n');
+        return Ok(report);
+    }
+
+    let path = root.join("keel.toml");
+    let text = std::fs::read_to_string(&path).map_err(|e| Refusal {
+        file: path.clone(),
+        reason: format!("keel.toml cannot be read: {e}"),
+        instead: "check the path and file permissions".to_string(),
+    })?;
+    let written = upsert_trust(&text, &to_write);
+    std::fs::write(&path, written).map_err(|e| Refusal {
+        file: path.clone(),
+        reason: format!("keel.toml cannot be written: {e}"),
+        instead: "check the file permissions".to_string(),
+    })?;
+
+    for (command, print) in &to_write {
+        report.push_str(&ta(
+            "trust-recorded-line",
+            targs!("command" => command.clone(), "fingerprint" => print.clone()),
+        ));
+        report.push('\n');
+    }
+    report.push_str(&t("trust-approves"));
+    report.push('\n');
+    Ok(report)
+}
+
+/// One `[trust]` line, the key escaped the TOML way.
+fn toml_line(command: &str, print: &str) -> String {
+    let escaped = command.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{escaped}\" = \"{print}\"")
+}
+
+/// The key of a `[trust]` section line as written -- quoted (with
+/// escapes) or bare -- or None for comments and blanks.
+fn line_key(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    if trimmed.is_empty() || trimmed.starts_with('#') {
+        return None;
+    }
+    if let Some(rest) = trimmed.strip_prefix('"') {
+        let mut key = String::new();
+        let mut chars = rest.chars();
+        while let Some(c) = chars.next() {
+            match c {
+                '\\' => key.push(chars.next()?),
+                '"' => return Some(key),
+                _ => key.push(c),
+            }
+        }
+        None
+    } else {
+        trimmed.split('=').next().map(|key| key.trim().to_string())
+    }
+}
+
+/// Surgery on the `[trust]` block alone: an existing line of the
+/// same command (collapsed) is replaced in place, new lines land at
+/// the block's end, an absent block is appended whole. Every other
+/// line of the file stays byte for byte.
+fn upsert_trust(text: &str, entries: &[(String, String)]) -> String {
+    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+    let header = lines.iter().position(|l| l.trim() == "[trust]");
+
+    let (start, end) = match header {
+        Some(at) => {
+            let end = lines[at + 1..]
+                .iter()
+                .position(|l| l.trim_start().starts_with('['))
+                .map_or(lines.len(), |offset| at + 1 + offset);
+            (at + 1, end)
+        }
+        None => {
+            if lines.last().is_some_and(|l| !l.trim().is_empty()) {
+                lines.push(String::new());
+            }
+            lines.push("[trust]".to_string());
+            (lines.len(), lines.len())
+        }
+    };
+
+    let mut fresh: Vec<String> = Vec::new();
+    for (command, print) in entries {
+        let flat = collapse(command);
+        let stands = lines[start..end]
+            .iter()
+            .position(|l| line_key(l).is_some_and(|key| collapse(&key) == flat));
+        match stands {
+            Some(offset) => lines[start + offset] = toml_line(command, print),
+            None => fresh.push(toml_line(command, print)),
+        }
+    }
+    let mut at = end;
+    while at > start && lines[at - 1].trim().is_empty() {
+        at -= 1;
+    }
+    for (offset, line) in fresh.into_iter().enumerate() {
+        lines.insert(at + offset, line);
+    }
+
+    let mut out = lines.join("\n");
+    if text.ends_with('\n') || !text.contains('\n') {
+        out.push('\n');
+    }
     out
 }

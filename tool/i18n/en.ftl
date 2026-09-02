@@ -154,6 +154,12 @@ trust-crooked = the trust line for "{ $command }" carries a crooked fingerprint
 trust-crooked-instead = rerun keel trust to rewrite it, if the command is meant to be trusted
 trust-door = the trust line "{ $command }" answers to no live command -- a door opened in advance
 trust-door-instead = remove the line: change or withdrawal does not inherit trust (§7.16)
+trust-title = keel trust — trust recorded by fingerprint (§7.16)
+trust-recorded-line = recorded: "{ $command }" = { $fingerprint }
+trust-nothing-new = nothing new to trust: every verify/ci command already carries its fingerprint
+trust-approves = the lines land in the diff the merge approves (§7.16)
+trust-no-config = keel.toml is not here -- nowhere to prepare the trust line
+trust-no-config-instead = create the config first: the trust command invents nothing
 
 ## adapter module
 adapter-no-crate = no Cargo.toml at the root and none exactly one level down
@@ -279,4 +285,4 @@ main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
 main-gate-no-message = refusal: gate needs the commit message file
 main-gate-no-message-reason = reason: the judgement reads the message the commit-msg hook hands over
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel hook [dir]
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel trust [dir] | keel hook [dir]
