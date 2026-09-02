@@ -355,4 +355,57 @@ fn hook_installed_aloud() {
         "#!/bin/sh\necho custom\n",
         "the foreign file stays untouched"
     );
+
+    // Second birth (review R-1): in a git worktree the hook must land
+    // where git actually reads it -- the shared hooks of the common
+    // dir -- and a real commit through it must be judged; "installed"
+    // about a file git never reads is the lie this wave was built
+    // against.
+    let dir = project("hookwt", "", "assert!(true);");
+    git(&dir, &["checkout", "-q", "-b", "parking"]);
+    let wt = std::env::temp_dir().join(format!("keel-0005g-{}-hookwt-wt", std::process::id()));
+    let _ = fs::remove_dir_all(&wt);
+    git(&dir, &["worktree", "add", "-q", wt.to_str().unwrap(), "0009-w"]);
+
+    let (out, _err, code) = keel(&["hook", wt.to_str().unwrap()]);
+    assert_eq!(code, 0, "installation from a worktree passes:\n{out}");
+    assert!(
+        dir.join(".git/hooks/commit-msg").is_file(),
+        "the hook lands in the shared hooks git reads:\n{out}"
+    );
+
+    // A real commit in the worktree: green test, a claimed birth --
+    // the gate must block it.
+    write(&wt, "src/lib.rs", "// touched\n");
+    let bin_dir = Path::new(env!("CARGO_BIN_EXE_keel"))
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let path_env = format!(
+        "{}:{}",
+        bin_dir.display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let commit = Command::new("git")
+        .arg("-C")
+        .arg(&wt)
+        .args([
+            "-c",
+            "user.email=keel@test",
+            "-c",
+            "user.name=keel-test",
+            "-c",
+            "commit.gpgsign=false",
+        ])
+        .args(["commit", "-am", "red: s"])
+        .env("PATH", path_env)
+        .output()
+        .unwrap();
+    assert!(
+        !commit.status.success(),
+        "the unearned red is blocked through the worktree too:\n{}{}",
+        String::from_utf8_lossy(&commit.stdout),
+        String::from_utf8_lossy(&commit.stderr)
+    );
+    git(&dir, &["worktree", "remove", "--force", wt.to_str().unwrap()]);
 }
