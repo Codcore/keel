@@ -95,6 +95,10 @@ rev-missing-section-instead = напиши секцію або прибери о
 rev-dup-section = секція "## scenario: { $name }" стоїть у тілі більш як один раз
 rev-dup-section-instead = лиши одну секцію: методика не вгадує, котре тіло — обіцянка
 
+## команда rev
+rev-title = keel rev — чинні редакції
+rev-next = наступний крок: тримай ці редакції в proves/contracts і в тегах тестів (§5.5); застарілу онови, перечитавши текст (§5.1)
+
 ## команда check
 check-title = keel check — документи (щабель 1)
 check-config-present = конфіг: keel.toml (lang = { $lang })
@@ -119,11 +123,11 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 2 — редакції (keel rev)
+check-next-rung = наступний крок: щабель 3 — scope і звʼязки (§4, глава 3)
 
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
 main-unknown-command-reason = причина: перший щабель самонаведення — команд поки одна
 main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
-main-usage = натомість: keel check [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека]

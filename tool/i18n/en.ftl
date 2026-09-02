@@ -95,6 +95,10 @@ rev-missing-section-instead = write the section or remove the declaration; a rev
 rev-dup-section = the "## scenario: { $name }" section appears more than once in the body
 rev-dup-section-instead = keep one section: the methodology will not guess which body is the promise
 
+## rev command
+rev-title = keel rev -- current revisions
+rev-next = next step: hold these revisions in proves/contracts and in test tags (§5.5); reread before updating a stale one (§5.1)
+
 ## check command
 check-title = keel check -- documents (rung 1)
 check-config-present = config: keel.toml (lang = { $lang })
@@ -117,11 +121,11 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 2 -- revisions (keel rev)
+check-next-rung = next step: rung 3 -- scope and links (§4, chapter 3)
 
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: the first bootstrap rung -- there is one command so far
 main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
-main-usage = instead: keel check [dir]
+main-usage = instead: keel check [dir] | keel rev [dir]

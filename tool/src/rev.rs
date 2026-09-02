@@ -86,6 +86,59 @@ pub fn matches(recorded: &str, actual: &str) -> bool {
     (4..=6).contains(&recorded.len()) && actual.starts_with(recorded)
 }
 
+/// The `keel rev` report: current revisions of every document, in
+/// the project language; broken documents stand next to them as
+/// refusals, never silence (the command inherits scan's refusals).
+pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
+    let scan = docs::scan(root)?;
+    let mut refusals: Vec<Refusal> = scan.refusals;
+
+    let mut lines: Vec<String> = Vec::new();
+    for contract in &scan.contracts {
+        let path = root
+            .join("keel/contracts")
+            .join(format!("{}.md", contract.slug));
+        match contract_rev(&path) {
+            Ok(revision) => lines.push(format!("  {}@{revision}", contract.slug)),
+            Err(refusal) => refusals.push(refusal),
+        }
+    }
+    for wave in &scan.waves {
+        let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
+        match scenario_revs(&path) {
+            Ok(revs) => {
+                for (name, revision) in revs {
+                    lines.push(format!("  {}/{name}@{revision}", wave.slug));
+                }
+            }
+            Err(refusal) => refusals.push(refusal),
+        }
+    }
+
+    let mut report = crate::i18n::t("rev-title");
+    report.push('\n');
+    report.push('\n');
+    for line in &lines {
+        report.push_str(line);
+        report.push('\n');
+    }
+    for refusal in &refusals {
+        let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
+        report.push_str(&format!(
+            "  {:<8} {} — {}\n           {}: {}\n",
+            crate::i18n::t("word-red"),
+            shown.display(),
+            refusal.reason,
+            crate::i18n::t("word-instead"),
+            refusal.instead
+        ));
+    }
+    report.push('\n');
+    report.push_str(&crate::i18n::t("rev-next"));
+    report.push('\n');
+    Ok((report, refusals.len()))
+}
+
 /// File reading with the same refusal school as docs.
 fn read(path: &Path) -> Result<String, Refusal> {
     std::fs::read_to_string(path).map_err(|e| Refusal {

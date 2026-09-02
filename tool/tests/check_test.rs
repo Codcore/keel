@@ -327,13 +327,19 @@ fn rev_command_prints() {
         out.contains(&format!("0008-w/s@{scenario}")),
         "prints the scenario revision as wave/scenario@rev:\n{out}"
     );
-    assert!(out.contains("наступний крок"), "prints the next step in uk:\n{out}");
+    assert!(
+        out.contains("наступний крок"),
+        "prints the next step in uk:\n{out}"
+    );
 
     // A broken document stands next to the revisions as a refusal.
     write(&dir, "keel/contracts/broken.md", "---\nmodule: X\n");
     let (out, _err, code) = keel(&["rev", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "a refusal makes the exit non-zero:\n{out}");
-    assert!(out.contains("не закрита"), "the refusal stands in the output:\n{out}");
+    assert!(
+        out.contains("не закрита"),
+        "the refusal stands in the output:\n{out}"
+    );
     assert!(
         out.contains(&format!("anchor@{anchor}")),
         "intact revisions still printed:\n{out}"

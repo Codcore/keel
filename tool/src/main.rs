@@ -38,6 +38,33 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Some("rev") => {
+            let root = args
+                .get(1)
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let config = match keel::config::read(&root) {
+                Ok(config) => config,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
+            keel::i18n::init(&config.lang);
+            match keel::rev::report(&root) {
+                Ok((report, findings)) => {
+                    print!("{report}");
+                    if findings == 0 {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::from(1)
+                    }
+                }
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    ExitCode::from(2)
+                }
+            }
+        }
         Some(other) => {
             eprintln!(
                 "{}\n  {}\n  {}",
