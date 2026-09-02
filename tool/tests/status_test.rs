@@ -9,6 +9,28 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+fn git(dir: &Path, args: &[&str]) {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args([
+            "-c",
+            "user.email=keel@test",
+            "-c",
+            "user.name=keel-test",
+            "-c",
+            "commit.gpgsign=false",
+        ])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {args:?}:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
 fn sandbox(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("keel-0012s-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
@@ -110,5 +132,103 @@ fn status_tells_where() {
     assert!(
         out.contains("git named no branch"),
         "a sandbox without git gets the honest branch word, never a guess:\n{out}"
+    );
+}
+
+/// proves: status-tells-where@760ecb -- the second birth out of
+/// review 0012 (R-2/R-6/R-9): a namesake tag holding another wave's
+/// legal revision does not turn a plan into "in progress" nor hide
+/// it from the awaiting list; a light wave on its own branch is not
+/// painted "closed by merge" before any merge; and a branch named
+/// after a wave whose document refused is said so, not "no wave".
+#[test]
+fn status_tells_where_second_birth() {
+    // A closed wave and a plan wave sharing the scenario name "s":
+    // the old tag is the old wave's proof, never the plan's start.
+    let dir = sandbox("namesake");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    );
+    write(&dir, "src/lib.rs", "");
+    write(
+        &dir,
+        "keel/waves/0200-old.md",
+        "---\nscenarios:\n  s: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n",
+    );
+    let old_rev = keel::rev::text_rev("body of s\n");
+    write(
+        &dir,
+        "tests/s_test.rs",
+        &format!("/// proves: s@{old_rev}\n#[test]\nfn holds_s() {{}}\n"),
+    );
+    write(&dir, "keel/reviews/0200-old.md", "# Рецензія\n\nok\n");
+    write(
+        &dir,
+        "keel/waves/0201-new.md",
+        "---\ndepends_on: [0200-old]\nscenarios:\n  s: {covers: [functional.completeness]}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\na different body of s\n",
+    );
+    let (out, err, _) = keel(&["status", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("0201-new — full, approved, not started"),
+        "the namesake's foreign proof does not start the plan (R-2, 0011 R-9 school):\n{out}"
+    );
+    assert!(
+        out.contains("awaits its start") && out.contains("the branch \"0201-new\""),
+        "the plan with closed dependencies still awaits by name (R-2):\n{out}"
+    );
+
+    // A light wave on its own branch: no merge happened, so the line
+    // does not claim its fact -- the wave rides, it is not closed.
+    let dir = sandbox("lightown");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    );
+    write(&dir, "src/lib.rs", "");
+    write(
+        &dir,
+        "keel/waves/0900-l.md",
+        "---\ntransforms:\n  tidy:\n    chore: \"a tidy-up without a promise\"\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n",
+    );
+    git(&dir, &["init", "-q", "-b", "0900-l"]);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "state"]);
+    let (out, err, _) = keel(&["status", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("0900-l — light, riding this branch"),
+        "a light wave on its own branch rides, no merge fact is guessed (R-6):\n{out}"
+    );
+    assert!(
+        !out.contains("light, closed by merge"),
+        "no merge happened -- the closed-by-merge word would be a guess (R-6):\n{out}"
+    );
+
+    // A branch named after a wave whose document refused: the branch
+    // line says that, never "named as no wave".
+    let dir = sandbox("brokenbranch");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    );
+    write(&dir, "src/lib.rs", "");
+    write(&dir, "keel/waves/0101-broken.md", "no header at all\n");
+    git(&dir, &["init", "-q", "-b", "0101-broken"]);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "state"]);
+    let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "the refusal row reddens the exit:\n{out}");
+    assert!(
+        out.contains("whose document refused"),
+        "the branch is named as the broken wave's, not as no wave (R-9):\n{out}"
     );
 }
