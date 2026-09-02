@@ -3,20 +3,20 @@ depends_on: [0006-wave-closure]
 
 scenarios:
   double-answer-found:
-    proves: tool-graph@77a774
+    proves: tool-graph@3ebf21
     covers: [functional.correctness]
   map-drawn-per-wave:
-    proves: tool-map@d07343
+    proves: tool-map@11ce38
     covers: [functional.completeness, interaction.self-descriptiveness]
   map-drawn-for-project:
-    proves: tool-map@d07343
+    proves: tool-map@11ce38
     covers: [maintainability.analysability]
 
 transforms:
   double-answer:
     implements:
       - double-answer-found
-    contracts: [tool-graph@77a774, tool-docs@2ab9a9]
+    contracts: [tool-graph@3ebf21, tool-docs@2ab9a9]
     files:
       - tool/src/graph.rs
       - tool/i18n/en.ftl
@@ -26,7 +26,7 @@ transforms:
     implements:
       - map-drawn-per-wave
       - map-drawn-for-project
-    contracts: [tool-map@d07343, tool-tags@4a0d5e, tool-scope@b8ada4, tool-docs@2ab9a9, tool-rev@882dea, tool-config@2b1bf3]
+    contracts: [tool-map@11ce38, tool-tags@4a0d5e, tool-scope@b8ada4, tool-docs@2ab9a9, tool-rev@882dea, tool-config@2b1bf3]
     files:
       - tool/src/map.rs
       - tool/src/main.rs
@@ -39,9 +39,9 @@ decisions:
   functional.appropriateness: "свідомо без тесту: доречність мапи судить перший же пакет рецензента — цієї ж хвилі"
   performance.time-behaviour: "свідомо не міряємо: мапа — прохід по шапках і тегах без бігу тестів; повний суд із батареєю — keel close"
   performance.capacity: "не застосовується: розрізів сорок, хвиль — десятки"
-  performance.resource-utilisation: "свідомо не міряємо: разове читання файлів і память на рядки"
+  performance.resource-utilisation: "свідомо не міряємо: редакції сценаріїв читаються раз на хвилю, не раз на розріз; память — на рядки звіту"
   compatibility.co-existence: "не застосовується: читає, малює, виходить — стану нема"
-  compatibility.interoperability: "свідомо без окремого тесту: мапа не кличе ні git, ні cargo — лише файли, читані доведеними модулями docs і tags"
+  compatibility.interoperability: "свідомо без окремого тесту: мапа кличе git рівно двічі — через scope, спитати гілку (§8.2), і це доведено хвилею 0004; cargo не кличе — слова доведеності структурні, з тегів"
   interaction.appropriateness-recognisability: "свідомо не робимо: пізнаваність команд — CLI-хвиля (--json, next)"
   interaction.learnability: "свідомо без тесту: keel map входить у рядок usage; довідники — скіл-хвилею"
   interaction.operability: "свідомо не робимо: вид мапи обирається гілкою (§8.2); явний --wave — CLI-хвилею"
