@@ -668,4 +668,31 @@ fn old_revision_legal_when_historic() {
         out.contains("history is truncated"),
         "the shallow clone named with a word, no verdict:\n{out}"
     );
+
+    // Second birth (review R-2): the scenario says "where there is no
+    // history OR it is truncated -- no verdict". A keel directory
+    // without git must get the word too, not a strict finding.
+    let dir = sandbox("nogit-history");
+    write(
+        &dir,
+        "keel/contracts/anchor.md",
+        "---\nmodule: A\nexports: [\"one()\"]\n---\n\nnew words\n",
+    );
+    write(
+        &dir,
+        "keel/waves/0007-w.md",
+        &format!(
+            "---\nscenarios:\n  s:\n    proves: anchor@badc0f\n    covers: [functional.correctness]\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nbody\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "no git history is not the wave's fault either:\n{out}"
+    );
+    assert!(
+        out.contains("no git history"),
+        "the absence of history named with a word, no verdict:\n{out}"
+    );
 }
