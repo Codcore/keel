@@ -297,6 +297,42 @@ fn closure_needs_review_file() {
         out.contains("0010-full: closed"),
         "with the report the wave closes:\n{out}"
     );
+
+    // Second birth (review R-5): light is §6.8's word, not "chores
+    // only" -- one transform, nothing withdrawn, no contracts. Two
+    // chore transforms make a full wave that wants its review; a
+    // chore wave that withdraws a scenario is full too: the death of
+    // a promise gets two human looks.
+    write(
+        &dir,
+        "keel/waves/0014-two-chores.md",
+        &format!(
+            "---\ntransforms:\n  one: {{chore: \"lad\", files: [README.md]}}\n  two: {{chore: \"dust\", files: [README.md]}}\n{}---\n",
+            all_decided_except(&[])
+        ),
+    );
+    write(
+        &dir,
+        "keel/waves/0015-withdrawing.md",
+        &format!(
+            "---\nscenarios:\n  gone:\n    covers: [performance.capacity]\n    withdrawn: \"folded\"\ntransforms:\n  tidy: {{chore: \"lad\", files: [README.md]}}\n{}---\n\n## scenario: gone\n\nold body\n",
+            all_decided_except(&[])
+        ),
+    );
+    let (out, err, _code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("0014-two-chores: in progress"),
+        "two chores are not light (§6.8) -- the review is wanted:\n{out}"
+    );
+    assert!(
+        out.contains("0015-withdrawing: in progress"),
+        "withdrawing makes a wave full (§6.8):\n{out}"
+    );
+    assert!(
+        out.contains("0013-tidy: closed"),
+        "the one-chore wave stays light:\n{out}"
+    );
 }
 
 /// proves: battery-read-once@5643fa -- holds journal A3 and the
