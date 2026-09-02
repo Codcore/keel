@@ -291,3 +291,38 @@ fn duplicate_name_refuses() {
     let r = docs::read_contract(&p).unwrap_err();
     assert!(r.reason.contains("verify"), "причина: {}", r.reason);
 }
+
+/// proves: dir-among-docs-refuses@eef1bd — тримає §7.9 і урок №4:
+/// ніщо не зникає зі звіту мовчки.
+#[test]
+fn dir_among_docs_refuses() {
+    let dir = sandbox("dirs");
+    fs::create_dir_all(dir.join("keel/waves/drafts")).unwrap();
+    write(
+        &dir,
+        "keel/waves/drafts/0099-hidden.md",
+        "---\ntransforms:\n  t: {chore: \"схована робота\", files: [a]}\n---\n",
+    );
+    let scan = docs::scan(&dir).unwrap();
+    assert!(
+        scan.refusals.iter().any(|r| r.reason.contains("тека")),
+        "тека мусить бути відмовою, не тишею: {:?}",
+        scan.refusals
+    );
+    assert!(scan.waves.is_empty(), "хвиля з підтеки не читається мовчки");
+
+    // Symlink на теку — та сама хвороба.
+    #[cfg(unix)]
+    {
+        let dir = sandbox("dir-link");
+        fs::create_dir_all(dir.join("elsewhere")).unwrap();
+        std::os::unix::fs::symlink(dir.join("elsewhere"), dir.join("keel/waves/link"))
+            .unwrap();
+        let scan = docs::scan(&dir).unwrap();
+        assert!(
+            scan.refusals.iter().any(|r| r.reason.contains("тека")),
+            "symlink на теку — відмова: {:?}",
+            scan.refusals
+        );
+    }
+}
