@@ -431,3 +431,57 @@ fn battery_read_once() {
         "the mismatch named aloud:\n{out}"
     );
 }
+
+/// proves: verify-run-by-close@512a7f -- holds §7.6/§2.8: close
+/// runs the verify of live contracts under the §7.16 trust court --
+/// a trusted passing command is counted "passed" aloud; a trusted
+/// failing one is a blocker carrying the command, because a broken
+/// foreign promise does not merge.
+#[test]
+fn verify_run_by_close() {
+    let dir = project("verify-pass", "just-work");
+    let fp = keel::trust::fingerprint("true");
+    write(
+        &dir,
+        "keel.toml",
+        &format!("adapter = \"cargo\"\n\n[trust]\n\"true\" = \"{fp}\"\n"),
+    );
+    write(
+        &dir,
+        "keel/contracts/ext-up.md",
+        "---\nverify: \"true\"\n---\n\nA foreign promise that stands (§2.8).\n",
+    );
+    commit_all(&dir);
+    let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "a passing verify closes nothing red:\n{out}");
+    assert!(
+        out.contains("verify commands judged: 1"),
+        "the verify count is aloud:\n{out}"
+    );
+    assert!(
+        out.contains("passed"),
+        "the passing command is counted passed:\n{out}"
+    );
+
+    let dir = project("verify-fail", "just-work");
+    let fp = keel::trust::fingerprint("false");
+    write(
+        &dir,
+        "keel.toml",
+        &format!("adapter = \"cargo\"\n\n[trust]\n\"false\" = \"{fp}\"\n"),
+    );
+    write(
+        &dir,
+        "keel/contracts/ext-down.md",
+        "---\nverify: \"false\"\n---\n\nA foreign promise that broke (§2.8).\n",
+    );
+    commit_all(&dir);
+    let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "a broken foreign promise does not merge:\n{out}");
+    assert!(
+        out.contains("\"false\"") && out.contains("FAILED"),
+        "the failing verify named with its command:\n{out}"
+    );
+}
