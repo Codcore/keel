@@ -100,6 +100,10 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
         .arg("--manifest-path")
         .arg(crate_dir.join("Cargo.toml"))
         .args(["--test", &stem, &tag.test, "--", "--exact"])
+        // The judged project builds into its own target directory:
+        // an inherited shared cache shifts verdicts (§6.7 heal of
+        // 0005 per review 0008 R-8; seen live in 0006 too).
+        .env_remove("CARGO_TARGET_DIR")
         .output()
         .map_err(|e| Refusal {
             file: crate_dir.clone(),
@@ -149,6 +153,8 @@ pub fn run_all(root: &Path) -> Result<std::collections::BTreeMap<(String, String
         .arg("--manifest-path")
         .arg(crate_dir.join("Cargo.toml"))
         .arg("--no-fail-fast")
+        // Same isolation as run_test: the shared cache lies.
+        .env_remove("CARGO_TARGET_DIR")
         .output()
         .map_err(|e| Refusal {
             file: crate_dir.clone(),
