@@ -163,6 +163,41 @@ trust-no-config-instead = спершу створи конфіг: команда
 trust-surgery-broken = хірургія не втримала форму цього файлу ({ $error }) — нічого не записано
 trust-surgery-broken-instead = наведи лад у блоці [trust] руками і біжи keel trust знову
 
+# -- review: пакет рецензента (§9.9) --------------------------------
+review-title = keel review — пакет рецензента (§9.9)
+review-wave = хвиля: { $wave }
+review-why-header = ## Why, дослівно
+review-why-missing = (у хвилі нема секції Why)
+review-scenarios-header = ## Сценарії з редакціями (§5.3)
+review-scenario-withdrawn = { " " }(знятий)
+review-transforms-header = ## Трансформи, дослівно — застереження їдуть тут (§2.10)
+review-chores-header = ## Причини chore (§2.11)
+review-chores-none = нема
+review-drift-header = ## Дрейф (§4.6) — файли, дописані в scope після якоря (перший комміт файлу хвилі: { $sha })
+review-drift-line = { $file } — дописаний після якоря
+review-drift-removed-line = { $file } — знятий зі scope після якоря
+review-drift-empty = порожній — після якоря жодного файлу не дописано і не знято
+review-drift-unverified = ## Дрейф (§4.6) не звірявся: історія не свідчить — git-а нема, або обрізаний клон не доведе якоря
+review-drift-unreadable = файл хвилі на якорі не читається — дрейф суди руками
+review-map-header = ## Мапа якості (§10.7)
+review-impact-header = ## Вплив зміни контракту (§5.7)
+review-impact-none = порожній — жоден триманий текст контракту не змінився проти точки розгалуження
+review-impact-unverified = не звірявся: нема точки розгалуження для порівняння
+review-impact-contract = контракт { $slug }: { $old } -> { $new }
+review-impact-current = збіжна з новим текстом
+review-impact-stale = стара проти нового тексту
+review-diff-header = ## Повний diff гілки (проти { $base })
+review-diff-empty = порожній
+review-diff-unverified = ## Повний diff гілки: не звірявся — нема точки розгалуження
+review-not-wave = гілка "{ $branch }" не зветься як хвиля (§8.2) — для якої хвилі збирати пакет, не вгадується
+review-not-wave-instead = стань на гілку хвилі: пакет збирається для хвилі гілки (§9.9)
+review-scenarios-none = нема — chore-хвиля сценаріїв не обіцяє (§6.8)
+review-transform-no-body = (секції тіла нема — поверх §7.7 «шапка↔тіло» щаблем попереду; суди руками)
+review-protocol-header = ## Що з цим робить рецензент (§9.9)
+review-protocol-rows = кожен рядок кожного списку вище дістає відповідь — «гаразд, бо…» — або стає знахідкою; мовчки пропустити рядок не можна
+review-protocol-questions = понад списками — чотири питання судження: про що ми змовчали; чи всі можливі сценарії враховані; чи реалізовано все обіцяне, без тихого звуження; чи покриває тест весь сценарій, а не його кут
+review-protocol-report = звіт лягає файлом keel/reviews/{ $wave }.md поруч із хвилею — keel close тримає хвилю відкритою, доки його нема
+
 ## модуль adapter
 adapter-no-crate = Cargo.toml нема ні в корені, ні рівно одного на першому рівні тек
 adapter-no-crate-instead = адаптеру cargo потрібен крейт: поклади Cargo.toml у корінь або в одну теку першого рівня
@@ -250,7 +285,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 8 — пакет рецензента (keel review, §9.9)
+check-next-rung = наступний крок: щабель 9 — тримання контрактів (§7.6)
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -291,4 +326,4 @@ main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
 main-gate-no-message = відмова: gate потребує файл повідомлення commit-а
 main-gate-no-message-reason = причина: суд читає повідомлення, яке віддає commit-msg hook
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel trust [тека] | keel hook [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel trust [тека] | keel hook [тека]
