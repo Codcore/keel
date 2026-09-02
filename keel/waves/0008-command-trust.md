@@ -3,13 +3,13 @@ depends_on: [0007-quality-map]
 
 scenarios:
   untrusted-command-red:
-    proves: tool-trust@d05545
+    proves: tool-trust@1363b5
     covers: [security.authenticity]
   trust-line-stale-red:
-    proves: tool-trust@d05545
+    proves: tool-trust@1363b5
     covers: [security.integrity]
   trust-recorded:
-    proves: tool-trust@d05545
+    proves: tool-trust@1363b5
     covers: [functional.correctness]
 
 transforms:
@@ -17,7 +17,7 @@ transforms:
     implements:
       - untrusted-command-red
       - trust-line-stale-red
-    contracts: [tool-trust@d05545, tool-config@2b1bf3, tool-docs@2ab9a9]
+    contracts: [tool-trust@1363b5, tool-config@2b1bf3, tool-docs@2ab9a9]
     files:
       - tool/src/trust.rs
       - tool/src/check.rs
@@ -28,7 +28,7 @@ transforms:
   trust-command:
     implements:
       - trust-recorded
-    contracts: [tool-trust@d05545, tool-config@2b1bf3]
+    contracts: [tool-trust@1363b5, tool-config@2b1bf3]
     files:
       - tool/src/trust.rs
       - tool/src/main.rs
