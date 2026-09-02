@@ -36,7 +36,10 @@ fn revision_recipe_reproduced() {
     );
     assert_eq!(
         rev::contract_rev(&root.join("keel/contracts/tool-config.md")).unwrap(),
-        "63406a"
+        // 63406a until wave 0005's plan taught the config the mode
+        // field; 684c79 until its review made the contract promise
+        // the whole surface -- the pin follows the live text.
+        "2b1bf3"
     );
 
     // Prefix comparison (§5.2): 4-6 characters, from the start.

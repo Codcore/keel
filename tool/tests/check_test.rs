@@ -96,7 +96,7 @@ fn check_reports_every_file() {
     );
     assert!(
         out.contains("test tags (§5.5"),
-        "scenario revisions among the unchecked:\n{out}"
+        "test tags among the checked since the tag floor:\n{out}"
     );
     assert!(
         out.contains("links (chapter 3"),
@@ -105,6 +105,16 @@ fn check_reports_every_file() {
     assert!(
         out.contains("holding (§7.6)"),
         "contract holding among the unchecked:\n{out}"
+    );
+    // The unchecked line itself no longer names test tags -- they
+    // moved to the checked side with the tag floor (review R-6a).
+    let unchecked_line = out
+        .lines()
+        .find(|l| l.contains("not yet checked"))
+        .expect("the unchecked line exists");
+    assert!(
+        !unchecked_line.contains("test tags"),
+        "tags left the unchecked line:\n{unchecked_line}"
     );
 
     // Without the broken file -- exit 0; honesty about the unchecked stays.
@@ -297,6 +307,10 @@ fn contract_refs_verified() {
     );
 
     // A stale reference is a finding naming both revisions and §5.6.
+    // Since the tag floor the fixture carries real git history --
+    // where history exists and never held beef00, the strict verdict
+    // stands (a no-git directory gets a word instead, held by
+    // old_revision_legal_when_historic).
     write(
         &dir,
         "keel/waves/0006-stale.md",
@@ -305,6 +319,30 @@ fn contract_refs_verified() {
             all_decided_except(&["functional.correctness"])
         ),
     );
+    let git = |args: &[&str]| {
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(&dir)
+            .args([
+                "-c",
+                "user.email=keel@test",
+                "-c",
+                "user.name=keel-test",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?}:\n{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["add", "."]);
+    git(&["commit", "-q", "-m", "history that never held beef00"]);
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "a stale revision is a finding:\n{out}");
     assert!(
@@ -559,5 +597,140 @@ fn broken_links_named() {
     assert!(
         out.contains("0005-a") && out.contains("0006-b"),
         "the dependency cycle names its waves:\n{out}"
+    );
+}
+
+/// proves: old-revision-legal-when-historic@dfd598 -- holds §5.6: an
+/// old contract revision is legal when its text truly lived in the
+/// file's git history; a revision history never held stays a
+/// finding; a truncated (shallow) history gets a word instead of a
+/// verdict.
+#[test]
+fn old_revision_legal_when_historic() {
+    let git = |dir: &Path, args: &[&str]| {
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args([
+                "-c",
+                "user.email=keel@test",
+                "-c",
+                "user.name=keel-test",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?}:\n{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+
+    // The contract's old text is committed, a wave records it, then
+    // the contract moves on -- the old revision is true in history.
+    let dir = sandbox("historic");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    write(
+        &dir,
+        "keel/contracts/anchor.md",
+        "---\nmodule: A\nexports: [\"one()\"]\n---\n\nold words\n",
+    );
+    let old_rev = keel::rev::contract_rev(&dir.join("keel/contracts/anchor.md")).unwrap();
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "old contract"]);
+    write(
+        &dir,
+        "keel/waves/0007-w.md",
+        &format!(
+            "---\nscenarios:\n  s:\n    proves: anchor@{old_rev}\n    covers: [functional.correctness]\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nbody\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    write(
+        &dir,
+        "keel/contracts/anchor.md",
+        "---\nmodule: A\nexports: [\"one()\", \"two()\"]\n---\n\nnew words\n",
+    );
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "wave and newer contract"]);
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "an old revision true in history is legal (§5.6):\n{out}"
+    );
+    assert!(
+        out.contains("true in the file's history"),
+        "the legality said with its word:\n{out}"
+    );
+
+    // A revision history never held stays a finding.
+    let (out, _err, code) = {
+        write(
+            &dir,
+            "keel/waves/0008-w.md",
+            &format!(
+                "---\nscenarios:\n  s:\n    proves: anchor@bbbbbb\n    covers: [performance.capacity]\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nbody\n",
+                all_decided_except(&["performance.capacity"])
+            ),
+        );
+        keel(&["check", dir.to_str().unwrap()])
+    };
+    assert_eq!(code, 1, "a fabricated revision is still a finding:\n{out}");
+    assert!(
+        out.contains("anchor@bbbbbb"),
+        "the fabricated reference named:\n{out}"
+    );
+
+    // A shallow history gives a word, not a verdict.
+    fs::remove_file(dir.join("keel/waves/0008-w.md")).unwrap();
+    write(
+        &dir,
+        "keel/contracts/anchor.md",
+        "---\nmodule: A\nexports: [\"one()\", \"two()\", \"three()\"]\n---\n\nnewest words\n",
+    );
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "newest contract"]);
+    write(
+        &dir,
+        ".git/shallow",
+        "0000000000000000000000000000000000000000\n",
+    );
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "truncated history is not the wave's fault:\n{out}");
+    assert!(
+        out.contains("history is truncated"),
+        "the shallow clone named with a word, no verdict:\n{out}"
+    );
+
+    // Second birth (review R-2): the scenario says "where there is no
+    // history OR it is truncated -- no verdict". A keel directory
+    // without git must get the word too, not a strict finding.
+    let dir = sandbox("nogit-history");
+    write(
+        &dir,
+        "keel/contracts/anchor.md",
+        "---\nmodule: A\nexports: [\"one()\"]\n---\n\nnew words\n",
+    );
+    write(
+        &dir,
+        "keel/waves/0007-w.md",
+        &format!(
+            "---\nscenarios:\n  s:\n    proves: anchor@badc0f\n    covers: [functional.correctness]\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nbody\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "no git history is not the wave's fault either:\n{out}"
+    );
+    assert!(
+        out.contains("no git history"),
+        "the absence of history named with a word, no verdict:\n{out}"
     );
 }

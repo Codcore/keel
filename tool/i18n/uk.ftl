@@ -127,6 +127,54 @@ scope-one-new-count-instead = зведи рахунки (§4.1): рядок на
 scope-git-failed = git тут відмовляє: { $error }
 scope-git-failed-instead = scope судиться по гілці (§4.5); зроби так, щоб git у цій теці відповідав, і повтори keel check
 
+## модуль tags
+tags-stale = тег тесту "{ $test }" тримає { $scenario }@{ $recorded }, а текст сценарію зараз дає { $actual }
+tags-stale-instead = перечитай сценарій і онови тег свідомо (§5.1, §7.5) — або тест уже не тримає того, що змінилось
+tags-orphan = тег тесту "{ $test }" доводить "{ $scenario }" — такого сценарію не знає жодна хвиля
+tags-orphan-instead = назви наявний сценарій або прибери тег (§5.5)
+tags-dangling = тег proves: { $scenario }@{ $rev } не має тест-функції одразу за собою
+tags-dangling-instead = постав тег на його тест (§5.5); запис, який нічого не тримає, гірший за відсутній
+tags-bad-rev = тег "{ $scenario }" тримає запис "{ $rev }" — редакція пишеться 4–6 hex-знаками (§5.2)
+tags-bad-rev-instead = перерахуй через keel rev і запиши її префікс; кривий запис нічого не тримає
+
+## модуль adapter
+adapter-no-crate = Cargo.toml нема ні в корені, ні рівно одного на першому рівні тек
+adapter-no-crate-instead = адаптеру cargo потрібен крейт: поклади Cargo.toml у корінь або в одну теку першого рівня
+adapter-many-crates = крейтів першого рівня кілька: { $found }
+adapter-many-crates-instead = адаптер не вгадує; лиши один крейт на першому рівні або запусти keel із проєкту самого крейта
+adapter-cargo-failed = cargo відмовляє: { $error }
+adapter-cargo-failed-instead = судові потрібен робочий cargo (журнал А3); зроби так, щоб cargo тут відповідав, і повтори
+
+## модуль gate
+gate-mode = mode: { $mode }
+gate-mode-default = mode: strict (типове — не видає себе за прочитане)
+gate-manual = mode: manual — суд вимкнено, дисципліна руками (як у v1)
+gate-not-wave = гілка "{ $branch }" не зветься як жодна прочитана хвиля — судити нічого, пропуск із цим словом
+gate-outside = повідомлення — не народження і не робота трансформи; поза судом, пропуск із цим словом
+gate-chore = трансформа — chore, обіцянок бігти нема (§2.11), пропуск
+gate-red-pass = народження червоного "{ $scenario }": тест "{ $test }" справді падає — commit проходить (§7.12)
+gate-red-green = заявлене народження червоного "{ $scenario }", але тест "{ $test }" зелений — незароблене «бачив червоним» в історію не вʼїжджає (§7.12)
+gate-red-unknown = red: називає "{ $slug }" — це не сценарій хвилі { $wave }
+gate-red-withdrawn = "{ $scenario }" знятий — мертва обіцянка не народжується (§2.12)
+gate-red-untagged = заявлене народження червоного "{ $scenario }", але жоден тест не несе його тега proves (§5.5)
+gate-red-many-tags = "{ $scenario }" несе { $count } тегів proves — котрий народжується, не вгадується
+gate-red-broken = заявлене народження червоного "{ $scenario }", але тести не збираються — злам збірки не є падінням (А3): { $words }
+gate-red-notrun = заявлене народження червоного "{ $scenario }", але біг не виконав жодного тесту "{ $test }" — нуль виконаних не є падінням (А3)
+gate-work-pass = трансформа "{ $transform }": { $count } тестів сценаріїв зелені зі збіжними тегами — робота проходить (§8.4)
+gate-work-red = трансформа "{ $transform }": тест "{ $test }" сценарію "{ $scenario }" падає — робота не зроблена
+gate-work-stale = трансформа "{ $transform }": тег сценарію "{ $scenario }" тримає { $recorded }, а текст дає { $actual } (§7.5)
+gate-work-untagged = трансформа "{ $transform }": сценарій "{ $scenario }" не має тега proves у тестах (§5.5)
+gate-work-broken = трансформа "{ $transform }": тести не збираються: { $words }
+gate-work-notrun = трансформа "{ $transform }": біг не виконав жодного тесту "{ $test }" сценарію "{ $scenario }"
+gate-unknown-slug = "{ $slug }" — не red: і не трансформа хвилі { $wave }; одрук не проходить як «поза судом» (§8.4)
+gate-case = "{ $head }" носить великі літери — red: і слаги пишуться малими (§1.2, §8.4); капіталізований двійник не проходить як «поза судом»
+gate-work-vacuum = трансформа "{ $transform }": живих сценаріїв судити не лишилось — зняті поза судом (§2.12), пропуск із цим словом
+gate-soft = mode: soft — ті самі слова, лише попередженням
+gate-hook-installed = commit-msg hook тепер кличе keel gate — записано в { $path }
+gate-hook-already = hook уже наш — тихо той самий файл
+gate-hook-foreign = commit-msg hook тут уже є, і він не наш
+gate-hook-foreign-instead = keel не затирає чужий hook (§9.7); прочитай його і злий або прибери сам, тоді повтори keel hook
+
 ## команда rev
 rev-title = keel rev — чинні редакції
 rev-next = наступний крок: тримай ці редакції в proves/contracts і в тегах тестів (§5.5); застарілу онови, перечитавши текст (§5.1)
@@ -137,6 +185,13 @@ check-config-present = конфіг: keel.toml (lang = { $lang })
 check-config-absent = keel.toml нема — діють типові значення (lang = en); типове не видає себе за прочитане
 check-config-lang-default = конфіг: keel.toml (lang не заданий — діє типове en; типове не видає себе за прочитане)
 check-refs-count = посилань на контракти звірено: { $count }
+check-refs-historic = старих редакцій, справжніх в історії файлу: { $count } (§5.6)
+check-refs-shallow = історія обрізана (shallow-клон) — законність старих редакцій не звірити, вирок не виноситься
+check-refs-no-history = git-історії тут нема — законність старих редакцій не звірити, вирок не виноситься (§5.6)
+check-tags-count = тегів тестів звірено: { $count }
+check-tags-skipped-no-adapter = теги тестів не звірялись: adapter у keel.toml не названий — названо вголос, зеленим не замальовано
+check-tags-skipped-adapter = теги тестів не звірялись: адаптер "{ $name }" цим щаблем не обслуговується (лише cargo) — названо вголос, зеленим не замальовано
+check-tags-skipped-refused = теги тестів не звірялись: адаптер відмовив посеред роботи — його відмова стоїть серед знахідок
 check-scope-compared = scope: гілка "{ $branch }" і є хвиля — порівняно з { $base }
 check-scope-base-main = merge-base з main @ { $sha }
 check-scope-base-first = перший commit гілки @ { $sha } (main тут нема)
@@ -145,8 +200,8 @@ check-scope-skipped-no-git = scope не звірявся: git не дає гіл
 check-scope-skipped-refused = scope не звірявся: git відмовив посеред порівняння — його відмова стоїть серед знахідок
 check-header-reads = шапка читається
 check-no-documents = документів ще нема
-check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9); посилання на контракти і їхні редакції (§7.1, §7.3 — для закритої хвилі стара редакція законна, §5.6); звʼязки графа (глава 3: розрізи, тиша, implements, depends_on, наступники; §7.2, §10.3); scope гілки, що зветься як хвиля (§4.1, §4.4–§4.6, §4.8)
-check-unchecked = ще не перевірено: редакції сценаріїв у тегах тестів (§5.5, §7.5), дельта тегів (§7.15), закриття (§6.5), подвійна відповідь по розрізу (§10.3), тримання контрактів (§7.6), шапка↔тіло (§7.7) — щаблі попереду
+check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9); посилання на контракти і їхні редакції (§7.1, §7.3), стара редакція судиться по історії файлу (§5.6); звʼязки графа (глава 3: розрізи, тиша, implements, depends_on, наступники; §7.2, §10.3); scope гілки, що зветься як хвиля (§4.1, §4.4–§4.6, §4.8); редакції сценаріїв у тегах тестів (§5.5, §7.5)
+check-unchecked = ще не перевірено: дельта тегів (§7.15), закриття (§6.5), подвійна відповідь по розрізу (§10.3), тримання контрактів (§7.6), шапка↔тіло (§7.7) — щаблі попереду
 check-ref-missing = хвиля { $wave }: посилання { $contract }@{ $recorded } показує на контракт, файлу якого нема
 check-ref-missing-instead = створи keel/contracts/{ $contract }.md або виправ слаг (§7.1)
 check-ref-stale = хвиля { $wave }: записано { $contract }@{ $recorded }, а текст контракту зараз дає { $actual }
@@ -162,11 +217,13 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 4 — червона брама і адаптер cargo (§7.12, §8.4)
+check-next-rung = наступний крок: щабель 5 — закриття хвиль (§6.5)
 
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
 main-unknown-command-reason = причина: такої команди keel не знає
 main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
-main-usage = натомість: keel check [тека] | keel rev [тека]
+main-gate-no-message = відмова: gate потребує файл повідомлення commit-а
+main-gate-no-message-reason = причина: суд читає повідомлення, яке віддає commit-msg hook
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека]

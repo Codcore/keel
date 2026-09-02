@@ -127,6 +127,54 @@ scope-one-new-count-instead = make the counts meet (§4.1): one line per expecte
 scope-git-failed = git refuses here: { $error }
 scope-git-failed-instead = scope is judged against the branch (§4.5); make git answer in this directory and re-run keel check
 
+## tags module
+tags-stale = the tag on test "{ $test }" holds { $scenario }@{ $recorded }, the scenario's text now gives { $actual }
+tags-stale-instead = reread the scenario and update the tag deliberately (§5.1, §7.5) -- or the test no longer holds what changed
+tags-orphan = the tag on test "{ $test }" proves "{ $scenario }" -- no wave knows that scenario
+tags-orphan-instead = name an existing scenario or drop the tag (§5.5)
+tags-dangling = the tag proves: { $scenario }@{ $rev } has no test function right after it
+tags-dangling-instead = put the tag on its test (§5.5); a record that holds nothing is worse than none
+tags-bad-rev = the tag on "{ $scenario }" holds the record "{ $rev }" -- a revision is written as 4-6 hex characters (§5.2)
+tags-bad-rev-instead = recompute with keel rev and record its prefix; a crooked record holds nothing
+
+## adapter module
+adapter-no-crate = no Cargo.toml at the root and none exactly one level down
+adapter-no-crate-instead = the cargo adapter needs a crate: put Cargo.toml at the root or in one first-level directory
+adapter-many-crates = several first-level crates: { $found }
+adapter-many-crates-instead = the adapter does not guess; keep one crate at the first level or run keel from the crate's own project
+adapter-cargo-failed = cargo refuses: { $error }
+adapter-cargo-failed-instead = the judgement needs cargo running (journal A3); make cargo answer here and retry
+
+## gate module
+gate-mode = mode: { $mode }
+gate-mode-default = mode: strict (the default -- it does not pass itself off as read)
+gate-manual = mode: manual -- the judgement is off, discipline by hand (as in v1)
+gate-not-wave = branch "{ $branch }" is not named as any wave that reads -- nothing to judge, passing with this word
+gate-outside = the message is neither a birth nor transform work -- outside the judgement, passing with this word
+gate-chore = the transform is a chore -- no promises to run (§2.11), passing
+gate-red-pass = red birth of "{ $scenario }": the test "{ $test }" truly fails -- the commit passes (§7.12)
+gate-red-green = red birth of "{ $scenario }" claimed, but the test "{ $test }" is green -- an unearned "seen red" does not enter history (§7.12)
+gate-red-unknown = red: names "{ $slug }", not a scenario of wave { $wave }
+gate-red-withdrawn = "{ $scenario }" is withdrawn -- a dead promise is not born (§2.12)
+gate-red-untagged = red birth of "{ $scenario }" claimed, but no test carries its proves tag (§5.5)
+gate-red-many-tags = "{ $scenario }" carries { $count } proves tags -- which one is being born is not guessed
+gate-red-broken = red birth of "{ $scenario }" claimed, but the tests do not compile -- a build break is not a failure (A3): { $words }
+gate-red-notrun = red birth of "{ $scenario }" claimed, but the run executed no test named "{ $test }" -- zero runs is not a failure (A3)
+gate-work-pass = transform "{ $transform }": { $count } scenario tests green with matching tags -- the work passes (§8.4)
+gate-work-red = transform "{ $transform }": the test "{ $test }" of scenario "{ $scenario }" fails -- the work is not done
+gate-work-stale = transform "{ $transform }": the tag of scenario "{ $scenario }" holds { $recorded }, the text gives { $actual } (§7.5)
+gate-work-untagged = transform "{ $transform }": scenario "{ $scenario }" has no proves tag in the tests (§5.5)
+gate-work-broken = transform "{ $transform }": the tests do not compile: { $words }
+gate-work-notrun = transform "{ $transform }": the run executed no test named "{ $test }" for scenario "{ $scenario }"
+gate-unknown-slug = "{ $slug }" is neither red: nor a transform of wave { $wave } -- a typo does not pass as "outside the judgement" (§8.4)
+gate-case = "{ $head }" wears capitals -- red: and slugs are written lowercase (§1.2, §8.4); a capitalized twin does not pass as outside the judgement
+gate-work-vacuum = transform "{ $transform }": no live scenario left to judge -- the withdrawn are outside the judgement (§2.12), passing with this word
+gate-soft = mode: soft -- the same words, a warning only
+gate-hook-installed = the commit-msg hook now calls keel gate -- written to { $path }
+gate-hook-already = the hook is already ours -- quietly the same file
+gate-hook-foreign = a commit-msg hook already exists here, and it is not ours
+gate-hook-foreign-instead = keel does not overwrite someone's hook (§9.7); read it and merge or remove it yourself, then re-run keel hook
+
 ## rev command
 rev-title = keel rev -- current revisions
 rev-next = next step: hold these revisions in proves/contracts and in test tags (§5.5); reread before updating a stale one (§5.1)
@@ -137,6 +185,13 @@ check-config-present = config: keel.toml (lang = { $lang })
 check-config-absent = no keel.toml -- defaults in effect (lang = en); a default does not pass itself off as read
 check-config-lang-default = config: keel.toml (lang not set -- default en in effect; a default does not pass itself off as read)
 check-refs-count = contract references checked: { $count }
+check-refs-historic = old revisions, true in the file's history: { $count } (§5.6)
+check-refs-shallow = history is truncated (shallow clone) -- old revisions cannot be verified, and are not judged
+check-refs-no-history = no git history here -- old revisions cannot be verified, and are not judged (§5.6)
+check-tags-count = test tags checked: { $count }
+check-tags-skipped-no-adapter = test tags not compared: no adapter named in keel.toml -- said aloud, not painted green
+check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not served on this rung (only cargo is) -- said aloud, not painted green
+check-tags-skipped-refused = test tags not compared: the adapter refused mid-way -- its refusal stands among the findings
 check-scope-compared = scope: branch "{ $branch }" is the wave -- compared against { $base }
 check-scope-base-main = the merge-base with main @ { $sha }
 check-scope-base-first = the first commit of the branch @ { $sha } (no main here)
@@ -145,8 +200,8 @@ check-scope-skipped-no-git = scope not compared: git serves no branch for this r
 check-scope-skipped-refused = scope not compared: git refused mid-way -- its refusal stands among the findings
 check-header-reads = header reads
 check-no-documents = no documents yet
-check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3 -- for a closed wave an old revision is legal, §5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8)
-check-unchecked = not yet checked: scenario revisions in test tags (§5.5, §7.5), tag deltas (§7.15), closure (§6.5), a doubled answer per cut (§10.3), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
+check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5)
+check-unchecked = not yet checked: tag deltas (§7.15), closure (§6.5), a doubled answer per cut (§10.3), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
 check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
 check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
 check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }
@@ -160,11 +215,13 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 4 -- the red gate and the cargo adapter (§7.12, §8.4)
+check-next-rung = next step: rung 5 -- the closure of waves (§6.5)
 
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: this is not one of the commands keel knows
 main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
-main-usage = instead: keel check [dir] | keel rev [dir]
+main-gate-no-message = refusal: gate needs the commit message file
+main-gate-no-message-reason = reason: the judgement reads the message the commit-msg hook hands over
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir]

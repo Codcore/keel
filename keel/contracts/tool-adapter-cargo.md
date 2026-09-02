@@ -1,0 +1,24 @@
+---
+module: keel::adapter
+exports:
+  - "pub fn crate_root(root: &Path) -> Result<PathBuf, Refusal>"
+  - "pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal>"
+  - "pub enum Outcome { Failed, Green, BuildBroken(String), NotRun }"
+  - "pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal>"
+---
+
+Адаптер cargo (NEW-CONCEPT, «Адаптери»): єдине місце, що знає, як у
+Rust-проєкті звуться файли тестів і як запустити один тест.
+
+- `crate_root`: Cargo.toml у корені проєкту — він; інакше рівно одна
+  тека першого рівня з Cargo.toml — вона; нуль або кілька — відмова
+  вголос із переліком знайденого. Вгадування нема.
+- `test_files`: файли `tests/*.rs` крейта — там живуть теги proves.
+- `run_test` жене рівно один тест (`cargo test --test <файл>
+  <функція> -- --exact`) і класифікує наслідок словами cargo:
+  `Failed` — тест виконався і впав; `Green` — виконався і пройшов;
+  `BuildBroken` — не зібрався, зі словами компілятора: «не зібрався»
+  не читається як «впав» (журнал А3); `NotRun` — біг не виконав
+  жодного тесту (одрук в імені): нуль виконаних — не червоне.
+- cargo викликається як команда системи; його відмова — відмова
+  вголос. Модуль нічого не пише.

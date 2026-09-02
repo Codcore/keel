@@ -11,14 +11,19 @@ use std::path::Path;
 /// Languages embedded in this release (i18n/<lang>.ftl).
 pub const LANGUAGES: [&str; 2] = ["en", "uk"];
 
-/// The config as read. Only `lang` carries semantics this wave; the
-/// other fields are read as data -- their rungs are ahead.
+/// The modes of the commit judgement (journal A3).
+pub const MODES: [&str; 3] = ["strict", "soft", "manual"];
+
+/// The config as read. `lang` (wave 0002) and `mode` (wave 0005)
+/// carry semantics; the other fields are read as data -- their rungs
+/// are ahead.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     pub version: Option<String>,
     pub adapter: Option<String>,
     pub ci: Option<String>,
     pub lang: String,
+    pub mode: String,
     pub trust: Vec<(String, String)>,
     pub generated: Vec<(String, String)>,
     /// The file really existed -- defaults do not pass themselves
@@ -27,6 +32,8 @@ pub struct Config {
     /// The lang field was written by hand; false means the default is
     /// in effect and must be named aloud, not printed as if read.
     pub lang_set: bool,
+    /// Same honesty for mode: absent acts as strict and says so.
+    pub mode_set: bool,
 }
 
 impl Default for Config {
@@ -36,10 +43,12 @@ impl Default for Config {
             adapter: None,
             ci: None,
             lang: "en".to_string(),
+            mode: "strict".to_string(),
             trust: Vec::new(),
             generated: Vec::new(),
             present: false,
             lang_set: false,
+            mode_set: false,
         }
     }
 }
@@ -54,6 +63,7 @@ struct Raw {
     adapter: Option<String>,
     ci: Option<String>,
     lang: Option<String>,
+    mode: Option<String>,
     trust: Option<BTreeMap<String, String>>,
     generated: Option<BTreeMap<String, String>>,
 }
@@ -80,7 +90,7 @@ pub fn read(root: &Path) -> Result<Config, Refusal> {
         file: path.clone(),
         reason: format!("keel.toml does not parse: {e}"),
         instead: "fix the named field; the vocabulary is: version, adapter, ci, \
-                  lang, [trust], [generated] (NEW-CONCEPT, Config)"
+                  lang, mode, [trust], [generated] (NEW-CONCEPT, Config)"
             .to_string(),
     })?;
 
@@ -99,14 +109,31 @@ pub fn read(root: &Path) -> Result<Config, Refusal> {
         });
     }
 
+    let mode_set = raw.mode.is_some();
+    let mode = raw.mode.unwrap_or_else(|| "strict".to_string());
+    if !MODES.contains(&mode.as_str()) {
+        return Err(Refusal {
+            file: path,
+            reason: format!(
+                "mode \"{mode}\" is not one the gate knows: {}",
+                MODES.join(", ")
+            ),
+            instead: "strict blocks, soft warns, manual turns the judgement off \
+                      (journal A3)"
+                .to_string(),
+        });
+    }
+
     Ok(Config {
         version: raw.version,
         adapter: raw.adapter,
         ci: raw.ci,
         lang,
+        mode,
         trust: raw.trust.unwrap_or_default().into_iter().collect(),
         generated: raw.generated.unwrap_or_default().into_iter().collect(),
         present: true,
         lang_set,
+        mode_set,
     })
 }
