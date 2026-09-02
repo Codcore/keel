@@ -273,4 +273,37 @@ fn battery_read_once() {
         out.contains("error"),
         "the compiler's words carried:\n{out}"
     );
+
+    // Second birth (review R-1): a target with harness = false prints
+    // a "Running" line but no verdict block -- the stitch would shift
+    // every later verdict onto the wrong stem, up to blessing a wave
+    // with a red tagged test. The court refuses aloud instead of
+    // judging by a seam that does not meet.
+    let dir = project("harnessless", "just-work");
+    write(&dir, "keel/waves/0014-two.md", &wave_text("a"));
+    let a_rev = keel::rev::text_rev("body of a\n");
+    write(
+        &dir,
+        "tests/a_test.rs",
+        &format!("/// proves: a@{a_rev}\n#[test]\nfn holds_a() {{ assert!(false); }}\n"),
+    );
+    write(&dir, "keel/reviews/0014-two.md", "# Рецензія\n\nok\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n\n[[test]]\nname = \"a_test\"\n\n[[test]]\nname = \"bench_like\"\nharness = false\n",
+    );
+    write(&dir, "tests/bench_like.rs", "fn main() {}\n");
+    commit_all(&dir);
+
+    let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 2,
+        "a stitch that does not meet is a refusal, not a guess:\n{out}"
+    );
+    assert!(
+        out.contains("do not meet"),
+        "the mismatch named aloud:\n{out}"
+    );
 }
