@@ -83,3 +83,17 @@ fn check_reports_every_file() {
         "зелене не ховає власних меж:\n{out}"
     );
 }
+
+/// proves: missing-keel-dir-refuses@01149b — тримає §9.7: відмова несе
+/// причину і що робити натомість.
+#[test]
+fn missing_keel_dir_refuses() {
+    let dir = std::env::temp_dir().join(format!("keel-0001c-{}-nokeel", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+
+    let (_out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 2, "відмова самої команди — вихід 2; stderr:\n{err}");
+    assert!(err.contains("keel/"), "називає, чого бракує:\n{err}");
+    assert!(err.contains("створи"), "каже, що робити натомість:\n{err}");
+}
