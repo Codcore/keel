@@ -220,3 +220,54 @@ fn valid_contract_parses() {
     assert!(r.reason.contains("не обіцяє"), "причина: {}", r.reason);
     assert!(!r.instead.is_empty());
 }
+
+/// proves: duplicate-name-refuses@cb90af — тримає §7.9: YAML мовчки
+/// лишив би останній дубль, і половина плану зникла б без сліду.
+#[test]
+fn duplicate_name_refuses() {
+    let dir = sandbox("dup");
+
+    // Два сценарії з одним імʼям.
+    let p = write(
+        &dir,
+        "keel/waves/0008-dup.md",
+        concat!(
+            "---\n",
+            "scenarios:\n",
+            "  same: {covers: [functional.correctness]}\n",
+            "  same: {covers: [performance.capacity]}\n",
+            "transforms:\n",
+            "  t:\n",
+            "    implements: [same]\n",
+            "    files: [lib/a.ex]\n",
+            "---\n",
+        ),
+    );
+    let r = docs::read_wave(&p).unwrap_err();
+    assert!(r.reason.contains("двічі"), "причина: {}", r.reason);
+    assert!(r.reason.contains("same"), "називає імʼя-дубль: {}", r.reason);
+
+    // Дві трансформи з одним імʼям.
+    let p = write(
+        &dir,
+        "keel/waves/0009-dup-t.md",
+        concat!(
+            "---\n",
+            "transforms:\n",
+            "  work: {chore: \"а\", files: [a]}\n",
+            "  work: {chore: \"б\", files: [b]}\n",
+            "---\n",
+        ),
+    );
+    let r = docs::read_wave(&p).unwrap_err();
+    assert!(r.reason.contains("work"), "причина: {}", r.reason);
+
+    // Дубль поля всередині запису — та сама хвороба.
+    let p = write(
+        &dir,
+        "keel/contracts/dup-field.md",
+        "---\nverify: \"a\"\nverify: \"b\"\n---\n",
+    );
+    let r = docs::read_contract(&p).unwrap_err();
+    assert!(r.reason.contains("verify"), "причина: {}", r.reason);
+}
