@@ -129,9 +129,17 @@ pub fn record(root: &Path) -> Result<String, Refusal> {
             continue;
         }
         let print = fingerprint(&command);
-        match config.trust.iter().find(|(key, _)| collapse(key) == flat) {
-            Some((_, recorded)) if *recorded == print => {}
-            _ => to_write.push((command, print)),
+        // Clean means exactly one record and a true fingerprint: a
+        // crooked line masked by a correct collapse-twin (review
+        // R-1) is dirt too, and the run consolidates it.
+        let records: Vec<&(String, String)> = config
+            .trust
+            .iter()
+            .filter(|(key, _)| collapse(key) == flat)
+            .collect();
+        let clean = records.len() == 1 && records[0].1 == print;
+        if !clean {
+            to_write.push((command, print));
         }
     }
 
@@ -150,6 +158,17 @@ pub fn record(root: &Path) -> Result<String, Refusal> {
         instead: "check the path and file permissions".to_string(),
     })?;
     let written = upsert_trust(&text, &to_write);
+    // The net under the surgery (review R-1): the result must still
+    // parse for the strict reader of 0002 -- otherwise nothing is
+    // written and the refusal says so. A dead config with a success
+    // report behind it is the one forbidden outcome.
+    if let Err(e) = toml::from_str::<toml::Value>(&written) {
+        return Err(Refusal {
+            file: path,
+            reason: ta("trust-surgery-broken", targs!("error" => e.to_string())),
+            instead: t("trust-surgery-broken-instead"),
+        });
+    }
     std::fs::write(&path, written).map_err(|e| Refusal {
         file: path.clone(),
         reason: format!("keel.toml cannot be written: {e}"),
@@ -168,14 +187,43 @@ pub fn record(root: &Path) -> Result<String, Refusal> {
     Ok(report)
 }
 
-/// One `[trust]` line, the key escaped the TOML way.
+/// One `[trust]` line, the key escaped the TOML way -- quotes,
+/// backslashes, and every control character (review R-2), so a
+/// hostile verify cannot leave a dead config behind.
 fn toml_line(command: &str, print: &str) -> String {
-    let escaped = command.replace('\\', "\\\\").replace('"', "\\\"");
+    let mut escaped = String::new();
+    for c in command.chars() {
+        match c {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            c if c.is_control() => escaped.push_str(&format!("\\u{:04X}", c as u32)),
+            c => escaped.push(c),
+        }
+    }
     format!("\"{escaped}\" = \"{print}\"")
 }
 
-/// The key of a `[trust]` section line as written -- quoted (with
-/// escapes) or bare -- or None for comments and blanks.
+/// The `[trust]` section header as TOML reads it (review R-1):
+/// spaces inside the brackets and a trailing comment are the same
+/// header, not a reason to append a duplicate section.
+fn is_trust_header(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let Some(rest) = trimmed.strip_prefix('[') else {
+        return false;
+    };
+    let Some(end) = rest.find(']') else {
+        return false;
+    };
+    if rest[..end].trim() != "trust" {
+        return false;
+    }
+    let after = rest[end + 1..].trim();
+    after.is_empty() || after.starts_with('#')
+}
+
+/// The key of a `[trust]` section line as written -- basic (with
+/// the TOML escapes decoded), literal, or bare -- or None for
+/// comments and blanks.
 fn line_key(line: &str) -> Option<String> {
     let trimmed = line.trim_start();
     if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -186,26 +234,46 @@ fn line_key(line: &str) -> Option<String> {
         let mut chars = rest.chars();
         while let Some(c) = chars.next() {
             match c {
-                '\\' => key.push(chars.next()?),
+                '\\' => match chars.next()? {
+                    'u' => key.push(unescaped(&mut chars, 4)?),
+                    'U' => key.push(unescaped(&mut chars, 8)?),
+                    't' => key.push('\t'),
+                    'n' => key.push('\n'),
+                    'r' => key.push('\r'),
+                    'b' => key.push('\u{0008}'),
+                    'f' => key.push('\u{000C}'),
+                    other => key.push(other),
+                },
                 '"' => return Some(key),
                 _ => key.push(c),
             }
         }
         None
+    } else if let Some(rest) = trimmed.strip_prefix('\'') {
+        rest.split('\'').next().map(str::to_string)
     } else {
         trimmed.split('=').next().map(|key| key.trim().to_string())
     }
 }
 
-/// Surgery on the `[trust]` block alone: an existing line of the
-/// same command (collapsed) is replaced in place, new lines land at
-/// the block's end, an absent block is appended whole. Every other
-/// line of the file stays byte for byte.
-fn upsert_trust(text: &str, entries: &[(String, String)]) -> String {
-    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
-    let header = lines.iter().position(|l| l.trim() == "[trust]");
+/// One \uXXXX / \UXXXXXXXX escape decoded.
+fn unescaped(chars: &mut std::str::Chars, width: usize) -> Option<char> {
+    let hex: String = (0..width).map(|_| chars.next()).collect::<Option<_>>()?;
+    char::from_u32(u32::from_str_radix(&hex, 16).ok()?)
+}
 
-    let (start, end) = match header {
+/// Surgery on the `[trust]` block alone: an existing line of the
+/// same command (collapsed) is replaced in place and its
+/// collapse-twins are removed (one command -- one line; review
+/// R-1), new lines land at the block's end, an absent block is
+/// appended whole. Every other line of the file stays byte for
+/// byte, its line endings included (review R-3).
+fn upsert_trust(text: &str, entries: &[(String, String)]) -> String {
+    let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+    let header = lines.iter().position(|l| is_trust_header(l));
+
+    let (start, mut end) = match header {
         Some(at) => {
             let end = lines[at + 1..]
                 .iter()
@@ -225,11 +293,20 @@ fn upsert_trust(text: &str, entries: &[(String, String)]) -> String {
     let mut fresh: Vec<String> = Vec::new();
     for (command, print) in entries {
         let flat = collapse(command);
-        let stands = lines[start..end]
+        let stands: Vec<usize> = lines[start..end]
             .iter()
-            .position(|l| line_key(l).is_some_and(|key| collapse(&key) == flat));
-        match stands {
-            Some(offset) => lines[start + offset] = toml_line(command, print),
+            .enumerate()
+            .filter(|(_, l)| line_key(l).is_some_and(|key| collapse(&key) == flat))
+            .map(|(offset, _)| start + offset)
+            .collect();
+        match stands.split_first() {
+            Some((&first, twins)) => {
+                lines[first] = toml_line(command, print);
+                for &twin in twins.iter().rev() {
+                    lines.remove(twin);
+                    end -= 1;
+                }
+            }
             None => fresh.push(toml_line(command, print)),
         }
     }
@@ -241,9 +318,9 @@ fn upsert_trust(text: &str, entries: &[(String, String)]) -> String {
         lines.insert(at + offset, line);
     }
 
-    let mut out = lines.join("\n");
+    let mut out = lines.join(eol);
     if text.ends_with('\n') || !text.contains('\n') {
-        out.push('\n');
+        out.push_str(eol);
     }
     out
 }

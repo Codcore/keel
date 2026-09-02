@@ -160,6 +160,8 @@ trust-nothing-new = нового нема: кожна команда verify/ci �
 trust-approves = рядки лягають у diff, який затверджує merge (§7.16)
 trust-no-config = keel.toml нема — рядок довіри нема куди готувати
 trust-no-config-instead = спершу створи конфіг: команда trust нічого не вигадує
+trust-surgery-broken = хірургія не втримала форму цього файлу ({ $error }) — нічого не записано
+trust-surgery-broken-instead = наведи лад у блоці [trust] руками і біжи keel trust знову
 
 ## модуль adapter
 adapter-no-crate = Cargo.toml нема ні в корені, ні рівно одного на першому рівні тек
@@ -218,6 +220,8 @@ check-refs-no-history = git-історії тут нема — законніс�
 check-tags-count = тегів тестів звірено: { $count }
 check-trust-count = команд verify/ci звірено: { $count }
 check-trust-ci-none = ; ci — відмова вголос: none
+check-trust-ci-absent = ; ci не оголошений
+check-trust-skipped-broken = команди verify/ci не суджено: битий документ може ховати саму команду — спершу полагодь названі файли
 check-tags-skipped-no-adapter = теги тестів не звірялись: adapter у keel.toml не названий — названо вголос, зеленим не замальовано
 check-tags-skipped-adapter = теги тестів не звірялись: адаптер "{ $name }" цим щаблем не обслуговується (лише cargo) — названо вголос, зеленим не замальовано
 check-tags-skipped-refused = теги тестів не звірялись: адаптер відмовив посеред роботи — його відмова стоїть серед знахідок

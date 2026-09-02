@@ -160,6 +160,8 @@ trust-nothing-new = nothing new to trust: every verify/ci command already carrie
 trust-approves = the lines land in the diff the merge approves (§7.16)
 trust-no-config = keel.toml is not here -- nowhere to prepare the trust line
 trust-no-config-instead = create the config first: the trust command invents nothing
+trust-surgery-broken = the surgery cannot keep this file's shape ({ $error }) -- nothing was written
+trust-surgery-broken-instead = tidy the [trust] block by hand, then run keel trust again
 
 ## adapter module
 adapter-no-crate = no Cargo.toml at the root and none exactly one level down
@@ -218,6 +220,8 @@ check-refs-no-history = no git history here -- old revisions cannot be verified,
 check-tags-count = test tags checked: { $count }
 check-trust-count = commands verify/ci judged: { $count }
 check-trust-ci-none = ; ci is a refusal aloud: none
+check-trust-ci-absent = ; ci is not declared
+check-trust-skipped-broken = commands verify/ci not judged: a broken document may hide the very command -- fix the named files first
 check-tags-skipped-no-adapter = test tags not compared: no adapter named in keel.toml -- said aloud, not painted green
 check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not served on this rung (only cargo is) -- said aloud, not painted green
 check-tags-skipped-refused = test tags not compared: the adapter refused mid-way -- its refusal stands among the findings

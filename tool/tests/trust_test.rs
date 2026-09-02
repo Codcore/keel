@@ -355,7 +355,10 @@ fn trust_recorded() {
     );
     let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
-    assert_eq!(code, 0, "the file still parses and the command is trusted:\n{out}");
+    assert_eq!(
+        code, 0,
+        "the file still parses and the command is trusted:\n{out}"
+    );
 
     // A control character inside a verify command (hostile or
     // accidental) must not become a dead config: the line is written
