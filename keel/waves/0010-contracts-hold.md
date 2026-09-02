@@ -3,7 +3,7 @@ depends_on: [0009-reviewer-package]
 
 scenarios:
   exports-held:
-    proves: tool-holding@fef81e
+    proves: tool-holding@a377f1
     covers: [functional.correctness]
   verify-run-by-close:
     proves: tool-close@1b6b8e
@@ -16,7 +16,7 @@ transforms:
   holding-floor:
     implements:
       - exports-held
-    contracts: [tool-holding@fef81e, tool-docs@2ab9a9, tool-config@cc126c, tool-adapter-cargo@348769]
+    contracts: [tool-holding@a377f1, tool-docs@2ab9a9, tool-config@7dd1d7, tool-adapter-cargo@348769]
     files:
       - tool/src/holding.rs
       - tool/src/check.rs
@@ -31,7 +31,7 @@ transforms:
     implements:
       - verify-run-by-close
       - untrusted-not-run
-    contracts: [tool-close@1b6b8e, tool-trust@1363b5, tool-docs@2ab9a9, tool-config@cc126c]
+    contracts: [tool-close@1b6b8e, tool-trust@628029, tool-docs@2ab9a9, tool-config@7dd1d7]
     files:
       - tool/src/close.rs
       - tool/src/trust.rs

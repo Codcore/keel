@@ -39,9 +39,10 @@ fn revision_recipe_reproduced() {
         // 63406a until wave 0005's plan taught the config the mode
         // field; 684c79 until its review made the contract promise
         // the whole surface; 2b1bf3 until 0010's form court shortened
-        // the Config export to §2.9's short form -- the pin follows
+        // the Config export to §2.9's short form; cc126c until its review
+        // said aloud the field surface is prose-held -- the pin follows
         // the live text.
-        "cc126c"
+        "7dd1d7"
     );
 
     // Prefix comparison (§5.2): 4-6 characters, from the start.
