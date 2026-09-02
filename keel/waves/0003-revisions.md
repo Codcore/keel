@@ -3,13 +3,13 @@ depends_on: [0002-config-and-language]
 
 scenarios:
   revision-recipe-reproduced:
-    proves: tool-rev@c72e2a
+    proves: tool-rev@10ecc9
     covers: [functional.correctness]
   contract-refs-verified:
-    proves: tool-rev@c72e2a
+    proves: tool-rev@10ecc9
     covers: [reliability.faultlessness, safety.hazard-warning]
   missing-contract-named:
-    proves: tool-rev@c72e2a
+    proves: tool-rev@10ecc9
     covers: [safety.fail-safe]
   rev-command-prints:
     covers: [interaction.user-assistance, interaction.self-descriptiveness]
@@ -18,7 +18,7 @@ transforms:
   compute-revisions:
     implements:
       - revision-recipe-reproduced
-    contracts: [tool-rev@c72e2a]
+    contracts: [tool-rev@10ecc9]
     files:
       - tool/src/rev.rs
       - tool/src/lib.rs
@@ -27,7 +27,7 @@ transforms:
     implements:
       - contract-refs-verified
       - missing-contract-named
-    contracts: [tool-rev@c72e2a, tool-docs@2ab9a9, tool-config@63406a]
+    contracts: [tool-rev@10ecc9, tool-docs@2ab9a9, tool-config@63406a]
     files:
       - tool/src/check.rs
       - tool/src/rev.rs
@@ -37,7 +37,7 @@ transforms:
   rev-command:
     implements:
       - rev-command-prints
-    contracts: [tool-rev@c72e2a]
+    contracts: [tool-rev@10ecc9]
     files:
       - tool/src/main.rs
       - tool/src/rev.rs
@@ -134,8 +134,9 @@ tool-docs@2ab9a9 і tool-config@63406a; порівняння за префікс
 **коли** біжить `keel rev`,
 **тоді** надруковано чинні редакції мовою проєкту: кожен контракт —
 `слаг@редакція`, кожен сценарій кожної хвилі — `хвиля/сценарій@редакція`,
-і наступний крок — щоб автор копіював редакції звідси, а не рахував
-руками.
+і наступний крок; зіпсовані документи стоять поруч відмовами
+(успадковано від scan), не тишею — щоб автор копіював редакції
+звідси, а не рахував руками.
 
 ## transform: compute-revisions
 
@@ -149,6 +150,12 @@ scenario_revs (тіла секцій з читанням через tool-docs), 
 нотаток: саме на --write v1 тихо пропускав сім посилань).
 
 ## transform: check-verifies-refs
+
+Застереження: закритих хвиль (§5.6) цей поверх ще не відрізняє —
+закриття виводиться пізнішим щаблем (§6.5). Тому розбіжність редакції
+на будь-якій хвилі — знахідка, і текст знахідки каже вголос: «якщо ця
+хвиля вже закрита — редакція законно стара, суди за §5.6». Чесна межа
+замість тихої брехні в обидва боки.
 
 `keel check` дістає другий поверх: по кожному посиланню
 slug@редакція з шапок хвиль — існування файлу контракту (§7.1) і збіг
