@@ -97,6 +97,20 @@ rev-dup-section-instead = keep one section: the methodology will not guess which
 rev-empty-section = the "## scenario: { $name }" section has an empty body
 rev-empty-section-instead = a promise needs words: write the scenario body or withdraw the declaration (§2.3)
 
+## graph module
+graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
+graph-unknown-cut-instead = the forty cuts ship with the release (§3.4); pick one of them or fix the typo
+graph-silence = cuts without an answer: { $missing }
+graph-silence-instead = every cut gets exactly one answer -- a covers or a decisions line (§10.3); silence is forbidden
+graph-implements-missing = transform "{ $transform }" implements "{ $scenario }", which is not in the header
+graph-implements-missing-instead = name an existing scenario or remove the entry (§7.1)
+graph-depends-missing = depends_on points at "{ $target }", which is not a wave here
+graph-depends-missing-instead = name an existing wave or drop the edge (§7.1)
+graph-superseded-missing = scenario "{ $scenario }" names successor "{ $successor }", unknown to any wave
+graph-superseded-missing-instead = a successor must exist somewhere (§2.12); write it first or fix the slug
+graph-cycle = depends_on cycle: { $chain }
+graph-cycle-instead = order comes from depends_on, so it cannot loop (§7.2); break the cycle
+
 ## rev command
 rev-title = keel rev -- current revisions
 rev-next = next step: hold these revisions in proves/contracts and in test tags (§5.5); reread before updating a stale one (§5.1)
@@ -109,8 +123,8 @@ check-config-lang-default = config: keel.toml (lang not set -- default en in eff
 check-refs-count = contract references checked: { $count }
 check-header-reads = header reads
 check-no-documents = no documents yet
-check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3 -- for a closed wave an old revision is legal, §5.6)
-check-unchecked = not yet checked: links (chapter 3: cuts and depends_on, §7.2), scenario revisions in test tags (§5.5, §7.5), scope (§4), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
+check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3 -- for a closed wave an old revision is legal, §5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3)
+check-unchecked = not yet checked: scenario revisions in test tags (§5.5, §7.5), scope (§4), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
 check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
 check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
 check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }

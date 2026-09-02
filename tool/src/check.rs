@@ -5,6 +5,7 @@
 
 use crate::config::Config;
 use crate::docs;
+use crate::graph;
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::rev;
@@ -102,6 +103,29 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     }
     for (path, text) in ref_rows {
         rows.push((path, Some(text)));
+    }
+
+    // The graph floor (chapter 3): in-wave and cross-wave links.
+    for wave in &scan.waves {
+        let wave_path = format!("keel/waves/{}.md", wave.slug);
+        for (reason, instead) in graph::wave_findings(wave) {
+            rows.push((
+                wave_path.clone(),
+                Some(format!(
+                    "{reason}\n           {}: {instead}",
+                    t("word-instead")
+                )),
+            ));
+        }
+    }
+    for (wave_slug, reason, instead) in graph::cross_findings(&scan.waves) {
+        rows.push((
+            format!("keel/waves/{wave_slug}.md"),
+            Some(format!(
+                "{reason}\n           {}: {instead}",
+                t("word-instead")
+            )),
+        ));
     }
     rows.sort();
 

@@ -20,6 +20,23 @@ fn write(dir: &Path, rel: &str, text: &str) {
     fs::write(dir.join(rel), text).unwrap();
 }
 
+/// Waves in these sandboxes must themselves obey §10.3 now that the
+/// graph floor judges silence: a full decisions block, one line per
+/// cut, minus any cuts the fixture covers itself.
+fn all_decided_except(covered: &[&str]) -> String {
+    let mut block = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        if !covered.contains(cut) {
+            block.push_str(&format!("  {cut}: \"n/a\"\n"));
+        }
+    }
+    block
+}
+
+fn all_decided() -> String {
+    all_decided_except(&[])
+}
+
 fn keel(args: &[&str]) -> (String, String, i32) {
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
         .args(args)
@@ -41,7 +58,10 @@ fn check_reports_every_file() {
     write(
         &dir,
         "keel/waves/0002-ok.md",
-        "---\ntransforms:\n  tidy: {chore: \"лад у документах\", files: [README.md]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  tidy: {{chore: \"лад у документах\", files: [README.md]}}\n{}---\n",
+            all_decided()
+        ),
     );
     write(
         &dir,
@@ -123,7 +143,10 @@ fn missing_config_defaults() {
     write(
         &dir,
         "keel/waves/0003-w.md",
-        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
@@ -140,7 +163,10 @@ fn missing_config_defaults() {
     write(
         &dir,
         "keel/waves/0003-w.md",
-        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
@@ -164,7 +190,10 @@ fn output_follows_lang() {
     write(
         &dir,
         "keel/waves/0004-w.md",
-        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
@@ -189,7 +218,10 @@ fn output_follows_lang() {
     write(
         &dir,
         "keel/waves/0004-w.md",
-        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
@@ -222,7 +254,10 @@ fn plural_forms_correct() {
             write(
                 &dir,
                 &format!("keel/waves/000{i}-w.md"),
-                "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+                &format!(
+                    "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+                    all_decided()
+                ),
             );
         }
         let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
@@ -249,7 +284,8 @@ fn contract_refs_verified() {
         &dir,
         "keel/waves/0005-good.md",
         &format!(
-            "---\nscenarios:\n  s: {{proves: anchor@{good}}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n"
+            "---\nscenarios:\n  s: {{proves: anchor@{good}, covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n{}---\n\n## scenario: s\n\nbody\n",
+            all_decided_except(&["functional.correctness"])
         ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
@@ -264,7 +300,10 @@ fn contract_refs_verified() {
     write(
         &dir,
         "keel/waves/0006-stale.md",
-        "---\nscenarios:\n  s: {proves: anchor@beef00}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
+        &format!(
+            "---\nscenarios:\n  s: {{proves: anchor@beef00, covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n{}---\n\n## scenario: s\n\nbody\n",
+            all_decided_except(&["functional.correctness"])
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "a stale revision is a finding:\n{out}");
@@ -288,7 +327,10 @@ fn contract_refs_verified() {
     write(
         &dir,
         "keel/waves/0006-gone.md",
-        "---\nscenarios:\n  s:\n    proves: anchor@beef00\n    withdrawn: \"знято\"\ntransforms:\n  t: {chore: \"tidy\", files: [lib/a.ex]}\n---\n\n## scenario: s\n\nbody\n",
+        &format!(
+            "---\nscenarios:\n  s:\n    proves: anchor@beef00\n    withdrawn: \"знято\"\ntransforms:\n  t: {{chore: \"tidy\", files: [lib/a.ex]}}\n{}---\n\n## scenario: s\n\nbody\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(
@@ -305,7 +347,10 @@ fn missing_contract_named() {
     write(
         &dir,
         "keel/waves/0007-w.md",
-        "---\nscenarios:\n  s: {proves: ghost@abcd12}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
+        &format!(
+            "---\nscenarios:\n  s: {{proves: ghost@abcd12, covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n{}---\n\n## scenario: s\n\nbody\n",
+            all_decided_except(&["functional.correctness"])
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "a dangling reference is a finding:\n{out}");
@@ -330,7 +375,10 @@ fn rev_command_prints() {
     write(
         &dir,
         "keel/waves/0008-w.md",
-        "---\nscenarios:\n  s: {proves: anchor@abcd}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody of s\n",
+        &format!(
+            "---\nscenarios:\n  s: {{proves: anchor@abcd, covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n{}---\n\n## scenario: s\n\nbody of s\n",
+            all_decided_except(&["functional.correctness"])
+        ),
     );
     let anchor = keel::rev::contract_rev(&dir.join("keel/contracts/anchor.md")).unwrap();
     let scenario = keel::rev::text_rev("body of s\n");
@@ -372,7 +420,10 @@ fn rev_command_prints() {
     write(
         &dir,
         "keel/waves/0009-w.md",
-        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["rev", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
