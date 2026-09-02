@@ -160,3 +160,23 @@ fn output_follows_lang() {
     assert_eq!(code, 1, "{out}");
     assert!(out.contains("не закрита"), "відмова мовою проєкту:\n{out}");
 }
+
+/// proves: plural-forms-correct@b2c52a — тримає розділ «Мови виводу»
+/// концепту: множина правилами CLDR, не if-ами.
+#[test]
+fn plural_forms_correct() {
+    for (n, expect) in [(1usize, "1 документ,"), (2, "2 документи,"), (5, "5 документів,")] {
+        let dir = sandbox(&format!("plural-{n}"));
+        write(&dir, "keel.toml", "lang = \"uk\"\n");
+        for i in 1..=n {
+            write(
+                &dir,
+                &format!("keel/waves/000{i}-w.md"),
+                "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+            );
+        }
+        let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+        assert_eq!(code, 0, "{out}");
+        assert!(out.contains(expect), "множина для {n}:\n{out}");
+    }
+}
