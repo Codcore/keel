@@ -503,7 +503,7 @@ fn broken_links_named() {
     write(
         &dir,
         "keel/waves/0005-a.md",
-        "---\ndepends_on: [0006-b, 0099-ghost-wave]\nscenarios:\n  s:\n    covers: [functional.correctness]\n    superseded_by: nobody-anywhere\ntransforms:\n  t:\n    implements: [s, ghost-scenario]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
+        "---\ndepends_on: [0006-b, 0099-ghost-wave]\nscenarios:\n  s:\n    covers: [functional.correctness]\n    superseded_by: nobody-anywhere\n  selfy:\n    withdrawn: \"folded into s\"\n    superseded_by: selfy\ntransforms:\n  t:\n    implements: [s, ghost-scenario]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
     );
     write(
         &dir,
@@ -523,6 +523,13 @@ fn broken_links_named() {
     assert!(
         out.contains("nobody-anywhere"),
         "a successor unknown to any wave named:\n{out}"
+    );
+    // Second birth (review R-5): a scenario naming itself as its own
+    // successor passes as "found somewhere" today -- §2.12 wants a
+    // successor that took over, and nothing takes over from itself.
+    assert!(
+        out.contains("names itself"),
+        "a self-successor named as a finding:\n{out}"
     );
     assert!(
         out.contains("0005-a") && out.contains("0006-b"),
