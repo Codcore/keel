@@ -104,9 +104,19 @@ fn check_reports_every_file() {
         out.contains("links (chapter 3"),
         "links among the checked since the graph floor:\n{out}"
     );
+    // Fixture kept up with the ladder (0010): §7.6 moved to the
+    // checked side with the form floor -- the unchecked line now
+    // carries only §7.7. The scenario's words are unchanged: the
+    // report still names its own limits aloud.
     assert!(
-        out.contains("holding (§7.6)"),
-        "contract holding among the unchecked:\n{out}"
+        out.contains("held (§7.6") || out.contains("форми контрактів (§7.6"),
+        "contract holding among the checked now:\n{out}"
+    );
+    assert!(
+        out.lines()
+            .find(|l| l.contains("not yet checked"))
+            .is_some_and(|l| l.contains("(§7.7)") && !l.contains("§7.6")),
+        "the unchecked line narrowed to §7.7:\n{out}"
     );
     // The unchecked line itself no longer names test tags -- they
     // moved to the checked side with the tag floor (review R-6a).

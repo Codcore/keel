@@ -2,7 +2,7 @@
 module: keel::config
 exports:
   - "pub fn read(root: &Path) -> Result<Config, Refusal>"
-  - "pub struct Config { version, adapter, ci, lang, mode, trust, generated, present, lang_set, mode_set }"
+  - "pub struct Config"
   - "pub const LANGUAGES: [&str; 2]"
   - "pub const MODES: [&str; 3]"
 ---

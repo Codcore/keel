@@ -16,7 +16,7 @@ transforms:
   holding-floor:
     implements:
       - exports-held
-    contracts: [tool-holding@fef81e, tool-docs@2ab9a9, tool-config@2b1bf3, tool-adapter-cargo@348769]
+    contracts: [tool-holding@fef81e, tool-docs@2ab9a9, tool-config@cc126c, tool-adapter-cargo@348769]
     files:
       - tool/src/holding.rs
       - tool/src/check.rs
@@ -24,11 +24,14 @@ transforms:
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/holding_test.rs
+      - tool/tests/check_test.rs
+      - tool/tests/rev_test.rs
+      - tool/src/adapter.rs
   verify-run:
     implements:
       - verify-run-by-close
       - untrusted-not-run
-    contracts: [tool-close@1b6b8e, tool-trust@1363b5, tool-docs@2ab9a9, tool-config@2b1bf3]
+    contracts: [tool-close@1b6b8e, tool-trust@1363b5, tool-docs@2ab9a9, tool-config@cc126c]
     files:
       - tool/src/close.rs
       - tool/i18n/en.ftl

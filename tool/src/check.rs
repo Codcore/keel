@@ -7,6 +7,7 @@ use crate::adapter;
 use crate::config::Config;
 use crate::docs;
 use crate::graph;
+use crate::holding;
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::rev;
@@ -300,6 +301,25 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         }
         status
     };
+
+    // The form floor (§7.6, §2.9): promised signatures against the
+    // module's source, as collapsed text; the incomparable is a
+    // word with its reason, never green.
+    for (place, reason, instead) in holding::court(root, config, &scan.contracts) {
+        rows.push((
+            place,
+            Some(format!(
+                "{reason}\n           {}: {instead}",
+                t("word-instead")
+            )),
+        ));
+    }
+    let (signatures_checked, uncompared) = holding::survey(root, config, &scan.contracts);
+    let mut holding_status = ta("check-holding-count", targs!("count" => signatures_checked));
+    for line in uncompared {
+        holding_status.push('\n');
+        holding_status.push_str(&line);
+    }
     rows.sort();
 
     let mut report = t("check-title");
@@ -363,9 +383,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     }
     writeln!(
         report,
-        "{}\n{}\n{}\n{}\n{}\n{}",
+        "{}\n{}\n{}\n{}\n{}\n{}\n{}",
         tags_status,
         trust_status,
+        holding_status,
         scope_status,
         t("check-checked"),
         t("check-unchecked"),

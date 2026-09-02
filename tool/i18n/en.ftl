@@ -163,6 +163,17 @@ trust-no-config-instead = create the config first: the trust command invents not
 trust-surgery-broken = the surgery cannot keep this file's shape ({ $error }) -- nothing was written
 trust-surgery-broken-instead = tidy the [trust] block by hand, then run keel trust again
 
+# -- holding: the form court of contracts (§7.6, §2.9) --------------
+holding-diverged = the contract "{ $contract }" promises "{ $signature }" -- the code's "{ $name }" does not match it (§2.9)
+holding-diverged-instead = align the code or the promise; changing a held contract is a full wave with its impact list (§5.7)
+holding-vanished = the contract "{ $contract }" promises "{ $name }" -- no such unit in the module's file (§7.6)
+holding-vanished-instead = bring the unit back, or change/withdraw the contract aloud (§2.12, §5.7)
+check-holding-count = signatures checked: { $count }
+check-holding-uncompared = { $contract } — no one compared the form: { $why } (§7.6)
+holding-why-no-adapter = no adapter named in keel.toml
+holding-why-deep = the module path is deeper than this generation compares
+holding-why-no-file = the module's file was not found in the crate
+
 # -- review: the reviewer's package (§9.9) --------------------------
 review-title = keel review — the reviewer's package (§9.9)
 review-wave = the wave: { $wave }
@@ -268,8 +279,8 @@ check-scope-skipped-no-git = scope not compared: git serves no branch for this r
 check-scope-skipped-refused = scope not compared: git refused mid-way -- its refusal stands among the findings
 check-header-reads = header reads
 check-no-documents = no documents yet
-check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); trust of verify/ci commands against recorded fingerprints (§7.16, §2.8); closure is judged by keel close (§6.5)
-check-unchecked = not yet checked: contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
+check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); trust of verify/ci commands against recorded fingerprints (§7.16, §2.8); the form of contracts held (§7.6, §2.9); closure is judged by keel close (§6.5)
+check-unchecked = not yet checked: header-vs-body (§7.7) -- a rung ahead
 check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
 check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
 check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }
@@ -283,7 +294,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 9 -- contracts holding (§7.6)
+check-next-rung = next step: rung 10 -- header-vs-body (§7.7)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)

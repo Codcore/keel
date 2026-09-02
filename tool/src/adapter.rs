@@ -7,6 +7,7 @@ use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::tags::TestTag;
 use crate::targs;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -149,7 +150,7 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
 /// One run instead of one per tag -- the closure court reads it
 /// once. A build that does not build is a refusal aloud with the
 /// compiler's words: without a build there is no verdict for anyone.
-pub fn run_all(root: &Path) -> Result<std::collections::BTreeMap<(String, String), bool>, Refusal> {
+pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
     let crate_dir = crate_root(root)?;
     let out = Command::new("cargo")
         .arg("test")
