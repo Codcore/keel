@@ -14,6 +14,7 @@ pub mod graph;
 pub mod holding;
 pub mod i18n;
 pub mod map;
+pub mod next;
 pub mod refusal;
 pub mod rev;
 pub mod review;

@@ -362,6 +362,34 @@ status-next = onwards — keel next
 status-needs-adapter = the stage eye needs the cargo adapter named in keel.toml: tags are the memory of stages
 status-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
 
+## next command (§9.2, §9.10, §8.4)
+next-title = keel next -- one step (§9.2)
+next-needs-adapter = the step hand needs the cargo adapter named in keel.toml: without tags the stage would be a guess
+next-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
+next-step-fix = the step: mend the document { $file } — { $reason }; instead: { $instead }
+next-step-fix-more = { "  " }and { $count } more { $count ->
+        [one] refusal
+       *[other] refusals
+    } — keel check names them all
+next-step-red = the step: write the test of scenario "{ $scenario }" and commit `red: { $scenario }` — it must fail; the hook lets only a red one through (§7.12, §8.4)
+next-body-label = { "  " }the body of the scenario (@{ $rev }), verbatim:
+next-tag-line = { "  " }the tag in the test: /// proves: { $scenario }@{ $rev }
+next-tests-dir = { "  " }the cargo adapter reads tests in { $dir }
+next-step-stale = the step: the revision of scenario "{ $scenario }" drifted — the tag records { $recorded }, the body now gives { $actual }; update the test to the new body and rewrite the tag (§5.5)
+next-step-transform = the step: transform "{ $name }" — work exactly in the named files, then commit `{ $name }: <words>`; the hook lets it through only green (§8.4)
+next-step-chore = the step: chore "{ $name }" ({ $reason }) — work exactly in the named files, then commit `{ $name }: <words>` (§2.11, §8.4)
+next-files-label = { "  " }the files:
+next-section-label = { "  " }the section of "{ $name }", verbatim:
+next-contract-label = { "  " }the contract { $contract }@{ $rev }, the current text verbatim:
+next-contract-missing = the file of contract "{ $contract }" is missing — keel check names the broken reference (§7.1)
+next-run-label = { "  " }the run of its scenarios' tests:
+next-step-review = the step: the wave is assembled — time for the review (§9.9): gather the package with `keel review` for a fresh agent; the report lands at keel/reviews/{ $wave }.md
+next-step-pr = the step: the review lies next to the wave — time for the PR, merged by the merge-commit button (§8.7); the last word on lacks belongs to keel close
+next-plan-branch = the step: this is the plan branch of wave { $wave } (§8.3) — prove the plan's fullness (keel check, the map), merge the plan PR; the work will ride the branch "{ $wave }"
+next-ready = { "  " }start the branch "{ $wave }" — the wave is approved and not started, its dependencies closed (§6.5, §8.2)
+next-working = { "  " }the branch "{ $wave }" continues — the wave is in progress
+next-all-closed = every wave is closed and none awaits — plan a new wave: this generation writes plans by hand, approval is the merge of the wave file (§6.6)
+
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: this is not one of the commands keel knows
@@ -369,4 +397,4 @@ main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
 main-gate-no-message = refusal: gate needs the commit message file
 main-gate-no-message-reason = reason: the judgement reads the message the commit-msg hook hands over
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel trust [dir] | keel hook [dir]
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel trust [dir] | keel hook [dir]
