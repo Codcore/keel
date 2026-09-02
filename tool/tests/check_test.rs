@@ -109,3 +109,19 @@ fn missing_keel_dir_refuses() {
     assert!(err.contains("keel/"), "називає, чого бракує:\n{err}");
     assert!(err.contains("створи"), "каже, що робити натомість:\n{err}");
 }
+
+/// proves: missing-config-defaults@00061c — тримає контракт
+/// tool-config: типове значення не видає себе за прочитане.
+#[test]
+fn missing_config_defaults() {
+    let dir = sandbox("nocfg");
+    write(
+        &dir,
+        "keel/waves/0003-w.md",
+        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("no keel.toml"), "defaults said aloud:\n{out}");
+    assert!(out.contains("defaults"), "named as defaults, not as read:\n{out}");
+}
