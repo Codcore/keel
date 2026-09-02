@@ -469,6 +469,11 @@ fn vanished_rows(
         .filter(|(_, sc)| sc.withdrawn.is_some())
         .map(|(n, _)| n.as_str())
         .collect();
+    let declared: std::collections::BTreeSet<&str> = waves
+        .iter()
+        .flat_map(|w| w.scenarios.iter())
+        .map(|(n, _)| n.as_str())
+        .collect();
 
     let mut out = Vec::new();
     let mut named: std::collections::BTreeSet<String> = Default::default();
@@ -486,14 +491,26 @@ fn vanished_rows(
             {
                 continue;
             }
+            // The words say what truly happened: a scenario erased
+            // together with its wave is a destroyed promise, not a
+            // living one (review R-6).
+            let (reason, instead) = if declared.contains(tag.scenario.as_str()) {
+                (
+                    ta("tags-vanished", targs!("scenario" => tag.scenario.clone())),
+                    t("tags-vanished-instead"),
+                )
+            } else {
+                (
+                    ta(
+                        "tags-vanished-gone",
+                        targs!("scenario" => tag.scenario.clone()),
+                    ),
+                    t("tags-vanished-gone-instead"),
+                )
+            };
             out.push((
                 rel.to_string(),
-                format!(
-                    "{}\n           {}: {}",
-                    ta("tags-vanished", targs!("scenario" => tag.scenario.clone()),),
-                    t("word-instead"),
-                    t("tags-vanished-instead")
-                ),
+                format!("{reason}\n           {}: {instead}", t("word-instead")),
             ));
         }
     }

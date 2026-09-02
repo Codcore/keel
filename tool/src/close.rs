@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 enum State {
-    Closed,
+    Closed { refs_unjudged: u64 },
     ClosedLight,
     Plan,
     Progress(Vec<String>),
@@ -43,6 +43,16 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     let found = tags::scan(&adapter::test_files(root)?)?;
     let battery = adapter::run_all(root)?;
     let branch = scope::branch_wave(root, &scan.waves);
+    // A scenario namesake may live in several waves: every wave's own
+    // revision is legal for the slug, and a tag holding a foreign
+    // wave's revision is not this wave's lack (review R-3).
+    let mut legal: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for wave in &scan.waves {
+        let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
+        for (name, revision) in rev::scenario_revs(&path)? {
+            legal.entry(name).or_default().push(revision);
+        }
+    }
 
     let mut report = t("close-title");
     report.push('\n');
@@ -53,12 +63,22 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     report.push_str("\n\n");
 
     let mut blockers = 0usize;
+    let mut own_plan = false;
     for wave in &scan.waves {
-        let state = wave_state(root, wave, &found, Some(&battery))?;
+        let state = wave_state(root, wave, &found, &legal, Some(&battery))?;
         let own = branch.as_deref() == Some(wave.slug.as_str());
         match state {
-            State::Closed => {
+            State::Closed { refs_unjudged: 0 } => {
                 report.push_str(&ta("close-closed", targs!("wave" => wave.slug.clone())));
+                report.push('\n');
+            }
+            State::Closed { refs_unjudged } => {
+                // Green is not painted over the unjudged (review R-4):
+                // where history cannot testify, the line says so.
+                report.push_str(&ta(
+                    "close-closed-unjudged",
+                    targs!("wave" => wave.slug.clone(), "count" => refs_unjudged),
+                ));
                 report.push('\n');
             }
             State::ClosedLight => {
@@ -71,6 +91,9 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             State::Plan => {
                 report.push_str(&ta("close-plan", targs!("wave" => wave.slug.clone())));
                 report.push('\n');
+                if own {
+                    own_plan = true;
+                }
             }
             State::Progress(lacks) => {
                 report.push_str(&ta("close-progress", targs!("wave" => wave.slug.clone())));
@@ -91,6 +114,13 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             "close-blockers",
             targs!("wave" => branch.unwrap_or_default(), "count" => blockers as u64),
         ));
+    } else if own_plan {
+        // The honest footer for the plan branch (review R-2): a plan
+        // PR merges as a plan (§6.6), and the old words would lie.
+        report.push_str(&ta(
+            "close-plan-own",
+            targs!("wave" => branch.unwrap_or_default()),
+        ));
     } else {
         report.push_str(&t("close-no-blockers"));
     }
@@ -103,9 +133,17 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
 /// wave has its review file. The §5.6 floor in check leans on this:
 /// the history blessing belongs to the structurally closed.
 pub fn structural(root: &Path, wave: &docs::Wave, tags: &[TestTag]) -> Result<bool, Refusal> {
+    // Without the whole project's waves in hand, structural judges a
+    // namesake tag conservatively: a foreign revision does not count,
+    // so the blessing is withheld, never wrongly granted.
+    let wave_path = root.join("keel/waves").join(format!("{}.md", wave.slug));
+    let mut legal: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (name, revision) in rev::scenario_revs(&wave_path)? {
+        legal.entry(name).or_default().push(revision);
+    }
     Ok(matches!(
-        wave_state(root, wave, tags, None)?,
-        State::Closed | State::ClosedLight
+        wave_state(root, wave, tags, &legal, None)?,
+        State::Closed { .. } | State::ClosedLight
     ))
 }
 
@@ -113,14 +151,18 @@ fn wave_state(
     root: &Path,
     wave: &docs::Wave,
     found: &[TestTag],
+    legal: &BTreeMap<String, Vec<String>>,
     battery: Option<&BTreeMap<(String, String), bool>>,
 ) -> Result<State, Refusal> {
-    // A light wave -- chores only -- is closed by the fact of merge
-    // (§6.5) and needs no report.
-    let light = wave
-        .transforms
-        .iter()
-        .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
+    // A light wave is §6.8's word, not "chores only": exactly one
+    // transform, a chore, touching no contracts -- and nothing
+    // withdrawn: the death of a promise gets two human looks
+    // (review R-5).
+    let light = wave.transforms.len() == 1
+        && wave.transforms.iter().all(|(_, tr)| {
+            matches!(tr.kind, docs::TransformKind::Chore(_)) && tr.contracts.is_empty()
+        })
+        && wave.scenarios.is_empty();
     if light {
         return Ok(State::ClosedLight);
     }
@@ -144,27 +186,41 @@ fn wave_state(
 
     let mut lacks: Vec<String> = Vec::new();
     for name in &live {
-        let mine: Vec<&TestTag> = found.iter().filter(|t| t.scenario == **name).collect();
-        if mine.is_empty() {
-            lacks.push(ta(
-                "close-lack-untagged",
-                targs!("scenario" => (*name).clone()),
-            ));
-            continue;
-        }
         let current = revs
             .iter()
             .find(|(n, _)| n == *name)
             .map(|(_, r)| r.clone())
             .unwrap_or_default();
-        for tag in mine {
-            if !rev::matches(&tag.rev, &current) {
+        // A namesake's tag holding another wave's legal revision is
+        // that wave's proof, not this wave's lack (review R-3); a
+        // record matching no wave at all is a crooked one and stands
+        // as staleness here.
+        let all: Vec<&TestTag> = found.iter().filter(|t| t.scenario == **name).collect();
+        let mine: Vec<&TestTag> = all
+            .iter()
+            .copied()
+            .filter(|t| rev::matches(&t.rev, &current))
+            .collect();
+        if mine.is_empty() {
+            let foreign = |t: &&TestTag| {
+                legal
+                    .get(*name)
+                    .is_some_and(|revs| revs.iter().any(|r| rev::matches(&t.rev, r)))
+            };
+            if let Some(crooked) = all.iter().find(|t| !foreign(t)) {
                 lacks.push(ta(
                     "close-lack-stale",
-                    targs!("scenario" => (*name).clone(), "recorded" => tag.rev.clone(), "actual" => current.clone()),
+                    targs!("scenario" => (*name).clone(), "recorded" => crooked.rev.clone(), "actual" => current.clone()),
                 ));
-                continue;
+            } else {
+                lacks.push(ta(
+                    "close-lack-untagged",
+                    targs!("scenario" => (*name).clone()),
+                ));
             }
+            continue;
+        }
+        for tag in mine {
             if let Some(battery) = battery {
                 let stem = tag
                     .file
@@ -186,10 +242,11 @@ fn wave_state(
         }
     }
 
-    // The references of the wave converge (§6.4): the current text,
-    // a revision true in history, or -- where history cannot testify
-    // (shallow, no git) -- not disproven, and check already says so
-    // aloud in its own report.
+    // The references of the wave converge (§6.4): the current text
+    // or a revision true in history; where history cannot testify
+    // (shallow, no git) the reference is counted unjudged, and the
+    // closed line says so instead of claiming convergence (R-4).
+    let mut refs_unjudged: u64 = 0;
     let mut refs: Vec<&docs::ContractRef> = wave
         .scenarios
         .iter()
@@ -215,9 +272,11 @@ fn wave_state(
             continue;
         }
         let relative = format!("keel/contracts/{}.md", reference.slug);
-        if !crate::check::history_testifies(root)
-            || crate::check::revision_in_history(root, &relative, &reference.rev)
-        {
+        if !crate::check::history_testifies(root) {
+            refs_unjudged += 1;
+            continue;
+        }
+        if crate::check::revision_in_history(root, &relative, &reference.rev) {
             continue;
         }
         lacks.push(ta(
@@ -236,7 +295,7 @@ fn wave_state(
     }
 
     if lacks.is_empty() {
-        Ok(State::Closed)
+        Ok(State::Closed { refs_unjudged })
     } else {
         Ok(State::Progress(lacks))
     }

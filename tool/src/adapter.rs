@@ -214,6 +214,21 @@ pub fn run_all(root: &Path) -> Result<std::collections::BTreeMap<(String, String
             verdicts.insert((stem, name.trim().to_string()), green);
         }
     }
+    // The stitch holds only when every announced target printed its
+    // verdict block: a harness = false target prints "Running" and
+    // no block, shifting every later verdict onto the wrong stem --
+    // up to blessing a wave with a red tagged test (review R-1). A
+    // seam that does not meet is a refusal, not a guess.
+    if block != stems.len() {
+        return Err(Refusal {
+            file: crate_dir,
+            reason: ta(
+                "adapter-battery-mismatch",
+                targs!("stems" => stems.len() as u64, "blocks" => block as u64),
+            ),
+            instead: t("adapter-battery-mismatch-instead"),
+        });
+    }
     if verdicts.is_empty() && !out.status.success() {
         return Err(Refusal {
             file: crate_dir,

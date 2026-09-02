@@ -427,7 +427,7 @@ fn battery_read_once() {
         "a stitch that does not meet is a refusal, not a guess:\n{out}"
     );
     assert!(
-        out.contains("do not meet"),
+        out.contains("does not meet"),
         "the mismatch named aloud:\n{out}"
     );
 }

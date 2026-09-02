@@ -138,6 +138,8 @@ tags-bad-rev = the tag on "{ $scenario }" holds the record "{ $rev }" -- a revis
 tags-bad-rev-instead = recompute with keel rev and record its prefix; a crooked record holds nothing
 tags-vanished = the tag of scenario "{ $scenario }" was at the fork point and is gone at HEAD -- the scenario is alive
 tags-vanished-instead = bring the test back or withdraw the scenario deliberately (§7.15, §2.12); old promises are not disarmed in silence
+tags-vanished-gone = the tag of scenario "{ $scenario }" was at the fork point and is gone at HEAD -- gone with its wave: the promise was erased whole
+tags-vanished-gone-instead = documents are not deleted (§4.12): bring the wave back and withdraw the scenario in its file (§2.12) -- destruction without a trace is forbidden
 
 ## adapter module
 adapter-no-crate = no Cargo.toml at the root and none exactly one level down
@@ -146,6 +148,8 @@ adapter-many-crates = several first-level crates: { $found }
 adapter-many-crates-instead = the adapter does not guess; keep one crate at the first level or run keel from the crate's own project
 adapter-cargo-failed = cargo refuses: { $error }
 adapter-cargo-failed-instead = the judgement needs cargo running (journal A3); make cargo answer here and retry
+adapter-battery-mismatch = cargo announces { $stems } targets and prints { $blocks } verdict blocks -- the stitch does not meet (a harness = false target?)
+adapter-battery-mismatch-instead = the court does not judge by a shifted seam; run that target apart or give it a harness, then retry keel close
 
 ## gate module
 gate-mode = mode: { $mode }
@@ -224,6 +228,7 @@ check-next-rung = next step: rung 6 -- the quality map (§10.7)
 close-title = keel close -- the closure court (§6.5)
 close-battery = battery: { $count } tests judged in one run
 close-closed = { $wave }: closed -- every live scenario proven, references converge, the review lies next to it
+close-closed-unjudged = { $wave }: closed -- every live scenario proven, the review lies next to it; { $count } references not judged: history cannot testify here (§5.6)
 close-closed-light = { $wave }: closed (light) -- chores only, closed by the fact of merge
 close-plan = { $wave }: approved, not started -- a plan without tests is not red (§6.5)
 close-progress = { $wave }: in progress -- the missing, by name:
@@ -237,6 +242,7 @@ close-needs-adapter = the closure court needs the cargo adapter named in keel.to
 close-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
 close-blockers = blockers of this branch's wave { $wave }: { $count } -- a full wave does not merge unproven (§6.5, §9.9)
 close-no-blockers = no blockers: this branch is named as no unclosed wave -- the states above inform
+close-plan-own = the wave of this branch is approved, not started -- a plan PR merges as a plan (§6.6); the work is issued after
 
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
