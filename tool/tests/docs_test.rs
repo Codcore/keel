@@ -36,7 +36,10 @@ fn broken_header_refuses() {
     let r = docs::read_wave(&p).unwrap_err();
     assert_eq!(r.file, p);
     assert!(r.reason.contains("не закрита"), "причина: {}", r.reason);
-    assert!(!r.instead.is_empty(), "відмова мусить казати, що робити натомість");
+    assert!(
+        !r.instead.is_empty(),
+        "відмова мусить казати, що робити натомість"
+    );
 
     // Шапки нема зовсім.
     let p = write(&dir, "keel/waves/0003-y.md", "# просто текст, без шапки\n");
@@ -64,7 +67,11 @@ fn unknown_field_refuses() {
     );
     let r = docs::read_wave(&p).unwrap_err();
     assert!(r.reason.contains("невідоме поле"), "причина: {}", r.reason);
-    assert!(r.reason.contains("scenarois"), "називає само поле: {}", r.reason);
+    assert!(
+        r.reason.contains("scenarois"),
+        "називає само поле: {}",
+        r.reason
+    );
     assert!(!r.instead.is_empty());
 
     // Невідоме поле всередині сценарію.
@@ -130,8 +137,14 @@ fn valid_wave_parses() {
     let (name, alive) = &w.scenarios[0];
     assert_eq!(name, "alive");
     let pr = alive.proves.as_ref().unwrap();
-    assert_eq!((pr.slug.as_str(), pr.rev.as_str()), ("session-run", "7c40de"));
-    assert_eq!(alive.covers, vec!["functional.correctness", "safety.fail-safe"]);
+    assert_eq!(
+        (pr.slug.as_str(), pr.rev.as_str()),
+        ("session-run", "7c40de")
+    );
+    assert_eq!(
+        alive.covers,
+        vec!["functional.correctness", "safety.fail-safe"]
+    );
 
     let (_, gone) = &w.scenarios[1];
     assert_eq!(gone.withdrawn.as_deref(), Some("обіцянку зняла хвиля 0009"));
@@ -158,7 +171,10 @@ fn valid_wave_parses() {
 
     assert_eq!(
         w.decisions,
-        vec![("performance.time-behaviour".to_string(), "не міряємо: разова команда".to_string())]
+        vec![(
+            "performance.time-behaviour".to_string(),
+            "не міряємо: разова команда".to_string()
+        )]
     );
 
     // Законна відсутність — не помилка: хвиля всуціль chore без сценаріїв.
@@ -245,7 +261,11 @@ fn duplicate_name_refuses() {
     );
     let r = docs::read_wave(&p).unwrap_err();
     assert!(r.reason.contains("двічі"), "причина: {}", r.reason);
-    assert!(r.reason.contains("same"), "називає імʼя-дубль: {}", r.reason);
+    assert!(
+        r.reason.contains("same"),
+        "називає імʼя-дубль: {}",
+        r.reason
+    );
 
     // Дві трансформи з одним імʼям.
     let p = write(
