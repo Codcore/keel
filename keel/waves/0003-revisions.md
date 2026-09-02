@@ -3,13 +3,13 @@ depends_on: [0002-config-and-language]
 
 scenarios:
   revision-recipe-reproduced:
-    proves: tool-rev@10ecc9
+    proves: tool-rev@882dea
     covers: [functional.correctness]
   contract-refs-verified:
-    proves: tool-rev@10ecc9
+    proves: tool-rev@882dea
     covers: [reliability.faultlessness, safety.hazard-warning]
   missing-contract-named:
-    proves: tool-rev@10ecc9
+    proves: tool-rev@882dea
     covers: [safety.fail-safe]
   rev-command-prints:
     covers: [interaction.user-assistance, interaction.self-descriptiveness]
@@ -18,7 +18,7 @@ transforms:
   compute-revisions:
     implements:
       - revision-recipe-reproduced
-    contracts: [tool-rev@10ecc9]
+    contracts: [tool-rev@882dea]
     files:
       - tool/Cargo.toml
       - tool/Cargo.lock
@@ -31,7 +31,7 @@ transforms:
     implements:
       - contract-refs-verified
       - missing-contract-named
-    contracts: [tool-rev@10ecc9, tool-docs@2ab9a9, tool-config@63406a]
+    contracts: [tool-rev@882dea, tool-docs@2ab9a9, tool-config@63406a]
     files:
       - tool/src/check.rs
       - tool/src/rev.rs
@@ -41,7 +41,7 @@ transforms:
   rev-command:
     implements:
       - rev-command-prints
-    contracts: [tool-rev@10ecc9]
+    contracts: [tool-rev@882dea, tool-config@63406a]
     files:
       - tool/src/main.rs
       - tool/src/rev.rs
@@ -53,7 +53,7 @@ decisions:
   functional.completeness: "свідомо звужено вголос: цей щабель звіряє редакції КОНТРАКТІВ у шапках хвиль; редакції сценаріїв живуть у тегах тестів, і їх звірить щабель адаптерів — check каже це в рядку «ще не перевірено»"
   functional.appropriateness: "свідомо без тесту: доречність rev судитимуть автори хвиль — команда народжена з болю ручного рахунку в 0001–0002"
   performance.time-behaviour: "свідомо не міряємо: хешування десятків малих файлів; вимір прийде з hook-хвилею"
-  performance.capacity: "не застосовується: документів десятки, sha256 потоковий"
+  performance.capacity: "не застосовується: документів десятки, файли малі — читаються цілими без болю"
   performance.resource-utilisation: "свідомо не міряємо: разовий прохід читання"
   compatibility.co-existence: "не застосовується: читає файли і виходить"
   compatibility.interoperability: "свідомо без окремого тесту: єдина домовленість — рецепт §5.4, і його тримає revision-recipe-reproduced"
@@ -71,7 +71,7 @@ decisions:
   security.non-repudiation: "не застосовується: дій зі станом нема"
   security.accountability: "не застосовується: те саме"
   security.authenticity: "не застосовується: нікого не автентифікує"
-  security.resistance: "свідомо не робимо фаззингу: вхід уже пройшов суворий розбір docs; sha256 не боїться зловмисного тексту"
+  security.resistance: "свідомо не робимо фаззингу: sha256 байдужий до зловмисного тексту; хвилі перед хешуванням секцій проходять суворий розбір docs, контракти хешуються цілим файлом без розбору (§5.3 дозволяє)"
   maintainability.modularity: "свідомо без тесту: rev — окремий модуль за главою 5, check лише викликає його"
   maintainability.reusability: "не застосовується: внутрішній модуль"
   maintainability.analysability: "свідомо без нового тесту: розбіжність редакцій називає обидві — записану і чинну (сценарій contract-refs-verified це тримає)"
@@ -92,8 +92,8 @@ decisions:
 хвилі поспіль редакції рахували руки автора — скриптом, за рецептом,
 записаним застереженням у 0001, і тест цього щабля зобовʼязаний
 відтворити той рецепт на живих контрактах репозиторію (tool-docs@2ab9a9
-і tool-config@63406a — редакції, що вже тримаються шістнадцятьма
-посиланнями). З цієї хвилі `keel check` сам звіряє записані редакції
+і tool-config@63406a — редакції, які вже тримають посилання хвиль
+0001–0002). З цієї хвилі `keel check` сам звіряє записані редакції
 контрактів із текстом (§7.3) і сам ловить посилання в нікуди (§7.1
 для контрактів), а `keel rev` друкує чинні редакції — авторові більше
 нема чого рахувати руками. Редакції сценаріїв живуть у тегах тестів:
