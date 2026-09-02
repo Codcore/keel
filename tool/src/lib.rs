@@ -6,6 +6,7 @@
 
 pub mod adapter;
 pub mod check;
+pub mod close;
 pub mod config;
 pub mod docs;
 pub mod gate;

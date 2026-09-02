@@ -17,7 +17,9 @@ fn sandbox(name: &str) -> PathBuf {
 }
 
 fn write(dir: &Path, rel: &str, text: &str) {
-    fs::write(dir.join(rel), text).unwrap();
+    let path = dir.join(rel);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, text).unwrap();
 }
 
 /// Waves in these sandboxes must themselves obey §10.3 now that the
@@ -631,8 +633,27 @@ fn old_revision_legal_when_historic() {
 
     // The contract's old text is committed, a wave records it, then
     // the contract moves on -- the old revision is true in history.
+    // Since the 0006 narrowing the blessing belongs to closed waves,
+    // so the fixture is one: a matching tag, a review next to the
+    // wave, the cargo adapter on (fixture adaptation, the scenario's
+    // own words unchanged).
     let dir = sandbox("historic");
     git(&dir, &["init", "-q", "-b", "main"]);
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(
+        &dir,
+        "tests/s_test.rs",
+        &format!(
+            "/// proves: s@{}\n#[test]\nfn holds_s() {{}}\n",
+            keel::rev::text_rev("body\n")
+        ),
+    );
+    write(&dir, "keel/reviews/0007-w.md", "# Рецензія\n\nok\n");
     write(
         &dir,
         "keel/contracts/anchor.md",
@@ -732,5 +753,109 @@ fn old_revision_legal_when_historic() {
     assert!(
         out.contains("no git history"),
         "the absence of history named with a word, no verdict:\n{out}"
+    );
+}
+
+/// proves: open-wave-stale-is-red-again@b8292f -- holds the §5.6
+/// narrowing (review 0005, R-9): the history blessing belongs to
+/// structurally closed waves only -- an open wave with a stale
+/// reference is a finding again (§5.1: update deliberately) -- and
+/// historic references are named by name, not only counted.
+#[test]
+fn open_wave_stale_is_red_again() {
+    let git = |dir: &Path, args: &[&str]| {
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args([
+                "-c",
+                "user.email=keel@test",
+                "-c",
+                "user.name=keel-test",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?}:\n{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    let dir = sandbox("narrowing");
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    fs::create_dir_all(dir.join("keel/reviews")).unwrap();
+    write(
+        &dir,
+        "keel/contracts/anchor.md",
+        "---\nmodule: A\nexports: [\"one()\"]\n---\n\nold words\n",
+    );
+    let old_rev = keel::rev::contract_rev(&dir.join("keel/contracts/anchor.md")).unwrap();
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "old contract in history"]);
+
+    // A structurally CLOSED wave holding the old revision: its live
+    // scenario has a matching tag and its review lies next to it.
+    write(
+        &dir,
+        "keel/waves/0016-done.md",
+        &format!(
+            "---\nscenarios:\n  t:\n    proves: anchor@{old_rev}\n    covers: [functional.correctness]\ntransforms:\n  w:\n    implements: [t]\n    files: [src/lib.rs]\n{}---\n\n## scenario: t\n\nbody of t\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    let t_rev = keel::rev::text_rev("body of t\n");
+    write(
+        &dir,
+        "tests/t_test.rs",
+        &format!("/// proves: t@{t_rev}\n#[test]\nfn holds_t() {{}}\n"),
+    );
+    write(&dir, "keel/reviews/0016-done.md", "# Рецензія\n\nok\n");
+    // An OPEN wave holding the same old revision: its scenario has
+    // no tag anywhere.
+    write(
+        &dir,
+        "keel/waves/0017-open.md",
+        &format!(
+            "---\nscenarios:\n  u:\n    proves: anchor@{old_rev}\n    covers: [performance.capacity]\ntransforms:\n  w:\n    implements: [u]\n    files: [src/lib.rs]\n{}---\n\n## scenario: u\n\nbody of u\n",
+            all_decided_except(&["performance.capacity"])
+        ),
+    );
+    // The contract moves on -- both references grow stale.
+    write(
+        &dir,
+        "keel/contracts/anchor.md",
+        "---\nmodule: A\nexports: [\"one()\", \"two()\"]\n---\n\nnew words\n",
+    );
+    git(&dir, &["add", "."]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "waves and the newer contract"],
+    );
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 1,
+        "an open wave's stale reference is a finding again:\n{out}"
+    );
+    assert!(
+        out.contains("0017-open"),
+        "the open wave named in the finding:\n{out}"
+    );
+    assert!(
+        out.contains("0016-done") && out.contains(&format!("anchor@{old_rev}")),
+        "the closed wave's historic reference named by name (R-9):\n{out}"
+    );
+    assert!(
+        !out.contains("0016-done: записано") && !out.contains("0016-done.md — хвиля"),
+        "the closed wave carries no finding:\n{out}"
     );
 }

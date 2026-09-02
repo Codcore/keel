@@ -137,6 +137,111 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
     }
 }
 
+/// The whole battery in one cargo run, verdicts laid out per test:
+/// the key is (test file stem, function name), the value is green.
+/// One run instead of one per tag -- the closure court reads it
+/// once. A build that does not build is a refusal aloud with the
+/// compiler's words: without a build there is no verdict for anyone.
+pub fn run_all(root: &Path) -> Result<std::collections::BTreeMap<(String, String), bool>, Refusal> {
+    let crate_dir = crate_root(root)?;
+    let out = Command::new("cargo")
+        .arg("test")
+        .arg("--manifest-path")
+        .arg(crate_dir.join("Cargo.toml"))
+        .arg("--no-fail-fast")
+        .output()
+        .map_err(|e| Refusal {
+            file: crate_dir.clone(),
+            reason: ta("adapter-cargo-failed", targs!("error" => e.to_string())),
+            instead: t("adapter-cargo-failed-instead"),
+        })?;
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    if stderr.contains("could not compile") || stderr.contains("error[E") {
+        let words = stderr
+            .lines()
+            .find(|l| l.starts_with("error"))
+            .unwrap_or("could not compile")
+            .to_string();
+        return Err(Refusal {
+            file: crate_dir,
+            reason: ta("adapter-cargo-failed", targs!("error" => words)),
+            instead: t("adapter-cargo-failed-instead"),
+        });
+    }
+    // cargo splits its word: the target list ("Running tests/x.rs")
+    // goes to stderr, the verdicts go to stdout -- one block per
+    // target, in the same order, since targets run one after another.
+    // The stems and the blocks are stitched back by that order.
+    let mut stems: Vec<String> = Vec::new();
+    for line in stderr.lines() {
+        let trimmed = line.trim();
+        if let Some(what) = trimmed.strip_prefix("Running ") {
+            let path = what.split_whitespace().next().unwrap_or("");
+            stems.push(
+                Path::new(path)
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            );
+        } else if trimmed.starts_with("Doc-tests ") {
+            stems.push("doc-tests".to_string());
+        }
+    }
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let mut verdicts = std::collections::BTreeMap::new();
+    let mut block: usize = 0;
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("running ") && trimmed.ends_with("tests")
+            || trimmed == "running 1 test"
+        {
+            block += 1;
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("test ")
+            && let Some((name, verdict)) = rest.rsplit_once(" ... ")
+        {
+            let green = match verdict.trim() {
+                "ok" => true,
+                v if v.starts_with("FAILED") => false,
+                _ => continue, // ignored and friends are no verdict
+            };
+            let stem = block
+                .checked_sub(1)
+                .and_then(|i| stems.get(i))
+                .cloned()
+                .unwrap_or_default();
+            verdicts.insert((stem, name.trim().to_string()), green);
+        }
+    }
+    // The stitch holds only when every announced target printed its
+    // verdict block: a harness = false target prints "Running" and
+    // no block, shifting every later verdict onto the wrong stem --
+    // up to blessing a wave with a red tagged test (review R-1). A
+    // seam that does not meet is a refusal, not a guess.
+    if block != stems.len() {
+        return Err(Refusal {
+            file: crate_dir,
+            reason: ta(
+                "adapter-battery-mismatch",
+                targs!("stems" => stems.len() as u64, "blocks" => block as u64),
+            ),
+            instead: t("adapter-battery-mismatch-instead"),
+        });
+    }
+    if verdicts.is_empty() && !out.status.success() {
+        return Err(Refusal {
+            file: crate_dir,
+            reason: ta(
+                "adapter-cargo-failed",
+                targs!("error" => stderr.lines().last().unwrap_or("no test output").to_string()),
+            ),
+            instead: t("adapter-cargo-failed-instead"),
+        });
+    }
+    Ok(verdicts)
+}
+
 /// The number standing right before the given marker in cargo's
 /// "test result:" line.
 fn count_before(line: &str, marker: &str) -> u64 {
