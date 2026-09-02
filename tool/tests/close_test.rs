@@ -213,3 +213,61 @@ fn closure_needs_review_file() {
         "with the report the wave closes:\n{out}"
     );
 }
+
+/// proves: battery-read-once@5643fa -- holds journal A3 and the
+/// adapter contract: one cargo run gives every tag its own verdict;
+/// a build that does not build is a refusal aloud with the
+/// compiler's words -- no verdict for anyone.
+#[test]
+fn battery_read_once() {
+    // Two tagged tests, one green and one red, judged from one run.
+    let dir = project("battery", "just-work");
+    write(
+        &dir,
+        "keel/waves/0014-two.md",
+        &format!(
+            "---\nscenarios:\n  green-one: {{covers: [functional.correctness]}}\n  red-one: {{covers: [performance.capacity]}}\ntransforms:\n  t:\n    implements: [green-one, red-one]\n    files: [src/lib.rs]\n{}---\n\n## scenario: green-one\n\nbody of green-one\n\n## scenario: red-one\n\nbody of red-one\n",
+            all_decided_except(&["functional.correctness", "performance.capacity"])
+        ),
+    );
+    let g = keel::rev::text_rev("body of green-one\n");
+    let r = keel::rev::text_rev("body of red-one\n");
+    write(
+        &dir,
+        "tests/two_test.rs",
+        &format!("/// proves: green-one@{g}\n#[test]\nfn holds_green() {{}}\n\n/// proves: red-one@{r}\n#[test]\nfn holds_red() {{ assert!(false); }}\n"),
+    );
+    write(&dir, "keel/reviews/0014-two.md", "# Рецензія\n\nok\n");
+    commit_all(&dir);
+
+    // The library call itself: the whole battery, one map of verdicts.
+    let verdicts = keel::adapter::run_all(&dir).unwrap();
+    assert_eq!(
+        verdicts.get(&("two_test".to_string(), "holds_green".to_string())),
+        Some(&true),
+        "the green test is green in the one run"
+    );
+    assert_eq!(
+        verdicts.get(&("two_test".to_string(), "holds_red".to_string())),
+        Some(&false),
+        "the red test is red in the one run"
+    );
+
+    // Through the court: both verdicts land, each named.
+    let (out, err, _code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("in progress") && out.contains("\"red-one\"") && out.contains("test is red"),
+        "the red scenario named with its kind:\n{out}"
+    );
+
+    // A build that does not build: a refusal aloud, no verdicts.
+    write(&dir, "tests/broken_test.rs", "fn broken() { let x: i32 = \"no\"; }\n");
+    let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "no build -- no verdict for anyone:\n{out}");
+    assert!(
+        out.contains("error"),
+        "the compiler's words carried:\n{out}"
+    );
+}
