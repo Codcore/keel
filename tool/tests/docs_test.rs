@@ -50,3 +50,38 @@ fn broken_header_refuses() {
     assert!(r.reason.contains("YAML"), "причина: {}", r.reason);
     assert!(!r.instead.is_empty());
 }
+
+/// proves: unknown-field-refuses@4fa15d — тримає §7.9.
+#[test]
+fn unknown_field_refuses() {
+    let dir = sandbox("unknown");
+
+    // Одрук у полі хвилі: scenarois замість scenarios.
+    let p = write(
+        &dir,
+        "keel/waves/0004-typo.md",
+        "---\nscenarois:\n  a: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [a]\n    files: [lib/a.ex]\n---\n",
+    );
+    let r = docs::read_wave(&p).unwrap_err();
+    assert!(r.reason.contains("невідоме поле"), "причина: {}", r.reason);
+    assert!(r.reason.contains("scenarois"), "називає само поле: {}", r.reason);
+    assert!(!r.instead.is_empty());
+
+    // Невідоме поле всередині сценарію.
+    let p = write(
+        &dir,
+        "keel/waves/0005-inner.md",
+        "---\nscenarios:\n  a: {covvers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [a]\n    files: [lib/a.ex]\n---\n",
+    );
+    let r = docs::read_wave(&p).unwrap_err();
+    assert!(r.reason.contains("covvers"), "причина: {}", r.reason);
+
+    // Невідоме поле контракту.
+    let p = write(
+        &dir,
+        "keel/contracts/typo.md",
+        "---\nmodule: X\nexporst:\n  - \"run()\"\n---\n",
+    );
+    let r = docs::read_contract(&p).unwrap_err();
+    assert!(r.reason.contains("exporst"), "причина: {}", r.reason);
+}
