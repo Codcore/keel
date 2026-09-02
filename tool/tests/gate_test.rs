@@ -266,3 +266,53 @@ fn build_break_is_not_red() {
         "the refusal says the run executed nothing:\n{out}"
     );
 }
+
+/// proves: gate-modes-obeyed@ba7150 -- holds journal A3 and the
+/// config school: strict blocks with exit 1, soft says the same
+/// words with exit 0, manual says the judgement is off; an absent
+/// mode acts as strict and says it is the default; a branch named as
+/// no wave passes with a word in every mode.
+#[test]
+fn gate_modes_obeyed() {
+    // The same violation -- an unearned red -- under each mode.
+    let dir = project("modestrict", "mode = \"strict\"\n", "assert!(true);");
+    let (out, code) = gate(&dir, "red: s");
+    assert_eq!(code, 1, "strict blocks:\n{out}");
+    assert!(out.contains("mode: strict"), "the mode named:\n{out}");
+
+    let dir = project("modesoft", "mode = \"soft\"\n", "assert!(true);");
+    let (out, code) = gate(&dir, "red: s");
+    assert_eq!(code, 0, "soft warns and lets through:\n{out}");
+    assert!(
+        out.contains("is green") && out.contains("mode: soft"),
+        "the same words, as a warning:\n{out}"
+    );
+
+    let dir = project("modemanual", "mode = \"manual\"\n", "assert!(true);");
+    let (out, code) = gate(&dir, "red: s");
+    assert_eq!(code, 0, "manual passes:\n{out}");
+    assert!(
+        out.contains("judgement is off"),
+        "manual says the judgement is off:\n{out}"
+    );
+
+    // No mode field -- strict, and the default does not pass itself
+    // off as read.
+    let dir = project("modeabsent", "", "assert!(true);");
+    let (out, code) = gate(&dir, "red: s");
+    assert_eq!(code, 1, "the absent mode acts as strict:\n{out}");
+    assert!(
+        out.contains("mode: strict (the default"),
+        "the default named as a default:\n{out}"
+    );
+
+    // A branch named as no wave -- nothing to judge, in every mode.
+    let dir = project("modenotwave", "mode = \"strict\"\n", "assert!(true);");
+    git(&dir, &["checkout", "-q", "-b", "just-work"]);
+    let (out, code) = gate(&dir, "red: s");
+    assert_eq!(code, 0, "no wave, nothing to judge:\n{out}");
+    assert!(
+        out.contains("nothing to judge"),
+        "the pass carries its word:\n{out}"
+    );
+}
