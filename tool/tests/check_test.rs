@@ -297,3 +297,45 @@ fn missing_contract_named() {
         "names the wave that points at it:\n{out}"
     );
 }
+
+/// proves: rev-command-prints@801d36 -- holds §5.1/§5.5: authors copy
+/// current revisions from the tool instead of computing by hand.
+#[test]
+fn rev_command_prints() {
+    let dir = sandbox("rev-cmd");
+    write(&dir, "keel.toml", "lang = \"uk\"\n");
+    write(
+        &dir,
+        "keel/contracts/anchor.md",
+        "---\nmodule: Anchor\nexports: [\"run()\"]\n---\n\nprose\n",
+    );
+    write(
+        &dir,
+        "keel/waves/0008-w.md",
+        "---\nscenarios:\n  s: {proves: anchor@abcd}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody of s\n",
+    );
+    let anchor = keel::rev::contract_rev(&dir.join("keel/contracts/anchor.md")).unwrap();
+    let scenario = keel::rev::text_rev("body of s\n");
+
+    let (out, _err, code) = keel(&["rev", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "{out}");
+    assert!(
+        out.contains(&format!("anchor@{anchor}")),
+        "prints the contract revision:\n{out}"
+    );
+    assert!(
+        out.contains(&format!("0008-w/s@{scenario}")),
+        "prints the scenario revision as wave/scenario@rev:\n{out}"
+    );
+    assert!(out.contains("наступний крок"), "prints the next step in uk:\n{out}");
+
+    // A broken document stands next to the revisions as a refusal.
+    write(&dir, "keel/contracts/broken.md", "---\nmodule: X\n");
+    let (out, _err, code) = keel(&["rev", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a refusal makes the exit non-zero:\n{out}");
+    assert!(out.contains("не закрита"), "the refusal stands in the output:\n{out}");
+    assert!(
+        out.contains(&format!("anchor@{anchor}")),
+        "intact revisions still printed:\n{out}"
+    );
+}
