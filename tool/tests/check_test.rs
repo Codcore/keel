@@ -443,3 +443,38 @@ fn silence_forbidden() {
         "the cut held only by a withdrawn cover is listed missing:\n{out}"
     );
 }
+
+/// proves: broken-links-named@4b2a4e -- holds §7.1/§7.2: links into
+/// nowhere and dependency cycles are findings with names.
+#[test]
+fn broken_links_named() {
+    let dir = sandbox("links");
+    write(
+        &dir,
+        "keel/waves/0005-a.md",
+        "---\ndepends_on: [0006-b, 0099-ghost-wave]\nscenarios:\n  s:\n    covers: [functional.correctness]\n    superseded_by: nobody-anywhere\ntransforms:\n  t:\n    implements: [s, ghost-scenario]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
+    );
+    write(
+        &dir,
+        "keel/waves/0006-b.md",
+        "---\ndepends_on: [0005-a]\ntransforms:\n  t: {chore: \"tidy\", files: [lib/b.ex]}\n---\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "broken links are findings:\n{out}");
+    assert!(
+        out.contains("ghost-scenario"),
+        "implements into nowhere named:\n{out}"
+    );
+    assert!(
+        out.contains("0099-ghost-wave"),
+        "depends_on into nowhere named:\n{out}"
+    );
+    assert!(
+        out.contains("nobody-anywhere"),
+        "a successor unknown to any wave named:\n{out}"
+    );
+    assert!(
+        out.contains("0005-a") && out.contains("0006-b"),
+        "the dependency cycle names its waves:\n{out}"
+    );
+}
