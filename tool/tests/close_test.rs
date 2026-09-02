@@ -161,6 +161,94 @@ fn wave_closure_judged() {
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "other waves inform, they do not punish:\n{out}");
     assert!(out.contains("in progress"), "the states still told:\n{out}");
+
+    // Second birth (review R-2): the branch named as a wave still in
+    // its plan state -- a plan PR merges as a plan (§6.6), so the
+    // exit stays 0, but the footer must say that truth, not "named
+    // as no unclosed wave".
+    git(&dir, &["checkout", "-q", "-b", "0011-plan"]);
+    let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "a plan PR merges as a plan (§6.6):\n{out}");
+    assert!(
+        out.contains("merges as a plan"),
+        "the footer tells the plan truth, not a wrong word:\n{out}"
+    );
+    assert!(
+        !out.contains("named as no unclosed wave"),
+        "the old footer would lie here:\n{out}"
+    );
+
+    // Second birth (review R-3): a scenario namesake in two waves,
+    // each with its own matching tag and green test -- both waves
+    // close; a tag whose revision belongs to the other wave is not
+    // this wave's lack.
+    let dir = project("namesakes", "just-work");
+    write(&dir, "keel/waves/0020-first.md", &wave_text("s"));
+    write(
+        &dir,
+        "keel/waves/0021-second.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nanother body of s\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    let first_rev = keel::rev::text_rev("body of s\n");
+    let second_rev = keel::rev::text_rev("another body of s\n");
+    write(
+        &dir,
+        "tests/first_test.rs",
+        &format!("/// proves: s@{first_rev}\n#[test]\nfn holds_s_first() {{}}\n"),
+    );
+    write(
+        &dir,
+        "tests/second_test.rs",
+        &format!("/// proves: s@{second_rev}\n#[test]\nfn holds_s_second() {{}}\n"),
+    );
+    write(&dir, "keel/reviews/0020-first.md", "# Рецензія\n\nok\n");
+    write(&dir, "keel/reviews/0021-second.md", "# Рецензія\n\nok\n");
+    commit_all(&dir);
+    let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "namesakes do not deadlock each other:\n{out}");
+    assert!(
+        out.contains("0020-first: closed") && out.contains("0021-second: closed"),
+        "each wave closed by its own revision (R-3):\n{out}"
+    );
+
+    // Second birth (review R-4): where history cannot testify, the
+    // closed line must not claim the references converged -- the
+    // unjudged are named, green is not painted over them.
+    let dir = project("unjudgedrefs", "just-work");
+    write(
+        &dir,
+        "keel/contracts/anchor.md",
+        "---\nmodule: A\nexports: [\"one()\"]\n---\n\nwords\n",
+    );
+    write(
+        &dir,
+        "keel/waves/0022-w.md",
+        &format!(
+            "---\nscenarios:\n  a:\n    proves: anchor@bbbbbb\n    covers: [functional.correctness]\ntransforms:\n  t:\n    implements: [a]\n    files: [src/lib.rs]\n{}---\n\n## scenario: a\n\nbody of a\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    let a_rev = keel::rev::text_rev("body of a\n");
+    write(
+        &dir,
+        "tests/a_test.rs",
+        &format!("/// proves: a@{a_rev}\n#[test]\nfn holds_a() {{}}\n"),
+    );
+    write(&dir, "keel/reviews/0022-w.md", "# Рецензія\n\nok\n");
+    // No git at all: the fabricated reference cannot be judged.
+    fs::remove_dir_all(dir.join(".git")).unwrap();
+    let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "unjudgeable is not a lack:\n{out}");
+    assert!(
+        out.contains("not judged"),
+        "the closed line does not claim converged references (R-4):\n{out}"
+    );
 }
 
 /// proves: closure-needs-review-file@d1cb7a -- holds §9.9 as
