@@ -8,10 +8,10 @@ scenarios:
   old-revision-legal-when-historic:
     covers: [security.authenticity]
   red-commit-needs-failing-test:
-    proves: tool-gate@1055c3
+    proves: tool-gate@4270e9
     covers: [safety.operational-constraints, security.integrity]
   work-commit-needs-green:
-    proves: tool-gate@1055c3
+    proves: tool-gate@4270e9
     covers: [functional.completeness]
   build-break-is-not-red:
     proves: tool-adapter-cargo@77e38c
@@ -20,7 +20,7 @@ scenarios:
     proves: tool-config@684c79
     covers: [interaction.operability, interaction.self-descriptiveness]
   hook-installed-aloud:
-    proves: tool-gate@1055c3
+    proves: tool-gate@4270e9
     covers: [flexibility.installability, compatibility.co-existence, safety.safe-integration]
 
 transforms:
@@ -44,7 +44,7 @@ transforms:
       - work-commit-needs-green
       - build-break-is-not-red
       - gate-modes-obeyed
-    contracts: [tool-gate@1055c3, tool-adapter-cargo@77e38c, tool-tags@ffb8af, tool-config@684c79, tool-scope@b8ada4]
+    contracts: [tool-gate@4270e9, tool-adapter-cargo@77e38c, tool-tags@ffb8af, tool-config@684c79, tool-scope@b8ada4]
     files:
       - tool/src/gate.rs
       - tool/src/adapter.rs
@@ -58,7 +58,7 @@ transforms:
   hook-install:
     implements:
       - hook-installed-aloud
-    contracts: [tool-gate@1055c3]
+    contracts: [tool-gate@4270e9]
     files:
       - tool/src/gate.rs
       - tool/src/main.rs
@@ -138,7 +138,7 @@ staged-знімок, — різниця можлива при частковом
 **тоді** кожне — знахідка поіменно (файл тесту, сценарій, записана і
 чинна редакції; §5.5, §7.5), а збіжні теги пораховані у звіті рядком
 «тегів звірено: N» — і рядок «ще не перевірено» більше не називає
-теги.
+теги. Теги знятих сценаріїв не судяться — обіцянка померла (§2.12).
 
 ## scenario: old-revision-legal-when-historic
 
@@ -147,8 +147,10 @@ staged-знімок, — різниця можлива при частковом
 **коли** біжить `keel check`,
 **тоді** це зелене зі словом «стара редакція, справжня в історії»
 (§5.6) — а редакція, якої в історії файлу не було ніколи, лишається
-знахідкою, як досі. Де git-історії нема, діє стара строгість і звіт
-каже чому.
+знахідкою, як досі. Де історії нема або вона обрізана (shallow-клон,
+як у CI) — вирок не виноситься: слово «законність не звірити,
+історія неповна» замість знахідки, бо відсутність історії — не
+провина хвилі.
 
 ## scenario: red-commit-needs-failing-test
 
@@ -157,7 +159,10 @@ staged-знімок, — різниця можлива при частковом
 **коли** біжить `keel gate` з файлом цього повідомлення,
 **тоді** пропуск є лише тоді, коли тест сценарію знайдений тегом
 proves і справді впав; зелений тест — відмова вголос: незароблене
-«бачив червоним» не вʼїжджає в історію (§7.12, А3).
+«бачив червоним» не вʼїжджає в історію (§7.12, А3). `red:` на знятий
+сценарій — відмова (§2.12: мертва обіцянка не народжується); кілька
+тегів одного сценарію при народженні — відмова «скажи, котрий
+народжується» (при роботі женуться всі).
 
 ## scenario: work-commit-needs-green
 
