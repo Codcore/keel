@@ -127,3 +127,68 @@ fn untrusted_command_red() {
         "no trust finding over a matching fingerprint:\n{out}"
     );
 }
+
+/// proves: trust-line-stale-red@9cc58d -- holds §7.16 on the
+/// records' side: a [trust] line no live command answers to is a
+/// door opened in advance (change or withdrawal does not inherit
+/// trust); a crooked fingerprint over a live command is a finding
+/// with the advice to rewrite; and ci = "none" is a lawful refusal
+/// aloud, not a finding.
+#[test]
+fn trust_line_stale_red() {
+    let dir = sandbox("stale");
+    write(
+        &dir,
+        "keel.toml",
+        &format!(
+            "ci = \"none\"\n\n[trust]\n\"rm -rf old\" = \"{CARGO_TEST_FP}\"\n\"echo ok\" = \"000000000000\"\n"
+        ),
+    );
+    write(&dir, "keel/waves/0050-w.md", &quiet_wave());
+    write(
+        &dir,
+        "keel/contracts/ext-echo.md",
+        "---\nverify: \"echo ok\"\n---\n\nA foreign promise: the echo answers (§2.8).\n",
+    );
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "stale trust lines are findings:\n{out}");
+    assert!(
+        out.contains("\"rm -rf old\"") && out.contains("door opened in advance"),
+        "the orphaned line is a door opened in advance:\n{out}"
+    );
+    assert!(
+        out.contains("\"echo ok\"") && out.contains("crooked"),
+        "the crooked fingerprint over a live command named:\n{out}"
+    );
+    assert!(
+        out.contains("keel trust"),
+        "the crooked line's advice: rewrite through keel trust:\n{out}"
+    );
+    assert!(
+        !out.contains("\"none\""),
+        "ci = none is a refusal aloud, not a finding (§7.16):\n{out}"
+    );
+
+    // The withdrawal side of the door: a withdrawn contract's verify
+    // is no live command (§2.12), so its trust line orphans too.
+    let dir = sandbox("withdrawn");
+    write(
+        &dir,
+        "keel.toml",
+        &format!("[trust]\n\"echo ok\" = \"{}\"\n", "7d10fced96b3"),
+    );
+    write(&dir, "keel/waves/0050-w.md", &quiet_wave());
+    write(
+        &dir,
+        "keel/contracts/ext-echo.md",
+        "---\nverify: \"echo ok\"\nwithdrawn: \"the service is gone\"\n---\n\nWas a foreign promise (§2.8); withdrawn per §2.12.\n",
+    );
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "a withdrawn verify leaves its trust line orphaned:\n{out}");
+    assert!(
+        out.contains("door opened in advance"),
+        "the withdrawn contract's line is the same door:\n{out}"
+    );
+}
