@@ -1,6 +1,10 @@
 //! CLI: тонка обгортка над бібліотекою. Команди зшиті з лупом
 //! методики; кожна відмова — причина плюс «що робити натомість».
+//! Рамкові відмови CLI — до того, як прочитано конфіг, — англійською:
+//! мови проєкту ми ще не знаємо.
 
+use keel::i18n::{t, ta};
+use keel::targs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -11,7 +15,15 @@ fn main() -> ExitCode {
             let root = args
                 .get(1)
                 .map_or_else(|| PathBuf::from("."), PathBuf::from);
-            match keel::check::run(&root) {
+            let config = match keel::config::read(&root) {
+                Ok(config) => config,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
+            keel::i18n::init(&config.lang);
+            match keel::check::run(&root, &config) {
                 Ok(outcome) => {
                     print!("{}", outcome.report);
                     if outcome.findings == 0 {
@@ -28,13 +40,22 @@ fn main() -> ExitCode {
         }
         Some(other) => {
             eprintln!(
-                "відмова: невідома команда \"{other}\"\n  причина: перший щабель самонаведення — команд поки одна\n  натомість: keel check [тека]"
+                "{}\n  {}\n  {}",
+                ta(
+                    "main-unknown-command",
+                    targs!("command" => other.to_string())
+                ),
+                t("main-unknown-command-reason"),
+                t("main-usage")
             );
             ExitCode::from(2)
         }
         None => {
             eprintln!(
-                "відмова: не названо команди\n  причина: keel не вгадує, що робити\n  натомість: keel check [тека]"
+                "{}\n  {}\n  {}",
+                t("main-no-command"),
+                t("main-no-command-reason"),
+                t("main-usage")
             );
             ExitCode::from(2)
         }

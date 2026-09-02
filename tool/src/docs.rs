@@ -6,36 +6,20 @@
 //! відсутність, яку методика дозволяє, — не помилка. Відмова — це
 //! інтерфейс: файл, причина людською мовою, що робити натомість.
 
-use std::fmt;
 use std::path::{Path, PathBuf};
 
 use saphyr_parser::{Event, Parser};
 
-/// Відмова: файл, причина людською мовою і що зробити натомість.
-#[derive(Debug, Clone)]
-pub struct Refusal {
-    pub file: PathBuf,
-    pub reason: String,
-    pub instead: String,
-}
+use crate::i18n::{t, ta};
+use crate::targs;
 
-impl fmt::Display for Refusal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "відмова: {}\n  причина: {}\n  натомість: {}",
-            self.file.display(),
-            self.reason,
-            self.instead
-        )
-    }
-}
+pub use crate::refusal::Refusal;
 
-fn refuse(file: &Path, reason: String, instead: &str) -> Refusal {
+fn refuse(file: &Path, reason: String, instead: String) -> Refusal {
     Refusal {
         file: file.to_path_buf(),
         reason,
-        instead: instead.to_string(),
+        instead,
     }
 }
 
@@ -134,18 +118,22 @@ pub fn scan(root: &Path) -> Result<Scan, Refusal> {
     if !keel.is_dir() {
         return Err(refuse(
             &keel,
-            "теки keel/ тут нема — методика живе в keel/waves/ і keel/contracts/".into(),
-            "створи keel/waves/ і keel/contracts/ або запусти keel з кореня проєкту",
+            t("docs-keel-missing"),
+            t("docs-keel-missing-instead"),
         ));
     }
     let mut out = Scan::default();
-    for file in doc_files(&keel.join("waves"), "хвилі", &mut out.refusals) {
+    for file in doc_files(&keel.join("waves"), &t("what-waves"), &mut out.refusals) {
         match read_wave(&file) {
             Ok(w) => out.waves.push(w),
             Err(r) => out.refusals.push(r),
         }
     }
-    for file in doc_files(&keel.join("contracts"), "контракти", &mut out.refusals) {
+    for file in doc_files(
+        &keel.join("contracts"),
+        &t("what-contracts"),
+        &mut out.refusals,
+    ) {
         match read_contract(&file) {
             Ok(c) => out.contracts.push(c),
             Err(r) => out.refusals.push(r),
@@ -163,8 +151,8 @@ fn named_slug(path: &Path) -> Result<String, Refusal> {
     if !slug_ok(&slug) {
         return Err(refuse(
             path,
-            format!("імʼя файлу \"{slug}\" — не слаг"),
-            "імʼя документа стає гілкою і тегом (§1.2, §8.2): лише малі латинські літери, цифри і дефіс",
+            ta("docs-file-slug", targs!("slug" => slug.clone())),
+            t("docs-file-slug-instead"),
         ));
     }
     Ok(slug)
@@ -179,8 +167,8 @@ fn doc_files(dir: &Path, what: &str, refusals: &mut Vec<Refusal>) -> Vec<PathBuf
         Err(_) => {
             refusals.push(refuse(
                 dir,
-                format!("теки для документів «{what}» нема"),
-                "створи її — порожня тека краща за відсутню: відсутність не відрізнити від одруку в шляху",
+                ta("docs-dir-missing", targs!("what" => what.to_string())),
+                t("docs-dir-missing-instead"),
             ));
             return Vec::new();
         }
@@ -197,8 +185,8 @@ fn doc_files(dir: &Path, what: &str, refusals: &mut Vec<Refusal>) -> Vec<PathBuf
         if path.is_dir() {
             refusals.push(refuse(
                 &path,
-                format!("тека серед документів «{what}» — документи живуть пласко"),
-                "перенеси документи з неї прямо в цю теку і прибери її",
+                ta("docs-dir-among", targs!("what" => what.to_string())),
+                t("docs-dir-among-instead"),
             ));
             continue;
         }
@@ -207,8 +195,8 @@ fn doc_files(dir: &Path, what: &str, refusals: &mut Vec<Refusal>) -> Vec<PathBuf
         } else {
             refusals.push(refuse(
                 &path,
-                format!("чужий файл серед документів «{what}» — тут живуть лише .md"),
-                "прибери файл або перейменуй на .md, якщо це документ методики",
+                ta("docs-alien-file", targs!("what" => what.to_string())),
+                t("docs-alien-file-instead"),
             ));
         }
     }
@@ -222,16 +210,12 @@ fn doc_files(dir: &Path, what: &str, refusals: &mut Vec<Refusal>) -> Vec<PathBuf
 fn load_header(path: &Path) -> Result<(String, usize), Refusal> {
     let text = std::fs::read_to_string(path).map_err(|e| {
         if e.kind() == std::io::ErrorKind::InvalidData {
-            refuse(
-                path,
-                "файл не в UTF-8 — методика пише документи в UTF-8".into(),
-                "перезбережи файл у кодуванні UTF-8",
-            )
+            refuse(path, t("docs-not-utf8"), t("docs-not-utf8-instead"))
         } else {
             refuse(
                 path,
-                format!("файл не читається: {e}"),
-                "перевір шлях і права доступу",
+                ta("docs-unreadable", targs!("error" => e.to_string())),
+                t("docs-unreadable-instead"),
             )
         }
     })?;
@@ -239,8 +223,8 @@ fn load_header(path: &Path) -> Result<(String, usize), Refusal> {
     if text.trim().is_empty() {
         return Err(refuse(
             path,
-            "шапки нема: файл порожній".into(),
-            "почни файл шапкою — рядок ---, поля, знову --- (глава 2)",
+            t("docs-file-empty"),
+            t("docs-header-start-instead"),
         ));
     }
     let mut pos = 0usize;
@@ -253,8 +237,8 @@ fn load_header(path: &Path) -> Result<(String, usize), Refusal> {
             if line != "---" {
                 return Err(refuse(
                     path,
-                    "шапки нема: файл не починається з рядка ---".into(),
-                    "почни файл шапкою — рядок ---, поля, знову --- (глава 2)",
+                    t("docs-no-header"),
+                    t("docs-header-start-instead"),
                 ));
             }
             body_start = raw.len();
@@ -265,8 +249,8 @@ fn load_header(path: &Path) -> Result<(String, usize), Refusal> {
     }
     Err(refuse(
         path,
-        "шапка не закрита: другий рядок --- не знайдено".into(),
-        "закрий шапку рядком --- після останнього поля",
+        t("docs-header-unclosed"),
+        t("docs-header-unclosed-instead"),
     ))
 }
 
@@ -331,8 +315,11 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
                         if let Some((_, prev, _)) = fields.iter().find(|(k, _, _)| *k == name) {
                             return Err(refuse(
                                 file,
-                                format!("поле \"{name}\" оголошене двічі (рядки {prev} і {line})"),
-                                "лиши один запис: методика не вгадує, котрий із двох правий",
+                                ta(
+                                    "docs-field-twice",
+                                    targs!("name" => name.clone(), "first" => *prev as u64, "second" => line as u64),
+                                ),
+                                t("docs-field-twice-instead"),
                             ));
                         }
                         *pending = Some((name, line));
@@ -340,8 +327,8 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
                     }
                     other => Err(refuse(
                         file,
-                        format!("імʼя поля мусить бути рядком (рядок {})", other.line()),
-                        "запиши імʼя поля простим словом",
+                        ta("docs-key-not-string", targs!("line" => other.line() as u64)),
+                        t("docs-key-not-string-instead"),
                     )),
                 },
             },
@@ -352,8 +339,8 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
         let (event, span) = item.map_err(|e| {
             refuse(
                 file,
-                format!("шапка не читається як YAML: {e}"),
-                "полагодь розмітку — методика пише лише поля, списки і рядки",
+                ta("docs-yaml-broken", targs!("error" => e.to_string())),
+                t("docs-yaml-broken-instead"),
             )
         })?;
         let line = span.start.line() + off;
@@ -366,23 +353,23 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
             Event::Alias(_) => {
                 return Err(refuse(
                     file,
-                    format!("якір YAML у шапці (рядок {line})"),
-                    "методика не пише якорів — повтори значення словами",
+                    ta("docs-yaml-anchor", targs!("line" => line as u64)),
+                    t("docs-yaml-anchor-instead"),
                 ));
             }
             Event::Scalar(value, _, anchor, tag) => {
                 if anchor != 0 {
                     return Err(refuse(
                         file,
-                        format!("якір YAML у шапці (рядок {line})"),
-                        "методика не пише якорів — повтори значення словами",
+                        ta("docs-yaml-anchor", targs!("line" => line as u64)),
+                        t("docs-yaml-anchor-instead"),
                     ));
                 }
                 if tag.is_some() {
                     return Err(refuse(
                         file,
-                        format!("тег YAML у шапці (рядок {line})"),
-                        "методика не пише тегів — прибери його",
+                        ta("docs-yaml-tag", targs!("line" => line as u64)),
+                        t("docs-yaml-tag-instead"),
                     ));
                 }
                 feed(
@@ -396,15 +383,15 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
                 if anchor != 0 {
                     return Err(refuse(
                         file,
-                        format!("якір YAML у шапці (рядок {line})"),
-                        "методика не пише якорів — повтори значення словами",
+                        ta("docs-yaml-anchor", targs!("line" => line as u64)),
+                        t("docs-yaml-anchor-instead"),
                     ));
                 }
                 if tag.is_some() {
                     return Err(refuse(
                         file,
-                        format!("тег YAML у шапці (рядок {line})"),
-                        "методика не пише тегів — прибери його",
+                        ta("docs-yaml-tag", targs!("line" => line as u64)),
+                        t("docs-yaml-tag-instead"),
                     ));
                 }
                 stack.push(Frame::Seq(Vec::new(), line));
@@ -419,15 +406,15 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
                 if anchor != 0 {
                     return Err(refuse(
                         file,
-                        format!("якір YAML у шапці (рядок {line})"),
-                        "методика не пише якорів — повтори значення словами",
+                        ta("docs-yaml-anchor", targs!("line" => line as u64)),
+                        t("docs-yaml-anchor-instead"),
                     ));
                 }
                 if tag.is_some() {
                     return Err(refuse(
                         file,
-                        format!("тег YAML у шапці (рядок {line})"),
-                        "методика не пише тегів — прибери його",
+                        ta("docs-yaml-tag", targs!("line" => line as u64)),
+                        t("docs-yaml-tag-instead"),
                     ));
                 }
                 stack.push(Frame::Map(Vec::new(), line, None));
@@ -445,8 +432,8 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
         Some(v) => Ok(v),
         None => Err(refuse(
             file,
-            "шапка порожня".into(),
-            "шапка мусить нести поля документа (глава 2)",
+            t("docs-header-empty"),
+            t("docs-header-empty-instead"),
         )),
     }
 }
@@ -470,8 +457,14 @@ fn unknown_left(slots: Vec<Slot>, what: &str, known: &str, file: &Path) -> Resul
     match slots.into_iter().flatten().next() {
         Some((name, line, _)) => Err(refuse(
             file,
-            format!("{what}: невідоме поле \"{name}\" (рядок {line})"),
-            &format!("{what} знає лише: {known}"),
+            ta(
+                "docs-unknown-field",
+                targs!("what" => what.to_string(), "name" => name, "line" => line as u64),
+            ),
+            ta(
+                "docs-unknown-field-instead",
+                targs!("what" => what.to_string(), "known" => known.to_string()),
+            ),
         )),
         None => Ok(()),
     }
@@ -482,16 +475,19 @@ fn as_fields(v: Val, what: &str, file: &Path) -> Result<Vec<(String, usize, Val)
         Val::Map(fields, _) => Ok(fields),
         Val::Str(s, line) if is_blank(&s) => Err(refuse(
             file,
-            format!("{what} — порожньо (рядок {line})"),
-            "заповни поле або прибери його рядок зовсім",
+            ta(
+                "docs-field-blank",
+                targs!("what" => what.to_string(), "line" => line as u64),
+            ),
+            t("docs-field-blank-instead"),
         )),
         other => Err(refuse(
             file,
-            format!(
-                "{what} мусить бути набором полів «імʼя: значення» (рядок {})",
-                other.line()
+            ta(
+                "docs-not-fields",
+                targs!("what" => what.to_string(), "line" => other.line() as u64),
             ),
-            "подивись форму в прикладі README або в keel/waves/ поруч",
+            t("docs-not-fields-instead"),
         )),
     }
 }
@@ -501,13 +497,19 @@ fn as_text(v: Val, what: &str, file: &Path) -> Result<(String, usize), Refusal> 
         Val::Str(s, line) if !is_blank(&s) => Ok((s, line)),
         Val::Str(_, line) => Err(refuse(
             file,
-            format!("{what} — порожньо (рядок {line})"),
-            "заповни значення або прибери рядок зовсім",
+            ta(
+                "docs-value-blank",
+                targs!("what" => what.to_string(), "line" => line as u64),
+            ),
+            t("docs-value-blank-instead"),
         )),
         other => Err(refuse(
             file,
-            format!("{what} мусить бути рядком (рядок {})", other.line()),
-            "запиши значення одним рядком",
+            ta(
+                "docs-not-string",
+                targs!("what" => what.to_string(), "line" => other.line() as u64),
+            ),
+            t("docs-not-string-instead"),
         )),
     }
 }
@@ -520,8 +522,11 @@ fn as_texts(v: Val, what: &str, file: &Path) -> Result<Vec<(String, usize)>, Ref
             .collect(),
         other => Err(refuse(
             file,
-            format!("{what} мусить бути списком (рядок {})", other.line()),
-            "запиши як список: [a, b] або рядками з дефісом",
+            ta(
+                "docs-not-list",
+                targs!("what" => what.to_string(), "line" => other.line() as u64),
+            ),
+            t("docs-not-list-instead"),
         )),
     }
 }
@@ -550,16 +555,17 @@ fn as_contract_ref(s: &str, line: usize, what: &str, file: &Path) -> Result<Cont
     }
     Err(refuse(
         file,
-        format!(
-            "{what}: посилання на контракт мусить бути «slug@редакція», а не \"{s}\" (рядок {line})"
+        ta(
+            "docs-contract-ref-bad",
+            targs!("what" => what.to_string(), "value" => s.to_string(), "line" => line as u64),
         ),
-        "редакція — 4–6 шістнадцяткових знаків, як-от session-run@7c40de (§5.1–§5.2)",
+        t("docs-contract-ref-bad-instead"),
     ))
 }
 
 fn wave_from(root: Val, slug: String, file: &Path) -> Result<Wave, Refusal> {
     const KNOWN: &str = "scenarios, transforms, decisions, depends_on, renamed_from";
-    let mut slots: Vec<Slot> = as_fields(root, "шапка хвилі", file)?
+    let mut slots: Vec<Slot> = as_fields(root, &t("what-wave-header"), file)?
         .into_iter()
         .map(Some)
         .collect();
@@ -569,12 +575,17 @@ fn wave_from(root: Val, slug: String, file: &Path) -> Result<Wave, Refusal> {
     };
 
     if let Some((_, v)) = take(&mut slots, "scenarios") {
-        for (name, line, val) in as_fields(v, "поле \"scenarios\"", file)? {
+        for (name, line, val) in
+            as_fields(v, &ta("what-field", targs!("name" => "scenarios")), file)?
+        {
             if !slug_ok(&name) {
                 return Err(refuse(
                     file,
-                    format!("імʼя сценарію \"{name}\" (рядок {line}) — не слаг"),
-                    "імена стають кодом (§1.2): лише малі латинські літери, цифри і дефіс",
+                    ta(
+                        "docs-scenario-name-not-slug",
+                        targs!("name" => name.clone(), "line" => line as u64),
+                    ),
+                    t("docs-name-not-slug-instead"),
                 ));
             }
             wave.scenarios
@@ -583,12 +594,17 @@ fn wave_from(root: Val, slug: String, file: &Path) -> Result<Wave, Refusal> {
     }
 
     if let Some((_, v)) = take(&mut slots, "transforms") {
-        for (name, line, val) in as_fields(v, "поле \"transforms\"", file)? {
+        for (name, line, val) in
+            as_fields(v, &ta("what-field", targs!("name" => "transforms")), file)?
+        {
             if !slug_ok(&name) {
                 return Err(refuse(
                     file,
-                    format!("імʼя трансформи \"{name}\" (рядок {line}) — не слаг"),
-                    "імена стають кодом (§1.2): лише малі латинські літери, цифри і дефіс",
+                    ta(
+                        "docs-transform-name-not-slug",
+                        targs!("name" => name.clone(), "line" => line as u64),
+                    ),
+                    t("docs-name-not-slug-instead"),
                 ));
             }
             wave.transforms
@@ -598,35 +614,41 @@ fn wave_from(root: Val, slug: String, file: &Path) -> Result<Wave, Refusal> {
     if wave.transforms.is_empty() {
         return Err(refuse(
             file,
-            "шапка хвилі не має transforms — хвилі без роботи не буває".into(),
-            "оголоси хоч одну трансформу (§2.4) або chore (§2.11)",
+            t("docs-wave-no-transforms"),
+            t("docs-wave-no-transforms-instead"),
         ));
     }
 
     if let Some((_, v)) = take(&mut slots, "decisions") {
-        for (name, _, val) in as_fields(v, "поле \"decisions\"", file)? {
-            let (why, _) = as_text(val, &format!("причина в decisions \"{name}\""), file)?;
+        for (name, _, val) in as_fields(v, &ta("what-field", targs!("name" => "decisions")), file)?
+        {
+            let (why, _) = as_text(
+                val,
+                &ta("what-decision-reason", targs!("name" => name.clone())),
+                file,
+            )?;
             wave.decisions.push((name, why));
         }
     }
 
     if let Some((_, v)) = take(&mut slots, "depends_on") {
-        wave.depends_on = as_texts(v, "поле \"depends_on\"", file)?
+        wave.depends_on = as_texts(v, &ta("what-field", targs!("name" => "depends_on")), file)?
             .into_iter()
             .map(|(s, _)| s)
             .collect();
     }
 
     if let Some((_, v)) = take(&mut slots, "renamed_from") {
-        wave.renamed_from = Some(as_text(v, "поле \"renamed_from\"", file)?.0);
+        wave.renamed_from =
+            Some(as_text(v, &ta("what-field", targs!("name" => "renamed_from")), file)?.0);
     }
 
-    unknown_left(slots, "шапка хвилі", KNOWN, file)?;
+    unknown_left(slots, &t("what-wave-header"), KNOWN, file)?;
     Ok(wave)
 }
 
 fn scenario_from(v: Val, name: &str, file: &Path) -> Result<Scenario, Refusal> {
-    let what = format!("сценарій \"{name}\"");
+    let what = ta("what-scenario", targs!("name" => name.to_string()));
     let mut slots: Vec<Slot> = as_fields(v, &what, file)?.into_iter().map(Some).collect();
     let mut sc = Scenario::default();
 
@@ -657,15 +679,15 @@ fn scenario_from(v: Val, name: &str, file: &Path) -> Result<Scenario, Refusal> {
     if sc.proves.is_none() && sc.covers.is_empty() && sc.withdrawn.is_none() {
         return Err(refuse(
             file,
-            format!("{what} ні на що не спирається: ні proves, ні covers"),
-            "дай опору — контракт (proves) або розріз якості (covers), §3.3; знятий сценарій познач withdrawn",
+            ta("docs-scenario-bare", targs!("what" => what.clone())),
+            t("docs-scenario-bare-instead"),
         ));
     }
     Ok(sc)
 }
 
 fn transform_from(v: Val, name: &str, file: &Path) -> Result<Transform, Refusal> {
-    let what = format!("трансформа \"{name}\"");
+    let what = ta("what-transform", targs!("name" => name.to_string()));
     let mut slots: Vec<Slot> = as_fields(v, &what, file)?.into_iter().map(Some).collect();
 
     let implements = take(&mut slots, "implements");
@@ -683,15 +705,15 @@ fn transform_from(v: Val, name: &str, file: &Path) -> Result<Transform, Refusal>
         (Some(_), Some(_)) => {
             return Err(refuse(
                 file,
-                format!("{what} має і implements, і chore"),
-                "трансформа несе рівно одне: обіцянки — або chore з причиною (§2.11)",
+                ta("docs-transform-both", targs!("what" => what.clone())),
+                t("docs-transform-both-instead"),
             ));
         }
         (None, None) => {
             return Err(refuse(
                 file,
-                format!("{what} не має ні implements, ні chore"),
-                "назви, які сценарії вона наближає, — або chore: \"<причина>\" (§2.11)",
+                ta("docs-transform-neither", targs!("what" => what.clone())),
+                t("docs-transform-neither-instead"),
             ));
         }
     };
@@ -713,8 +735,8 @@ fn transform_from(v: Val, name: &str, file: &Path) -> Result<Transform, Refusal>
     if files.is_empty() {
         return Err(refuse(
             file,
-            format!("{what} не називає файлів"),
-            "файли перелічуються поіменно до роботи (§4.1)",
+            ta("docs-transform-no-files", targs!("what" => what.clone())),
+            t("docs-transform-no-files-instead"),
         ));
     }
 
@@ -733,10 +755,11 @@ fn scope_line(s: &str, line: usize, what: &str, file: &Path) -> Result<ScopeLine
         if !dir.ends_with('/') {
             return Err(refuse(
                 file,
-                format!(
-                    "{what}: рядок \"one new in\" мусить називати теку зі скісною рискою в кінці (рядок {line})"
+                ta(
+                    "docs-one-new-in-no-slash",
+                    targs!("what" => what.to_string(), "line" => line as u64),
                 ),
-                "напиши, наприклад: one new in priv/migrations/",
+                t("docs-one-new-in-no-slash-instead"),
             ));
         }
         return Ok(ScopeLine::OneNewIn(dir.to_string()));
@@ -744,8 +767,11 @@ fn scope_line(s: &str, line: usize, what: &str, file: &Path) -> Result<ScopeLine
     if s.contains(['*', '?', '[']) {
         return Err(refuse(
             file,
-            format!("{what}: glob \"{s}\" у списку файлів (рядок {line})"),
-            "файли називаються поіменно (§4.2); для файлу без відомого імені є one new in <тека>/",
+            ta(
+                "docs-glob",
+                targs!("what" => what.to_string(), "value" => s.to_string(), "line" => line as u64),
+            ),
+            t("docs-glob-instead"),
         ));
     }
     Ok(ScopeLine::Path(s.to_string()))
@@ -753,7 +779,7 @@ fn scope_line(s: &str, line: usize, what: &str, file: &Path) -> Result<ScopeLine
 
 fn contract_from(root: Val, slug: String, file: &Path) -> Result<Contract, Refusal> {
     const KNOWN: &str = "module, exports, verify, withdrawn, superseded_by, renamed_from";
-    let mut slots: Vec<Slot> = as_fields(root, "шапка контракту", file)?
+    let mut slots: Vec<Slot> = as_fields(root, &t("what-contract-header"), file)?
         .into_iter()
         .map(Some)
         .collect();
@@ -763,48 +789,56 @@ fn contract_from(root: Val, slug: String, file: &Path) -> Result<Contract, Refus
     };
 
     if let Some((_, v)) = take(&mut slots, "module") {
-        c.module = Some(as_text(v, "поле \"module\"", file)?.0);
+        c.module = Some(as_text(v, &ta("what-field", targs!("name" => "module")), file)?.0);
     }
     if let Some((line, v)) = take(&mut slots, "exports") {
-        c.exports = as_texts(v, "поле \"exports\"", file)?
+        c.exports = as_texts(v, &ta("what-field", targs!("name" => "exports")), file)?
             .into_iter()
             .map(|(s, _)| s)
             .collect();
         if c.exports.is_empty() {
             return Err(refuse(
                 file,
-                format!("exports порожній (рядок {line})"),
-                "перелічи сигнатури — або прибери поле і дай verify (§2.7–§2.8)",
+                ta("docs-exports-empty", targs!("line" => line as u64)),
+                t("docs-exports-empty-instead"),
             ));
         }
         if c.module.is_none() {
             return Err(refuse(
                 file,
-                "exports без module: не названо, хто обіцяє".into(),
-                "назви одиницю коду в полі module (§2.7)",
+                t("docs-exports-no-module"),
+                t("docs-exports-no-module-instead"),
             ));
         }
     }
     if let Some((_, v)) = take(&mut slots, "verify") {
-        c.verify = Some(as_text(v, "поле \"verify\"", file)?.0);
+        c.verify = Some(as_text(v, &ta("what-field", targs!("name" => "verify")), file)?.0);
     }
     if let Some((_, v)) = take(&mut slots, "withdrawn") {
-        c.withdrawn = Some(as_text(v, "поле \"withdrawn\"", file)?.0);
+        c.withdrawn = Some(as_text(v, &ta("what-field", targs!("name" => "withdrawn")), file)?.0);
     }
     if let Some((_, v)) = take(&mut slots, "superseded_by") {
-        c.superseded_by = Some(as_text(v, "поле \"superseded_by\"", file)?.0);
+        c.superseded_by = Some(
+            as_text(
+                v,
+                &ta("what-field", targs!("name" => "superseded_by")),
+                file,
+            )?
+            .0,
+        );
     }
     if let Some((_, v)) = take(&mut slots, "renamed_from") {
-        c.renamed_from = Some(as_text(v, "поле \"renamed_from\"", file)?.0);
+        c.renamed_from =
+            Some(as_text(v, &ta("what-field", targs!("name" => "renamed_from")), file)?.0);
     }
 
-    unknown_left(slots, "шапка контракту", KNOWN, file)?;
+    unknown_left(slots, &t("what-contract-header"), KNOWN, file)?;
 
     if c.exports.is_empty() && c.verify.is_none() {
         return Err(refuse(
             file,
-            "контракт нічого не обіцяє: ні exports, ні verify".into(),
-            "дай сигнатури з module (§2.7) або команду verify (§2.8); слова без перевірки — застереження в хвилі, не контракт (§2.10)",
+            t("docs-contract-empty"),
+            t("docs-contract-empty-instead"),
         ));
     }
     Ok(c)

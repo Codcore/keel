@@ -62,27 +62,27 @@ fn check_reports_every_file() {
         assert!(out.contains(f), "звіт мусить назвати {f}:\n{out}");
     }
     assert!(
-        out.contains("не закрита"),
+        out.contains("not closed"),
         "зіпсований названий з причиною:\n{out}"
     );
     assert!(
-        out.contains("перевірено цим поверхом"),
+        out.contains("checked by this floor"),
         "звіт називає власні межі:\n{out}"
     );
     assert!(
-        out.contains("ще не перевірено"),
+        out.contains("not yet checked"),
         "неперевірене назване вголос:\n{out}"
     );
     assert!(
-        out.contains("редакції"),
+        out.contains("revisions (§5)"),
         "серед неперевіреного — редакції:\n{out}"
     );
     assert!(
-        out.contains("звʼязки"),
+        out.contains("links (chapter 3"),
         "серед неперевіреного — звʼязки:\n{out}"
     );
     assert!(
-        out.contains("контракти"),
+        out.contains("contracts (§7.6)"),
         "серед неперевіреного — контракти:\n{out}"
     );
 
@@ -91,7 +91,7 @@ fn check_reports_every_file() {
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "звіт:\n{out}");
     assert!(
-        out.contains("ще не перевірено"),
+        out.contains("not yet checked"),
         "зелене не ховає власних меж:\n{out}"
     );
 }
@@ -107,7 +107,7 @@ fn missing_keel_dir_refuses() {
     let (_out, err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 2, "відмова самої команди — вихід 2; stderr:\n{err}");
     assert!(err.contains("keel/"), "називає, чого бракує:\n{err}");
-    assert!(err.contains("створи"), "каже, що робити натомість:\n{err}");
+    assert!(err.contains("create"), "каже, що робити натомість:\n{err}");
 }
 
 /// proves: missing-config-defaults@00061c — тримає контракт
@@ -123,7 +123,10 @@ fn missing_config_defaults() {
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
     assert!(out.contains("no keel.toml"), "defaults said aloud:\n{out}");
-    assert!(out.contains("defaults"), "named as defaults, not as read:\n{out}");
+    assert!(
+        out.contains("defaults"),
+        "named as defaults, not as read:\n{out}"
+    );
 }
 
 /// proves: output-follows-lang@fc3a8f — тримає контракт tool-config:
@@ -140,8 +143,14 @@ fn output_follows_lang() {
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
-    assert!(out.contains("header reads"), "English report for lang=en:\n{out}");
-    assert!(out.contains("lang = en"), "config named in the report:\n{out}");
+    assert!(
+        out.contains("header reads"),
+        "English report for lang=en:\n{out}"
+    );
+    assert!(
+        out.contains("lang = en"),
+        "config named in the report:\n{out}"
+    );
 
     // lang = "uk" — український звіт, і відмова теж українською.
     let dir = sandbox("lang-uk");
@@ -153,7 +162,10 @@ fn output_follows_lang() {
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
-    assert!(out.contains("шапка читається"), "укр звіт для lang=uk:\n{out}");
+    assert!(
+        out.contains("шапка читається"),
+        "укр звіт для lang=uk:\n{out}"
+    );
 
     write(&dir, "keel/contracts/broken.md", "---\nmodule: X\n");
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
@@ -165,7 +177,11 @@ fn output_follows_lang() {
 /// концепту: множина правилами CLDR, не if-ами.
 #[test]
 fn plural_forms_correct() {
-    for (n, expect) in [(1usize, "1 документ,"), (2, "2 документи,"), (5, "5 документів,")] {
+    for (n, expect) in [
+        (1usize, "1 документ,"),
+        (2, "2 документи,"),
+        (5, "5 документів,"),
+    ] {
         let dir = sandbox(&format!("plural-{n}"));
         write(&dir, "keel.toml", "lang = \"uk\"\n");
         for i in 1..=n {

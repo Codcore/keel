@@ -8,3 +8,4 @@ pub mod check;
 pub mod config;
 pub mod docs;
 pub mod i18n;
+pub mod refusal;

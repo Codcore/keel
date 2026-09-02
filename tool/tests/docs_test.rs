@@ -35,7 +35,7 @@ fn broken_header_refuses() {
     let p = write(&dir, "keel/waves/0002-x.md", "---\nscenarios:\n");
     let r = docs::read_wave(&p).unwrap_err();
     assert_eq!(r.file, p);
-    assert!(r.reason.contains("не закрита"), "причина: {}", r.reason);
+    assert!(r.reason.contains("not closed"), "причина: {}", r.reason);
     assert!(
         !r.instead.is_empty(),
         "відмова мусить казати, що робити натомість"
@@ -44,7 +44,7 @@ fn broken_header_refuses() {
     // Шапки нема зовсім.
     let p = write(&dir, "keel/waves/0003-y.md", "# просто текст, без шапки\n");
     let r = docs::read_wave(&p).unwrap_err();
-    assert!(r.reason.contains("шапки нема"), "причина: {}", r.reason);
+    assert!(r.reason.contains("no header"), "причина: {}", r.reason);
     assert!(!r.instead.is_empty());
 
     // Битий YAML усередині шапки.
@@ -66,7 +66,7 @@ fn unknown_field_refuses() {
         "---\nscenarois:\n  a: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [a]\n    files: [lib/a.ex]\n---\n",
     );
     let r = docs::read_wave(&p).unwrap_err();
-    assert!(r.reason.contains("невідоме поле"), "причина: {}", r.reason);
+    assert!(r.reason.contains("unknown field"), "причина: {}", r.reason);
     assert!(
         r.reason.contains("scenarois"),
         "називає само поле: {}",
@@ -252,7 +252,11 @@ fn valid_contract_parses() {
         "---\nmodule: X\n---\n\nСлова без перевірки.\n",
     );
     let r = docs::read_contract(&p).unwrap_err();
-    assert!(r.reason.contains("не обіцяє"), "причина: {}", r.reason);
+    assert!(
+        r.reason.contains("promises nothing"),
+        "причина: {}",
+        r.reason
+    );
     assert!(!r.instead.is_empty());
 }
 
@@ -279,7 +283,7 @@ fn duplicate_name_refuses() {
         ),
     );
     let r = docs::read_wave(&p).unwrap_err();
-    assert!(r.reason.contains("двічі"), "причина: {}", r.reason);
+    assert!(r.reason.contains("twice"), "причина: {}", r.reason);
     assert!(
         r.reason.contains("same"),
         "називає імʼя-дубль: {}",
@@ -324,7 +328,7 @@ fn dir_among_docs_refuses() {
     );
     let scan = docs::scan(&dir).unwrap();
     assert!(
-        scan.refusals.iter().any(|r| r.reason.contains("тека")),
+        scan.refusals.iter().any(|r| r.reason.contains("directory")),
         "тека мусить бути відмовою, не тишею: {:?}",
         scan.refusals
     );
@@ -338,7 +342,7 @@ fn dir_among_docs_refuses() {
         std::os::unix::fs::symlink(dir.join("elsewhere"), dir.join("keel/waves/link")).unwrap();
         let scan = docs::scan(&dir).unwrap();
         assert!(
-            scan.refusals.iter().any(|r| r.reason.contains("тека")),
+            scan.refusals.iter().any(|r| r.reason.contains("directory")),
             "symlink на теку — відмова: {:?}",
             scan.refusals
         );
@@ -361,7 +365,11 @@ fn bare_scenario_refuses() {
         "називає сценарій: {}",
         r.reason
     );
-    assert!(r.reason.contains("не спирається"), "причина: {}", r.reason);
+    assert!(
+        r.reason.contains("leans on nothing"),
+        "причина: {}",
+        r.reason
+    );
 
     // Знятий сценарій без опори — законний: він поза судом (§6.3).
     let p = write(

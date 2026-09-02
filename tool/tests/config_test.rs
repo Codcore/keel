@@ -45,7 +45,10 @@ fn config_reads_strictly() {
     assert_eq!(c.adapter.as_deref(), Some("elixir"));
     assert_eq!(c.ci.as_deref(), Some("mix ci"));
     assert_eq!(c.lang, "uk");
-    assert_eq!(c.trust, vec![("mix ci".to_string(), "a3f1c07c40de".to_string())]);
+    assert_eq!(
+        c.trust,
+        vec![("mix ci".to_string(), "a3f1c07c40de".to_string())]
+    );
     assert_eq!(
         c.generated,
         vec![("skills/keel-plan.md".to_string(), "0b32af".to_string())]

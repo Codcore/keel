@@ -2,7 +2,11 @@
 //! самонаведення). Це ще не весь check методики — і звіт каже про це
 //! сам: зелене про неперевірене заборонене (урок №4 розбору нотаток).
 
-use crate::docs::{self, Refusal};
+use crate::config::Config;
+use crate::docs;
+use crate::i18n::{t, ta};
+use crate::refusal::Refusal;
+use crate::targs;
 use std::fmt::Write as _;
 use std::path::Path;
 
@@ -13,12 +17,11 @@ pub struct Outcome {
 
 /// Обходить документи під коренем і складає звіт по кожному файлу:
 /// цілі — перевірені, зіпсовані — названі з причиною; наприкінці —
-/// що́ цим поверхом перевірено, а що ще ні, і наступний крок.
-pub fn run(root: &Path) -> Result<Outcome, Refusal> {
+/// що́ цим поверхом перевірено, а що ще ні, і наступний крок. Мова
+/// звіту — lang з конфіга; звідки взялась мова, звіт теж каже.
+pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let scan = docs::scan(root)?;
 
-    // Рядок на кожен документ, у порядку шляхів. Шлях відмови
-    // показуємо відносним до кореня — звіт читає людина.
     let mut rows: Vec<(String, Option<String>)> = Vec::new();
     for wave in &scan.waves {
         rows.push((format!("keel/waves/{}.md", wave.slug), None));
@@ -31,41 +34,68 @@ pub fn run(root: &Path) -> Result<Outcome, Refusal> {
         rows.push((
             shown.display().to_string(),
             Some(format!(
-                "{}\n           натомість: {}",
-                refusal.reason, refusal.instead
+                "{}\n           {}: {}",
+                refusal.reason,
+                t("word-instead"),
+                refusal.instead
             )),
         ));
     }
     rows.sort();
 
-    let mut report = String::from("keel check — документи (щабель 1)\n\n");
+    let mut report = t("check-title");
+    report.push('\n');
+    let config_line = if config.present {
+        ta(
+            "check-config-present",
+            targs!("lang" => config.lang.clone()),
+        )
+    } else {
+        t("check-config-absent")
+    };
+    writeln!(report, "{config_line}\n").unwrap();
+
     for (path, verdict) in &rows {
         match verdict {
-            None => writeln!(report, "  зелене   {path} — шапка читається").unwrap(),
-            Some(text) => writeln!(report, "  червоне  {path} — {text}").unwrap(),
+            None => {
+                writeln!(
+                    report,
+                    "  {:<8} {path} — {}",
+                    t("word-green"),
+                    t("check-header-reads")
+                )
+                .unwrap();
+            }
+            Some(text) => {
+                writeln!(report, "  {:<8} {path} — {text}", t("word-red")).unwrap();
+            }
         }
     }
     if rows.is_empty() {
-        report.push_str("  документів ще нема\n");
+        writeln!(report, "  {}", t("check-no-documents")).unwrap();
     }
 
     let findings = scan.refusals.len();
     let documents = scan.waves.len() + scan.contracts.len();
     writeln!(
         report,
-        "\nперевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9)\n\
-         ще не перевірено: звʼязки (глава 3, §7.1–§7.2), редакції (§5), scope (§4), тести (§7.5), контракти (§7.6), шапка↔тіло (§7.7) — щаблі попереду\n\
-         підсумок: документів {documents}, відмов {findings}"
+        "\n{}\n{}\n{}",
+        t("check-checked"),
+        t("check-unchecked"),
+        ta(
+            "check-summary",
+            targs!("docs" => documents as u64, "refusals" => findings as u64)
+        )
     )
     .unwrap();
     let next = if findings > 0 {
-        "полагодь названі файли і повтори keel check"
+        t("check-next-fix")
     } else if documents == 0 {
-        "створи першу хвилю в keel/waves/"
+        t("check-next-first-wave")
     } else {
-        "щабель 2: редакції (keel rev)"
+        t("check-next-rung")
     };
-    writeln!(report, "наступний крок: {next}").unwrap();
+    writeln!(report, "{next}").unwrap();
 
     Ok(Outcome { report, findings })
 }

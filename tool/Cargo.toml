@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+fluent-bundle = "0.16.0"
 saphyr-parser = "0.0.12"
 serde = { version = "1.0.229", features = ["derive"] }
 toml = "1.1.4"
+unic-langid = "0.9.6"
