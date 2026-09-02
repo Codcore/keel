@@ -125,3 +125,38 @@ fn missing_config_defaults() {
     assert!(out.contains("no keel.toml"), "defaults said aloud:\n{out}");
     assert!(out.contains("defaults"), "named as defaults, not as read:\n{out}");
 }
+
+/// proves: output-follows-lang@fc3a8f — тримає контракт tool-config:
+/// звіт і відмови йдуть мовою lang.
+#[test]
+fn output_follows_lang() {
+    // lang = "en" — англійський звіт.
+    let dir = sandbox("lang-en");
+    write(&dir, "keel.toml", "lang = \"en\"\n");
+    write(
+        &dir,
+        "keel/waves/0004-w.md",
+        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("header reads"), "English report for lang=en:\n{out}");
+    assert!(out.contains("lang = en"), "config named in the report:\n{out}");
+
+    // lang = "uk" — український звіт, і відмова теж українською.
+    let dir = sandbox("lang-uk");
+    write(&dir, "keel.toml", "lang = \"uk\"\n");
+    write(
+        &dir,
+        "keel/waves/0004-w.md",
+        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("шапка читається"), "укр звіт для lang=uk:\n{out}");
+
+    write(&dir, "keel/contracts/broken.md", "---\nmodule: X\n");
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("не закрита"), "відмова мовою проєкту:\n{out}");
+}
