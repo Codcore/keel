@@ -537,3 +537,107 @@ fn untrusted_not_run() {
     );
     assert!(!log.exists(), "the shim proves nothing was called:\n{text}");
 }
+
+/// Second birth (review 0010 R-4 + the V6 gap), riding
+/// untrusted-not-run: the scenario's second half -- a crooked
+/// fingerprint -- is held by a tag now, not only by a reviewer's
+/// hand; and a command changed inside its quotes (whitespace the
+/// shell keeps) must NOT run under the trust recorded for the old
+/// text -- the §7.16 words are "new or changed does not run".
+///
+/// proves: untrusted-not-run@24df85
+#[test]
+fn untrusted_not_run_second_birth() {
+    use std::os::unix::fs::PermissionsExt;
+    // Crooked fingerprint: recorded key matches, the print does not.
+    let dir = project("verify-crooked", "just-work");
+    let shim = dir.join("shim");
+    fs::create_dir_all(&shim).unwrap();
+    let log = dir.join("crooked-called.log");
+    write(
+        &dir,
+        "shim/crookedcmd",
+        &format!("#!/bin/sh\necho called >> {}\n", log.display()),
+    );
+    let mut perms = fs::metadata(dir.join("shim/crookedcmd")).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(dir.join("shim/crookedcmd"), perms).unwrap();
+    write(
+        &dir,
+        "keel.toml",
+        "adapter = \"cargo\"\n\n[trust]\n\"crookedcmd\" = \"000000000000\"\n",
+    );
+    write(
+        &dir,
+        "keel/contracts/ext-crooked.md",
+        "---\nverify: \"crookedcmd\"\n---\n\nA promise with a crooked trust line (§7.16).\n",
+    );
+    commit_all(&dir);
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["close", dir.to_str().unwrap()])
+        .env(
+            "PATH",
+            format!("{}:{}", shim.display(), std::env::var("PATH").unwrap()),
+        )
+        .output()
+        .unwrap();
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        text.contains("did not run") && text.contains("not trusted"),
+        "a crooked fingerprint does not run (the scenario's second half):\n{text}"
+    );
+    assert!(!log.exists(), "the shim proves the crooked one was not called:\n{text}");
+
+    // Changed inside the quotes: trust recorded for `qecho "a b"`,
+    // the contract now says `qecho "a  b"` -- whitespace the shell
+    // keeps. The §7.16 words demand it does NOT run.
+    let dir = project("verify-drifted", "just-work");
+    let shim = dir.join("shim");
+    fs::create_dir_all(&shim).unwrap();
+    let log = dir.join("drifted-called.log");
+    write(
+        &dir,
+        "shim/qecho",
+        &format!("#!/bin/sh\necho called >> {}\n", log.display()),
+    );
+    let mut perms = fs::metadata(dir.join("shim/qecho")).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(dir.join("shim/qecho"), perms).unwrap();
+    let old_fp = keel::trust::fingerprint("qecho \"a b\"");
+    write(
+        &dir,
+        "keel.toml",
+        &format!("adapter = \"cargo\"\n\n[trust]\n\"qecho \\\"a b\\\"\" = \"{old_fp}\"\n"),
+    );
+    write(
+        &dir,
+        "keel/contracts/ext-drifted.md",
+        "---\nverify: \"qecho \\\"a  b\\\"\"\n---\n\nThe command changed inside its quotes (§7.16).\n",
+    );
+    commit_all(&dir);
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["close", dir.to_str().unwrap()])
+        .env(
+            "PATH",
+            format!("{}:{}", shim.display(), std::env::var("PATH").unwrap()),
+        )
+        .output()
+        .unwrap();
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        !log.exists(),
+        "a command changed inside its quotes must not run under the old trust (R-4):\n{text}"
+    );
+    assert!(
+        text.contains("did not run") && text.contains("not trusted"),
+        "the changed command is untrusted by word too:\n{text}"
+    );
+}
