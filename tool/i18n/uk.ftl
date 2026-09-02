@@ -97,6 +97,36 @@ rev-dup-section-instead = лиши одну секцію: методика не 
 rev-empty-section = секція "## scenario: { $name }" має порожнє тіло
 rev-empty-section-instead = обіцянці потрібні слова: напиши тіло сценарію або зніми оголошення (§2.3)
 
+## модуль graph
+graph-unknown-cut = "{ $holder }" показує на розріз "{ $slug }", якого у словнику нема
+graph-unknown-cut-instead = сорок розрізів їдуть з релізом (§3.4); вибери один із них або виправ одрук
+graph-silence = розрізи без відповіді: { $missing }
+graph-silence-instead = кожен розріз дістає рівно одну відповідь — рядок covers або decisions (§10.3); тиша заборонена
+graph-implements-missing = трансформа "{ $transform }" реалізує "{ $scenario }", якого нема в шапці
+graph-implements-missing-instead = назви наявний сценарій або прибери запис (§7.1)
+graph-depends-missing = depends_on показує на "{ $target }" — такої хвилі тут нема
+graph-depends-missing-instead = назви наявну хвилю або прибери ребро (§7.1)
+graph-superseded-missing = сценарій "{ $scenario }" називає наступником "{ $successor }", невідомого жодній хвилі
+graph-superseded-missing-instead = наступник мусить існувати (§2.12); спершу напиши його або виправ слаг
+graph-superseded-self = сценарій "{ $scenario }" називає наступником самого себе
+graph-superseded-self-instead = наступник — інший сценарій, що прийшов на зміну (§2.12); назви його або зніми позначку
+graph-cycle = цикл depends_on: { $chain }
+graph-cycle-instead = порядок виводиться з depends_on, тож петлі бути не може (§7.2); розірви цикл
+
+## модуль scope
+scope-drift = гілка чіпає "{ $file }", якого жодна трансформа хвилі не називає
+scope-drift-instead = назви файл у files трансформи до роботи (§4.1) або прибери зміну (§4.6)
+scope-untouched = оголошений файл "{ $file }" гілка не чіпає
+scope-untouched-instead = робота ще попереду — або імʼя стояло даремно; судиться по всій гілці (§4.4, §4.5), тож дороби або прибери імʼя свідомо
+scope-one-new-none = у теці "{ $dir }" не зʼявилось жодного нового файлу — обіцяно рівно один
+scope-one-new-none-instead = створи обіцяний файл або прибери рядок `one new in`, якщо його не буде (§4.1)
+scope-one-new-many = у теці "{ $dir }" нових файлів більш як один: { $files }
+scope-one-new-many-instead = `one new in` обіцяє рівно один (§4.1); назви зайві файли у files поіменно
+scope-one-new-count = рядки `one new in` обіцяють { $promised } нових файлів у теці "{ $dir }", гілка додає { $found }
+scope-one-new-count-instead = зведи рахунки (§4.1): рядок на очікуваний файл, новий файл на рядок
+scope-git-failed = git тут відмовляє: { $error }
+scope-git-failed-instead = scope судиться по гілці (§4.5); зроби так, щоб git у цій теці відповідав, і повтори keel check
+
 ## команда rev
 rev-title = keel rev — чинні редакції
 rev-next = наступний крок: тримай ці редакції в proves/contracts і в тегах тестів (§5.5); застарілу онови, перечитавши текст (§5.1)
@@ -107,10 +137,16 @@ check-config-present = конфіг: keel.toml (lang = { $lang })
 check-config-absent = keel.toml нема — діють типові значення (lang = en); типове не видає себе за прочитане
 check-config-lang-default = конфіг: keel.toml (lang не заданий — діє типове en; типове не видає себе за прочитане)
 check-refs-count = посилань на контракти звірено: { $count }
+check-scope-compared = scope: гілка "{ $branch }" і є хвиля — порівняно з { $base }
+check-scope-base-main = merge-base з main @ { $sha }
+check-scope-base-first = перший commit гілки @ { $sha } (main тут нема)
+check-scope-skipped-not-wave = scope не звірявся: гілка "{ $branch }" не зветься як жодна прочитана хвиля (§8.2) — названо вголос, зеленим не замальовано
+check-scope-skipped-no-git = scope не звірявся: git не дає гілки для цього кореня — названо вголос, зеленим не замальовано
+check-scope-skipped-refused = scope не звірявся: git відмовив посеред порівняння — його відмова стоїть серед знахідок
 check-header-reads = шапка читається
 check-no-documents = документів ще нема
-check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9); посилання на контракти і їхні редакції (§7.1, §7.3 — для закритої хвилі стара редакція законна, §5.6)
-check-unchecked = ще не перевірено: звʼязки (глава 3: розрізи і depends_on, §7.2), редакції сценаріїв у тегах тестів (§5.5, §7.5), scope (§4), тримання контрактів (§7.6), шапка↔тіло (§7.7) — щаблі попереду
+check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9); посилання на контракти і їхні редакції (§7.1, §7.3 — для закритої хвилі стара редакція законна, §5.6); звʼязки графа (глава 3: розрізи, тиша, implements, depends_on, наступники; §7.2, §10.3); scope гілки, що зветься як хвиля (§4.1, §4.4–§4.6, §4.8)
+check-unchecked = ще не перевірено: редакції сценаріїв у тегах тестів (§5.5, §7.5), дельта тегів (§7.15), закриття (§6.5), подвійна відповідь по розрізу (§10.3), тримання контрактів (§7.6), шапка↔тіло (§7.7) — щаблі попереду
 check-ref-missing = хвиля { $wave }: посилання { $contract }@{ $recorded } показує на контракт, файлу якого нема
 check-ref-missing-instead = створи keel/contracts/{ $contract }.md або виправ слаг (§7.1)
 check-ref-stale = хвиля { $wave }: записано { $contract }@{ $recorded }, а текст контракту зараз дає { $actual }
@@ -126,7 +162,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 3 — scope і звʼязки (§4, глава 3)
+check-next-rung = наступний крок: щабель 4 — червона брама і адаптер cargo (§7.12, §8.4)
 
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"

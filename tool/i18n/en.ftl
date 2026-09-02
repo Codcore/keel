@@ -97,6 +97,36 @@ rev-dup-section-instead = keep one section: the methodology will not guess which
 rev-empty-section = the "## scenario: { $name }" section has an empty body
 rev-empty-section-instead = a promise needs words: write the scenario body or withdraw the declaration (§2.3)
 
+## graph module
+graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
+graph-unknown-cut-instead = the forty cuts ship with the release (§3.4); pick one of them or fix the typo
+graph-silence = cuts without an answer: { $missing }
+graph-silence-instead = every cut gets exactly one answer -- a covers or a decisions line (§10.3); silence is forbidden
+graph-implements-missing = transform "{ $transform }" implements "{ $scenario }", which is not in the header
+graph-implements-missing-instead = name an existing scenario or remove the entry (§7.1)
+graph-depends-missing = depends_on points at "{ $target }", which is not a wave here
+graph-depends-missing-instead = name an existing wave or drop the edge (§7.1)
+graph-superseded-missing = scenario "{ $scenario }" names successor "{ $successor }", unknown to any wave
+graph-superseded-missing-instead = a successor must exist somewhere (§2.12); write it first or fix the slug
+graph-superseded-self = scenario "{ $scenario }" names itself as its successor
+graph-superseded-self-instead = a successor is another scenario that took over (§2.12); name it or drop the mark
+graph-cycle = depends_on cycle: { $chain }
+graph-cycle-instead = order comes from depends_on, so it cannot loop (§7.2); break the cycle
+
+## scope module
+scope-drift = the branch touches "{ $file }", which no transform of the wave names
+scope-drift-instead = name the file in a transform's files before the work (§4.1) or take the change out (§4.6)
+scope-untouched = the declared file "{ $file }" is untouched by the branch
+scope-untouched-instead = the work is still ahead -- or the name was idle; judged across the whole branch (§4.4, §4.5), so finish it or drop the name deliberately
+scope-one-new-none = no new file appeared in "{ $dir }" -- exactly one was promised
+scope-one-new-none-instead = create the one promised file, or drop the `one new in` line if none is coming (§4.1)
+scope-one-new-many = more than one new file in "{ $dir }": { $files }
+scope-one-new-many-instead = `one new in` promises exactly one (§4.1); name the extra files in files, each by itself
+scope-one-new-count = the `one new in` lines promise { $promised } new files in "{ $dir }", the branch adds { $found }
+scope-one-new-count-instead = make the counts meet (§4.1): one line per expected file, one new file per line
+scope-git-failed = git refuses here: { $error }
+scope-git-failed-instead = scope is judged against the branch (§4.5); make git answer in this directory and re-run keel check
+
 ## rev command
 rev-title = keel rev -- current revisions
 rev-next = next step: hold these revisions in proves/contracts and in test tags (§5.5); reread before updating a stale one (§5.1)
@@ -107,10 +137,16 @@ check-config-present = config: keel.toml (lang = { $lang })
 check-config-absent = no keel.toml -- defaults in effect (lang = en); a default does not pass itself off as read
 check-config-lang-default = config: keel.toml (lang not set -- default en in effect; a default does not pass itself off as read)
 check-refs-count = contract references checked: { $count }
+check-scope-compared = scope: branch "{ $branch }" is the wave -- compared against { $base }
+check-scope-base-main = the merge-base with main @ { $sha }
+check-scope-base-first = the first commit of the branch @ { $sha } (no main here)
+check-scope-skipped-not-wave = scope not compared: branch "{ $branch }" is not named as any wave that reads (§8.2) -- said aloud, not painted green
+check-scope-skipped-no-git = scope not compared: git serves no branch for this root -- said aloud, not painted green
+check-scope-skipped-refused = scope not compared: git refused mid-way -- its refusal stands among the findings
 check-header-reads = header reads
 check-no-documents = no documents yet
-check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3 -- for a closed wave an old revision is legal, §5.6)
-check-unchecked = not yet checked: links (chapter 3: cuts and depends_on, §7.2), scenario revisions in test tags (§5.5, §7.5), scope (§4), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
+check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3 -- for a closed wave an old revision is legal, §5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8)
+check-unchecked = not yet checked: scenario revisions in test tags (§5.5, §7.5), tag deltas (§7.15), closure (§6.5), a doubled answer per cut (§10.3), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
 check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
 check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
 check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }
@@ -124,7 +160,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 3 -- scope and links (§4, chapter 3)
+check-next-rung = next step: rung 4 -- the red gate and the cargo adapter (§7.12, §8.4)
 
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"

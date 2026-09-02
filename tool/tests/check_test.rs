@@ -20,6 +20,23 @@ fn write(dir: &Path, rel: &str, text: &str) {
     fs::write(dir.join(rel), text).unwrap();
 }
 
+/// Waves in these sandboxes must themselves obey §10.3 now that the
+/// graph floor judges silence: a full decisions block, one line per
+/// cut, minus any cuts the fixture covers itself.
+fn all_decided_except(covered: &[&str]) -> String {
+    let mut block = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        if !covered.contains(cut) {
+            block.push_str(&format!("  {cut}: \"n/a\"\n"));
+        }
+    }
+    block
+}
+
+fn all_decided() -> String {
+    all_decided_except(&[])
+}
+
 fn keel(args: &[&str]) -> (String, String, i32) {
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
         .args(args)
@@ -41,7 +58,10 @@ fn check_reports_every_file() {
     write(
         &dir,
         "keel/waves/0002-ok.md",
-        "---\ntransforms:\n  tidy: {chore: \"лад у документах\", files: [README.md]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  tidy: {{chore: \"лад у документах\", files: [README.md]}}\n{}---\n",
+            all_decided()
+        ),
     );
     write(
         &dir,
@@ -80,7 +100,7 @@ fn check_reports_every_file() {
     );
     assert!(
         out.contains("links (chapter 3"),
-        "links among the unchecked:\n{out}"
+        "links among the checked since the graph floor:\n{out}"
     );
     assert!(
         out.contains("holding (§7.6)"),
@@ -123,7 +143,10 @@ fn missing_config_defaults() {
     write(
         &dir,
         "keel/waves/0003-w.md",
-        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
@@ -140,7 +163,10 @@ fn missing_config_defaults() {
     write(
         &dir,
         "keel/waves/0003-w.md",
-        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
@@ -164,7 +190,10 @@ fn output_follows_lang() {
     write(
         &dir,
         "keel/waves/0004-w.md",
-        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
@@ -189,7 +218,10 @@ fn output_follows_lang() {
     write(
         &dir,
         "keel/waves/0004-w.md",
-        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
@@ -222,7 +254,10 @@ fn plural_forms_correct() {
             write(
                 &dir,
                 &format!("keel/waves/000{i}-w.md"),
-                "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+                &format!(
+                    "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+                    all_decided()
+                ),
             );
         }
         let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
@@ -249,7 +284,8 @@ fn contract_refs_verified() {
         &dir,
         "keel/waves/0005-good.md",
         &format!(
-            "---\nscenarios:\n  s: {{proves: anchor@{good}}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n"
+            "---\nscenarios:\n  s: {{proves: anchor@{good}, covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n{}---\n\n## scenario: s\n\nbody\n",
+            all_decided_except(&["functional.correctness"])
         ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
@@ -264,7 +300,10 @@ fn contract_refs_verified() {
     write(
         &dir,
         "keel/waves/0006-stale.md",
-        "---\nscenarios:\n  s: {proves: anchor@beef00}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
+        &format!(
+            "---\nscenarios:\n  s: {{proves: anchor@beef00, covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n{}---\n\n## scenario: s\n\nbody\n",
+            all_decided_except(&["functional.correctness"])
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "a stale revision is a finding:\n{out}");
@@ -288,7 +327,10 @@ fn contract_refs_verified() {
     write(
         &dir,
         "keel/waves/0006-gone.md",
-        "---\nscenarios:\n  s:\n    proves: anchor@beef00\n    withdrawn: \"знято\"\ntransforms:\n  t: {chore: \"tidy\", files: [lib/a.ex]}\n---\n\n## scenario: s\n\nbody\n",
+        &format!(
+            "---\nscenarios:\n  s:\n    proves: anchor@beef00\n    withdrawn: \"знято\"\ntransforms:\n  t: {{chore: \"tidy\", files: [lib/a.ex]}}\n{}---\n\n## scenario: s\n\nbody\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(
@@ -305,7 +347,10 @@ fn missing_contract_named() {
     write(
         &dir,
         "keel/waves/0007-w.md",
-        "---\nscenarios:\n  s: {proves: ghost@abcd12}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
+        &format!(
+            "---\nscenarios:\n  s: {{proves: ghost@abcd12, covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n{}---\n\n## scenario: s\n\nbody\n",
+            all_decided_except(&["functional.correctness"])
+        ),
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "a dangling reference is a finding:\n{out}");
@@ -330,7 +375,10 @@ fn rev_command_prints() {
     write(
         &dir,
         "keel/waves/0008-w.md",
-        "---\nscenarios:\n  s: {proves: anchor@abcd}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody of s\n",
+        &format!(
+            "---\nscenarios:\n  s: {{proves: anchor@abcd, covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n{}---\n\n## scenario: s\n\nbody of s\n",
+            all_decided_except(&["functional.correctness"])
+        ),
     );
     let anchor = keel::rev::contract_rev(&dir.join("keel/contracts/anchor.md")).unwrap();
     let scenario = keel::rev::text_rev("body of s\n");
@@ -372,12 +420,144 @@ fn rev_command_prints() {
     write(
         &dir,
         "keel/waves/0009-w.md",
-        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+        &format!(
+            "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n",
+            all_decided()
+        ),
     );
     let (out, _err, code) = keel(&["rev", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
     assert!(
         out.contains("no keel.toml"),
         "the defaults do not pass themselves off as read, in rev too:\n{out}"
+    );
+}
+
+/// proves: unknown-cut-refused@be4afe -- holds §3.4: a slug outside
+/// the embedded vocabulary is a finding, not a new answer.
+#[test]
+fn unknown_cut_refused() {
+    let dir = sandbox("badcut");
+    write(
+        &dir,
+        "keel/waves/0005-w.md",
+        "---\nscenarios:\n  s: {covers: [functional.correctnes]}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "an alien slug is a finding:\n{out}");
+    assert!(
+        out.contains("functional.correctnes"),
+        "names the alien slug:\n{out}"
+    );
+    // The scenario says "covers or decisions" and "names the slug and
+    // the wave" -- both halves are held (review R-9).
+    assert!(
+        out.contains("keel/waves/0005-w.md"),
+        "names the wave the alien slug sits in:\n{out}"
+    );
+    let dir = sandbox("baddecision");
+    write(
+        &dir,
+        "keel/waves/0005-w.md",
+        "---\nscenarios:\n  s: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\ndecisions:\n  reliability.faultlessnes: \"typo\"\n---\n\n## scenario: s\n\nbody\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 1,
+        "an alien slug in decisions is a finding too:\n{out}"
+    );
+    assert!(
+        out.contains("reliability.faultlessnes") && out.contains("decisions"),
+        "names the alien decisions slug and its holder:\n{out}"
+    );
+}
+
+/// proves: silence-forbidden@9bd959 -- holds §10.3: every cut gets
+/// exactly one answer; withdrawn covers do not count (§2.12).
+#[test]
+fn silence_forbidden() {
+    // All forty answered except two -- both missing cuts are listed
+    // in the one finding (a list, not a sample; review R-9).
+    let dir = sandbox("silence");
+    let mut decisions = String::new();
+    for cut in keel::graph::cuts() {
+        if *cut != "functional.correctness"
+            && *cut != "performance.capacity"
+            && *cut != "safety.fail-safe"
+        {
+            decisions.push_str(&format!("  {cut}: \"n/a\"\n"));
+        }
+    }
+    write(
+        &dir,
+        "keel/waves/0005-w.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\ndecisions:\n{decisions}---\n\n## scenario: s\n\nbody\n"
+        ),
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "silence is a finding:\n{out}");
+    assert!(
+        out.contains("performance.capacity") && out.contains("safety.fail-safe"),
+        "lists every missing cut:\n{out}"
+    );
+
+    // A withdrawn scenario's covers do not close a cut: the promise
+    // died (§2.12), so the cut is silent again.
+    let dir = sandbox("dead-cover");
+    write(
+        &dir,
+        "keel/waves/0005-w.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\n  gone:\n    covers: [performance.capacity]\n    withdrawn: \"знято\"\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\ndecisions:\n{decisions}---\n\n## scenario: s\n\nbody\n\n## scenario: gone\n\nold body\n"
+        ),
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a dead cover is not an answer:\n{out}");
+    assert!(
+        out.contains("performance.capacity"),
+        "the cut held only by a withdrawn cover is listed missing:\n{out}"
+    );
+}
+
+/// proves: broken-links-named@4b2a4e -- holds §7.1/§7.2: links into
+/// nowhere and dependency cycles are findings with names.
+#[test]
+fn broken_links_named() {
+    let dir = sandbox("links");
+    write(
+        &dir,
+        "keel/waves/0005-a.md",
+        "---\ndepends_on: [0006-b, 0099-ghost-wave]\nscenarios:\n  s:\n    covers: [functional.correctness]\n    superseded_by: nobody-anywhere\n  selfy:\n    withdrawn: \"folded into s\"\n    superseded_by: selfy\ntransforms:\n  t:\n    implements: [s, ghost-scenario]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
+    );
+    write(
+        &dir,
+        "keel/waves/0006-b.md",
+        "---\ndepends_on: [0005-a]\ntransforms:\n  t: {chore: \"tidy\", files: [lib/b.ex]}\n---\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "broken links are findings:\n{out}");
+    assert!(
+        out.contains("ghost-scenario"),
+        "implements into nowhere named:\n{out}"
+    );
+    assert!(
+        out.contains("0099-ghost-wave"),
+        "depends_on into nowhere named:\n{out}"
+    );
+    assert!(
+        out.contains("nobody-anywhere"),
+        "a successor unknown to any wave named:\n{out}"
+    );
+    // Second birth (review R-5): a scenario naming itself as its own
+    // successor passes as "found somewhere" today -- §2.12 wants a
+    // successor that took over, and nothing takes over from itself.
+    assert!(
+        out.contains("names itself"),
+        "a self-successor named as a finding:\n{out}"
+    );
+    assert!(
+        out.contains("0005-a") && out.contains("0006-b"),
+        "the dependency cycle names its waves:\n{out}"
     );
 }
