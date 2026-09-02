@@ -389,10 +389,16 @@ fn tag_rows(
     Ok(out)
 }
 
+/// Whether history can testify here at all: git serves the root and
+/// the clone is not shallow. The closure court leans on this too.
+pub(crate) fn history_testifies(root: &Path) -> bool {
+    has_git(root) && !is_shallow(root)
+}
+
 /// Whether the recorded revision truly lived in the git history of
 /// the contract file (§5.6). Any git trouble reads as "not found":
 /// the strict verdict stands where history cannot testify.
-fn revision_in_history(root: &Path, relative: &str, recorded: &str) -> bool {
+pub(crate) fn revision_in_history(root: &Path, relative: &str, recorded: &str) -> bool {
     let log = Command::new("git")
         .arg("-C")
         .arg(root)

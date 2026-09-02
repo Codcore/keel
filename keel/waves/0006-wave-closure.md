@@ -27,6 +27,7 @@ transforms:
     files:
       - tool/src/close.rs
       - tool/src/adapter.rs
+      - tool/src/check.rs
       - tool/src/main.rs
       - tool/src/lib.rs
       - tool/i18n/en.ftl

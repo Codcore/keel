@@ -217,6 +217,24 @@ check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
 check-next-rung = next step: rung 5 -- the closure of waves (§6.5)
 
+## close command (§6.5)
+close-title = keel close -- the closure court (§6.5)
+close-battery = battery: { $count } tests judged in one run
+close-closed = { $wave }: closed -- every live scenario proven, references converge, the review lies next to it
+close-closed-light = { $wave }: closed (light) -- chores only, closed by the fact of merge
+close-plan = { $wave }: approved, not started -- a plan without tests is not red (§6.5)
+close-progress = { $wave }: in progress -- the missing, by name:
+close-lack-untagged = scenario "{ $scenario }": no proves tag in the tests (§5.5)
+close-lack-stale = scenario "{ $scenario }": the tag holds { $recorded }, the text gives { $actual } (§7.5)
+close-lack-red = scenario "{ $scenario }": the test "{ $test }" is red -- not proven (§6.3)
+close-lack-notrun = scenario "{ $scenario }": the battery ran no test named "{ $test }"
+close-lack-ref = the reference { $contract }@{ $recorded } does not converge (§6.4)
+close-lack-review = the review file keel/reviews/<wave>.md is not next to the wave (§9.9)
+close-needs-adapter = the closure court needs the cargo adapter named in keel.toml
+close-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
+close-blockers = blockers of this branch's wave { $wave }: { $count } -- a full wave does not merge unproven (§6.5, §9.9)
+close-no-blockers = no blockers: this branch is named as no unclosed wave -- the states above inform
+
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: this is not one of the commands keel knows
@@ -224,4 +242,4 @@ main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
 main-gate-no-message = refusal: gate needs the commit message file
 main-gate-no-message-reason = reason: the judgement reads the message the commit-msg hook hands over
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir]
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel hook [dir]

@@ -160,10 +160,7 @@ fn wave_closure_judged() {
     let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "other waves inform, they do not punish:\n{out}");
-    assert!(
-        out.contains("in progress"),
-        "the states still told:\n{out}"
-    );
+    assert!(out.contains("in progress"), "the states still told:\n{out}");
 }
 
 /// proves: closure-needs-review-file@d1cb7a -- holds §9.9 as
@@ -235,7 +232,9 @@ fn battery_read_once() {
     write(
         &dir,
         "tests/two_test.rs",
-        &format!("/// proves: green-one@{g}\n#[test]\nfn holds_green() {{}}\n\n/// proves: red-one@{r}\n#[test]\nfn holds_red() {{ assert!(false); }}\n"),
+        &format!(
+            "/// proves: green-one@{g}\n#[test]\nfn holds_green() {{}}\n\n/// proves: red-one@{r}\n#[test]\nfn holds_red() {{ assert!(false); }}\n"
+        ),
     );
     write(&dir, "keel/reviews/0014-two.md", "# Рецензія\n\nok\n");
     commit_all(&dir);
@@ -257,12 +256,16 @@ fn battery_read_once() {
     let (out, err, _code) = keel(&["close", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
-        out.contains("in progress") && out.contains("\"red-one\"") && out.contains("test is red"),
+        out.contains("in progress") && out.contains("\"red-one\"") && out.contains("is red"),
         "the red scenario named with its kind:\n{out}"
     );
 
     // A build that does not build: a refusal aloud, no verdicts.
-    write(&dir, "tests/broken_test.rs", "fn broken() { let x: i32 = \"no\"; }\n");
+    write(
+        &dir,
+        "tests/broken_test.rs",
+        "fn broken() { let x: i32 = \"no\"; }\n",
+    );
     let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert_eq!(code, 2, "no build -- no verdict for anyone:\n{out}");

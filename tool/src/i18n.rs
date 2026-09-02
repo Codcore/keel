@@ -115,20 +115,9 @@ macro_rules! targs {
 mod tests {
     use super::I18n;
 
-    /// proves: missing-key-falls-back@e73fdd -- holds the concept's
-    /// "Output languages": no translation means English text, not a
-    /// hole.
-    #[test]
-    fn missing_key_falls_back() {
-        // The Ukrainian source lacks the key -- English arrives.
-        let i = I18n::from_sources("uk", "", "hello = Hello");
-        assert_eq!(i.text("hello"), "Hello");
-
-        // The key exists nowhere -- the key itself comes back, not a
-        // panic and not emptiness: a hole in the report is forbidden.
-        let real = I18n::embedded("uk");
-        assert_eq!(real.text("no-such-key-ever"), "no-such-key-ever");
-    }
+    // missing-key-falls-back moved to tests/i18n_test.rs (wave 0006):
+    // the adapter reads tags in tests/*.rs, and the closure court
+    // must see the proof. The tag rode along unchanged.
 
     /// Both embedded translations parse -- a broken .ftl cannot ship
     /// silently (a caveat of the speak-by-keys transform).

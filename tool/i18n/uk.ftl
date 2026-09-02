@@ -219,6 +219,24 @@ check-next-fix = наступний крок: полагодь названі ф
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
 check-next-rung = наступний крок: щабель 5 — закриття хвиль (§6.5)
 
+## команда close (§6.5)
+close-title = keel close — суд закриття (§6.5)
+close-battery = батарея: { $count } тестів суджено одним бігом
+close-closed = { $wave }: закрита — кожен живий сценарій доведений, посилання сходяться, звіт рецензії поруч
+close-closed-light = { $wave }: закрита (легка) — самі chore, закрита фактом merge
+close-plan = { $wave }: затверджена, ще не почата — план без тестів не червоне (§6.5)
+close-progress = { $wave }: в роботі — нестачі поіменно:
+close-lack-untagged = сценарій "{ $scenario }": тега proves у тестах нема (§5.5)
+close-lack-stale = сценарій "{ $scenario }": тег тримає { $recorded }, а текст дає { $actual } (§7.5)
+close-lack-red = сценарій "{ $scenario }": тест "{ $test }" червоний — не доведено (§6.3)
+close-lack-notrun = сценарій "{ $scenario }": батарея не виконала тесту "{ $test }"
+close-lack-ref = посилання { $contract }@{ $recorded } не сходиться (§6.4)
+close-lack-review = звіту рецензії keel/reviews/<хвиля>.md поруч із хвилею нема (§9.9)
+close-needs-adapter = судові закриття потрібен адаптер cargo, названий у keel.toml
+close-needs-adapter-instead = постав adapter = "cargo" (NEW-CONCEPT, «Конфіг»); інші адаптери прийдуть своїми хвилями
+close-blockers = блокери хвилі цієї гілки { $wave }: { $count } — повна хвиля не зливається недоведеною (§6.5, §9.9)
+close-no-blockers = блокерів нема: гілка не зветься як незакрита хвиля — стани вище інформують
+
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
 main-unknown-command-reason = причина: такої команди keel не знає
@@ -226,4 +244,4 @@ main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
 main-gate-no-message = відмова: gate потребує файл повідомлення commit-а
 main-gate-no-message-reason = причина: суд читає повідомлення, яке віддає commit-msg hook
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel hook [тека]
