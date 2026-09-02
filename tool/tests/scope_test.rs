@@ -231,3 +231,54 @@ fn one_new_in_counted() {
         "both files named:\n{out}"
     );
 }
+
+/// proves: scope-honest-when-unknown@7af274 -- holds the honesty rule
+/// of the wave: a branch not named as any wave (like the bootstrap
+/// session branch this tool is built on), or a directory git does not
+/// serve, gets "scope not compared" with the reason aloud -- neither
+/// a finding nor a red exit; green is not painted over the unverified.
+#[test]
+fn scope_honest_when_unknown() {
+    // A branch that is no wave: the declared file is touched and a
+    // stranger file too, yet nothing is judged -- only said.
+    let dir = sandbox("notwave");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    write(
+        &dir,
+        "keel/waves/0005-scope-w.md",
+        &wave_declaring("      - lib/a.txt\n"),
+    );
+    write(&dir, "lib/a.txt", "one\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    git(&dir, &["checkout", "-q", "-b", "just-work"]);
+    write(&dir, "lib/c.txt", "stranger\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "work"]);
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "not compared is not red:\n{out}");
+    assert!(
+        out.contains("scope not compared: branch \"just-work\""),
+        "the deviation named with the branch:\n{out}"
+    );
+    assert!(
+        !out.contains("is untouched") && !out.contains("no transform"),
+        "no scope findings where scope was not judged:\n{out}"
+    );
+
+    // No git at all: the same honesty, the other reason.
+    let dir = sandbox("nogit");
+    write(
+        &dir,
+        "keel/waves/0005-scope-w.md",
+        &wave_declaring("      - lib/a.txt\n"),
+    );
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "no git is not red either:\n{out}");
+    assert!(
+        out.contains("scope not compared: git"),
+        "the reason is git, said aloud:\n{out}"
+    );
+}
