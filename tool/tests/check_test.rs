@@ -75,16 +75,16 @@ fn check_reports_every_file() {
         "the unchecked named aloud:\n{out}"
     );
     assert!(
-        out.contains("revisions (§5)"),
-        "revisions among the unchecked:\n{out}"
+        out.contains("test tags (§5.5"),
+        "scenario revisions among the unchecked:\n{out}"
     );
     assert!(
         out.contains("links (chapter 3"),
         "links among the unchecked:\n{out}"
     );
     assert!(
-        out.contains("contracts (§7.6)"),
-        "contracts among the unchecked:\n{out}"
+        out.contains("holding (§7.6)"),
+        "contract holding among the unchecked:\n{out}"
     );
 
     // Without the broken file -- exit 0; honesty about the unchecked stays.
@@ -268,9 +268,15 @@ fn contract_refs_verified() {
     );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "a stale revision is a finding:\n{out}");
-    assert!(out.contains("beef00"), "names the recorded revision:\n{out}");
+    assert!(
+        out.contains("beef00"),
+        "names the recorded revision:\n{out}"
+    );
     assert!(out.contains(&good), "names the current revision:\n{out}");
-    assert!(out.contains("§5.6"), "says the closed-wave caveat aloud:\n{out}");
+    assert!(
+        out.contains("§5.6"),
+        "says the closed-wave caveat aloud:\n{out}"
+    );
 }
 
 /// proves: missing-contract-named@73cf9e -- holds §7.1: a reference
@@ -286,5 +292,8 @@ fn missing_contract_named() {
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "a dangling reference is a finding:\n{out}");
     assert!(out.contains("ghost"), "names the missing contract:\n{out}");
-    assert!(out.contains("0007-w"), "names the wave that points at it:\n{out}");
+    assert!(
+        out.contains("0007-w"),
+        "names the wave that points at it:\n{out}"
+    );
 }

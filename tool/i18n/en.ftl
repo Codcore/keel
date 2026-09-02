@@ -102,8 +102,12 @@ check-config-absent = no keel.toml -- defaults in effect (lang = en); a default 
 check-config-lang-default = config: keel.toml (lang not set -- default en in effect; a default does not pass itself off as read)
 check-header-reads = header reads
 check-no-documents = no documents yet
-check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9)
-check-unchecked = not yet checked: links (chapter 3, §7.1-§7.2), revisions (§5), scope (§4), tests (§7.5), contracts (§7.6), header-vs-body (§7.7) -- rungs ahead
+check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3 -- for a closed wave an old revision is legal, §5.6)
+check-unchecked = not yet checked: links (chapter 3: cuts and depends_on, §7.2), scenario revisions in test tags (§5.5, §7.5), scope (§4), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
+check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
+check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
+check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }
+check-ref-stale-instead = reread the contract and update the reference deliberately (§5.1); if this wave is already closed, the old revision is legal (§5.6)
 check-summary = summary: { $docs ->
         [one] { $docs } document
        *[other] { $docs } documents
