@@ -102,8 +102,11 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
         .args(["--test", &stem, &tag.test, "--", "--exact"])
         // The judged project builds into its own target directory:
         // an inherited shared cache shifts verdicts (§6.7 heal of
-        // 0005 per review 0008 R-8; seen live in 0006 too).
+        // 0005 per review 0008 R-8; seen live in 0006 too), and the
+        // cargo alias walks it back in through the side door
+        // (review 0009 R-2).
         .env_remove("CARGO_TARGET_DIR")
+        .env_remove("CARGO_BUILD_TARGET_DIR")
         .output()
         .map_err(|e| Refusal {
             file: crate_dir.clone(),
@@ -125,7 +128,7 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
             file: crate_dir,
             reason: ta(
                 "adapter-cargo-failed",
-                targs!("error" => stderr.lines().last().unwrap_or("no test result line").to_string()),
+                targs!("error" => stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("no test result line").to_string()),
             ),
             instead: t("adapter-cargo-failed-instead"),
         });
@@ -155,6 +158,7 @@ pub fn run_all(root: &Path) -> Result<std::collections::BTreeMap<(String, String
         .arg("--no-fail-fast")
         // Same isolation as run_test: the shared cache lies.
         .env_remove("CARGO_TARGET_DIR")
+        .env_remove("CARGO_BUILD_TARGET_DIR")
         .output()
         .map_err(|e| Refusal {
             file: crate_dir.clone(),
@@ -240,7 +244,7 @@ pub fn run_all(root: &Path) -> Result<std::collections::BTreeMap<(String, String
             file: crate_dir,
             reason: ta(
                 "adapter-cargo-failed",
-                targs!("error" => stderr.lines().last().unwrap_or("no test output").to_string()),
+                targs!("error" => stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("no test output").to_string()),
             ),
             instead: t("adapter-cargo-failed-instead"),
         });

@@ -175,7 +175,8 @@ review-chores-header = ## Chore reasons (§2.11)
 review-chores-none = none
 review-drift-header = ## Drift (§4.6) — files added to scope after the anchor (the first commit of the wave file: { $sha })
 review-drift-line = { $file } — added after the anchor
-review-drift-empty = empty — the scope stands as planned
+review-drift-removed-line = { $file } — removed from scope after the anchor
+review-drift-empty = empty — no file added or removed after the anchor
 review-drift-unverified = ## Drift (§4.6) not verified: history does not testify — no git, or a truncated clone cannot prove the anchor
 review-drift-unreadable = the wave file at the anchor does not read — judge the drift by hand
 review-map-header = ## The quality map (§10.7)
@@ -190,6 +191,12 @@ review-diff-empty = empty
 review-diff-unverified = ## The full branch diff: not verified — no fork point
 review-not-wave = the branch "{ $branch }" is not named as a wave (§8.2) — the package does not guess which wave it is for
 review-not-wave-instead = checkout the wave's branch: the package is assembled for the branch's wave (§9.9)
+review-scenarios-none = none — a chore wave promises no scenarios (§6.8)
+review-transform-no-body = (no body section — §7.7's header-vs-body floor is a rung ahead; judge it by hand)
+review-protocol-header = ## What the reviewer does with this (§9.9)
+review-protocol-rows = every row of every list above gets an answer — "fine, because…" — or becomes a finding; skipping a row in silence is not allowed
+review-protocol-questions = above the lists, four judgement questions: what did we keep silent about; are all possible scenarios accounted for; is everything promised implemented, with no quiet narrowing; does the test cover the whole scenario, not a corner of it
+review-protocol-report = the report lands as keel/reviews/{ $wave }.md next to the wave — keel close holds the wave open until it does
 
 ## adapter module
 adapter-no-crate = no Cargo.toml at the root and none exactly one level down

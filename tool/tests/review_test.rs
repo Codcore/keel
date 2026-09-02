@@ -311,7 +311,10 @@ fn review_lists_drawn() {
         .replace("files: [src/a.rs, src/b.rs]", "files: [src/b.rs]");
     write(&dir, "keel/waves/0062-w.md", &narrowed);
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "the scope narrows in silence"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "the scope narrows in silence"],
+    );
     let (out, err, code) = keel(&["review", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "the package assembles over the narrowing:\n{out}");
@@ -339,16 +342,25 @@ fn review_lists_drawn() {
     );
     git(&dir, &["init", "-q", "-b", "0064-old-name"]);
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "the wave is born under its old name"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "the wave is born under its old name"],
+    );
     git(&dir, &["checkout", "-q", "-b", "0065-new"]);
     let renamed = fs::read_to_string(dir.join("keel/waves/0064-old-name.md"))
         .unwrap()
-        .replace("---\nscenarios:", "---\nrenamed_from: 0064-old-name\nscenarios:")
+        .replace(
+            "---\nscenarios:",
+            "---\nrenamed_from: 0064-old-name\nscenarios:",
+        )
         .replace("files: [src/a.rs]", "files: [src/a.rs, src/b.rs]");
     fs::remove_file(dir.join("keel/waves/0064-old-name.md")).unwrap();
     write(&dir, "keel/waves/0065-new.md", &renamed);
     git(&dir, &["add", "-A", "."]);
-    git(&dir, &["commit", "-q", "-m", "renamed and grown in one step"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "renamed and grown in one step"],
+    );
     let (out, err, code) = keel(&["review", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "the renamed wave's package assembles:\n{out}");

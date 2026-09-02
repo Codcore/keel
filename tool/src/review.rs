@@ -42,6 +42,10 @@ pub fn package(root: &Path) -> Result<String, Refusal> {
         reason: format!("the wave file cannot be read: {e}"),
         instead: "check the path and file permissions".to_string(),
     })?;
+    // CRLF normalized for section parsing (review 0009 R-3): the
+    // package must not lose the Why and the caveats to Windows line
+    // endings -- verbatim means the words, not the carriage returns.
+    let text = text.replace("\r\n", "\n");
     let revs = rev::scenario_revs(&wave_path)?;
 
     let mut out = t("review-title");
@@ -74,14 +78,25 @@ pub fn package(root: &Path) -> Result<String, Refusal> {
             writeln!(out, "{body}").unwrap();
         }
     }
+    if wave.scenarios.is_empty() {
+        writeln!(out, "  {}", t("review-scenarios-none")).unwrap();
+    }
 
     // Transforms verbatim -- the caveat paragraphs (§2.10) live in
     // these bodies and ride whole, so none is dropped by parsing
     // prose the mechanics cannot read.
     writeln!(out, "\n{}", t("review-transforms-header")).unwrap();
     for (name, _) in &wave.transforms {
-        if let Some(body) = section(&text, &format!("transform: {name}")) {
-            writeln!(out, "## transform: {name}\n{body}").unwrap();
+        match section(&text, &format!("transform: {name}")) {
+            Some(body) => writeln!(out, "## transform: {name}\n{body}").unwrap(),
+            // Named with a word, never dropped in silence (review
+            // 0009 R-7): §7.7's header-vs-body floor is a rung ahead.
+            None => writeln!(
+                out,
+                "## transform: {name}\n{}",
+                t("review-transform-no-body")
+            )
+            .unwrap(),
         }
     }
 
@@ -106,21 +121,36 @@ pub fn package(root: &Path) -> Result<String, Refusal> {
     if crate::check::is_shallow(root) {
         writeln!(out, "{}", t("review-drift-unverified")).unwrap();
     } else {
-        match drift_anchor(root, &rel) {
+        match drift_anchor(root, &rel, wave.renamed_from.as_deref()) {
             None => writeln!(out, "{}", t("review-drift-unverified")).unwrap(),
-            Some(anchor) => {
+            Some((anchor, anchored_rel, anchored_slug)) => {
                 let short = anchor.get(..7).unwrap_or(&anchor).to_string();
                 writeln!(out, "{}", ta("review-drift-header", targs!("sha" => short))).unwrap();
-                match old_wave_files(root, &anchor, &rel, &slug) {
+                match old_wave_files(root, &anchor, &anchored_rel, &anchored_slug) {
                     None => writeln!(out, "  {}", t("review-drift-unreadable")).unwrap(),
                     Some(old_files) => {
+                        let now = wave_files(wave);
                         let mut drifted = 0;
-                        for line in wave_files(wave) {
-                            if !old_files.contains(&line) {
+                        for line in &now {
+                            if !old_files.contains(line) {
                                 writeln!(
                                     out,
                                     "  {}",
                                     ta("review-drift-line", targs!("file" => line.clone()))
+                                )
+                                .unwrap();
+                                drifted += 1;
+                            }
+                        }
+                        // Quiet narrowing is drift too (review 0009
+                        // R-5): a file removed from scope after the
+                        // anchor gets its own word.
+                        for line in &old_files {
+                            if !now.contains(line) {
+                                writeln!(
+                                    out,
+                                    "  {}",
+                                    ta("review-drift-removed-line", targs!("file" => line.clone()))
                                 )
                                 .unwrap();
                                 drifted += 1;
@@ -197,13 +227,27 @@ pub fn package(root: &Path) -> Result<String, Refusal> {
                 ta("review-diff-header", targs!("base" => short))
             )
             .unwrap();
-            match git_out(root, &["diff", base_sha]) {
+            // base..HEAD, never the working tree (review 0009 R-4):
+            // an uncommitted edit is not the branch's.
+            match git_out(root, &["diff", base_sha, "HEAD"]) {
                 Some(diff) if !diff.trim().is_empty() => out.push_str(&diff),
                 Some(_) => writeln!(out, "  {}", t("review-diff-empty")).unwrap(),
                 None => writeln!(out, "  {}", t("review-diff-unverified")).unwrap(),
             }
         }
     }
+
+    // The protocol rides with the data, so the package is
+    // self-sufficient for a fresh context, not only in facts.
+    writeln!(out, "\n{}", t("review-protocol-header")).unwrap();
+    writeln!(out, "{}", t("review-protocol-rows")).unwrap();
+    writeln!(out, "{}", t("review-protocol-questions")).unwrap();
+    writeln!(
+        out,
+        "{}",
+        ta("review-protocol-report", targs!("wave" => slug.clone()))
+    )
+    .unwrap();
 
     Ok(out)
 }
@@ -238,8 +282,30 @@ fn wave_files(wave: &docs::Wave) -> Vec<String> {
 }
 
 /// The first commit that added the wave file -- the drift anchor of
-/// this generation, named aloud in the package.
-fn drift_anchor(root: &Path, rel: &str) -> Option<String> {
+/// this generation, named aloud in the package. A renamed wave
+/// (renamed_from) keeps the true anchor of its old name, so growth
+/// at the rename is not blessed as planned (review 0009 R-5); the
+/// anchor is returned with the path and slug it was found under.
+fn drift_anchor(
+    root: &Path,
+    rel: &str,
+    renamed_from: Option<&str>,
+) -> Option<(String, String, String)> {
+    if let Some(old) = renamed_from {
+        let old_rel = format!("keel/waves/{old}.md");
+        if let Some(sha) = first_add(root, &old_rel) {
+            return Some((sha, old_rel, old.to_string()));
+        }
+    }
+    let slug = rel
+        .strip_prefix("keel/waves/")
+        .and_then(|s| s.strip_suffix(".md"))
+        .unwrap_or("wave")
+        .to_string();
+    first_add(root, rel).map(|sha| (sha, rel.to_string(), slug))
+}
+
+fn first_add(root: &Path, rel: &str) -> Option<String> {
     let log = git_out(root, &["log", "--diff-filter=A", "--format=%H", "--", rel])?;
     log.lines()
         .last()
@@ -247,17 +313,15 @@ fn drift_anchor(root: &Path, rel: &str) -> Option<String> {
         .filter(|l| !l.is_empty())
 }
 
-/// The wave's declared files as of the anchor commit, read through
-/// a temporary copy so the strict parser judges the old text too.
+/// The wave's declared files as of the anchor commit, parsed from
+/// the text git hands over -- the same strict court, no disk
+/// touched (review 0009 R-9).
 fn old_wave_files(root: &Path, anchor: &str, rel: &str, slug: &str) -> Option<Vec<String>> {
     let old_text = git_show(root, anchor, rel)?;
-    let dir = std::env::temp_dir().join(format!("keel-review-anchor-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).ok()?;
-    let path = dir.join(format!("{slug}.md"));
-    std::fs::write(&path, &old_text).ok()?;
-    let wave = docs::read_wave(&path).ok();
-    let _ = std::fs::remove_dir_all(&dir);
-    wave.map(|w| wave_files(&w))
+    let shown = root.join(rel);
+    docs::read_wave_text(slug, &old_text, &shown)
+        .ok()
+        .map(|w| wave_files(&w))
 }
 
 /// Everyone holding a reference to the contract, by name: scenario

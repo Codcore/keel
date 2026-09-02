@@ -222,7 +222,20 @@ fn load_header(path: &Path) -> Result<(String, usize), Refusal> {
             )
         }
     })?;
-    let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
+    header_text(&text, path)
+}
+
+/// A wave parsed from text already in hand -- the drift anchor
+/// reads old revisions straight out of git (§4.6), the same strict
+/// court, no disk touched.
+pub(crate) fn read_wave_text(slug: &str, text: &str, shown: &Path) -> Result<Wave, Refusal> {
+    let (yaml, off) = header_text(text, shown)?;
+    let root = parse_header(&yaml, off, shown)?;
+    wave_from(root, slug.to_string(), shown)
+}
+
+fn header_text(text: &str, path: &Path) -> Result<(String, usize), Refusal> {
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     if text.trim().is_empty() {
         return Err(refuse(
             path,
