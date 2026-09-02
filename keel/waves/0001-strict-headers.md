@@ -20,6 +20,10 @@ scenarios:
     covers: [reliability.fault-tolerance, safety.hazard-warning, interaction.self-descriptiveness]
   missing-keel-dir-refuses:
     covers: [interaction.user-assistance]
+  dir-among-docs-refuses:
+    proves: tool-docs@2ab9a9
+  bare-scenario-refuses:
+    proves: tool-docs@2ab9a9
 
 transforms:
   read-headers:
@@ -47,6 +51,16 @@ transforms:
     files:
       - tool/src/main.rs
       - tool/src/check.rs
+      - tool/tests/check_test.rs
+  review-findings:
+    implements:
+      - dir-among-docs-refuses
+      - bare-scenario-refuses
+    contracts: [tool-docs@2ab9a9]
+    files:
+      - tool/src/docs.rs
+      - tool/src/check.rs
+      - tool/tests/docs_test.rs
       - tool/tests/check_test.rs
 
 decisions:
@@ -180,9 +194,37 @@ commit (§8.6), і їде робочою гілкою v2. Повна механ�
 METHODOLOGY-V2 — машинної перевірки ще нема, і саме її ця хвиля
 будує.
 
+## scenario: dir-among-docs-refuses
+
+**Дано** теку, підтеку або symlink на теку серед `keel/waves/` чи
+`keel/contracts/`,
+**коли** біжить `scan` чи `keel check`,
+**тоді** це відмова, що називає теку: документи живуть пласко, і
+ніщо — включно з хвилею, захованою в підтеці, — не зникає зі звіту
+мовчки.
+
+## scenario: bare-scenario-refuses
+
+**Дано** сценарій у шапці без жодної опори — ні `proves`, ні `covers`,
+ні позначки `withdrawn`,
+**коли** шапку читають,
+**тоді** відмова називає сценарій: без опори він не обіцяє нічого
+перевірюваного (§3.3).
+
 ## transform: check-walks-project
 
 Підкоманда `check`: обхід `keel/` через `scan`, звіт по кожному файлу,
 ненульовий вихід за будь-якої відмови. Це ще не весь check методики —
 лише перший поверх: «документи читаються». Стадії перевірок (глава 7)
 виростуть наступними щаблями, кожна своїм червоним commit-ом.
+
+## transform: review-findings
+
+Виправлення за знахідками свіжого рецензента (§9.9): дві нові відмови
+(сценарії вище); повніший рядок «ще не перевірено» у звіті check —
+дописані звʼязки (глава 3, §7.1–§7.2) і контракти (§7.6); перевірка
+слага імені файлу документа (§1.2, §8.2); відмова на визначення якоря
+YAML; дошиті assert-и на transform.contracts і на позначки контракту
+withdrawn/superseded_by/renamed_from; людські причини відмов для
+не-UTF-8 і порожнього файлу. Кожна знахідка дістала виправлення;
+відмов вголос нема — відмовлятися не було від чого.
