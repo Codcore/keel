@@ -171,3 +171,52 @@ fn valid_wave_parses() {
     assert!(w.scenarios.is_empty());
     assert!(w.decisions.is_empty());
 }
+
+/// proves: valid-contract-parses@863c4e — тримає §2.7–§2.8: наша
+/// обіцянка (module + exports) і чужа (verify) читаються в дані;
+/// контракт без жодної — відмова «нічого не обіцяє».
+#[test]
+fn valid_contract_parses() {
+    let dir = sandbox("valid-contract");
+
+    // Наш контракт: module + exports.
+    let p = write(
+        &dir,
+        "keel/contracts/session-run.md",
+        concat!(
+            "---\n",
+            "module: KeelAgent.Session\n",
+            "exports:\n",
+            "  - \"run(Context.t(), [Tool.t()]) :: Outcome.t()\"\n",
+            "  - \"halt(pid()) :: :ok\"\n",
+            "---\n\nОдна розмова з однією моделлю.\n",
+        ),
+    );
+    let c = docs::read_contract(&p).unwrap();
+    assert_eq!(c.slug, "session-run");
+    assert_eq!(c.module.as_deref(), Some("KeelAgent.Session"));
+    assert_eq!(c.exports.len(), 2);
+    assert!(c.exports[0].starts_with("run("));
+    assert!(c.verify.is_none());
+
+    // Чужа обіцянка: verify-команда (§2.8), module не обовʼязковий.
+    let p = write(
+        &dir,
+        "keel/contracts/redis-up.md",
+        "---\nverify: \"redis-cli ping\"\n---\n\nРедіс живий.\n",
+    );
+    let c = docs::read_contract(&p).unwrap();
+    assert_eq!(c.verify.as_deref(), Some("redis-cli ping"));
+    assert!(c.module.is_none());
+    assert!(c.exports.is_empty());
+
+    // Ні exports, ні verify — контракт нічого не обіцяє (§2.10).
+    let p = write(
+        &dir,
+        "keel/contracts/empty.md",
+        "---\nmodule: X\n---\n\nСлова без перевірки.\n",
+    );
+    let r = docs::read_contract(&p).unwrap_err();
+    assert!(r.reason.contains("не обіцяє"), "причина: {}", r.reason);
+    assert!(!r.instead.is_empty());
+}
