@@ -20,11 +20,22 @@ pub fn wave(root: &Path, slug: &str) -> Result<String, Refusal> {
     if !is_slug(slug) {
         return Err(refuse_slug(&file, slug));
     }
-    let Some(number) = leading_number(slug) else {
+    // The number is the digits before the first hyphen (§8.5). A
+    // number that is there yet does not fit the counting gets its
+    // true reason (review 0013 R-3), never "starts with no number".
+    let head = slug.split('-').next().unwrap_or("");
+    if head.is_empty() || !head.chars().all(|c| c.is_ascii_digit()) {
         return Err(Refusal {
             file: file.clone(),
             reason: ta("plan-no-number", targs!("slug" => slug.to_string())),
             instead: t("plan-no-number-instead"),
+        });
+    }
+    let Ok(number) = head.parse::<u64>() else {
+        return Err(Refusal {
+            file: file.clone(),
+            reason: ta("plan-number-huge", targs!("head" => head.to_string())),
+            instead: t("plan-number-huge-instead"),
         });
     };
     keel_dirs(root, &waves, &t("what-waves"))?;
@@ -41,24 +52,35 @@ pub fn wave(root: &Path, slug: &str) -> Result<String, Refusal> {
     // and one deliberately red skeleton does not block the next
     // birth.
     let mut taken: Vec<u64> = wave_file_numbers(&waves);
-    let branches_read = branch_numbers(root, &mut taken);
+    let branches_read = branch_numbers(root, slug, &mut taken);
     if taken.contains(&number) {
         let next = taken.iter().max().unwrap_or(&number) + 1;
+        // The instead tells the truth about what was searched
+        // (review 0013 R-1): "every branch" is said only where git
+        // actually answered.
+        let instead = if branches_read {
+            ta(
+                "plan-number-taken-instead",
+                targs!("next" => format!("{next:04}")),
+            )
+        } else {
+            ta(
+                "plan-number-taken-instead-disk",
+                targs!("next" => format!("{next:04}")),
+            )
+        };
         return Err(Refusal {
             file,
             reason: ta(
                 "plan-number-taken",
                 targs!("number" => format!("{number:04}")),
             ),
-            instead: ta(
-                "plan-number-taken-instead",
-                targs!("next" => format!("{next:04}")),
-            ),
+            instead,
         });
     }
 
     let skeleton = format!(
-        "---\n# {}\nscenarios:\n  first-promise: {{covers: []}}\ntransforms:\n  first-work:\n    implements: [first-promise]\n    files:\n      - path/named-by-hand\n---\n\n## Why\n\n{}\n\n## scenario: first-promise\n\n{}\n\n## transform: first-work\n\n{}\n",
+        "---\n# {}\n# depends_on: []\nscenarios:\n  first-promise: {{covers: []}}\ntransforms:\n  first-work:\n    implements: [first-promise]\n    files:\n      - path/named-by-hand\n---\n\n## Why\n\n{}\n\n## scenario: first-promise\n\n{}\n\n## transform: first-work\n\n{}\n",
         ta("plan-skel-header", targs!("slug" => slug.to_string())),
         t("plan-skel-why"),
         t("plan-skel-scenario"),
@@ -191,9 +213,11 @@ fn leading_number(slug: &str) -> Option<u64> {
 /// Numbers held by branches, local and remote (§8.8: the free number
 /// is searched across all branches, not only main). A branch name's
 /// wave is its last path segment -- plan/<wave> and origin/<wave>
-/// alike. Returns whether git answered; false narrows the court to
-/// the disk, and the caller says that aloud.
-fn branch_numbers(root: &Path, taken: &mut Vec<u64>) -> bool {
+/// alike. The wave's OWN branches are its name, never a rival
+/// (review 0013 R-2): a branch spelled exactly as the born slug is
+/// skipped. Returns whether git answered; false narrows the court
+/// to the disk, and the caller says that aloud.
+fn branch_numbers(root: &Path, slug: &str, taken: &mut Vec<u64>) -> bool {
     let out = Command::new("git")
         .arg("-C")
         .arg(root)
@@ -212,6 +236,9 @@ fn branch_numbers(root: &Path, taken: &mut Vec<u64>) -> bool {
     }
     for line in String::from_utf8_lossy(&out.stdout).lines() {
         let last = line.trim().rsplit('/').next().unwrap_or("");
+        if last == slug {
+            continue;
+        }
         if let Some(number) = leading_number(last) {
             taken.push(number);
         }
@@ -220,11 +247,22 @@ fn branch_numbers(root: &Path, taken: &mut Vec<u64>) -> bool {
 }
 
 /// One whole new file or a refusal -- never half of one and never
-/// over something that exists.
+/// over something that exists: the text lands in a dot-temp next to
+/// its place (dot-files are outside every court) and arrives by
+/// rename, so a failure mid-write leaves no stub (review 0013 R-4);
+/// the refusal speaks of a birth, not of reading.
 fn write_new(file: &Path, text: &str) -> Result<(), Refusal> {
-    std::fs::write(file, text).map_err(|e| Refusal {
+    let refuse = |e: std::io::Error| Refusal {
         file: file.to_path_buf(),
-        reason: ta("docs-unreadable", targs!("error" => e.to_string())),
-        instead: t("docs-unreadable-instead"),
-    })
+        reason: ta("plan-write-failed", targs!("error" => e.to_string())),
+        instead: t("plan-write-failed-instead"),
+    };
+    let name = file.file_name().map(|n| n.to_string_lossy().into_owned());
+    let tmp = file.with_file_name(format!(".{}.tmp", name.unwrap_or_default()));
+    std::fs::write(&tmp, text).map_err(refuse)?;
+    std::fs::rename(&tmp, file)
+        .inspect_err(|_| {
+            let _ = std::fs::remove_file(&tmp);
+        })
+        .map_err(refuse)
 }

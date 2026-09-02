@@ -29,7 +29,7 @@ transforms:
 
 decisions:
   functional.appropriateness: "свідомо без окремого тесту: обидві команди — рівно те, що каже таблиця NEW-CONCEPT для стадії планування; форму скелетів судять власні сценарії"
-  performance.time-behaviour: "свідомо не міряємо: один скан, один git for-each-ref, один запис файлу"
+  performance.time-behaviour: "свідомо не міряємо: одне читання імен keel/waves/, один git for-each-ref, один запис файлу"
   performance.capacity: "не застосовується: один файл на виклик"
   performance.resource-utilisation: "свідомо не міряємо: те саме"
   compatibility.co-existence: "свідомо без окремого тесту: рівно один новий файл під keel/, наявне ніколи не перезаписується — тримає contract-skeleton-born"
@@ -43,7 +43,7 @@ decisions:
   reliability.faultlessness: "свідомо без окремого тесту: форму народженого судить той самий суворий docs, що читає всі документи"
   reliability.fault-tolerance: "свідомо без окремого тесту: відмова git чи запису — відмова вголос школою відмов"
   reliability.availability: "не застосовується: локальний бінарник"
-  reliability.recoverability: "свідомо без тесту: невдалий запис не лишає половини — файл або зʼявився цілим, або відмова"
+  reliability.recoverability: "свідомо без тесту: народження пише в dot-тимчасовий файл і приїздить rename-ом — файл або цілий, або відмова без обрубка"
   security.confidentiality: "не застосовується: пише локальні файли, нікуди не шле"
   security.integrity: "свідомо без нового тесту: рівно один новий файл під keel/, ніколи не перезапис — тримає contract-skeleton-born"
   security.non-repudiation: "не застосовується: народження файлу видно в git"
