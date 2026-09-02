@@ -76,6 +76,16 @@ fn all_decided_except(covered: &[&str]) -> String {
 fn review_package_built() {
     let dir = sandbox("package");
     write(&dir, "keel.toml", "lang = \"en\"\n");
+    // A quiet wave on main keeps keel/waves/ tracked, so the main
+    // checkout still scans and the refusal speaks about the branch.
+    write(
+        &dir,
+        "keel/waves/0059-base.md",
+        &format!(
+            "---\nscenarios:\n  base: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [base]\n    files: [src/lib.rs]\n{}---\n\n## scenario: base\n\nbody of base\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
     git(&dir, &["init", "-q", "-b", "main"]);
     git(&dir, &["add", "."]);
     git(&dir, &["commit", "-q", "-m", "the base stands"]);
@@ -144,7 +154,8 @@ fn review_lists_drawn() {
         "keel/contracts/ext-c.md",
         "---\nverify: \"echo c\"\n---\n\nold words of the promise\n",
     );
-    let old_rev = keel::rev::text_rev(&fs::read_to_string(dir.join("keel/contracts/ext-c.md")).unwrap());
+    let old_rev =
+        keel::rev::text_rev(&fs::read_to_string(dir.join("keel/contracts/ext-c.md")).unwrap());
     write(
         &dir,
         "keel/waves/0061-old.md",
@@ -186,9 +197,13 @@ fn review_lists_drawn() {
         "keel/contracts/ext-c.md",
         "---\nverify: \"echo c\"\n---\n\nnew words of the promise\n",
     );
-    let new_rev = keel::rev::text_rev(&fs::read_to_string(dir.join("keel/contracts/ext-c.md")).unwrap());
+    let new_rev =
+        keel::rev::text_rev(&fs::read_to_string(dir.join("keel/contracts/ext-c.md")).unwrap());
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "scope grows, the contract changes"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "scope grows, the contract changes"],
+    );
 
     let (out, err, code) = keel(&["review", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
@@ -199,13 +214,11 @@ fn review_lists_drawn() {
         "the drifted file is named:\n{out}"
     );
     assert!(
-        !out.lines().any(|l| l.contains("src/a.rs") && l.contains("drift")),
+        !out.lines()
+            .any(|l| l.contains("src/a.rs") && l.contains("drift")),
         "the planned file is not drift:\n{out}"
     );
-    assert!(
-        out.contains("anchor"),
-        "the anchor is named aloud:\n{out}"
-    );
+    assert!(out.contains("anchor"), "the anchor is named aloud:\n{out}");
     // The quality map (§10.7): the wave view rides inside.
     assert!(
         out.contains("0062-w") && out.contains("functional.completeness"),
@@ -214,7 +227,7 @@ fn review_lists_drawn() {
     // Impact (§5.7): old and new revisions, every holder by name
     // with its recorded revision.
     assert!(
-        out.contains(&format!("ext-c")) && out.contains(&old_rev) && out.contains(&new_rev),
+        out.contains("ext-c") && out.contains(&old_rev) && out.contains(&new_rev),
         "the changed contract with both revisions:\n{out}"
     );
     assert!(
@@ -225,7 +238,11 @@ fn review_lists_drawn() {
     // Where git does not testify: a word, not an empty list. A
     // truncated history cannot prove the anchor is the true first
     // commit of the wave file.
-    fs::write(dir.join(".git/shallow"), "0000000000000000000000000000000000000000\n").unwrap();
+    fs::write(
+        dir.join(".git/shallow"),
+        "0000000000000000000000000000000000000000\n",
+    )
+    .unwrap();
     let (out, err, code) = keel(&["review", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "the package still assembles:\n{out}");

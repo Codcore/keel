@@ -15,6 +15,7 @@ pub mod i18n;
 pub mod map;
 pub mod refusal;
 pub mod rev;
+pub mod review;
 pub mod scope;
 pub mod tags;
 pub mod trust;

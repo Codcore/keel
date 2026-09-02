@@ -163,6 +163,34 @@ trust-no-config-instead = спершу створи конфіг: команда
 trust-surgery-broken = хірургія не втримала форму цього файлу ({ $error }) — нічого не записано
 trust-surgery-broken-instead = наведи лад у блоці [trust] руками і біжи keel trust знову
 
+# -- review: пакет рецензента (§9.9) --------------------------------
+review-title = keel review — пакет рецензента (§9.9)
+review-wave = хвиля: { $wave }
+review-why-header = ## Why, дослівно
+review-why-missing = (у хвилі нема секції Why)
+review-scenarios-header = ## Сценарії з редакціями (§5.3)
+review-scenario-withdrawn = { " " }(знятий)
+review-transforms-header = ## Трансформи, дослівно — застереження їдуть тут (§2.10)
+review-chores-header = ## Причини chore (§2.11)
+review-chores-none = нема
+review-drift-header = ## Дрейф (§4.6) — файли, дописані в scope після якоря (перший комміт файлу хвилі: { $sha })
+review-drift-line = { $file } — дописаний після якоря
+review-drift-empty = порожній — scope стоїть як запланований
+review-drift-unverified = ## Дрейф (§4.6) не звірявся: історія не свідчить — git-а нема, або обрізаний клон не доведе якоря
+review-drift-unreadable = файл хвилі на якорі не читається — дрейф суди руками
+review-map-header = ## Мапа якості (§10.7)
+review-impact-header = ## Вплив зміни контракту (§5.7)
+review-impact-none = порожній — жоден триманий текст контракту не змінився проти точки розгалуження
+review-impact-unverified = не звірявся: нема точки розгалуження для порівняння
+review-impact-contract = контракт { $slug }: { $old } -> { $new }
+review-impact-current = збіжна з новим текстом
+review-impact-stale = стара проти нового тексту
+review-diff-header = ## Повний diff гілки (проти { $base })
+review-diff-empty = порожній
+review-diff-unverified = ## Повний diff гілки: не звірявся — нема точки розгалуження
+review-not-wave = гілка "{ $branch }" не зветься як хвиля (§8.2) — для якої хвилі збирати пакет, не вгадується
+review-not-wave-instead = стань на гілку хвилі: пакет збирається для хвилі гілки (§9.9)
+
 ## модуль adapter
 adapter-no-crate = Cargo.toml нема ні в корені, ні рівно одного на першому рівні тек
 adapter-no-crate-instead = адаптеру cargo потрібен крейт: поклади Cargo.toml у корінь або в одну теку першого рівня
@@ -291,4 +319,4 @@ main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
 main-gate-no-message = відмова: gate потребує файл повідомлення commit-а
 main-gate-no-message-reason = причина: суд читає повідомлення, яке віддає commit-msg hook
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel trust [тека] | keel hook [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel trust [тека] | keel hook [тека]

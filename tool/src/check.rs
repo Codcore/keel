@@ -620,7 +620,7 @@ fn has_git(root: &Path) -> bool {
 /// A shallow clone's history is truncated -- old revisions cannot be
 /// verified there, and the absence of history is not the wave's
 /// fault.
-fn is_shallow(root: &Path) -> bool {
+pub(crate) fn is_shallow(root: &Path) -> bool {
     let out = Command::new("git")
         .arg("-C")
         .arg(root)

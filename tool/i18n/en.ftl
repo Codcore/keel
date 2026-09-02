@@ -163,6 +163,34 @@ trust-no-config-instead = create the config first: the trust command invents not
 trust-surgery-broken = the surgery cannot keep this file's shape ({ $error }) -- nothing was written
 trust-surgery-broken-instead = tidy the [trust] block by hand, then run keel trust again
 
+# -- review: the reviewer's package (§9.9) --------------------------
+review-title = keel review — the reviewer's package (§9.9)
+review-wave = the wave: { $wave }
+review-why-header = ## Why, verbatim
+review-why-missing = (the wave has no Why section)
+review-scenarios-header = ## Scenarios with revisions (§5.3)
+review-scenario-withdrawn = { " " }(withdrawn)
+review-transforms-header = ## Transforms, verbatim — the caveats ride here (§2.10)
+review-chores-header = ## Chore reasons (§2.11)
+review-chores-none = none
+review-drift-header = ## Drift (§4.6) — files added to scope after the anchor (the first commit of the wave file: { $sha })
+review-drift-line = { $file } — added after the anchor
+review-drift-empty = empty — the scope stands as planned
+review-drift-unverified = ## Drift (§4.6) not verified: history does not testify — no git, or a truncated clone cannot prove the anchor
+review-drift-unreadable = the wave file at the anchor does not read — judge the drift by hand
+review-map-header = ## The quality map (§10.7)
+review-impact-header = ## Contract-change impact (§5.7)
+review-impact-none = empty — no held contract text changed against the fork point
+review-impact-unverified = not verified: no fork point to compare against
+review-impact-contract = contract { $slug }: { $old } -> { $new }
+review-impact-current = matches the new text
+review-impact-stale = stale against the new text
+review-diff-header = ## The full branch diff (against { $base })
+review-diff-empty = empty
+review-diff-unverified = ## The full branch diff: not verified — no fork point
+review-not-wave = the branch "{ $branch }" is not named as a wave (§8.2) — the package does not guess which wave it is for
+review-not-wave-instead = checkout the wave's branch: the package is assembled for the branch's wave (§9.9)
+
 ## adapter module
 adapter-no-crate = no Cargo.toml at the root and none exactly one level down
 adapter-no-crate-instead = the cargo adapter needs a crate: put Cargo.toml at the root or in one first-level directory
@@ -289,4 +317,4 @@ main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
 main-gate-no-message = refusal: gate needs the commit message file
 main-gate-no-message-reason = reason: the judgement reads the message the commit-msg hook hands over
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel trust [dir] | keel hook [dir]
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel trust [dir] | keel hook [dir]
