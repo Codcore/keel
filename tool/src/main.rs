@@ -170,6 +170,32 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Some("init") => {
+            let root = args
+                .get(1)
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            // init is the one command that runs before a config can
+            // be counted on: the language falls back to the config
+            // court's own reading of whatever stands.
+            let lang = keel::config::read(&root)
+                .map(|c| c.lang)
+                .unwrap_or_default();
+            keel::i18n::init(&lang);
+            match keel::init::run(&root) {
+                Ok((report, failed)) => {
+                    print!("{report}");
+                    if failed == 0 {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::from(1)
+                    }
+                }
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    ExitCode::from(2)
+                }
+            }
+        }
         Some("plan") => {
             let Some(slug) = args.get(1) else {
                 eprintln!(

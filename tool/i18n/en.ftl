@@ -394,6 +394,15 @@ next-ready = { "  " }start the branch "{ $wave }" — the wave is approved and n
 next-working = { "  " }the branch "{ $wave }" continues — the wave is in progress
 next-all-closed = every wave is closed and none awaits — plan a new wave: this generation writes plans by hand, approval is the merge of the wave file (§6.6)
 
+## init command (NEW-CONCEPT cross-cutting, §8.7)
+init-title = keel init — the frame of the methodology, one move
+init-born = { "  " }born: { $piece }
+init-stands = { "  " }already stands: { $piece } — not a byte is touched
+init-failed = { "  " }did not stand: { $piece } — { $error }
+init-config-header = keel.toml — the §2.9 vocabulary; uncomment to enable, the defaults stay with keel's own words
+init-eight-seven = §8.7: turn squash and rebase merging off in the repository settings — the rule is held by the disabled button, not by memory
+init-next = onwards — keel plan <the first wave>
+
 ## plan command (§10.2, §8.2, §8.5)
 plan-created = born { $file } — the scaffolding is deliberately red: keel check leads (§3.3) until the plan is full, so the unfinished never merges by accident
 plan-branches = the branches of §8.2: a full wave plans on "plan/{ $slug }" and works on "{ $slug }"; a light one (§6.8) rides "{ $slug }" whole
@@ -437,4 +446,4 @@ main-new-unknown = refusal: keel new knows only: contract
 main-new-unknown-reason = reason: other document kinds are born by their own commands (waves by keel plan)
 main-new-no-slug = refusal: new contract needs the contract's name
 main-new-no-slug-reason = reason: the skeleton is born under the name that becomes its file (§1.4)
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel trust [dir] | keel hook [dir]
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [dir] | keel trust [dir] | keel hook [dir]

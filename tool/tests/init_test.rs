@@ -120,14 +120,20 @@ fn init_births_the_frame() {
 fn init_never_tramples() {
     let dir = sandbox("standing");
     git(&dir, &["init", "-q", "-b", "main"]);
-    let foreign_config = "# somebody else's config\nlang = \"uk\"\n";
+    // The foreign config enables English so the asserted words stay
+    // readable; a uk one turns the whole report Ukrainian -- seen
+    // live, the honest behaviour of the config court.
+    let foreign_config = "# somebody else's config\nlang = \"en\"\n";
     write(&dir, "keel.toml", foreign_config);
     fs::create_dir_all(dir.join("keel/waves")).unwrap();
     let foreign_hook = "#!/bin/sh\nexit 0\n";
     write(&dir, ".git/hooks/commit-msg", foreign_hook);
     let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
-    assert_eq!(code, 1, "a piece that did not stand reddens the exit:\n{out}");
+    assert_eq!(
+        code, 1,
+        "a piece that did not stand reddens the exit:\n{out}"
+    );
     assert_eq!(
         fs::read_to_string(dir.join("keel.toml")).unwrap(),
         foreign_config,
@@ -143,11 +149,12 @@ fn init_never_tramples() {
         "the standing pieces are said by name:\n{out}"
     );
     assert!(
-        out.contains("foreign"),
+        out.contains("not ours"),
         "the foreign hook is a refusal aloud, never a rewrite:\n{out}"
     );
     assert!(
-        dir.join("keel/contracts/.gitkeep").is_file() && dir.join("keel/reviews/.gitkeep").is_file(),
+        dir.join("keel/contracts/.gitkeep").is_file()
+            && dir.join("keel/reviews/.gitkeep").is_file(),
         "the rest of the frame still lands piece by piece:\n{out}"
     );
 
@@ -170,7 +177,10 @@ fn init_never_tramples() {
     let config_before = fs::read_to_string(dir.join("keel.toml")).unwrap();
     let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
-    assert_eq!(code, 0, "the second run is green -- everything stands:\n{out}");
+    assert_eq!(
+        code, 0,
+        "the second run is green -- everything stands:\n{out}"
+    );
     assert_eq!(
         fs::read_to_string(dir.join("keel.toml")).unwrap(),
         config_before,
