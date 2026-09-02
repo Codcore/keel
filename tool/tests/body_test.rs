@@ -101,3 +101,41 @@ fn body_matches_header() {
         "§7.8's border stands in its place:\n{out}"
     );
 }
+
+/// proves: body-matches-header@13b919 -- the second birth out of
+/// review 0011 (R-2/R-6/R-7): the scenario side of §7.7 runs
+/// without an adapter too, so "both ways" is true for every
+/// project; a heading that spells the very word without its space
+/// is a finding, not free prose; and a duplicated transform
+/// section is not guessed between.
+#[test]
+fn body_matches_header_second_birth() {
+    let dir = sandbox("adapterless");
+    write(&dir, "keel.toml", "lang = \"en\"\n");
+    write(
+        &dir,
+        "keel/waves/0092-w.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\n  ghost: {{covers: [performance.capacity]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n\n## transform:x\n\na near-miss heading\n\n## transform: t\n\nthe work of t\n\n## transform: t\n\nthe work of t again\n",
+            all_decided_except(&["functional.correctness", "performance.capacity"])
+        ),
+    );
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 1,
+        "all three defects are findings without an adapter too:\n{out}"
+    );
+    assert!(
+        out.contains("ghost"),
+        "the declared scenario with no body refuses adapter-free (R-2):\n{out}"
+    );
+    assert!(
+        out.contains("transform:x") && out.contains("not recognised"),
+        "the near-miss heading is named, not free prose (R-6):\n{out}"
+    );
+    assert!(
+        out.contains("\"t\"") && out.contains("more than once"),
+        "the duplicated transform section is not guessed between (R-7):\n{out}"
+    );
+}
