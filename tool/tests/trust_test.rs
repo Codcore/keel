@@ -169,6 +169,12 @@ fn trust_line_stale_red() {
         !out.contains("\"none\""),
         "ci = none is a refusal aloud, not a finding (§7.16):\n{out}"
     );
+    // Aloud means aloud (review R-5): the refusal stands in the
+    // count line, not only in the absence of a finding.
+    assert!(
+        out.contains("refusal aloud: none"),
+        "the none refusal is said in the count line:\n{out}"
+    );
 
     // The withdrawal side of the door: a withdrawn contract's verify
     // is no live command (§2.12), so its trust line orphans too.
@@ -193,6 +199,34 @@ fn trust_line_stale_red() {
     assert!(
         out.contains("door opened in advance"),
         "the withdrawn contract's line is the same door:\n{out}"
+    );
+
+    // Second birth (review R-4): no door verdict over rubble. A
+    // broken contract may hide the very command the record answers
+    // to -- with unread documents the trust court does not judge,
+    // and says so instead of inventing doors.
+    let dir = sandbox("rubble");
+    write(
+        &dir,
+        "keel.toml",
+        "[trust]\n\"echo ok\" = \"7d10fced96b3\"\n",
+    );
+    write(&dir, "keel/waves/0050-w.md", &quiet_wave());
+    write(
+        &dir,
+        "keel/contracts/ext-echo.md",
+        "---\nverify \"echo ok\"\n---\n\nThe colon is gone -- the header does not read.\n",
+    );
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "the broken document is the finding:\n{out}");
+    assert!(
+        !out.contains("door opened in advance"),
+        "no door verdict over rubble (R-4):\n{out}"
+    );
+    assert!(
+        out.contains("not judged"),
+        "the skipped trust court says so aloud:\n{out}"
     );
 }
 
