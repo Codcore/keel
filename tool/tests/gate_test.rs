@@ -158,3 +158,74 @@ fn red_commit_needs_failing_test() {
         "the refusal counts the tags:\n{out}"
     );
 }
+
+/// proves: work-commit-needs-green@12c44c -- holds §8.4/§2.4: a work
+/// commit named by a transform's slug passes only when every
+/// implements scenario has a tagged test with a matching revision
+/// and it runs green; a failing test, a stale tag and a missing tag
+/// refuse by name; a slug-shaped stranger refuses; merge messages
+/// and decision records pass with a word.
+#[test]
+fn work_commit_needs_green() {
+    // Green test, matching tag -- the work passes.
+    let dir = project("workgreen", "", "assert!(true);");
+    let (out, code) = gate(&dir, "t: does the declared work");
+    assert_eq!(code, 0, "green scenarios let the work in:\n{out}");
+
+    // A failing scenario test refuses by name.
+    let dir = project("workred", "", "assert!(false);");
+    let (out, code) = gate(&dir, "t: does the declared work");
+    assert_eq!(code, 1, "red scenarios block the work:\n{out}");
+    assert!(
+        out.contains("\"s\""),
+        "the failing scenario named:\n{out}"
+    );
+
+    // A stale tag revision refuses -- the record no longer holds.
+    let dir = project("workstale", "", "assert!(true);");
+    write(
+        &dir,
+        "tests/t_test.rs",
+        "/// proves: s@aaaaaa\n#[test]\nfn holds_s() { assert!(true); }\n",
+    );
+    let (out, code) = gate(&dir, "t: does the declared work");
+    assert_eq!(code, 1, "a stale tag blocks the work:\n{out}");
+    assert!(
+        out.contains("aaaaaa"),
+        "the stale record named:\n{out}"
+    );
+
+    // No tag at all -- the scenario is not held by any test.
+    let dir = project("workuntagged", "", "assert!(true);");
+    write(&dir, "tests/t_test.rs", "#[test]\nfn plain() {}\n");
+    let (out, code) = gate(&dir, "t: does the declared work");
+    assert_eq!(code, 1, "an untagged scenario blocks the work:\n{out}");
+    assert!(
+        out.contains("no proves tag"),
+        "the missing tag named:\n{out}"
+    );
+
+    // A slug-shaped stranger is a typo, not \"outside the judgement\".
+    let dir = project("workstranger", "", "assert!(true);");
+    let (out, code) = gate(&dir, "typo-slug: something");
+    assert_eq!(code, 1, "a stranger slug refuses:\n{out}");
+    assert!(
+        out.contains("neither"),
+        "the refusal says it is neither red nor a transform:\n{out}"
+    );
+
+    // Merge messages and decision records pass with a word.
+    let dir = project("workoutside", "", "assert!(true);");
+    let (out, code) = gate(&dir, "Merge branch 'main' into 0009-w");
+    assert_eq!(code, 0, "a merge message is outside the judgement:\n{out}");
+    assert!(
+        out.contains("outside the judgement"),
+        "the pass carries its word:\n{out}"
+    );
+    let (out, code) = gate(&dir, "Journal: a decision recorded");
+    assert_eq!(code, 0, "a decision record is outside the judgement:\n{out}");
+    assert!(
+        out.contains("outside the judgement"),
+        "the pass carries its word:\n{out}"
+    );
+}
