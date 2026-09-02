@@ -501,7 +501,7 @@ fn hook_installed_aloud() {
     );
 }
 
-/// proves: battery-isolated@825e65 -- holds §7.12 and §6.7 (0008
+/// proves: battery-isolated@715790 -- holds §7.12 and §6.7 (0008
 /// review R-8): the adapter's cargo runs ignore an inherited
 /// CARGO_TARGET_DIR -- the judged project builds into its own
 /// target directory and nothing leaks into the shared cache, so a
@@ -537,5 +537,39 @@ fn battery_isolated() {
         fs::read_dir(&poison).unwrap().count(),
         0,
         "nothing leaks into the inherited CARGO_TARGET_DIR:\n{text}"
+    );
+
+    // Second birth (review 0009 R-2): cargo's own alias for the same
+    // knob -- CARGO_BUILD_TARGET_DIR -- must be dropped too, or the
+    // shared cache walks back in through the side door.
+    let dir = project("isolated-alias", "", "assert!(false);");
+    let poison = std::env::temp_dir().join(format!("keel-0009-poison-b-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&poison);
+    fs::create_dir_all(&poison).unwrap();
+    let msg = dir.join("COMMIT_EDITMSG");
+    fs::write(&msg, "red: s").unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["gate", msg.to_str().unwrap(), dir.to_str().unwrap()])
+        .env("CARGO_BUILD_TARGET_DIR", &poison)
+        .output()
+        .unwrap();
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "the red verdict stays honest under the alias too:\n{text}"
+    );
+    assert!(
+        dir.join("target").exists(),
+        "the judged project builds into its own target under the alias (R-2):\n{text}"
+    );
+    assert_eq!(
+        fs::read_dir(&poison).unwrap().count(),
+        0,
+        "nothing leaks through CARGO_BUILD_TARGET_DIR:\n{text}"
     );
 }
