@@ -170,6 +170,56 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Some("status") => {
+            let root = args
+                .get(1)
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let config = match keel::config::read(&root) {
+                Ok(config) => config,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
+            keel::i18n::init(&config.lang);
+            match keel::status::report(&root) {
+                Ok((report, refusals)) => {
+                    print!("{report}");
+                    if refusals == 0 {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::from(1)
+                    }
+                }
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    ExitCode::from(2)
+                }
+            }
+        }
+        Some("next") => {
+            let root = args
+                .get(1)
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let config = match keel::config::read(&root) {
+                Ok(config) => config,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
+            keel::i18n::init(&config.lang);
+            match keel::next::step(&root) {
+                Ok(report) => {
+                    print!("{report}");
+                    ExitCode::SUCCESS
+                }
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    ExitCode::from(2)
+                }
+            }
+        }
         Some("trust") => {
             let root = args
                 .get(1)

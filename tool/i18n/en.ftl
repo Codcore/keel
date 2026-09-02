@@ -304,7 +304,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 11 -- the loop's stages (keel status and next)
+check-next-rung = next step: rung 12 -- the planning skeletons (keel plan and new contract)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
@@ -344,6 +344,56 @@ map-decided = decided: "{ $reason }"
 map-unanswered = no answer -- the silence court is keel check (§10.3)
 map-older = older answers: { $count }
 
+## status command (§6.5, §6.8, §9.2)
+status-title = keel status -- where we stand (§6.5, §6.8)
+status-branch-wave = the branch "{ $branch }" is the wave itself -- we stand inside it (§8.2)
+status-branch-plan = the branch "{ $branch }" is a plan branch -- the plan is being written (§8.2)
+status-branch-other = the branch "{ $branch }" is named as no wave -- an overview without one
+status-branch-none = git named no branch for this root -- the overview rides without one, never a guess
+status-branch-broken = the branch "{ $branch }" is named as a wave whose document refused — mend it; the refusal rows stand below
+status-wave-closed = { "  " }{ $wave } — full, closed structurally: tags match, references converge, the review lies next to it
+status-wave-closed-unjudged = { "  " }{ $wave } — full, closed structurally; { $count } references not judged: history cannot testify here (§5.6)
+status-wave-closed-light = { "  " }{ $wave } — light, closed by merge (§6.8)
+status-wave-light-own = { "  " }{ $wave } — light, riding this branch as one PR — it closes by the fact of merge (§6.8)
+status-wave-plan = { "  " }{ $wave } — full, approved, not started (§6.5)
+status-wave-progress = { "  " }{ $wave } — full, in progress; the lacks, by name:
+status-awaiting = { "  " }awaits its start: the wave { $wave } — the branch "{ $wave }" (§8.2)
+status-counts = counted: closed { $closed }, in progress { $working }, plans { $plans }
+status-no-battery = the stage here is structural (tags, references, the review) — the battery was not run: green tests are judged by close and the hook (§9.2)
+status-next = onwards — keel next
+status-needs-adapter = the stage eye needs the cargo adapter named in keel.toml: tags are the memory of stages
+status-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
+
+## next command (§9.2, §9.10, §8.4)
+next-title = keel next -- one step (§9.2)
+next-needs-adapter = the step hand needs the cargo adapter named in keel.toml: without tags the stage would be a guess
+next-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
+next-step-fix = the step: mend the document { $file } — { $reason }; instead: { $instead }
+next-step-fix-more = { "  " }and { $count } more { $count ->
+        [one] refusal
+       *[other] refusals
+    } — keel check names them all
+next-step-red = the step: write the test of scenario "{ $scenario }" and commit `red: { $scenario }` — it must fail; the hook lets only a red one through (§7.12, §8.4)
+next-body-label = { "  " }the body of the scenario (@{ $rev }), verbatim:
+next-tag-line = { "  " }the tag in the test: /// proves: { $scenario }@{ $rev }
+next-tests-dir = { "  " }the cargo adapter reads tests in { $dir }
+next-step-stale = the step: the revision of scenario "{ $scenario }" drifted — the tag records { $recorded }, the body now gives { $actual }; update the test to the new body and rewrite the tag (§5.5)
+next-step-transform = the step: transform "{ $name }" — work exactly in the named files, then commit `{ $name }: <words>`; the hook lets it through only green (§8.4)
+next-step-chore = the step: chore "{ $name }" ({ $reason }) — work exactly in the named files, then commit `{ $name }: <words>` (§2.11, §8.4)
+next-files-label = { "  " }the files:
+next-section-label = { "  " }the section of "{ $name }", verbatim:
+next-section-missing = { "  " }the header declares it, yet the wave body has no body section "## transform: { $name }" — keel check reddens this (§7.7); mend the body before the work
+next-contract-label = { "  " }the contract { $contract }@{ $rev }, the current text verbatim:
+next-contract-missing = the file of contract "{ $contract }" is missing — keel check names the broken reference (§7.1)
+next-run-label = { "  " }the run of its scenarios' tests:
+next-run-none = { "  " }tests of its scenarios do not exist yet — the run appears with the tags (a withdrawn scenario never gets one)
+next-step-review = the step: the wave is assembled — time for the review (§9.9): gather the package with `keel review` for a fresh agent; the report lands at keel/reviews/{ $wave }.md
+next-step-pr = the step: the review lies next to the wave — time for the PR, merged by the merge-commit button (§8.7); the last word on lacks belongs to keel close
+next-plan-branch = the step: this is the plan branch of wave { $wave } (§8.3) — prove the plan's fullness (keel check, the map), merge the plan PR; the work will ride the branch "{ $wave }"
+next-ready = { "  " }start the branch "{ $wave }" — the wave is approved and not started, its dependencies closed (§6.5, §8.2)
+next-working = { "  " }the branch "{ $wave }" continues — the wave is in progress
+next-all-closed = every wave is closed and none awaits — plan a new wave: this generation writes plans by hand, approval is the merge of the wave file (§6.6)
+
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: this is not one of the commands keel knows
@@ -351,4 +401,4 @@ main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
 main-gate-no-message = refusal: gate needs the commit message file
 main-gate-no-message-reason = reason: the judgement reads the message the commit-msg hook hands over
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel trust [dir] | keel hook [dir]
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel trust [dir] | keel hook [dir]

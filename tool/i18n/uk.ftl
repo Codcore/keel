@@ -306,7 +306,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 11 — стадії лупа (keel status і next)
+check-next-rung = наступний крок: щабель 12 — скелети планування (keel plan і new contract)
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -346,6 +346,57 @@ map-decided = вирішено: "{ $reason }"
 map-unanswered = без відповіді — суд тиші в keel check (§10.3)
 map-older = давніших відповідей: { $count }
 
+## команда status (§6.5, §6.8, §9.2)
+status-title = keel status — де ми (§6.5, §6.8)
+status-branch-wave = гілка "{ $branch }" і є хвилею — ми стоїмо всередині неї (§8.2)
+status-branch-plan = гілка "{ $branch }" — план-гілка: план пишеться (§8.2)
+status-branch-other = гілка "{ $branch }" не зветься жодною хвилею — огляд без хвилі
+status-branch-none = git не назвав гілки для цього кореня — огляд їде без неї, ніколи не здогад
+status-branch-broken = гілка "{ $branch }" зветься як хвиля, чий документ відмовив — полагодь його; рядки відмов нижче
+status-wave-closed = { "  " }{ $wave } — повна, закрита за структурою: теги збіжні, посилання сходяться, звіт поруч
+status-wave-closed-unjudged = { "  " }{ $wave } — повна, закрита за структурою; посилань не звірено: { $count } — історія тут не свідчить (§5.6)
+status-wave-closed-light = { "  " }{ $wave } — легка, закрита фактом merge (§6.8)
+status-wave-light-own = { "  " }{ $wave } — легка, їде цією гілкою одним PR — закриється фактом merge (§6.8)
+status-wave-plan = { "  " }{ $wave } — повна, затверджена, ще не почата (§6.5)
+status-wave-progress = { "  " }{ $wave } — повна, в роботі; нестачі поіменно:
+status-awaiting = { "  " }чекає старту: хвиля { $wave } — гілка "{ $wave }" (§8.2)
+status-counts = пораховано: закритих { $closed }, у роботі { $working }, планів { $plans }
+status-no-battery = стадія тут — структурна (теги, посилання, звіт) — батарея не бігла: зелень тестів судять close і hook (§9.2)
+status-next = далі — keel next
+status-needs-adapter = око стадій потребує адаптера cargo, названого в keel.toml: теги — памʼять стадій
+status-needs-adapter-instead = постав adapter = "cargo" (NEW-CONCEPT, Config); інші адаптери приїдуть своїми хвилями
+
+## команда next (§9.2, §9.10, §8.4)
+next-title = keel next — один крок (§9.2)
+next-needs-adapter = рука кроку потребує адаптера cargo, названого в keel.toml: без тегів стадія була б здогадом
+next-needs-adapter-instead = постав adapter = "cargo" (NEW-CONCEPT, Config); інші адаптери приїдуть своїми хвилями
+next-step-fix = крок: полагодь документ { $file } — { $reason }; натомість: { $instead }
+next-step-fix-more = { "  " }і ще { $count ->
+        [one] { $count } відмова
+        [few] { $count } відмови
+       *[many] { $count } відмов
+    } — keel check назве всі
+next-step-red = крок: напиши тест сценарію "{ $scenario }" і закоммить `red: { $scenario }` — він мусить упасти; хук пустить лише червоний (§7.12, §8.4)
+next-body-label = { "  " }тіло сценарію (@{ $rev }), дослівно:
+next-tag-line = { "  " }тег у тесті: /// proves: { $scenario }@{ $rev }
+next-tests-dir = { "  " }адаптер cargo читає тести в { $dir }
+next-step-stale = крок: редакція сценарію "{ $scenario }" розійшлась — тег тримає { $recorded }, тіло тепер дає { $actual }; онови тест під нове тіло і перепиши тег (§5.5)
+next-step-transform = крок: трансформа "{ $name }" — працюй рівно в названих файлах, тоді закоммить `{ $name }: <слова>`; хук пустить лише зелений (§8.4)
+next-step-chore = крок: chore "{ $name }" ({ $reason }) — працюй рівно в названих файлах, тоді закоммить `{ $name }: <слова>` (§2.11, §8.4)
+next-files-label = { "  " }файли:
+next-section-label = { "  " }секція "{ $name }", дослівно:
+next-section-missing = { "  " }шапка її оголошує, а тіло хвилі не має секції "## transform: { $name }" — keel check червонить це (§7.7); полагодь тіло перед роботою
+next-contract-label = { "  " }контракт { $contract }@{ $rev }, чинний текст дослівно:
+next-contract-missing = файлу контракту "{ $contract }" нема — бите посилання назве keel check (§7.1)
+next-run-label = { "  " }біг тестів його сценаріїв:
+next-run-none = { "  " }тестів її сценаріїв ще нема — біг зʼявиться з тегами (знятий сценарій тега не дістане)
+next-step-review = крок: хвиля зібрана — час рецензії (§9.9): збери пакет командою `keel review` свіжому агентові; звіт ляже в keel/reviews/{ $wave }.md
+next-step-pr = крок: звіт рецензії поруч із хвилею — час PR, злитого кнопкою merge commit (§8.7); останнє слово про нестачі — за keel close
+next-plan-branch = крок: це план-гілка хвилі { $wave } (§8.3) — доведи повноту плану (keel check, мапа), зливай план-PR; робота поїде гілкою "{ $wave }"
+next-ready = { "  " }стартуй гілку "{ $wave }" — хвиля затверджена і не почата, її залежності закриті (§6.5, §8.2)
+next-working = { "  " }гілка "{ $wave }" триває — хвиля в роботі
+next-all-closed = всі хвилі закриті і жодна не чекає — час планувати нову хвилю: план цього покоління пишеться рукою, затвердження — merge файлу хвилі (§6.6)
+
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
 main-unknown-command-reason = причина: такої команди keel не знає
@@ -353,4 +404,4 @@ main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
 main-gate-no-message = відмова: gate потребує файл повідомлення commit-а
 main-gate-no-message-reason = причина: суд читає повідомлення, яке віддає commit-msg hook
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel trust [тека] | keel hook [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel trust [тека] | keel hook [тека]

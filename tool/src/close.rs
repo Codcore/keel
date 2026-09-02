@@ -14,7 +14,9 @@ use crate::targs;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-enum State {
+/// The structural stages of a wave -- close's own verdicts, opened
+/// pub(crate) so the stage eye (rung 11) asks instead of duplicating.
+pub(crate) enum State {
     Closed { refs_unjudged: u64 },
     ClosedLight,
     Plan,
@@ -226,23 +228,27 @@ pub fn structural(root: &Path, wave: &Wave, tags: &[TestTag]) -> Result<bool, Re
     ))
 }
 
-fn wave_state(
+/// A light wave is §6.8's word, not "chores only": exactly one
+/// transform, a chore, touching no contracts -- and nothing
+/// withdrawn: the death of a promise gets two human looks (review
+/// R-5). Opened pub(crate) so the step hand and the stage eye judge
+/// weight by the same word.
+pub(crate) fn light(wave: &docs::Wave) -> bool {
+    wave.transforms.len() == 1
+        && wave.transforms.iter().all(|(_, tr)| {
+            matches!(tr.kind, docs::TransformKind::Chore(_)) && tr.contracts.is_empty()
+        })
+        && wave.scenarios.is_empty()
+}
+
+pub(crate) fn wave_state(
     root: &Path,
     wave: &docs::Wave,
     found: &[TestTag],
     legal: &BTreeMap<String, Vec<String>>,
     battery: Option<&BTreeMap<(String, String), bool>>,
 ) -> Result<State, Refusal> {
-    // A light wave is §6.8's word, not "chores only": exactly one
-    // transform, a chore, touching no contracts -- and nothing
-    // withdrawn: the death of a promise gets two human looks
-    // (review R-5).
-    let light = wave.transforms.len() == 1
-        && wave.transforms.iter().all(|(_, tr)| {
-            matches!(tr.kind, docs::TransformKind::Chore(_)) && tr.contracts.is_empty()
-        })
-        && wave.scenarios.is_empty();
-    if light {
+    if light(wave) {
         return Ok(State::ClosedLight);
     }
 
@@ -255,10 +261,26 @@ fn wave_state(
         .map(|(n, _)| n)
         .collect();
 
-    // A plan on main without a single tag is not red (§6.5).
-    let any_tag = live
-        .iter()
-        .any(|name| found.iter().any(|t| t.scenario == **name));
+    // A plan on main without a single tag of its own is not red
+    // (§6.5). A namesake's tag holding another wave's legal revision
+    // is that wave's proof, not this one's start (review 0012 R-2,
+    // the 0011 R-9 school): it neither starts the plan nor hides it
+    // from the awaiting list. A crooked record still counts as a
+    // start -- it is this wave's own staleness to answer for.
+    let started = |name: &&String| {
+        let current = revs
+            .iter()
+            .find(|(n, _)| n == *name)
+            .map(|(_, r)| r.as_str())
+            .unwrap_or("");
+        found.iter().filter(|t| t.scenario == **name).any(|t| {
+            rev::matches(&t.rev, current)
+                || !legal
+                    .get(*name)
+                    .is_some_and(|revs| revs.iter().any(|r| rev::matches(&t.rev, r)))
+        })
+    };
+    let any_tag = live.iter().any(started);
     if !any_tag && !live.is_empty() {
         return Ok(State::Plan);
     }
