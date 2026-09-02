@@ -195,3 +195,94 @@ fn trust_line_stale_red() {
         "the withdrawn contract's line is the same door:\n{out}"
     );
 }
+
+/// proves: trust-recorded@b6bb57 -- holds §7.16's recording hand:
+/// `keel trust` writes the fingerprints of untrusted commands as
+/// [trust] lines, keeps the rest of keel.toml -- comments included
+/// -- rewrites a crooked line of a live command, says what it did;
+/// a second run says nothing is new and does not touch the file;
+/// and check after the recording is silence. Without keel.toml the
+/// command refuses aloud.
+#[test]
+fn trust_recorded() {
+    let dir = sandbox("record");
+    write(
+        &dir,
+        "keel.toml",
+        "# the project's own gate\nci = \"cargo test\"\n",
+    );
+    write(&dir, "keel/waves/0050-w.md", &quiet_wave());
+    write(
+        &dir,
+        "keel/contracts/ext-health.md",
+        "---\nverify: \"curl -fsS https://svc.example/health\"\n---\n\nA foreign promise: the service answers (§2.8).\n",
+    );
+
+    let (out, err, code) = keel(&["trust", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the trust records:\n{out}");
+    assert!(
+        out.contains("\"cargo test\"") && out.contains(CARGO_TEST_FP),
+        "the recorded ci line said aloud with its fingerprint:\n{out}"
+    );
+    assert!(
+        out.contains("\"curl -fsS https://svc.example/health\"") && out.contains(CURL_FP),
+        "the recorded verify line said aloud:\n{out}"
+    );
+    let toml = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        toml.contains("# the project's own gate"),
+        "the comments live -- surgery only on [trust]:\n{toml}"
+    );
+    assert!(
+        toml.contains(&format!("\"cargo test\" = \"{CARGO_TEST_FP}\""))
+            && toml.contains(&format!(
+                "\"curl -fsS https://svc.example/health\" = \"{CURL_FP}\""
+            )),
+        "the trust lines landed:\n{toml}"
+    );
+
+    // The second run: nothing new, the file untouched.
+    let before = fs::read(dir.join("keel.toml")).unwrap();
+    let (out, err, code) = keel(&["trust", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "a quiet second run:\n{out}");
+    assert!(
+        out.contains("nothing new"),
+        "nothing new said aloud:\n{out}"
+    );
+    assert_eq!(
+        before,
+        fs::read(dir.join("keel.toml")).unwrap(),
+        "no writing when there is nothing to record"
+    );
+
+    // And the court is silent now.
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "check after the recording is silence:\n{out}");
+
+    // A crooked line of a live command is rewritten by the run.
+    let crooked = toml.replace(CARGO_TEST_FP, "000000000000");
+    fs::write(dir.join("keel.toml"), &crooked).unwrap();
+    let (out, err, code) = keel(&["trust", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the crooked line is rewritten:\n{out}");
+    let toml = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        toml.contains(&format!("\"cargo test\" = \"{CARGO_TEST_FP}\""))
+            && !toml.contains("000000000000"),
+        "the fingerprint is true again:\n{toml}"
+    );
+
+    // Without keel.toml: a refusal aloud, nothing invented.
+    let dir = sandbox("no-config");
+    write(&dir, "keel/waves/0050-w.md", &quiet_wave());
+    let (out, err, code) = keel(&["trust", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 2, "no config -- a refusal, not an invention:\n{out}");
+    assert!(
+        out.contains("nowhere to prepare"),
+        "the refusal says why:\n{out}"
+    );
+}
