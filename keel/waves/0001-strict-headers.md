@@ -1,22 +1,22 @@
 ---
 scenarios:
   broken-header-refuses:
-    proves: tool-docs@586e6a
+    proves: tool-docs@2ab9a9
     covers: [safety.fail-safe, maintainability.analysability]
   unknown-field-refuses:
-    proves: tool-docs@586e6a
+    proves: tool-docs@2ab9a9
     covers: [interaction.user-error-protection]
   valid-wave-parses:
-    proves: tool-docs@586e6a
+    proves: tool-docs@2ab9a9
     covers: [functional.correctness, reliability.faultlessness]
   valid-contract-parses:
-    proves: tool-docs@586e6a
+    proves: tool-docs@2ab9a9
     covers: [functional.completeness]
   duplicate-name-refuses:
-    proves: tool-docs@586e6a
+    proves: tool-docs@2ab9a9
     covers: [interaction.user-error-protection]
   check-reports-every-file:
-    proves: tool-docs@586e6a
+    proves: tool-docs@2ab9a9
     covers: [reliability.fault-tolerance, safety.hazard-warning, interaction.self-descriptiveness]
   missing-keel-dir-refuses:
     covers: [interaction.user-assistance]
@@ -29,8 +29,9 @@ transforms:
       - valid-wave-parses
       - valid-contract-parses
       - duplicate-name-refuses
-    contracts: [tool-docs@586e6a]
+    contracts: [tool-docs@2ab9a9]
     files:
+      - tool/.gitignore
       - tool/Cargo.toml
       - tool/Cargo.lock
       - tool/src/main.rs
@@ -42,7 +43,7 @@ transforms:
     implements:
       - check-reports-every-file
       - missing-keel-dir-refuses
-    contracts: [tool-docs@586e6a]
+    contracts: [tool-docs@2ab9a9]
     files:
       - tool/src/main.rs
       - tool/src/check.rs
@@ -102,8 +103,9 @@ commit (§8.6), і їде робочою гілкою v2. Повна механ�
 **Дано** файл хвилі, чия шапка не читається (незакриті `---`, шапки
 нема зовсім або битий YAML),
 **коли** його читає `read_wave`,
-**тоді** повертається відмова, що називає файл і причину людською
-мовою, — а не порожній документ і не тихий пропуск.
+**тоді** повертається відмова, що називає файл, причину людською
+мовою і що зробити, щоб полагодити, — а не порожній документ і не
+тихий пропуск.
 
 ## scenario: unknown-field-refuses
 
@@ -156,8 +158,13 @@ commit (§8.6), і їде робочою гілкою v2. Повна механ�
 ## transform: read-headers
 
 Модуль `docs`: типи Wave, Contract, Refusal і функції читання. Разом
-їде ґрунт (§4.7): cargo-проєкт у `tool/` і CI-крок, що ганяє його
-тести.
+їде ґрунт (§4.7): cargo-проєкт у `tool/`, його `.gitignore` (щоб
+`target/` не засмічував diff) і CI-крок, що ганяє тести.
+
+Кожен тест називає параграф методики, який він тримає, — вимога
+концепту «Відповідність тексту і коду»: перевірка без свого параграфа
+не має права існувати, параграф без перевірки чесно позначений
+текстовим.
 
 Застереження: рецепт редакції в цій хвилі виконано руками — повторні
 пробіли і переноси згорнуті в один пробіл (§5.4), sha256, перші шість
