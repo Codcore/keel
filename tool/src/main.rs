@@ -1,7 +1,7 @@
-//! CLI: тонка обгортка над бібліотекою. Команди зшиті з лупом
-//! методики; кожна відмова — причина плюс «що робити натомість».
-//! Рамкові відмови CLI — до того, як прочитано конфіг, — англійською:
-//! мови проєкту ми ще не знаємо.
+//! CLI: a thin wrapper over the library. Commands are stitched to
+//! the methodology loop; every refusal carries a reason plus "what to
+//! do instead". CLI frame refusals -- before the config is read --
+//! are English: the project language is not known yet.
 
 use keel::i18n::{t, ta};
 use keel::targs;

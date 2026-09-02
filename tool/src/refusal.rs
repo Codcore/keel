@@ -1,5 +1,6 @@
-//! Відмова — інтерфейс, а не службовий шум: файл, причина людською
-//! мовою і що зробити натомість. Рамка друкується мовою проєкту.
+//! A refusal is interface, not service noise: the file, the reason
+//! in human language, and what to do instead. The frame is printed
+//! in the project language.
 
 use std::fmt;
 use std::path::PathBuf;

@@ -1,6 +1,7 @@
-//! Перший поверх перевірок: «документи читаються» (щабель 1
-//! самонаведення). Це ще не весь check методики — і звіт каже про це
-//! сам: зелене про неперевірене заборонене (урок №4 розбору нотаток).
+//! The first floor of checks: "documents read" (bootstrap rung 1).
+//! Not the whole methodology check yet -- and the report says so
+//! itself: green about the unchecked is forbidden (lesson 4 of the
+//! notes triage).
 
 use crate::config::Config;
 use crate::docs;
@@ -15,10 +16,11 @@ pub struct Outcome {
     pub findings: usize,
 }
 
-/// Обходить документи під коренем і складає звіт по кожному файлу:
-/// цілі — перевірені, зіпсовані — названі з причиною; наприкінці —
-/// що́ цим поверхом перевірено, а що ще ні, і наступний крок. Мова
-/// звіту — lang з конфіга; звідки взялась мова, звіт теж каже.
+/// Walks the documents under the root and reports on every file:
+/// intact ones checked, broken ones named with a reason; at the end
+/// -- what this floor has checked, what it has not yet, and the next
+/// step. The report language is lang from the config; the report
+/// also says where the language came from.
 pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let scan = docs::scan(root)?;
 

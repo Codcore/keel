@@ -1,10 +1,11 @@
-//! Глава 2 методики: документи.
+//! Methodology chapter 2: documents.
 //!
-//! Єдині двері, якими інструмент дістає хвилі і контракти з диска
-//! (контракт tool-docs). Суворість — за §7.9: шапка, що не
-//! читається, — помилка документа, а не порожнє значення; водночас
-//! відсутність, яку методика дозволяє, — не помилка. Відмова — це
-//! інтерфейс: файл, причина людською мовою, що робити натомість.
+//! The only door through which the tool gets waves and contracts off
+//! the disk (contract tool-docs). Strictness per §7.9: a header that
+//! does not read is a document error, never an empty value; at the
+//! same time an absence the methodology allows is not an error. A
+//! refusal is interface: the file, a human reason, what to do
+//! instead.
 
 use std::path::{Path, PathBuf};
 
@@ -23,14 +24,14 @@ fn refuse(file: &Path, reason: String, instead: String) -> Refusal {
     }
 }
 
-/// Посилання на контракт із редакцією: `session-run@7c40de` (§5.1–§5.2).
+/// A contract reference with a revision: `session-run@7c40de` (§5.1-§5.2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContractRef {
     pub slug: String,
     pub rev: String,
 }
 
-/// Сценарій — обіцянка про поведінку (§2.3); поля — словник §3.1.
+/// A scenario is a promise about behaviour (§2.3); fields per §3.1.
 #[derive(Debug, Clone, Default)]
 pub struct Scenario {
     pub proves: Option<ContractRef>,
@@ -39,21 +40,21 @@ pub struct Scenario {
     pub superseded_by: Option<String>,
 }
 
-/// Рядок scope: шлях поіменно або `one new in <тека>/` (§4.1).
+/// A scope line: a path by name or `one new in <dir>/` (§4.1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScopeLine {
     Path(String),
     OneNewIn(String),
 }
 
-/// Робота трансформи: обіцянки — або chore із причиною (§2.11).
+/// A transform's work: promises -- or a chore with a reason (§2.11).
 #[derive(Debug, Clone)]
 pub enum TransformKind {
     Implements(Vec<String>),
     Chore(String),
 }
 
-/// Трансформа — порція роботи, рівно один commit (§2.4).
+/// A transform is a portion of work, exactly one commit (§2.4).
 #[derive(Debug, Clone)]
 pub struct Transform {
     pub kind: TransformKind,
@@ -61,7 +62,7 @@ pub struct Transform {
     pub files: Vec<ScopeLine>,
 }
 
-/// Хвиля — одиниця роботи (§2.1). Порядок записів — як у документі.
+/// A wave is the unit of work (§2.1). Entry order as in the document.
 #[derive(Debug, Clone, Default)]
 pub struct Wave {
     pub slug: String,
@@ -72,7 +73,7 @@ pub struct Wave {
     pub renamed_from: Option<String>,
 }
 
-/// Контракт — обіцянка, що живе довше за хвилю (§2.6–§2.8).
+/// A contract is a promise that outlives its wave (§2.6-§2.8).
 #[derive(Debug, Clone, Default)]
 pub struct Contract {
     pub slug: String,
@@ -84,8 +85,8 @@ pub struct Contract {
     pub renamed_from: Option<String>,
 }
 
-/// Все прочитане під коренем разом з усіма відмовами: один зіпсований
-/// файл не ховає ні сусідів, ні себе.
+/// Everything read under the root together with every refusal: one
+/// broken file hides neither its neighbours nor itself.
 #[derive(Debug, Default)]
 pub struct Scan {
     pub waves: Vec<Wave>,
@@ -93,7 +94,7 @@ pub struct Scan {
     pub refusals: Vec<Refusal>,
 }
 
-/// Читає файл хвилі: сувора шапка, повний словник методики.
+/// Reads a wave file: strict header, the methodology's full vocabulary.
 pub fn read_wave(path: &Path) -> Result<Wave, Refusal> {
     let slug = named_slug(path)?;
     let (yaml, off) = load_header(path)?;
@@ -101,8 +102,8 @@ pub fn read_wave(path: &Path) -> Result<Wave, Refusal> {
     wave_from(root, slug, path)
 }
 
-/// Читає файл контракту: наша обіцянка (module + exports, §2.7) або
-/// чужа (verify, §2.8).
+/// Reads a contract file: our promise (module + exports, §2.7) or a
+/// foreign one (verify, §2.8).
 pub fn read_contract(path: &Path) -> Result<Contract, Refusal> {
     let slug = named_slug(path)?;
     let (yaml, off) = load_header(path)?;
@@ -110,9 +111,10 @@ pub fn read_contract(path: &Path) -> Result<Contract, Refusal> {
     contract_from(root, slug, path)
 }
 
-/// Обходить `keel/waves/` і `keel/contracts/` під коренем. Помилка
-/// повертається лише коли теки `keel/` нема взагалі; все інше — у
-/// `Scan.refusals`, щоб один зіпсований файл не ховав сусідів.
+/// Walks `keel/waves/` and `keel/contracts/` under the root. An
+/// error returns only when keel/ is missing entirely; everything
+/// else goes into `Scan.refusals`, so one broken file cannot hide
+/// its neighbours.
 pub fn scan(root: &Path) -> Result<Scan, Refusal> {
     let keel = root.join("keel");
     if !keel.is_dir() {
@@ -142,8 +144,9 @@ pub fn scan(root: &Path) -> Result<Scan, Refusal> {
     Ok(out)
 }
 
-/// Імʼя документа — імʼя файлу без розширення (§1.4). Воно стає
-/// кодом — імʼям гілки (§8.2), тож мусить бути слагом (§1.2).
+/// A document's name is its file name without the extension (§1.4).
+/// It becomes code -- a branch name (§8.2) -- so it must be a slug
+/// (§1.2).
 fn named_slug(path: &Path) -> Result<String, Refusal> {
     let slug = path
         .file_stem()
@@ -158,9 +161,9 @@ fn named_slug(path: &Path) -> Result<String, Refusal> {
     Ok(slug)
 }
 
-/// Список `.md` у теці, відсортований за іменем. Тека, якої нема, і
-/// чужий файл у ній — відмови, не тиша; файли, що починаються з
-/// крапки, — шум операційної системи, їх обходимо.
+/// The `.md` files of a directory, sorted by name. A missing
+/// directory and a foreign file in it are refusals, not silence;
+/// dot-files are operating system noise and are skipped.
 fn doc_files(dir: &Path, what: &str, refusals: &mut Vec<Refusal>) -> Vec<PathBuf> {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
@@ -178,8 +181,8 @@ fn doc_files(dir: &Path, what: &str, refusals: &mut Vec<Refusal>) -> Vec<PathBuf
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().into_owned();
         if name.starts_with('.') {
-            // Шум операційної системи (.DS_Store, .gitkeep) — свідомо
-            // поза судом.
+            // Operating system noise (.DS_Store, .gitkeep) --
+            // deliberately outside judgement.
             continue;
         }
         if path.is_dir() {
@@ -204,9 +207,9 @@ fn doc_files(dir: &Path, what: &str, refusals: &mut Vec<Refusal>) -> Vec<PathBuf
     files
 }
 
-/// Читає файл і вирізає YAML-шапку: текст між першим рядком `---` і
-/// наступним таким самим. Повертає текст шапки і зсув рядків (шапка
-/// починається з другого рядка файлу).
+/// Reads the file and cuts out the YAML header: the text between the
+/// first `---` line and the next such line. Returns the header text
+/// and the line offset (the header starts on the file's second line).
 fn load_header(path: &Path) -> Result<(String, usize), Refusal> {
     let text = std::fs::read_to_string(path).map_err(|e| {
         if e.kind() == std::io::ErrorKind::InvalidData {
@@ -255,12 +258,14 @@ fn load_header(path: &Path) -> Result<(String, usize), Refusal> {
 }
 
 // ---------------------------------------------------------------------------
-// YAML → значення. Свій приймач подій замість готового дерева, бо
-// готові мовчки ковтають дублікати ключів — а «мовчки» тут заборонене.
+// YAML -> value. Our own event receiver instead of a ready-made
+// tree: ready-made ones swallow duplicate keys silently -- and
+// "silently" is forbidden here.
 // ---------------------------------------------------------------------------
 
-/// Значення шапки. Методика пише лише рядки, списки і набори полів;
-/// числа, булеві, якорі і теги в шапках не живуть.
+/// A header value. The methodology writes only strings, lists and
+/// field sets; numbers, booleans, anchors and tags do not live in
+/// headers.
 #[derive(Debug)]
 enum Val {
     Str(String, usize),
@@ -276,7 +281,7 @@ impl Val {
     }
 }
 
-/// Порожньо за YAML: значення, якого автор не написав.
+/// Blank per YAML: a value the author never wrote.
 fn is_blank(s: &str) -> bool {
     s.is_empty() || s == "~" || s == "null"
 }
@@ -400,7 +405,7 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
                 Some(Frame::Seq(items, line)) => {
                     feed(&mut stack, &mut root, Val::Seq(items, line), file)?;
                 }
-                _ => unreachable!("парсер закриває лише те, що відкрив"),
+                _ => unreachable!("the parser closes only what it opened"),
             },
             Event::MappingStart(anchor, tag) => {
                 if anchor != 0 {
@@ -423,7 +428,7 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
                 Some(Frame::Map(fields, line, _)) => {
                     feed(&mut stack, &mut root, Val::Map(fields, line), file)?;
                 }
-                _ => unreachable!("парсер закриває лише те, що відкрив"),
+                _ => unreachable!("the parser closes only what it opened"),
             },
         }
     }
@@ -439,7 +444,7 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
 }
 
 // ---------------------------------------------------------------------------
-// Словники: шапка хвилі і шапка контракту.
+// Vocabularies: the wave header and the contract header.
 // ---------------------------------------------------------------------------
 
 type Slot = Option<(String, usize, Val)>;
@@ -452,7 +457,7 @@ fn take(slots: &mut [Slot], name: &str) -> Option<(usize, Val)> {
         .map(|(_, line, v)| (line, v))
 }
 
-/// Перше поле, яке лишилося не взятим, — невідоме методиці.
+/// The first field left untaken is unknown to the methodology.
 fn unknown_left(slots: Vec<Slot>, what: &str, known: &str, file: &Path) -> Result<(), Refusal> {
     match slots.into_iter().flatten().next() {
         Some((name, line, _)) => Err(refuse(
@@ -531,14 +536,14 @@ fn as_texts(v: Val, what: &str, file: &Path) -> Result<Vec<(String, usize)>, Ref
     }
 }
 
-/// Слаг: те, що стане кодом — імʼям гілки, тегом теста (§1.2).
+/// A slug: what will become code -- a branch name, a test tag (§1.2).
 fn slug_ok(s: &str) -> bool {
     !s.is_empty()
         && s.chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
-/// `slug@редакція` — §5.1–§5.2: редакція — 4–6 шістнадцяткових знаків.
+/// `slug@revision` -- §5.1-§5.2: a revision is 4-6 hex characters.
 fn as_contract_ref(s: &str, line: usize, what: &str, file: &Path) -> Result<ContractRef, Refusal> {
     let split = s.split_once('@');
     if let Some((slug, rev)) = split {
@@ -740,7 +745,7 @@ fn transform_from(v: Val, name: &str, file: &Path) -> Result<Transform, Refusal>
         ));
     }
 
-    unknown_left(slots, &what, "implements або chore, contracts, files", file)?;
+    unknown_left(slots, &what, "implements or chore, contracts, files", file)?;
     Ok(Transform {
         kind,
         contracts,
@@ -748,8 +753,9 @@ fn transform_from(v: Val, name: &str, file: &Path) -> Result<Transform, Refusal>
     })
 }
 
-/// `one new in <тека>/` — рівно один новий файл у теці (§4.1); решта —
-/// шляхи поіменно. Glob-и методика не пише (§4.2) — і не читає.
+/// `one new in <dir>/` -- exactly one new file in the directory
+/// (§4.1); the rest are paths by name. The methodology writes no
+/// globs (§4.2) -- and reads none.
 fn scope_line(s: &str, line: usize, what: &str, file: &Path) -> Result<ScopeLine, Refusal> {
     if let Some(dir) = s.strip_prefix("one new in ") {
         if !dir.ends_with('/') {

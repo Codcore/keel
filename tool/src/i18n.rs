@@ -1,6 +1,7 @@
-//! Мова виводу інструмента: ключі в коді + один Fluent-файл на мову,
-//! вшитий у бінарник; вибір за lang з keel.toml; fallback — англійська
-//! (NEW-CONCEPT, «Конфіг → Мови виводу інструмента»).
+//! The tool's output language: keys in code + one Fluent file per
+//! language embedded in the binary; picked by lang from keel.toml;
+//! fallback is English (NEW-CONCEPT, "Config -> Tool output
+//! languages").
 
 use fluent_bundle::concurrent::FluentBundle;
 use fluent_bundle::{FluentArgs, FluentResource};
@@ -15,8 +16,9 @@ pub struct I18n {
     en: FluentBundle<FluentResource>,
 }
 
-/// Вшиті файли — артефакт нашої збірки; зламаний переклад ловить тест
-/// embedded_bundles_parse ще до релізу, тож тут паніка чесна.
+/// Embedded files are our build artifact; a broken translation is
+/// caught by embedded_bundles_parse before any release, so panicking
+/// here is honest.
 fn bundle(lang: &str, source: &str) -> FluentBundle<FluentResource> {
     let id: LanguageIdentifier = lang
         .parse()
@@ -24,8 +26,8 @@ fn bundle(lang: &str, source: &str) -> FluentBundle<FluentResource> {
     let resource = FluentResource::try_new(source.to_string())
         .unwrap_or_else(|(_, errors)| panic!("embedded {lang}.ftl is broken: {errors:?}"));
     let mut bundle = FluentBundle::new_concurrent(vec![id]);
-    // Без невидимих ізолюючих знаків довкола підстановок: вивід — для
-    // терміналів і для порівнянь у тестах, не для двонапрямного HTML.
+    // No invisible isolation marks around placeables: the output is
+    // for terminals and test comparisons, not bidirectional HTML.
     bundle.set_use_isolating(false);
     bundle
         .add_resource(resource)
@@ -34,7 +36,7 @@ fn bundle(lang: &str, source: &str) -> FluentBundle<FluentResource> {
 }
 
 impl I18n {
-    /// Мови, вшиті в цей реліз.
+    /// Languages embedded in this release.
     pub fn embedded(lang: &str) -> I18n {
         let picked = match lang {
             "uk" => bundle("uk", UK_FTL),
@@ -46,7 +48,7 @@ impl I18n {
         }
     }
 
-    /// Для тестів: зібрати з довільних джерел.
+    /// For tests: build from arbitrary sources.
     pub fn from_sources(lang: &str, lang_src: &str, en_src: &str) -> I18n {
         I18n {
             lang: bundle(lang, lang_src),
@@ -54,8 +56,8 @@ impl I18n {
         }
     }
 
-    /// Текст ключа: мова проєкту → англійська → сам ключ (діра у
-    /// звіті заборонена).
+    /// The text of a key: project language -> English -> the key
+    /// itself (a hole in the report is forbidden).
     pub fn text(&self, key: &str) -> String {
         self.format(key, None)
     }
@@ -79,8 +81,8 @@ impl I18n {
     }
 }
 
-/// Мова процесу: ставиться раз у main після читання конфіга; поки не
-/// поставлена (бібліотечні тести), діє англійська.
+/// The process language: set once in main after the config is read;
+/// until set (library tests), English is in effect.
 static CURRENT: OnceLock<I18n> = OnceLock::new();
 
 pub fn init(lang: &str) {
@@ -99,7 +101,7 @@ pub fn ta(key: &str, args: FluentArgs) -> String {
     current().with(key, &args)
 }
 
-/// Аргументи повідомлення одним виразом: targs!("name" => value, ...).
+/// Message arguments in one expression: targs!("name" => value, ...).
 #[macro_export]
 macro_rules! targs {
     ($($k:literal => $v:expr),* $(,)?) => {{
@@ -113,22 +115,23 @@ macro_rules! targs {
 mod tests {
     use super::I18n;
 
-    /// proves: missing-key-falls-back@e73fdd — тримає розділ «Мови
-    /// виводу» концепту: нема перекладу — англійський текст, не діра.
+    /// proves: missing-key-falls-back@e73fdd -- holds the concept's
+    /// "Output languages": no translation means English text, not a
+    /// hole.
     #[test]
     fn missing_key_falls_back() {
-        // Українському джерелу бракує ключа — приходить англійський.
+        // The Ukrainian source lacks the key -- English arrives.
         let i = I18n::from_sources("uk", "", "hello = Hello");
         assert_eq!(i.text("hello"), "Hello");
 
-        // Ключа нема ніде — повертається сам ключ, а не паніка й не
-        // порожнеча: діра у звіті заборонена.
+        // The key exists nowhere -- the key itself comes back, not a
+        // panic and not emptiness: a hole in the report is forbidden.
         let real = I18n::embedded("uk");
         assert_eq!(real.text("no-such-key-ever"), "no-such-key-ever");
     }
 
-    /// Обидва вшиті переклади читаються — зламаний .ftl не доїде до
-    /// релізу мовчки (застереження трансформи speak-by-keys).
+    /// Both embedded translations parse -- a broken .ftl cannot ship
+    /// silently (a caveat of the speak-by-keys transform).
     #[test]
     fn embedded_bundles_parse() {
         for lang in ["en", "uk"] {

@@ -1,17 +1,17 @@
-//! Тести сценаріїв хвилі 0001-strict-headers, трансформа read-headers.
+//! Scenario tests of wave 0001-strict-headers, transform read-headers.
 //!
-//! Кожен тест несе тег `proves: <сценарій>@<редакція>` — редакція за
-//! §5.3–§5.4: тіло секції сценарію, повторні пробіли й переноси
-//! згорнуті в один пробіл, sha256, перші шість шістнадцяткових
-//! знаків. Поки редакцію рахують руки (bootstrap); щабель 2 (`keel
-//! rev`) зобовʼязаний відтворити цей рецепт.
+//! Every test carries a `proves: <scenario>@<revision>` tag -- the
+//! revision per §5.3-§5.4: the scenario section body, repeated spaces
+//! and newlines collapsed into one space, sha256, first six hex
+//! characters. For now hands compute the revision (bootstrap); rung 2
+//! (`keel rev`) is bound to reproduce this recipe.
 
 use keel::docs;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Окрема тека на тест: тести не діляться станом і не заважають одне
-/// одному (§7.13 ганяє їх кілька разів поспіль).
+/// A directory per test: tests share no state and do not disturb
+/// each other (§7.13 runs them several times in a row).
 fn sandbox(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("keel-0001-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
@@ -26,75 +26,76 @@ fn write(dir: &Path, rel: &str, text: &str) -> PathBuf {
     p
 }
 
-/// proves: broken-header-refuses@240948 — тримає §7.9.
+/// proves: broken-header-refuses@240948 -- holds §7.9.
 #[test]
 fn broken_header_refuses() {
     let dir = sandbox("broken");
 
-    // Шапка не закрита: другого `---` нема.
+    // The header is not closed: no second `---`.
     let p = write(&dir, "keel/waves/0002-x.md", "---\nscenarios:\n");
     let r = docs::read_wave(&p).unwrap_err();
     assert_eq!(r.file, p);
-    assert!(r.reason.contains("not closed"), "причина: {}", r.reason);
+    assert!(r.reason.contains("not closed"), "reason: {}", r.reason);
     assert!(
         !r.instead.is_empty(),
-        "відмова мусить казати, що робити натомість"
+        "a refusal must say what to do instead"
     );
 
-    // Шапки нема зовсім.
+    // No header at all.
     let p = write(&dir, "keel/waves/0003-y.md", "# просто текст, без шапки\n");
     let r = docs::read_wave(&p).unwrap_err();
-    assert!(r.reason.contains("no header"), "причина: {}", r.reason);
+    assert!(r.reason.contains("no header"), "reason: {}", r.reason);
     assert!(!r.instead.is_empty());
 
-    // Битий YAML усередині шапки.
+    // Broken YAML inside the header.
     let p = write(&dir, "keel/contracts/c.md", "---\nmodule: [unclosed\n---\n");
     let r = docs::read_contract(&p).unwrap_err();
-    assert!(r.reason.contains("YAML"), "причина: {}", r.reason);
+    assert!(r.reason.contains("YAML"), "reason: {}", r.reason);
     assert!(!r.instead.is_empty());
 }
 
-/// proves: unknown-field-refuses@4fa15d — тримає §7.9.
+/// proves: unknown-field-refuses@4fa15d -- holds §7.9.
 #[test]
 fn unknown_field_refuses() {
     let dir = sandbox("unknown");
 
-    // Одрук у полі хвилі: scenarois замість scenarios.
+    // A typo in a wave field: scenarois instead of scenarios.
     let p = write(
         &dir,
         "keel/waves/0004-typo.md",
         "---\nscenarois:\n  a: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [a]\n    files: [lib/a.ex]\n---\n",
     );
     let r = docs::read_wave(&p).unwrap_err();
-    assert!(r.reason.contains("unknown field"), "причина: {}", r.reason);
+    assert!(r.reason.contains("unknown field"), "reason: {}", r.reason);
     assert!(
         r.reason.contains("scenarois"),
-        "називає само поле: {}",
+        "names the field itself: {}",
         r.reason
     );
     assert!(!r.instead.is_empty());
 
-    // Невідоме поле всередині сценарію.
+    // An unknown field inside a scenario.
     let p = write(
         &dir,
         "keel/waves/0005-inner.md",
         "---\nscenarios:\n  a: {covvers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [a]\n    files: [lib/a.ex]\n---\n",
     );
     let r = docs::read_wave(&p).unwrap_err();
-    assert!(r.reason.contains("covvers"), "причина: {}", r.reason);
+    assert!(r.reason.contains("covvers"), "reason: {}", r.reason);
 
-    // Невідоме поле контракту.
+    // An unknown contract field.
     let p = write(
         &dir,
         "keel/contracts/typo.md",
         "---\nmodule: X\nexporst:\n  - \"run()\"\n---\n",
     );
     let r = docs::read_contract(&p).unwrap_err();
-    assert!(r.reason.contains("exporst"), "причина: {}", r.reason);
+    assert!(r.reason.contains("exporst"), "reason: {}", r.reason);
 }
 
-/// proves: valid-wave-parses@8b543c — тримає §2.3–§2.5, §2.11, §2.12,
-/// §4.1, §4.12: повний словник хвилі читається в дані без втрат.
+/// proves: valid-wave-parses@8b543c -- holds §2.3-§2.5, §2.11,
+/// §2.12, §4.1, §4.12: the full wave vocabulary reads into data with
+/// no loss.
 #[test]
 fn valid_wave_parses() {
     let dir = sandbox("valid-wave");
@@ -153,7 +154,7 @@ fn valid_wave_parses() {
     let (_, work) = &w.transforms[0];
     match &work.kind {
         docs::TransformKind::Implements(s) => assert_eq!(s, &vec!["alive"]),
-        other => panic!("не те: {other:?}"),
+        other => panic!("not it: {other:?}"),
     }
     assert_eq!(
         work.files,
@@ -174,7 +175,7 @@ fn valid_wave_parses() {
     let (_, tidy) = &w.transforms[1];
     match &tidy.kind {
         docs::TransformKind::Chore(why) => assert_eq!(why, "оновлення залежности без обіцянки"),
-        other => panic!("не те: {other:?}"),
+        other => panic!("not it: {other:?}"),
     }
 
     assert_eq!(
@@ -185,7 +186,7 @@ fn valid_wave_parses() {
         )]
     );
 
-    // Законна відсутність — не помилка: хвиля всуціль chore без сценаріїв.
+    // Legal absence is not an error: an all-chore wave without scenarios.
     let p = write(
         &dir,
         "keel/waves/0007-chore-only.md",
@@ -196,14 +197,14 @@ fn valid_wave_parses() {
     assert!(w.decisions.is_empty());
 }
 
-/// proves: valid-contract-parses@863c4e — тримає §2.7–§2.8: наша
-/// обіцянка (module + exports) і чужа (verify) читаються в дані;
-/// контракт без жодної — відмова «нічого не обіцяє».
+/// proves: valid-contract-parses@863c4e -- holds §2.7-§2.8: our
+/// promise (module + exports) and a foreign one (verify) read into
+/// data; a contract with neither refuses as "promises nothing".
 #[test]
 fn valid_contract_parses() {
     let dir = sandbox("valid-contract");
 
-    // Наш контракт: module + exports.
+    // Our contract: module + exports.
     let p = write(
         &dir,
         "keel/contracts/session-run.md",
@@ -223,7 +224,7 @@ fn valid_contract_parses() {
     assert!(c.exports[0].starts_with("run("));
     assert!(c.verify.is_none());
 
-    // Чужа обіцянка: verify-команда (§2.8), module не обовʼязковий.
+    // A foreign promise: a verify command (§2.8), module optional.
     let p = write(
         &dir,
         "keel/contracts/redis-up.md",
@@ -234,7 +235,7 @@ fn valid_contract_parses() {
     assert!(c.module.is_none());
     assert!(c.exports.is_empty());
 
-    // Позначки життєвого циклу читаються (§2.12, §4.12).
+    // Lifecycle marks read fine (§2.12, §4.12).
     let p = write(
         &dir,
         "keel/contracts/old-run.md",
@@ -245,7 +246,7 @@ fn valid_contract_parses() {
     assert_eq!(c.superseded_by.as_deref(), Some("session-run"));
     assert_eq!(c.renamed_from.as_deref(), Some("legacy-run"));
 
-    // Ні exports, ні verify — контракт нічого не обіцяє (§2.10).
+    // Neither exports nor verify -- the contract promises nothing (§2.10).
     let p = write(
         &dir,
         "keel/contracts/empty.md",
@@ -254,19 +255,20 @@ fn valid_contract_parses() {
     let r = docs::read_contract(&p).unwrap_err();
     assert!(
         r.reason.contains("promises nothing"),
-        "причина: {}",
+        "reason: {}",
         r.reason
     );
     assert!(!r.instead.is_empty());
 }
 
-/// proves: duplicate-name-refuses@cb90af — тримає §7.9: YAML мовчки
-/// лишив би останній дубль, і половина плану зникла б без сліду.
+/// proves: duplicate-name-refuses@cb90af -- holds §7.9: YAML would
+/// silently keep the last duplicate, and half the plan would vanish
+/// without a trace.
 #[test]
 fn duplicate_name_refuses() {
     let dir = sandbox("dup");
 
-    // Два сценарії з одним імʼям.
+    // Two scenarios under one name.
     let p = write(
         &dir,
         "keel/waves/0008-dup.md",
@@ -283,14 +285,14 @@ fn duplicate_name_refuses() {
         ),
     );
     let r = docs::read_wave(&p).unwrap_err();
-    assert!(r.reason.contains("twice"), "причина: {}", r.reason);
+    assert!(r.reason.contains("twice"), "reason: {}", r.reason);
     assert!(
         r.reason.contains("same"),
-        "називає імʼя-дубль: {}",
+        "names the duplicated name: {}",
         r.reason
     );
 
-    // Дві трансформи з одним імʼям.
+    // Two transforms under one name.
     let p = write(
         &dir,
         "keel/waves/0009-dup-t.md",
@@ -303,20 +305,20 @@ fn duplicate_name_refuses() {
         ),
     );
     let r = docs::read_wave(&p).unwrap_err();
-    assert!(r.reason.contains("work"), "причина: {}", r.reason);
+    assert!(r.reason.contains("work"), "reason: {}", r.reason);
 
-    // Дубль поля всередині запису — та сама хвороба.
+    // A duplicated field inside an entry -- the same disease.
     let p = write(
         &dir,
         "keel/contracts/dup-field.md",
         "---\nverify: \"a\"\nverify: \"b\"\n---\n",
     );
     let r = docs::read_contract(&p).unwrap_err();
-    assert!(r.reason.contains("verify"), "причина: {}", r.reason);
+    assert!(r.reason.contains("verify"), "reason: {}", r.reason);
 }
 
-/// proves: dir-among-docs-refuses@eef1bd — тримає §7.9 і урок №4:
-/// ніщо не зникає зі звіту мовчки.
+/// proves: dir-among-docs-refuses@eef1bd -- holds §7.9 and lesson 4:
+/// nothing vanishes from the report silently.
 #[test]
 fn dir_among_docs_refuses() {
     let dir = sandbox("dirs");
@@ -329,12 +331,15 @@ fn dir_among_docs_refuses() {
     let scan = docs::scan(&dir).unwrap();
     assert!(
         scan.refusals.iter().any(|r| r.reason.contains("directory")),
-        "тека мусить бути відмовою, не тишею: {:?}",
+        "a directory must refuse, not stay silent: {:?}",
         scan.refusals
     );
-    assert!(scan.waves.is_empty(), "хвиля з підтеки не читається мовчки");
+    assert!(
+        scan.waves.is_empty(),
+        "a wave from a subdirectory is not read silently"
+    );
 
-    // Symlink на теку — та сама хвороба.
+    // A symlink to a directory -- the same disease.
     #[cfg(unix)]
     {
         let dir = sandbox("dir-link");
@@ -343,14 +348,14 @@ fn dir_among_docs_refuses() {
         let scan = docs::scan(&dir).unwrap();
         assert!(
             scan.refusals.iter().any(|r| r.reason.contains("directory")),
-            "symlink на теку — відмова: {:?}",
+            "a symlink to a directory refuses: {:?}",
             scan.refusals
         );
     }
 }
 
-/// proves: bare-scenario-refuses@0d40d4 — тримає §3.3: сценарій без
-/// жодної опори — помилка.
+/// proves: bare-scenario-refuses@0d40d4 -- holds §3.3: a scenario
+/// with no footing at all is an error.
 #[test]
 fn bare_scenario_refuses() {
     let dir = sandbox("bare");
@@ -362,16 +367,16 @@ fn bare_scenario_refuses() {
     let r = docs::read_wave(&p).unwrap_err();
     assert!(
         r.reason.contains("floating"),
-        "називає сценарій: {}",
+        "names the scenario: {}",
         r.reason
     );
     assert!(
         r.reason.contains("leans on nothing"),
-        "причина: {}",
+        "reason: {}",
         r.reason
     );
 
-    // Знятий сценарій без опори — законний: він поза судом (§6.3).
+    // A withdrawn scenario without footing is legal: it is outside judgement (§6.3).
     let p = write(
         &dir,
         "keel/waves/0011-gone.md",
@@ -379,6 +384,6 @@ fn bare_scenario_refuses() {
     );
     assert!(
         docs::read_wave(&p).is_ok(),
-        "withdrawn без опори — не помилка"
+        "withdrawn without footing is not an error"
     );
 }

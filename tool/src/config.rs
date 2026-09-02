@@ -1,17 +1,18 @@
-//! keel.toml — єдиний конфіг проєкту (контракт tool-config).
+//! keel.toml -- the single project config (contract tool-config).
 //!
-//! Відмови цього модуля свідомо англійською: коли конфіг зламаний
-//! або мова невідома, мови проєкту ми ще не знаємо — і не вгадуємо.
+//! This module's refusals are deliberately English: when the config
+//! is broken or the language unknown, the project language is not
+//! known yet -- and will not be guessed.
 
 use crate::docs::Refusal;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-/// Мови, вшиті в цей реліз (i18n/<мова>.ftl).
+/// Languages embedded in this release (i18n/<lang>.ftl).
 pub const LANGUAGES: [&str; 2] = ["en", "uk"];
 
-/// Прочитаний конфіг. Семантику в цій хвилі несе лише `lang`; решта
-/// полів читаються як дані — їхні щаблі попереду.
+/// The config as read. Only `lang` carries semantics this wave; the
+/// other fields are read as data -- their rungs are ahead.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     pub version: Option<String>,
@@ -20,8 +21,8 @@ pub struct Config {
     pub lang: String,
     pub trust: Vec<(String, String)>,
     pub generated: Vec<(String, String)>,
-    /// Файл справді існував — типові значення не видають себе за
-    /// прочитане.
+    /// The file really existed -- defaults do not pass themselves
+    /// off as something read.
     pub present: bool,
 }
 
@@ -39,8 +40,9 @@ impl Default for Config {
     }
 }
 
-/// Повний словник keel.toml з концепту. Невідоме поле валить розбір
-/// (deny_unknown_fields) — одрук не читається як «нічого».
+/// The full keel.toml vocabulary from the concept. An unknown field
+/// fails the parse (deny_unknown_fields) -- a typo never reads as
+/// "nothing".
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Raw {
@@ -52,8 +54,8 @@ struct Raw {
     generated: Option<BTreeMap<String, String>>,
 }
 
-/// Читає `<root>/keel.toml` весь і суворо; відсутній файл — не
-/// помилка, а чесні типові значення (`present = false`).
+/// Reads `<root>/keel.toml` whole and strictly; an absent file is
+/// not an error but honest defaults (`present = false`).
 pub fn read(root: &Path) -> Result<Config, Refusal> {
     let path = root.join("keel.toml");
     let text = match std::fs::read_to_string(&path) {

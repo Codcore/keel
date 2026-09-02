@@ -1,8 +1,8 @@
-//! keel — інструмент методики Keel v2.
+//! keel -- the tool of the Keel v2 methodology.
 //!
-//! Будова — модуль на главу методики (NEW-CONCEPT, «Будова»):
-//! кожна перевірка — функція зі своїм тестом, і кожен тест називає
-//! параграф, який тримає.
+//! Layout: a module per methodology chapter (NEW-CONCEPT, "Layout"):
+//! every check is a function with its own test, and every test names
+//! the paragraph it holds.
 
 pub mod check;
 pub mod config;

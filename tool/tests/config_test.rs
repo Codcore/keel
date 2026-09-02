@@ -1,6 +1,6 @@
-//! Тести сценаріїв хвилі 0002-config-and-language, трансформа
-//! read-config. Теги proves — редакція за §5.3–§5.4, рахована руками
-//! (bootstrap; щабель rev їде хвилею 0003).
+//! Scenario tests of wave 0002-config-and-language, transform
+//! read-config. proves tags -- revisions per §5.3-§5.4, computed by
+//! hand (bootstrap; the rev rung rides wave 0003).
 
 use keel::config;
 use std::fs;
@@ -19,11 +19,12 @@ fn write(dir: &Path, rel: &str, text: &str) -> PathBuf {
     p
 }
 
-/// proves: config-reads-strictly@1a978b — тримає контракт tool-config:
-/// словник читається весь, невідоме і криве — відмова, не пропуск.
+/// proves: config-reads-strictly@1a978b -- holds contract
+/// tool-config: the vocabulary reads whole; the unknown and the
+/// malformed refuse, never skip.
 #[test]
 fn config_reads_strictly() {
-    // Повний словник читається в дані.
+    // The full vocabulary reads into data.
     let dir = sandbox("full");
     write(
         &dir,
@@ -54,26 +55,26 @@ fn config_reads_strictly() {
         vec![("skills/keel-plan.md".to_string(), "0b32af".to_string())]
     );
 
-    // Невідоме поле — відмова, що його називає.
+    // An unknown field refuses, naming it.
     let dir = sandbox("typo");
     write(&dir, "keel.toml", "lang = \"uk\"\nlangg = \"en\"\n");
     let r = config::read(&dir).unwrap_err();
     assert!(r.reason.contains("langg"), "names the field: {}", r.reason);
     assert!(!r.instead.is_empty());
 
-    // Кривий тип — відмова.
+    // A wrong type refuses.
     let dir = sandbox("badtype");
     write(&dir, "keel.toml", "lang = 42\n");
     let r = config::read(&dir).unwrap_err();
     assert!(!r.reason.is_empty() && !r.instead.is_empty());
 
-    // Битий TOML — відмова.
+    // Broken TOML refuses.
     let dir = sandbox("broken");
     write(&dir, "keel.toml", "lang = \"uk\n");
     let r = config::read(&dir).unwrap_err();
     assert!(!r.reason.is_empty());
 
-    // lang поза вшитими мовами — відмова, що називає наявні.
+    // lang outside the embedded set refuses, naming the available.
     let dir = sandbox("nolang");
     write(&dir, "keel.toml", "lang = \"pl\"\n");
     let r = config::read(&dir).unwrap_err();
@@ -84,7 +85,7 @@ fn config_reads_strictly() {
         r.reason
     );
 
-    // Відсутній keel.toml — не помилка: чесні типові значення.
+    // An absent keel.toml is not an error: honest defaults.
     let dir = sandbox("absent");
     let c = config::read(&dir).unwrap();
     assert!(!c.present);
