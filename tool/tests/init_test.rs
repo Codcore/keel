@@ -108,3 +108,76 @@ fn init_births_the_frame() {
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "the born frame reads without refusals:\n{out}");
 }
+
+/// proves: init-never-tramples@32c33b -- holds §9.7 and the trample
+/// law: a standing piece is "already stands" by name and stays
+/// byte-identical (a foreign keel.toml is a fact, not a content
+/// judgement); a foreign commit-msg hook is a refusal aloud, never
+/// a rewrite; without git the hook line refuses with its reason
+/// while the rest of the frame still lands; failed pieces redden
+/// the exit.
+#[test]
+fn init_never_tramples() {
+    let dir = sandbox("standing");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    let foreign_config = "# somebody else's config\nlang = \"uk\"\n";
+    write(&dir, "keel.toml", foreign_config);
+    fs::create_dir_all(dir.join("keel/waves")).unwrap();
+    let foreign_hook = "#!/bin/sh\nexit 0\n";
+    write(&dir, ".git/hooks/commit-msg", foreign_hook);
+    let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "a piece that did not stand reddens the exit:\n{out}");
+    assert_eq!(
+        fs::read_to_string(dir.join("keel.toml")).unwrap(),
+        foreign_config,
+        "the foreign keel.toml stays byte-identical:\n{out}"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.join(".git/hooks/commit-msg")).unwrap(),
+        foreign_hook,
+        "the foreign hook stays byte-identical:\n{out}"
+    );
+    assert!(
+        out.contains("already stands"),
+        "the standing pieces are said by name:\n{out}"
+    );
+    assert!(
+        out.contains("foreign"),
+        "the foreign hook is a refusal aloud, never a rewrite:\n{out}"
+    );
+    assert!(
+        dir.join("keel/contracts/.gitkeep").is_file() && dir.join("keel/reviews/.gitkeep").is_file(),
+        "the rest of the frame still lands piece by piece:\n{out}"
+    );
+
+    // Without git the hook line refuses with its reason -- the
+    // directories and the config still arrive.
+    let dir = sandbox("gitless");
+    let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 1, "the hookless frame is honest red:\n{out}");
+    assert!(
+        dir.join("keel/waves/.gitkeep").is_file() && dir.join("keel.toml").is_file(),
+        "the frame lands even where git is silent:\n{out}"
+    );
+
+    // The second run over a full frame changes nothing and is green.
+    let dir = sandbox("secondrun");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    let (_, _, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the first run is green");
+    let config_before = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the second run is green -- everything stands:\n{out}");
+    assert_eq!(
+        fs::read_to_string(dir.join("keel.toml")).unwrap(),
+        config_before,
+        "the second run changes not a byte:\n{out}"
+    );
+    assert!(
+        !out.contains("born:"),
+        "nothing is claimed born where everything stood:\n{out}"
+    );
+}
