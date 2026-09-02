@@ -132,12 +132,18 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
 }
 
 fn collapse(text: &str) -> String {
-    // The trailing comma before a closing brace is formatting, not
-    // form (§2.9 compares what the language writes, not how rustfmt
-    // wraps it) -- both sides are normalized the same way.
+    // rustfmt's wrapping is formatting, not form (§2.9 compares what
+    // the language writes): the trailing comma before a closing
+    // brace or parenthesis and the spaces a line break leaves around
+    // parentheses are normalized away, on both sides the same way --
+    // proven by this court biting its own contract when fmt wrapped
+    // the very signature promised here.
     text.split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+        .replace("( ", "(")
+        .replace(", )", ")")
+        .replace(" )", ")")
         .replace(", }", " }")
 }
 

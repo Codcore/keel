@@ -99,6 +99,17 @@ pub fn court(config: &Config, contracts: &[Contract]) -> Vec<(String, String, St
     out
 }
 
+/// Whether a command's fingerprint is recorded and true -- the
+/// read-only gate the §7.6 runner asks before running anything;
+/// this module itself still executes nothing.
+pub(crate) fn trusted(config: &Config, command: &str) -> bool {
+    let flat = collapse(command);
+    config
+        .trust
+        .iter()
+        .any(|(key, recorded)| collapse(key) == flat && *recorded == fingerprint(command))
+}
+
 /// The recording hand of §7.16 (`keel trust`): writes the
 /// fingerprints of untrusted commands as `[trust]` lines -- surgery
 /// on that block only, the rest of keel.toml stays as the human

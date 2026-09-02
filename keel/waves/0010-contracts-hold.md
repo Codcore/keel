@@ -34,6 +34,7 @@ transforms:
     contracts: [tool-close@1b6b8e, tool-trust@1363b5, tool-docs@2ab9a9, tool-config@cc126c]
     files:
       - tool/src/close.rs
+      - tool/src/trust.rs
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/close_test.rs

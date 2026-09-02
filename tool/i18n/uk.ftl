@@ -316,6 +316,11 @@ close-needs-adapter = судові закриття потрібен адапт�
 close-needs-adapter-instead = постав adapter = "cargo" (NEW-CONCEPT, «Конфіг»); інші адаптери прийдуть своїми хвилями
 close-blockers = блокери хвилі цієї гілки { $wave }: { $count } — повна хвиля не зливається недоведеною (§6.5, §9.9)
 close-no-blockers = блокерів нема: гілка не зветься як незакрита хвиля — стани вище інформують
+close-verify-count = verify-команд суджено: { $count }
+close-verify-passed = verify "{ $command }" контракту { $contract } — пройшла
+close-verify-failed = verify "{ $command }" контракту { $contract } — ВПАЛА ({ $words }) — зламана чужа обіцянка не зливається (§2.8)
+close-verify-untrusted = verify "{ $command }" контракту { $contract } — не бігала: недовірена (§7.16); той вирок тримає check
+close-verify-blockers = зламаних чужих обіцянок: { $count } — вихід червоний
 close-plan-own = хвиля цієї гілки — затверджена, ще не почата: план-PR зливається планом (§6.6), робота видається після
 
 ## команда map (§10.7)

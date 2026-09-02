@@ -502,7 +502,9 @@ fn untrusted_not_run() {
         "shim/evilcmd",
         &format!("#!/bin/sh\necho called >> {}\n", log.display()),
     );
-    let mut perms = fs::metadata(dir.join("shim/evilcmd")).unwrap().permissions();
+    let mut perms = fs::metadata(dir.join("shim/evilcmd"))
+        .unwrap()
+        .permissions();
     perms.set_mode(0o755);
     fs::set_permissions(dir.join("shim/evilcmd"), perms).unwrap();
     write(

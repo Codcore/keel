@@ -314,6 +314,11 @@ close-needs-adapter = the closure court needs the cargo adapter named in keel.to
 close-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
 close-blockers = blockers of this branch's wave { $wave }: { $count } -- a full wave does not merge unproven (§6.5, §9.9)
 close-no-blockers = no blockers: this branch is named as no unclosed wave -- the states above inform
+close-verify-count = verify commands judged: { $count }
+close-verify-passed = verify "{ $command }" of { $contract } — passed
+close-verify-failed = verify "{ $command }" of { $contract } — FAILED ({ $words }) — a broken foreign promise does not merge (§2.8)
+close-verify-untrusted = verify "{ $command }" of { $contract } — did not run: not trusted (§7.16); check holds that verdict
+close-verify-blockers = broken foreign promises: { $count } — the exit is red
 close-plan-own = the wave of this branch is approved, not started -- a plan PR merges as a plan (§6.6); the work is issued after
 
 ## map command (§10.7)
