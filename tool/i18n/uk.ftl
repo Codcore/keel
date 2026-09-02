@@ -174,6 +174,7 @@ holding-why-no-adapter = адаптер у keel.toml не названий
 holding-why-deep = шлях module глибший, ніж порівнює це покоління
 holding-why-no-file = файл модуля в crate не знайдено
 check-holding-plan = план-гілка: суд форми не біжить (§8.3) — exports ростуть наперед коду (§4.9)
+check-holding-window = { $contract } — форма не судиться: обіцянку ростить затверджена, ще не почата хвиля { $wave } (§6.5); перший тег хвилі поверне суд
 
 # -- review: пакет рецензента (§9.9) --------------------------------
 review-title = keel review — пакет рецензента (§9.9)

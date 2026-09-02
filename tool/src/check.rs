@@ -312,7 +312,22 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let holding_status = if plan_branch {
         t("check-holding-plan")
     } else {
-        for (place, reason, instead) in holding::court(root, config, &scan.contracts) {
+        // The approved-not-started window (§6.5; 0010 review R-1b):
+        // a contract grown ahead of the code by a lawful plan is not
+        // judged for form while no holding wave has started -- and
+        // only when the tags were actually read: distrust of unread
+        // tags never widens the window.
+        let window = match &found_tags {
+            Some(Ok(found)) => holding::plan_window(&scan.waves, found, &scan.contracts),
+            _ => Vec::new(),
+        };
+        let judged_contracts: Vec<docs::Contract> = scan
+            .contracts
+            .iter()
+            .filter(|c| !window.iter().any(|(slug, _)| slug == &c.slug))
+            .cloned()
+            .collect();
+        for (place, reason, instead) in holding::court(root, config, &judged_contracts) {
             rows.push((
                 place,
                 Some(format!(
@@ -321,11 +336,18 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 )),
             ));
         }
-        let (signatures_checked, uncompared) = holding::survey(root, config, &scan.contracts);
+        let (signatures_checked, uncompared) = holding::survey(root, config, &judged_contracts);
         let mut status = ta("check-holding-count", targs!("count" => signatures_checked));
         for line in uncompared {
             status.push('\n');
             status.push_str(&line);
+        }
+        for (contract, wave) in &window {
+            status.push('\n');
+            status.push_str(&ta(
+                "check-holding-window",
+                targs!("contract" => contract.clone(), "wave" => wave.clone()),
+            ));
         }
         status
     };

@@ -7,8 +7,9 @@
 
 use crate::adapter;
 use crate::config::Config;
-use crate::docs::Contract;
+use crate::docs::{Contract, Wave};
 use crate::i18n::{t, ta};
+use crate::tags::TestTag;
 use crate::targs;
 use std::path::Path;
 
@@ -95,6 +96,56 @@ pub(crate) fn survey(root: &Path, config: &Config, contracts: &[Contract]) -> (u
         ));
     }
     (checked, uncompared)
+}
+
+/// The approved-not-started window (§6.5; 0010 review R-1b healed
+/// per §6.7): a contract held only by waves with no tag on any live
+/// scenario was grown ahead of the code by a lawful plan -- its form
+/// is not judged, and the skip is said aloud by name; any tag of a
+/// holding wave brings the court back. Pairs of (contract, wave).
+pub(crate) fn plan_window(
+    waves: &[Wave],
+    tags: &[TestTag],
+    contracts: &[Contract],
+) -> Vec<(String, String)> {
+    use std::collections::BTreeMap;
+    let mut holders: BTreeMap<&str, Vec<&Wave>> = BTreeMap::new();
+    for wave in waves {
+        let mut slugs: Vec<&str> = Vec::new();
+        for (_, scenario) in &wave.scenarios {
+            if scenario.withdrawn.is_none()
+                && let Some(reference) = &scenario.proves
+            {
+                slugs.push(&reference.slug);
+            }
+        }
+        for (_, transform) in &wave.transforms {
+            for reference in &transform.contracts {
+                slugs.push(&reference.slug);
+            }
+        }
+        for slug in slugs {
+            holders.entry(slug).or_default().push(wave);
+        }
+    }
+    let started = |wave: &Wave| {
+        wave.scenarios.iter().any(|(name, scenario)| {
+            scenario.withdrawn.is_none() && tags.iter().any(|t| t.scenario == *name)
+        })
+    };
+    let mut out = Vec::new();
+    for contract in contracts {
+        if judged(contract).is_none() {
+            continue;
+        }
+        let Some(held) = holders.get(contract.slug.as_str()) else {
+            continue;
+        };
+        if !held.is_empty() && held.iter().all(|w| !started(w)) {
+            out.push((contract.slug.clone(), held[0].slug.clone()));
+        }
+    }
+    out
 }
 
 /// A live contract with module + exports -- the only kind this

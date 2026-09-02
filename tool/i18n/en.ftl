@@ -174,6 +174,7 @@ holding-why-no-adapter = no adapter named in keel.toml
 holding-why-deep = the module path is deeper than this generation compares
 holding-why-no-file = the module's file was not found in the crate
 check-holding-plan = a plan branch: the form court does not run (§8.3) — exports may grow ahead of the code (§4.9)
+check-holding-window = { $contract } — the form is not judged: the promise is grown by the approved, not started wave { $wave } (§6.5); the wave's first tag brings the court back
 
 # -- review: the reviewer's package (§9.9) --------------------------
 review-title = keel review — the reviewer's package (§9.9)
