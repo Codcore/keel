@@ -210,7 +210,9 @@ fn vanished_tag_is_red() {
     write(
         &dir,
         "tests/t_test.rs",
-        &format!("/// proves: s@{s_rev}\n#[test]\nfn holds_s() {{}}\n\n/// proves: gone@ffffff\n#[test]\nfn held_gone() {{}}\n"),
+        &format!(
+            "/// proves: s@{s_rev}\n#[test]\nfn holds_s() {{}}\n\n/// proves: gone@ffffff\n#[test]\nfn held_gone() {{}}\n"
+        ),
     );
     git(&dir, &["init", "-q", "-b", "main"]);
     git(&dir, &["add", "."]);

@@ -633,8 +633,27 @@ fn old_revision_legal_when_historic() {
 
     // The contract's old text is committed, a wave records it, then
     // the contract moves on -- the old revision is true in history.
+    // Since the 0006 narrowing the blessing belongs to closed waves,
+    // so the fixture is one: a matching tag, a review next to the
+    // wave, the cargo adapter on (fixture adaptation, the scenario's
+    // own words unchanged).
     let dir = sandbox("historic");
     git(&dir, &["init", "-q", "-b", "main"]);
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(
+        &dir,
+        "tests/s_test.rs",
+        &format!(
+            "/// proves: s@{}\n#[test]\nfn holds_s() {{}}\n",
+            keel::rev::text_rev("body\n")
+        ),
+    );
+    write(&dir, "keel/reviews/0007-w.md", "# Рецензія\n\nok\n");
     write(
         &dir,
         "keel/contracts/anchor.md",
@@ -817,7 +836,10 @@ fn open_wave_stale_is_red_again() {
         "---\nmodule: A\nexports: [\"one()\", \"two()\"]\n---\n\nnew words\n",
     );
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "waves and the newer contract"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "waves and the newer contract"],
+    );
 
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(
@@ -833,7 +855,7 @@ fn open_wave_stale_is_red_again() {
         "the closed wave's historic reference named by name (R-9):\n{out}"
     );
     assert!(
-        !out.contains(&format!("0016-done: записано")) && !out.contains("0016-done.md — хвиля"),
+        !out.contains("0016-done: записано") && !out.contains("0016-done.md — хвиля"),
         "the closed wave carries no finding:\n{out}"
     );
 }

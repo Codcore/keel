@@ -136,6 +136,8 @@ tags-dangling = the tag proves: { $scenario }@{ $rev } has no test function righ
 tags-dangling-instead = put the tag on its test (§5.5); a record that holds nothing is worse than none
 tags-bad-rev = the tag on "{ $scenario }" holds the record "{ $rev }" -- a revision is written as 4-6 hex characters (§5.2)
 tags-bad-rev-instead = recompute with keel rev and record its prefix; a crooked record holds nothing
+tags-vanished = the tag of scenario "{ $scenario }" was at the fork point and is gone at HEAD -- the scenario is alive
+tags-vanished-instead = bring the test back or withdraw the scenario deliberately (§7.15, §2.12); old promises are not disarmed in silence
 
 ## adapter module
 adapter-no-crate = no Cargo.toml at the root and none exactly one level down
@@ -185,7 +187,8 @@ check-config-present = config: keel.toml (lang = { $lang })
 check-config-absent = no keel.toml -- defaults in effect (lang = en); a default does not pass itself off as read
 check-config-lang-default = config: keel.toml (lang not set -- default en in effect; a default does not pass itself off as read)
 check-refs-count = contract references checked: { $count }
-check-refs-historic = old revisions, true in the file's history: { $count } (§5.6)
+check-refs-historic = old revisions, true in the file's history, held by closed waves: { $count } (§5.6)
+check-refs-historic-item = { $wave }: { $contract }@{ $recorded } -- old, true in history (§5.6)
 check-refs-shallow = history is truncated (shallow clone) -- old revisions cannot be verified, and are not judged
 check-refs-no-history = no git history here -- old revisions cannot be verified, and are not judged (§5.6)
 check-tags-count = test tags checked: { $count }
@@ -200,8 +203,8 @@ check-scope-skipped-no-git = scope not compared: git serves no branch for this r
 check-scope-skipped-refused = scope not compared: git refused mid-way -- its refusal stands among the findings
 check-header-reads = header reads
 check-no-documents = no documents yet
-check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5)
-check-unchecked = not yet checked: tag deltas (§7.15), closure (§6.5), a doubled answer per cut (§10.3), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
+check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); closure is judged by keel close (§6.5)
+check-unchecked = not yet checked: a doubled answer per cut (§10.3), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
 check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
 check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
 check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }
@@ -215,7 +218,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 5 -- the closure of waves (§6.5)
+check-next-rung = next step: rung 6 -- the quality map (§10.7)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)

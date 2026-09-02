@@ -23,6 +23,17 @@ pub fn scan(files: &[PathBuf]) -> Result<Vec<TestTag>, Refusal> {
     let mut out = Vec::new();
     for file in files {
         let text = read(file)?;
+        out.extend(scan_text(file, &text)?);
+    }
+    Ok(out)
+}
+
+/// The same parse from a ready string -- for texts that do not lie
+/// on disk, such as a test file at the fork point read out of git
+/// (§7.15).
+pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
+    let mut out = Vec::new();
+    {
         let mut pending: Option<(String, String)> = None;
         for line in text.lines() {
             let trimmed = line.trim();
@@ -35,7 +46,7 @@ pub fn scan(files: &[PathBuf]) -> Result<Vec<TestTag>, Refusal> {
                 // dressed-up staleness (review R-8).
                 if !(4..=6).contains(&rev.len()) || !rev.chars().all(|c| c.is_ascii_hexdigit()) {
                     return Err(Refusal {
-                        file: file.clone(),
+                        file: file.to_path_buf(),
                         reason: ta("tags-bad-rev", targs!("scenario" => scenario, "rev" => rev)),
                         instead: t("tags-bad-rev-instead"),
                     });
@@ -46,7 +57,7 @@ pub fn scan(files: &[PathBuf]) -> Result<Vec<TestTag>, Refusal> {
             if let Some(name) = fn_name(trimmed) {
                 if let Some((scenario, rev)) = pending.take() {
                     out.push(TestTag {
-                        file: file.clone(),
+                        file: file.to_path_buf(),
                         test: name,
                         scenario,
                         rev,

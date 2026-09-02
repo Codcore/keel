@@ -56,12 +56,25 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // truncated history gets a word, not a judgement.
     let shallow = is_shallow(root);
     let has_history = has_git(root);
+    // Tags are read once and serve three floors: the tag floor, the
+    // §7.15 delta, and the §5.6 narrowing through structural closure.
+    let found_tags: Option<Result<Vec<tags::TestTag>, Refusal>> = (config.adapter.as_deref()
+        == Some("cargo"))
+    .then(|| adapter::test_files(root).and_then(|files| tags::scan(&files)));
     let mut ref_rows: std::collections::BTreeSet<(String, String)> = Default::default();
     let mut refs_checked: u64 = 0;
     let mut refs_historic: u64 = 0;
     let mut refs_unjudged: u64 = 0;
     let mut refs_no_history: u64 = 0;
+    let mut historic_items: Vec<String> = Vec::new();
     for wave in &scan.waves {
+        // The history blessing belongs to the structurally closed
+        // wave only (§5.6 narrowed; review 0005, R-9): an open wave
+        // updates its references deliberately (§5.1).
+        let closed = match &found_tags {
+            Some(Ok(found)) => crate::close::structural(root, wave, found).unwrap_or(false),
+            _ => false,
+        };
         let wave_path = format!("keel/waves/{}.md", wave.slug);
         // A withdrawn scenario is outside judgement (§2.12): its
         // proves is not followed -- a guard that lies gets deleted.
@@ -106,8 +119,12 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                         } else if shallow {
                             refs_unjudged += 1;
                             None
-                        } else if revision_in_history(root, &relative, &reference.rev) {
+                        } else if closed && revision_in_history(root, &relative, &reference.rev) {
                             refs_historic += 1;
+                            historic_items.push(ta(
+                                "check-refs-historic-item",
+                                targs!("wave" => wave.slug.clone(), "contract" => reference.slug.clone(), "recorded" => reference.rev.clone()),
+                            ));
                             None
                         } else {
                             Some((
@@ -214,33 +231,40 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // cargo adapter is served on this rung -- anything else is a
     // skip said aloud, never a silent green.
     let mut tags_checked: u64 = 0;
-    let tags_status = match config.adapter.as_deref() {
-        None => t("check-tags-skipped-no-adapter"),
-        Some("cargo") => match tag_rows(root, &scan.waves, &mut tags_checked) {
-            Ok(tag_findings) => {
-                for (path, text) in tag_findings {
-                    rows.push((path, Some(text)));
+    let judged = match (config.adapter.as_deref(), &found_tags) {
+        (None, _) => Err(t("check-tags-skipped-no-adapter")),
+        (Some("cargo"), Some(Ok(found))) => {
+            match tag_rows(root, &scan.waves, found, &mut tags_checked) {
+                Ok(tag_findings) => Ok((found, tag_findings)),
+                Err(refusal) => {
+                    push_refusal_row(&mut rows, root, &refusal);
+                    Err(t("check-tags-skipped-refused"))
                 }
-                ta("check-tags-count", targs!("count" => tags_checked))
             }
-            Err(refusal) => {
-                let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
-                rows.push((
-                    shown.display().to_string(),
-                    Some(format!(
-                        "{}\n           {}: {}",
-                        refusal.reason,
-                        t("word-instead"),
-                        refusal.instead
-                    )),
-                ));
-                t("check-tags-skipped-refused")
-            }
-        },
-        Some(other) => ta(
+        }
+        (Some("cargo"), Some(Err(refusal))) => {
+            push_refusal_row(&mut rows, root, refusal);
+            Err(t("check-tags-skipped-refused"))
+        }
+        (Some(other), _) => Err(ta(
             "check-tags-skipped-adapter",
             targs!("name" => other.to_string()),
-        ),
+        )),
+    };
+    let tags_status = match judged {
+        Ok((found, tag_findings)) => {
+            for (path, text) in tag_findings {
+                rows.push((path, Some(text)));
+            }
+            // The §7.15 delta: a tag present at the fork point and
+            // gone at HEAD, its scenario alive, is a finding where
+            // the disarming happened.
+            for (path, text) in vanished_rows(root, &scan.waves, found) {
+                rows.push((path, Some(text)));
+            }
+            ta("check-tags-count", targs!("count" => tags_checked))
+        }
+        Err(status) => status,
     };
     rows.sort();
 
@@ -293,6 +317,9 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             ta("check-refs-historic", targs!("count" => refs_historic))
         )
         .unwrap();
+        for item in &historic_items {
+            writeln!(report, "  {item}").unwrap();
+        }
     }
     if refs_unjudged > 0 {
         writeln!(report, "{}", t("check-refs-shallow")).unwrap();
@@ -325,6 +352,20 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     Ok(Outcome { report, findings })
 }
 
+/// A refusal rendered as a report row, the school of every floor.
+fn push_refusal_row(rows: &mut Vec<(String, Option<String>)>, root: &Path, refusal: &Refusal) {
+    let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
+    rows.push((
+        shown.display().to_string(),
+        Some(format!(
+            "{}\n           {}: {}",
+            refusal.reason,
+            t("word-instead"),
+            refusal.instead
+        )),
+    ));
+}
+
 /// The tag floor's findings: stale tags and orphan tags, judged
 /// against every wave's scenario revisions; matching tags counted.
 /// A scenario slug may live in several waves -- any matching
@@ -332,11 +373,9 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
 fn tag_rows(
     root: &Path,
     waves: &[docs::Wave],
+    found: &[tags::TestTag],
     checked: &mut u64,
 ) -> Result<Vec<(String, String)>, Refusal> {
-    let files = adapter::test_files(root)?;
-    let found = tags::scan(&files)?;
-
     let mut revs: std::collections::BTreeMap<String, Vec<String>> = Default::default();
     let mut withdrawn: std::collections::BTreeSet<String> = Default::default();
     for wave in waves {
@@ -351,7 +390,7 @@ fn tag_rows(
     }
 
     let mut out = Vec::new();
-    for tag in &found {
+    for tag in found {
         if withdrawn.contains(&tag.scenario) {
             continue;
         }
@@ -387,6 +426,94 @@ fn tag_rows(
         }
     }
     Ok(out)
+}
+
+/// The §7.15 delta: scenarios whose tag lived at the fork point and
+/// is gone at HEAD while the scenario is alive. Old files that no
+/// longer parse cannot testify and are skipped -- archaeology may
+/// stay silent, HEAD's own strictness already stands; the skip can
+/// hide a vanished tag, never paint a false finding.
+fn vanished_rows(
+    root: &Path,
+    waves: &[docs::Wave],
+    found: &[tags::TestTag],
+) -> Vec<(String, String)> {
+    let Ok((base, _)) = scope::compare_base(root) else {
+        return Vec::new();
+    };
+    let Ok(crate_dir) = adapter::crate_root(root) else {
+        return Vec::new();
+    };
+    let tests_rel = crate_dir
+        .strip_prefix(root)
+        .map(|p| p.join("tests"))
+        .unwrap_or_else(|_| std::path::PathBuf::from("tests"));
+    let listing = git_out(
+        root,
+        &[
+            "ls-tree",
+            "-r",
+            "--name-only",
+            &base,
+            "--",
+            &tests_rel.display().to_string(),
+        ],
+    )
+    .unwrap_or_default();
+
+    let head_scenarios: std::collections::BTreeSet<&str> =
+        found.iter().map(|t| t.scenario.as_str()).collect();
+    let withdrawn: std::collections::BTreeSet<&str> = waves
+        .iter()
+        .flat_map(|w| w.scenarios.iter())
+        .filter(|(_, sc)| sc.withdrawn.is_some())
+        .map(|(n, _)| n.as_str())
+        .collect();
+
+    let mut out = Vec::new();
+    let mut named: std::collections::BTreeSet<String> = Default::default();
+    for rel in listing.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        let Some(text) = git_out(root, &["show", &format!("{base}:{rel}")]) else {
+            continue;
+        };
+        let Ok(base_tags) = tags::scan_text(Path::new(rel), &text) else {
+            continue;
+        };
+        for tag in base_tags {
+            if head_scenarios.contains(tag.scenario.as_str())
+                || withdrawn.contains(tag.scenario.as_str())
+                || !named.insert(tag.scenario.clone())
+            {
+                continue;
+            }
+            out.push((
+                rel.to_string(),
+                format!(
+                    "{}\n           {}: {}",
+                    ta("tags-vanished", targs!("scenario" => tag.scenario.clone()),),
+                    t("word-instead"),
+                    t("tags-vanished-instead")
+                ),
+            ));
+        }
+    }
+    out
+}
+
+/// One quiet git call for the delta floor: success gives stdout,
+/// anything else gives nothing -- the callers say their own words.
+fn git_out(root: &Path, args: &[&str]) -> Option<String> {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["-c", "core.quotePath=false"])
+        .args(args)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
 /// Whether history can testify here at all: git serves the root and
