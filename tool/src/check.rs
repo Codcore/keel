@@ -153,9 +153,25 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         rows.push((path, Some(text)));
     }
 
-    // The graph floor (chapter 3): in-wave and cross-wave links.
+    // The graph floor (chapter 3): in-wave and cross-wave links --
+    // and §7.7's other half beside it: the header and the body agree
+    // both ways, an orphan section does not live in silence.
     for wave in &scan.waves {
         let wave_path = format!("keel/waves/{}.md", wave.slug);
+        match rev::body_court(&root.join(&wave_path), wave) {
+            Ok(findings) => {
+                for (reason, instead) in findings {
+                    rows.push((
+                        wave_path.clone(),
+                        Some(format!(
+                            "{reason}\n           {}: {instead}",
+                            t("word-instead")
+                        )),
+                    ));
+                }
+            }
+            Err(refusal) => push_refusal_row(&mut rows, root, &refusal),
+        }
         for (reason, instead) in graph::wave_findings(wave) {
             rows.push((
                 wave_path.clone(),
@@ -420,7 +436,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         holding_status,
         scope_status,
         t("check-checked"),
-        t("check-unchecked"),
+        t("check-borders"),
         ta(
             "check-summary",
             targs!("docs" => documents as u64, "refusals" => findings as u64)

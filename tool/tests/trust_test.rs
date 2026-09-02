@@ -47,7 +47,7 @@ fn quiet_wave() -> String {
             block.push_str(&format!("  {cut}: \"n/a for the trust sandbox\"\n"));
         }
     }
-    block.push_str("---\n\n## scenario: s\n\nbody of s\n");
+    block.push_str("---\n\n## scenario: s\n\nbody of s\n\n## transform: t\n\nwork\n");
     block
 }
 

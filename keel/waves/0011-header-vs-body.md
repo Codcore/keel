@@ -20,6 +20,9 @@ transforms:
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/body_test.rs
+      - tool/tests/check_test.rs
+      - tool/tests/scope_test.rs
+      - tool/tests/trust_test.rs
   form-window:
     implements:
       - plan-window-forgiven
@@ -139,3 +142,8 @@ decisions:
 0006; секції інших видів, ніж scenario і transform, цьому поколінню
 невідомі — невідомий заголовок «## <слово>:» суд тіла не судить
 (Why і вільна проза лишаються вільними).
+
+## transform: journal
+
+Журнальні записи bootstrap їдуть своєю хвилею (школа 0009 R-1):
+документ памʼяті лупа — docs/uk/V2-PROCESS.md (§9.10).
