@@ -201,3 +201,149 @@ fn next_hands_one_step() {
         "the drifted revision is a step with both revisions by name (§5.5):\n{out}"
     );
 }
+
+/// proves: next-hands-one-step@82fe98 -- the second birth out of
+/// review 0012 (R-1/R-3/R-4/R-5/R-7/R-8): a namesake's foreign proof
+/// is never "drifted" -- the step is this wave's own test, no tag
+/// rewriting advised; a header transform whose body section is
+/// missing is said by name in the package, not handed out silently
+/// incomplete; a CRLF wave still hands the body verbatim; a light
+/// wave is not driven through the review §9.9 never asked of it; an
+/// empty test-run list is a word, not a bare label; and `one new in`
+/// is satisfied by exactly one file, not by any.
+#[test]
+fn next_hands_one_step_second_birth() {
+    // R-1: the namesake. The old wave's tag legally proves the old
+    // wave; the plan's step is its own birth, never a tag rewrite.
+    let dir = project("namesake", "0201-new");
+    write(
+        &dir,
+        "keel/waves/0200-old.md",
+        "---\nscenarios:\n  s: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n",
+    );
+    let old_rev = keel::rev::text_rev("body of s\n");
+    write(
+        &dir,
+        "tests/s_test.rs",
+        &format!("/// proves: s@{old_rev}\n#[test]\nfn holds_s() {{}}\n"),
+    );
+    write(&dir, "keel/reviews/0200-old.md", "# Рецензія\n\nok\n");
+    write(
+        &dir,
+        "keel/waves/0201-new.md",
+        "---\ndepends_on: [0200-old]\nscenarios:\n  s: {covers: [functional.completeness]}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\na different body of s\n\n## transform: t\n\nthe work of t\n",
+    );
+    commit_all(&dir);
+    let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("write the test") && out.contains("red: s"),
+        "the namesake plan's step is its own birth (R-1, §5.6):\n{out}"
+    );
+    assert!(
+        !out.contains("rewrite the tag") && !out.contains("drifted"),
+        "no advice to rewrite the closed wave's proof (R-1):\n{out}"
+    );
+
+    // R-3: a transform declared in the header with no body section
+    // is named in the package, never silently incomplete.
+    let dir = project("headless", "0300-h");
+    write(
+        &dir,
+        "keel/waves/0300-h.md",
+        "---\nscenarios:\n  s: {covers: [functional.correctness]}\ntransforms:\n  headless:\n    implements: [s]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n",
+    );
+    let s_rev = keel::rev::text_rev("body of s\n");
+    write(
+        &dir,
+        "tests/s_test.rs",
+        &format!("/// proves: s@{s_rev}\n#[test]\nfn holds_s() {{}}\n"),
+    );
+    commit_all(&dir);
+    let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("transform \"headless\"") && out.contains("has no body section"),
+        "the missing section is a word in the package, not silence (R-3, §7.7):\n{out}"
+    );
+
+    // R-4: a CRLF wave file still hands the scenario body verbatim
+    // under the verbatim label (0009 R-3 school).
+    let dir = project("crlf", "0400-c");
+    write(
+        &dir,
+        "keel/waves/0400-c.md",
+        "---\r\nscenarios:\r\n  s: {covers: [functional.correctness]}\r\ntransforms:\r\n  t:\r\n    implements: [s]\r\n    files: [src/lib.rs]\r\n---\r\n\r\n## Why\r\n\r\nwhy words\r\n\r\n## scenario: s\r\n\r\nbody of s rides crlf\r\n",
+    );
+    commit_all(&dir);
+    let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("body of s rides crlf"),
+        "the verbatim label carries the body even over CRLF (R-4):\n{out}"
+    );
+
+    // R-5: a light wave is not driven through the review -- §9.9
+    // asks the report of a full wave only; after its chore the step
+    // is the PR.
+    let dir = project("light", "0500-l");
+    write(
+        &dir,
+        "keel/waves/0500-l.md",
+        "---\ntransforms:\n  tidy:\n    chore: \"a tidy-up without a promise\"\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n",
+    );
+    commit_all(&dir);
+    write(&dir, "src/lib.rs", "pub fn grown() {}\n");
+    commit_all(&dir);
+    let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("time for the PR") && !out.contains("time for the review"),
+        "a light wave heads to its one PR, no review demanded (R-5, §6.8):\n{out}"
+    );
+
+    // R-7: a transform whose only scenario is withdrawn -- the run
+    // list is a word, never a bare label over nothing.
+    let dir = project("norun", "0600-w");
+    write(
+        &dir,
+        "keel/waves/0600-w.md",
+        "---\nscenarios:\n  s:\n    covers: [functional.correctness]\n    withdrawn: \"retired in review\"\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n\n## transform: t\n\nthe work of t\n",
+    );
+    commit_all(&dir);
+    let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("tests of its scenarios do not exist"),
+        "the empty run list is a word, not a bare label (R-7):\n{out}"
+    );
+
+    // R-8: `one new in` promises exactly one file -- two added files
+    // do not satisfy it, the transform is still the step.
+    let dir = project("onenew", "0700-n");
+    write(
+        &dir,
+        "keel/waves/0700-n.md",
+        "---\nscenarios:\n  s: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [s]\n    files: [one new in migrations/]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n\n## transform: t\n\nthe work of t\n",
+    );
+    let s_rev = keel::rev::text_rev("body of s\n");
+    write(
+        &dir,
+        "tests/s_test.rs",
+        &format!("/// proves: s@{s_rev}\n#[test]\nfn holds_s() {{}}\n"),
+    );
+    commit_all(&dir);
+    write(&dir, "migrations/one.sql", "select 1;\n");
+    write(&dir, "migrations/two.sql", "select 2;\n");
+    commit_all(&dir);
+    let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("transform \"t\""),
+        "two new files do not satisfy the promise of one (R-8, §4.1):\n{out}"
+    );
+    assert!(
+        !out.contains("time for the review"),
+        "the wave is not called assembled over a red scope (R-8):\n{out}"
+    );
+}
