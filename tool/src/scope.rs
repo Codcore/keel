@@ -38,13 +38,16 @@ pub fn branch_wave(root: &Path, waves: &[Wave]) -> Option<String> {
         .map(|w| w.slug.clone())
 }
 
-/// The comparison base: the merge-base with main, or -- where main
-/// never existed -- the first commit of the branch. Returns the sha
-/// and whether main gave it, so the report can say what it took (the
-/// wave's own caveat).
+/// The comparison base: the merge-base with main -- the local one,
+/// or origin/main on a fresh clone that has no local main -- or,
+/// where main never existed at all, the first commit of the branch.
+/// Returns the sha and whether main gave it, so the report can say
+/// what it took (the wave's own caveat).
 pub fn compare_base(root: &Path) -> Result<(String, bool), Refusal> {
-    if let Ok(sha) = git_line(root, &["merge-base", "main", "HEAD"]) {
-        return Ok((sha, true));
+    for main in ["main", "origin/main"] {
+        if let Ok(sha) = git_line(root, &["merge-base", main, "HEAD"]) {
+            return Ok((sha, true));
+        }
     }
     let roots = git_line(root, &["rev-list", "--max-parents=0", "HEAD"])?;
     let sha = roots.lines().last().unwrap_or("").trim().to_string();
@@ -143,9 +146,12 @@ fn git_line(root: &Path, args: &[&str]) -> Result<String, Refusal> {
         reason: ta("scope-git-failed", targs!("error" => error)),
         instead: t("scope-git-failed-instead"),
     };
+    // quotePath off: a Ukrainian filename compares as itself, not as
+    // git's octal-escaped quotation of it.
     let out = Command::new("git")
         .arg("-C")
         .arg(root)
+        .args(["-c", "core.quotePath=false"])
         .args(args)
         .output()
         .map_err(|e| refuse(e.to_string()))?;
