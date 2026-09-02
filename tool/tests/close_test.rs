@@ -165,3 +165,51 @@ fn wave_closure_judged() {
         "the states still told:\n{out}"
     );
 }
+
+/// proves: closure-needs-review-file@d1cb7a -- holds §9.9 as
+/// mechanics: a full wave with everything proven but no review file
+/// next to it is not closed; with the report it is; a light chore
+/// wave closes by the fact of merge and needs no report (§6.5).
+#[test]
+fn closure_needs_review_file() {
+    let dir = project("reviewgate", "just-work");
+    write(&dir, "keel/waves/0010-full.md", &wave_text("a"));
+    let a_rev = keel::rev::text_rev("body of a\n");
+    write(
+        &dir,
+        "tests/a_test.rs",
+        &format!("/// proves: a@{a_rev}\n#[test]\nfn holds_a() {{}}\n"),
+    );
+    // A light chore wave, no report anywhere near it.
+    write(
+        &dir,
+        "keel/waves/0013-tidy.md",
+        &format!(
+            "---\ntransforms:\n  tidy: {{chore: \"lad\", files: [README.md]}}\n{}---\n",
+            all_decided_except(&[])
+        ),
+    );
+    commit_all(&dir);
+
+    // Everything proven, yet the review file is missing.
+    let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "no blocker off the wave branch:\n{out}");
+    assert!(
+        out.contains("in progress") && out.contains("review"),
+        "a full wave without its review is not closed (§9.9):\n{out}"
+    );
+    assert!(
+        out.contains("0013-tidy: closed"),
+        "a chore wave closes by the fact of merge:\n{out}"
+    );
+
+    // The report lands next to the wave -- closed.
+    write(&dir, "keel/reviews/0010-full.md", "# Рецензія\n\nok\n");
+    let (out, err, _code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("0010-full: closed"),
+        "with the report the wave closes:\n{out}"
+    );
+}
