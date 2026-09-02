@@ -39,7 +39,7 @@ fn refuse(file: &Path, reason: String, instead: &str) -> Refusal {
     }
 }
 
-/// Посилання на контракт із редакцією: `tool-docs@2ab9a9` (§5.1–§5.2).
+/// Посилання на контракт із редакцією: `session-run@7c40de` (§5.1–§5.2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContractRef {
     pub slug: String,
@@ -111,17 +111,19 @@ pub struct Scan {
 
 /// Читає файл хвилі: сувора шапка, повний словник методики.
 pub fn read_wave(path: &Path) -> Result<Wave, Refusal> {
+    let slug = named_slug(path)?;
     let (yaml, off) = load_header(path)?;
     let root = parse_header(&yaml, off, path)?;
-    wave_from(root, slug_of(path), path)
+    wave_from(root, slug, path)
 }
 
 /// Читає файл контракту: наша обіцянка (module + exports, §2.7) або
 /// чужа (verify, §2.8).
 pub fn read_contract(path: &Path) -> Result<Contract, Refusal> {
+    let slug = named_slug(path)?;
     let (yaml, off) = load_header(path)?;
     let root = parse_header(&yaml, off, path)?;
-    contract_from(root, slug_of(path), path)
+    contract_from(root, slug, path)
 }
 
 /// Обходить `keel/waves/` і `keel/contracts/` під коренем. Помилка
@@ -152,10 +154,20 @@ pub fn scan(root: &Path) -> Result<Scan, Refusal> {
     Ok(out)
 }
 
-/// Імʼя документа — імʼя файлу без розширення (§1.4).
-fn slug_of(path: &Path) -> String {
-    path.file_stem()
-        .map_or_else(String::new, |s| s.to_string_lossy().into_owned())
+/// Імʼя документа — імʼя файлу без розширення (§1.4). Воно стає
+/// кодом — імʼям гілки (§8.2), тож мусить бути слагом (§1.2).
+fn named_slug(path: &Path) -> Result<String, Refusal> {
+    let slug = path
+        .file_stem()
+        .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
+    if !slug_ok(&slug) {
+        return Err(refuse(
+            path,
+            format!("імʼя файлу \"{slug}\" — не слаг"),
+            "імʼя документа стає гілкою і тегом (§1.2, §8.2): лише малі латинські літери, цифри і дефіс",
+        ));
+    }
+    Ok(slug)
 }
 
 /// Список `.md` у теці, відсортований за іменем. Тека, якої нема, і
@@ -177,7 +189,17 @@ fn doc_files(dir: &Path, what: &str, refusals: &mut Vec<Refusal>) -> Vec<PathBuf
     for entry in entries.flatten() {
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with('.') || path.is_dir() {
+        if name.starts_with('.') {
+            // Шум операційної системи (.DS_Store, .gitkeep) — свідомо
+            // поза судом.
+            continue;
+        }
+        if path.is_dir() {
+            refusals.push(refuse(
+                &path,
+                format!("тека серед документів «{what}» — документи живуть пласко"),
+                "перенеси документи з неї прямо в цю теку і прибери її",
+            ));
             continue;
         }
         if path.extension().is_some_and(|e| e == "md") {
@@ -199,13 +221,28 @@ fn doc_files(dir: &Path, what: &str, refusals: &mut Vec<Refusal>) -> Vec<PathBuf
 /// починається з другого рядка файлу).
 fn load_header(path: &Path) -> Result<(String, usize), Refusal> {
     let text = std::fs::read_to_string(path).map_err(|e| {
-        refuse(
-            path,
-            format!("файл не читається: {e}"),
-            "перевір шлях і права доступу",
-        )
+        if e.kind() == std::io::ErrorKind::InvalidData {
+            refuse(
+                path,
+                "файл не в UTF-8 — методика пише документи в UTF-8".into(),
+                "перезбережи файл у кодуванні UTF-8",
+            )
+        } else {
+            refuse(
+                path,
+                format!("файл не читається: {e}"),
+                "перевір шлях і права доступу",
+            )
+        }
     })?;
     let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
+    if text.trim().is_empty() {
+        return Err(refuse(
+            path,
+            "шапки нема: файл порожній".into(),
+            "почни файл шапкою — рядок ---, поля, знову --- (глава 2)",
+        ));
+    }
     let mut pos = 0usize;
     let mut line_no = 0usize;
     let mut body_start = 0usize;
@@ -333,7 +370,14 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
                     "методика не пише якорів — повтори значення словами",
                 ));
             }
-            Event::Scalar(value, _, _, tag) => {
+            Event::Scalar(value, _, anchor, tag) => {
+                if anchor != 0 {
+                    return Err(refuse(
+                        file,
+                        format!("якір YAML у шапці (рядок {line})"),
+                        "методика не пише якорів — повтори значення словами",
+                    ));
+                }
                 if tag.is_some() {
                     return Err(refuse(
                         file,
@@ -348,7 +392,14 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
                     file,
                 )?;
             }
-            Event::SequenceStart(_, tag) => {
+            Event::SequenceStart(anchor, tag) => {
+                if anchor != 0 {
+                    return Err(refuse(
+                        file,
+                        format!("якір YAML у шапці (рядок {line})"),
+                        "методика не пише якорів — повтори значення словами",
+                    ));
+                }
                 if tag.is_some() {
                     return Err(refuse(
                         file,
@@ -364,7 +415,14 @@ fn parse_header(src: &str, off: usize, file: &Path) -> Result<Val, Refusal> {
                 }
                 _ => unreachable!("парсер закриває лише те, що відкрив"),
             },
-            Event::MappingStart(_, tag) => {
+            Event::MappingStart(anchor, tag) => {
+                if anchor != 0 {
+                    return Err(refuse(
+                        file,
+                        format!("якір YAML у шапці (рядок {line})"),
+                        "методика не пише якорів — повтори значення словами",
+                    ));
+                }
                 if tag.is_some() {
                     return Err(refuse(
                         file,
@@ -595,6 +653,14 @@ fn scenario_from(v: Val, name: &str, file: &Path) -> Result<Scenario, Refusal> {
         "proves, covers, withdrawn, superseded_by",
         file,
     )?;
+
+    if sc.proves.is_none() && sc.covers.is_empty() && sc.withdrawn.is_none() {
+        return Err(refuse(
+            file,
+            format!("{what} ні на що не спирається: ні proves, ні covers"),
+            "дай опору — контракт (proves) або розріз якості (covers), §3.3; знятий сценарій познач withdrawn",
+        ));
+    }
     Ok(sc)
 }
 

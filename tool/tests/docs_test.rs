@@ -163,6 +163,14 @@ fn valid_wave_parses() {
         ]
     );
 
+    assert_eq!(
+        work.contracts,
+        vec![docs::ContractRef {
+            slug: "session-run".into(),
+            rev: "7c40de".into()
+        }]
+    );
+
     let (_, tidy) = &w.transforms[1];
     match &tidy.kind {
         docs::TransformKind::Chore(why) => assert_eq!(why, "оновлення залежности без обіцянки"),
@@ -225,6 +233,17 @@ fn valid_contract_parses() {
     assert_eq!(c.verify.as_deref(), Some("redis-cli ping"));
     assert!(c.module.is_none());
     assert!(c.exports.is_empty());
+
+    // Позначки життєвого циклу читаються (§2.12, §4.12).
+    let p = write(
+        &dir,
+        "keel/contracts/old-run.md",
+        "---\nverify: \"true\"\nwithdrawn: \"замінений новим\"\nsuperseded_by: session-run\nrenamed_from: legacy-run\n---\n",
+    );
+    let c = docs::read_contract(&p).unwrap();
+    assert_eq!(c.withdrawn.as_deref(), Some("замінений новим"));
+    assert_eq!(c.superseded_by.as_deref(), Some("session-run"));
+    assert_eq!(c.renamed_from.as_deref(), Some("legacy-run"));
 
     // Ні exports, ні verify — контракт нічого не обіцяє (§2.10).
     let p = write(
@@ -316,8 +335,7 @@ fn dir_among_docs_refuses() {
     {
         let dir = sandbox("dir-link");
         fs::create_dir_all(dir.join("elsewhere")).unwrap();
-        std::os::unix::fs::symlink(dir.join("elsewhere"), dir.join("keel/waves/link"))
-            .unwrap();
+        std::os::unix::fs::symlink(dir.join("elsewhere"), dir.join("keel/waves/link")).unwrap();
         let scan = docs::scan(&dir).unwrap();
         assert!(
             scan.refusals.iter().any(|r| r.reason.contains("тека")),
@@ -338,7 +356,11 @@ fn bare_scenario_refuses() {
         "---\nscenarios:\n  floating: {}\ntransforms:\n  t:\n    implements: [floating]\n    files: [lib/a.ex]\n---\n",
     );
     let r = docs::read_wave(&p).unwrap_err();
-    assert!(r.reason.contains("floating"), "називає сценарій: {}", r.reason);
+    assert!(
+        r.reason.contains("floating"),
+        "називає сценарій: {}",
+        r.reason
+    );
     assert!(r.reason.contains("не спирається"), "причина: {}", r.reason);
 
     // Знятий сценарій без опори — законний: він поза судом (§6.3).
@@ -347,5 +369,8 @@ fn bare_scenario_refuses() {
         "keel/waves/0011-gone.md",
         "---\nscenarios:\n  gone: {withdrawn: \"знято хвилею 0012\"}\ntransforms:\n  t: {chore: \"прибирання\", files: [a]}\n---\n",
     );
-    assert!(docs::read_wave(&p).is_ok(), "withdrawn без опори — не помилка");
+    assert!(
+        docs::read_wave(&p).is_ok(),
+        "withdrawn без опори — не помилка"
+    );
 }
