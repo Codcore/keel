@@ -114,8 +114,9 @@ fn missing_keel_dir_refuses() {
     assert!(err.contains("create"), "says what to do instead:\n{err}");
 }
 
-/// proves: missing-config-defaults@00061c -- holds contract
-/// tool-config: a default does not pass itself off as read.
+/// proves: missing-config-defaults@cdc248 -- holds contract
+/// tool-config: a default does not pass itself off as read, neither
+/// for a missing file nor for a missing field.
 #[test]
 fn missing_config_defaults() {
     let dir = sandbox("nocfg");
@@ -130,6 +131,26 @@ fn missing_config_defaults() {
     assert!(
         out.contains("defaults"),
         "named as defaults, not as read:\n{out}"
+    );
+
+    // The file exists, the lang field does not: still said aloud,
+    // never printed as if lang had been read (review finding Z-1).
+    let dir = sandbox("nolang-field");
+    write(&dir, "keel.toml", "# no lang here\n");
+    write(
+        &dir,
+        "keel/waves/0003-w.md",
+        "---\ntransforms:\n  t: {chore: \"tidy\", files: [a]}\n---\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "{out}");
+    assert!(
+        out.contains("lang not set"),
+        "a defaulted field is named, not passed off as read:\n{out}"
+    );
+    assert!(
+        !out.contains("lang = en)"),
+        "must not print the very line an explicit lang = en gets:\n{out}"
     );
 }
 
