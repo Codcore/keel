@@ -230,3 +230,45 @@ fn plural_forms_correct() {
         assert!(out.contains(expect), "the plural for {n}:\n{out}");
     }
 }
+
+/// proves: contract-refs-verified@07e476 -- holds §5.1/§7.3: a
+/// recorded revision is checked against the current text; divergence
+/// names both revisions and the §5.6 caveat.
+#[test]
+fn contract_refs_verified() {
+    let dir = sandbox("refs");
+    write(
+        &dir,
+        "keel/contracts/anchor.md",
+        "---\nmodule: Anchor\nexports: [\"run()\"]\n---\n\nprose\n",
+    );
+    let good = keel::rev::contract_rev(&dir.join("keel/contracts/anchor.md")).unwrap();
+
+    // A matching reference is fine and the checked line now claims §7.3.
+    write(
+        &dir,
+        "keel/waves/0005-good.md",
+        &format!(
+            "---\nscenarios:\n  s: {{proves: anchor@{good}}}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n"
+        ),
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("§7.3"), "the checked line claims §7.3:\n{out}");
+    assert!(
+        !out.contains("contract revisions"),
+        "contract revisions must not sit in the unchecked line anymore:\n{out}"
+    );
+
+    // A stale reference is a finding naming both revisions and §5.6.
+    write(
+        &dir,
+        "keel/waves/0006-stale.md",
+        "---\nscenarios:\n  s: {proves: anchor@beef00}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a stale revision is a finding:\n{out}");
+    assert!(out.contains("beef00"), "names the recorded revision:\n{out}");
+    assert!(out.contains(&good), "names the current revision:\n{out}");
+    assert!(out.contains("§5.6"), "says the closed-wave caveat aloud:\n{out}");
+}
