@@ -277,6 +277,24 @@ fn contract_refs_verified() {
         out.contains("§5.6"),
         "says the closed-wave caveat aloud:\n{out}"
     );
+    assert!(
+        out.contains("checked: 1"),
+        "the report counts verified references (Z-8):\n{out}"
+    );
+
+    // A withdrawn scenario is outside judgement (§2.12): its stale
+    // proves must NOT be a finding (review finding Z-1).
+    fs::remove_file(dir.join("keel/waves/0006-stale.md")).unwrap();
+    write(
+        &dir,
+        "keel/waves/0006-gone.md",
+        "---\nscenarios:\n  s:\n    proves: anchor@beef00\n    withdrawn: \"знято\"\ntransforms:\n  t: {chore: \"tidy\", files: [lib/a.ex]}\n---\n\n## scenario: s\n\nbody\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "a withdrawn scenario's stale proves is not judged (§2.12):\n{out}"
+    );
 }
 
 /// proves: missing-contract-named@73cf9e -- holds §7.1: a reference
