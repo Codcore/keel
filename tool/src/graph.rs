@@ -154,9 +154,17 @@ pub fn cross_findings(waves: &[Wave]) -> Vec<(String, String, String)> {
             }
         }
         for (name, scenario) in &wave.scenarios {
-            if let Some(successor) = &scenario.superseded_by
-                && !everyones_scenarios.contains(successor.as_str())
-            {
+            let Some(successor) = &scenario.superseded_by else {
+                continue;
+            };
+            // Nothing takes over from itself (§2.12; review R-5).
+            if successor == name {
+                out.push((
+                    wave.slug.clone(),
+                    ta("graph-superseded-self", targs!("scenario" => name.clone())),
+                    t("graph-superseded-self-instead"),
+                ));
+            } else if !everyones_scenarios.contains(successor.as_str()) {
                 out.push((
                     wave.slug.clone(),
                     ta(

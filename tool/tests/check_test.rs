@@ -449,17 +449,42 @@ fn unknown_cut_refused() {
         out.contains("functional.correctnes"),
         "names the alien slug:\n{out}"
     );
+    // The scenario says "covers or decisions" and "names the slug and
+    // the wave" -- both halves are held (review R-9).
+    assert!(
+        out.contains("keel/waves/0005-w.md"),
+        "names the wave the alien slug sits in:\n{out}"
+    );
+    let dir = sandbox("baddecision");
+    write(
+        &dir,
+        "keel/waves/0005-w.md",
+        "---\nscenarios:\n  s: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\ndecisions:\n  reliability.faultlessnes: \"typo\"\n---\n\n## scenario: s\n\nbody\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 1,
+        "an alien slug in decisions is a finding too:\n{out}"
+    );
+    assert!(
+        out.contains("reliability.faultlessnes") && out.contains("decisions"),
+        "names the alien decisions slug and its holder:\n{out}"
+    );
 }
 
 /// proves: silence-forbidden@9bd959 -- holds §10.3: every cut gets
 /// exactly one answer; withdrawn covers do not count (§2.12).
 #[test]
 fn silence_forbidden() {
-    // All forty answered except one -- the missing cut is listed.
+    // All forty answered except two -- both missing cuts are listed
+    // in the one finding (a list, not a sample; review R-9).
     let dir = sandbox("silence");
     let mut decisions = String::new();
     for cut in keel::graph::cuts() {
-        if *cut != "functional.correctness" && *cut != "performance.capacity" {
+        if *cut != "functional.correctness"
+            && *cut != "performance.capacity"
+            && *cut != "safety.fail-safe"
+        {
             decisions.push_str(&format!("  {cut}: \"n/a\"\n"));
         }
     }
@@ -473,8 +498,8 @@ fn silence_forbidden() {
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "silence is a finding:\n{out}");
     assert!(
-        out.contains("performance.capacity"),
-        "lists the missing cut:\n{out}"
+        out.contains("performance.capacity") && out.contains("safety.fail-safe"),
+        "lists every missing cut:\n{out}"
     );
 
     // A withdrawn scenario's covers do not close a cut: the promise

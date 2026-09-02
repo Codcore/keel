@@ -148,6 +148,11 @@ fn scope_both_ways() {
     write(&dir, "lib/b.txt", "two\n");
     git(&dir, &["add", "."]);
     git(&dir, &["commit", "-q", "-m", "everything at once"]);
+    // A second commit drifting -- the fallback base judges both ways
+    // too (review R-9).
+    write(&dir, "lib/z.txt", "stranger\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "drift"]);
 
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(
@@ -161,6 +166,10 @@ fn scope_both_ways() {
     assert!(
         out.contains("\"lib/a.txt\" is untouched") && out.contains("\"lib/b.txt\" is untouched"),
         "both named:\n{out}"
+    );
+    assert!(
+        out.contains("\"lib/z.txt\""),
+        "drift is seen from the fallback base too:\n{out}"
     );
 
     // Second birth (work-check finding): a declared file with a
@@ -349,8 +358,7 @@ fn one_new_in_counted() {
     // lines". Two lines over the same directory and two new files
     // must meet in green; today every line judges the full count and
     // the truthful author gets two findings and no green state at all.
-    let two_lines =
-        "      - one new in priv/migrations/\n      - one new in priv/migrations/\n";
+    let two_lines = "      - one new in priv/migrations/\n      - one new in priv/migrations/\n";
     let dir = branch_with(
         "newtwolines",
         two_lines,

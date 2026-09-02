@@ -12,9 +12,25 @@ use std::path::Path;
 use std::process::Command;
 
 /// The current branch by git's word. None wherever git serves no
-/// name: no repository, no git at all, a detached head -- the caller
-/// says aloud that scope was not compared.
+/// name for this root: no repository, no git at all, a detached
+/// head, or a git tree whose top is not the root itself -- a parent
+/// repository's branch would judge paths that never meet the
+/// declared names, so it does not get to judge (review R-4). The
+/// caller says aloud that scope was not compared.
 pub fn current_branch(root: &Path) -> Option<String> {
+    let top = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .ok()?;
+    if !top.status.success() {
+        return None;
+    }
+    let top = std::fs::canonicalize(String::from_utf8_lossy(&top.stdout).trim()).ok()?;
+    if top != std::fs::canonicalize(root).ok()? {
+        return None;
+    }
     let out = Command::new("git")
         .arg("-C")
         .arg(root)
@@ -60,23 +76,40 @@ pub fn compare_base(root: &Path) -> Result<(String, bool), Refusal> {
 /// counts strictly (§4.1).
 pub fn findings(root: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refusal> {
     let (base, _) = compare_base(root)?;
-    let changed_raw = git_line(root, &["diff", "--name-only", &base, "HEAD"])?;
+    // Renames are read as a departure plus an arrival, whatever the
+    // host machine's diff.renames fancies: both names meet the
+    // declared list, and the verdict is the same on every machine
+    // (review R-2).
+    let changed_raw = git_line(
+        root,
+        &["diff", "--name-only", "--no-renames", &base, "HEAD"],
+    )?;
     let added_raw = git_line(
         root,
-        &["diff", "--name-only", "--diff-filter=A", &base, "HEAD"],
+        &[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--diff-filter=A",
+            &base,
+            "HEAD",
+        ],
     )?;
     let changed: BTreeSet<&str> = changed_raw.lines().map(str::trim).collect();
     let added: BTreeSet<&str> = added_raw.lines().map(str::trim).collect();
 
     let mut declared: BTreeSet<&str> = BTreeSet::new();
-    let mut dirs: Vec<&str> = Vec::new();
+    // Every `one new in` line is a promise of one file: two lines
+    // over one directory promise two (§4.1 -- "need two, write two
+    // lines"; review R-1).
+    let mut dirs: std::collections::BTreeMap<&str, u64> = Default::default();
     for (_, transform) in &wave.transforms {
         for line in &transform.files {
             match line {
                 ScopeLine::Path(p) => {
                     declared.insert(p.as_str());
                 }
-                ScopeLine::OneNewIn(d) => dirs.push(d.as_str()),
+                ScopeLine::OneNewIn(d) => *dirs.entry(d.as_str()).or_insert(0) += 1,
             }
         }
     }
@@ -91,7 +124,7 @@ pub fn findings(root: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refus
         if file.is_empty() || file.starts_with("keel/") || declared.contains(file) {
             continue;
         }
-        if added.contains(file) && dirs.iter().any(|d| file.starts_with(d)) {
+        if added.contains(file) && dirs.keys().any(|d| file.starts_with(d)) {
             continue;
         }
         out.push((
@@ -101,8 +134,12 @@ pub fn findings(root: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refus
     }
 
     // The other way (§4.4): declared yet untouched, judged across the
-    // whole branch (§4.5), not any single commit.
+    // whole branch (§4.5), not any single commit. keel/ stays outside
+    // the comparison on this side too (§4.8; review R-3).
     for file in &declared {
+        if file.starts_with("keel/") {
+            continue;
+        }
         if !changed.contains(file) {
             out.push((
                 ta("scope-untouched", targs!("file" => file.to_string())),
@@ -111,27 +148,42 @@ pub fn findings(root: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refus
         }
     }
 
-    // `one new in <dir>/`: zero is a finding, two is a finding naming
-    // both, exactly one is silence (§4.1).
-    for dir in &dirs {
+    // `one new in <dir>/`: as many new files as there are lines --
+    // fewer is a finding, more is a finding, the exact count is
+    // silence (§4.1). One line keeps the crisp zero/two words.
+    for (dir, promised) in &dirs {
         let new_here: Vec<&str> = added
             .iter()
             .copied()
             .filter(|f| !f.is_empty() && f.starts_with(dir))
             .collect();
-        match new_here.len() {
-            1 => {}
-            0 => out.push((
-                ta("scope-one-new-none", targs!("dir" => dir.to_string())),
-                t("scope-one-new-none-instead"),
-            )),
-            _ => out.push((
+        let found = new_here.len() as u64;
+        if found == *promised {
+            continue;
+        }
+        if *promised == 1 {
+            if found == 0 {
+                out.push((
+                    ta("scope-one-new-none", targs!("dir" => dir.to_string())),
+                    t("scope-one-new-none-instead"),
+                ));
+            } else {
+                out.push((
+                    ta(
+                        "scope-one-new-many",
+                        targs!("dir" => dir.to_string(), "files" => new_here.join(", ")),
+                    ),
+                    t("scope-one-new-many-instead"),
+                ));
+            }
+        } else {
+            out.push((
                 ta(
-                    "scope-one-new-many",
-                    targs!("dir" => dir.to_string(), "files" => new_here.join(", ")),
+                    "scope-one-new-count",
+                    targs!("dir" => dir.to_string(), "promised" => *promised, "found" => found),
                 ),
-                t("scope-one-new-many-instead"),
-            )),
+                t("scope-one-new-count-instead"),
+            ));
         }
     }
 
