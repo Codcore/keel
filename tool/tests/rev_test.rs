@@ -21,7 +21,10 @@ fn revision_recipe_reproduced() {
     // Golden vectors: reformatting is not a change, rewording is.
     assert_eq!(rev::text_rev("a  b\n\nc"), rev::text_rev("a b c"));
     assert_ne!(rev::text_rev("a b c"), rev::text_rev("a b d"));
-    assert_eq!(rev::text_rev("  hello   world \n"), rev::text_rev("hello world"));
+    assert_eq!(
+        rev::text_rev("  hello   world \n"),
+        rev::text_rev("hello world")
+    );
     assert_eq!(rev::text_rev("hello world"), "b94d27");
 
     // The live contracts of this repository give exactly the
@@ -69,7 +72,11 @@ fn revision_recipe_reproduced() {
     )
     .unwrap();
     let r = rev::scenario_revs(&wave).unwrap_err();
-    assert!(r.reason.contains("ghost"), "names the scenario: {}", r.reason);
+    assert!(
+        r.reason.contains("ghost"),
+        "names the scenario: {}",
+        r.reason
+    );
     assert!(!r.instead.is_empty());
 
     // A duplicated section refuses too.
@@ -80,5 +87,9 @@ fn revision_recipe_reproduced() {
     )
     .unwrap();
     let r = rev::scenario_revs(&wave).unwrap_err();
-    assert!(r.reason.contains("twin"), "names the duplicate: {}", r.reason);
+    assert!(
+        r.reason.contains("twin"),
+        "names the duplicate: {}",
+        r.reason
+    );
 }

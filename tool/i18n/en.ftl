@@ -89,6 +89,12 @@ docs-exports-no-module-instead = name the code unit in the module field (§2.7)
 docs-contract-empty = the contract promises nothing: neither exports nor verify
 docs-contract-empty-instead = give signatures with module (§2.7) or a verify command (§2.8); words without a check are a caveat in a wave, not a contract (§2.10)
 
+## rev module
+rev-missing-section = scenario "{ $name }" is declared in the header but has no "## scenario:" section in the body
+rev-missing-section-instead = write the section or remove the declaration; a revision needs a body to hash (§5.3)
+rev-dup-section = the "## scenario: { $name }" section appears more than once in the body
+rev-dup-section-instead = keep one section: the methodology will not guess which body is the promise
+
 ## check command
 check-title = keel check -- documents (rung 1)
 check-config-present = config: keel.toml (lang = { $lang })

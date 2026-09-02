@@ -89,6 +89,12 @@ docs-exports-no-module-instead = назви одиницю коду в полі 
 docs-contract-empty = контракт нічого не обіцяє: ні exports, ні verify
 docs-contract-empty-instead = дай сигнатури з module (§2.7) або команду verify (§2.8); слова без перевірки — застереження в хвилі, не контракт (§2.10)
 
+## модуль rev
+rev-missing-section = сценарій "{ $name }" оголошений у шапці, але секції "## scenario:" у тілі не має
+rev-missing-section-instead = напиши секцію або прибери оголошення; редакції потрібне тіло, яке хешувати (§5.3)
+rev-dup-section = секція "## scenario: { $name }" стоїть у тілі більш як один раз
+rev-dup-section-instead = лиши одну секцію: методика не вгадує, котре тіло — обіцянка
+
 ## команда check
 check-title = keel check — документи (щабель 1)
 check-config-present = конфіг: keel.toml (lang = { $lang })
