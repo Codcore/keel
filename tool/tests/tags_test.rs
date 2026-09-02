@@ -239,4 +239,21 @@ fn vanished_tag_is_red() {
         !out.contains("\"gone\""),
         "a withdrawn scenario's vanished tag is silence (§2.12):\n{out}"
     );
+
+    // Second birth (review R-6): the tag vanishing together with the
+    // whole wave file is the quiet destruction of a promise -- still
+    // red, but the words must say the scenario is gone with its
+    // wave, not call it alive.
+    git(&dir, &["checkout", "-q", "-b", "erasing"]);
+    fs::remove_file(dir.join("keel/waves/0015-w.md")).unwrap();
+    fs::remove_file(dir.join("tests/t_test.rs")).unwrap();
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "the promise erased whole"]);
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "erasing the wave with its tag is red:\n{out}");
+    assert!(
+        out.contains("gone with its wave"),
+        "the words name the destruction, not a living scenario:\n{out}"
+    );
 }
