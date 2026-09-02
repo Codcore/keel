@@ -13,6 +13,7 @@ use crate::rev;
 use crate::scope;
 use crate::tags;
 use crate::targs;
+use crate::trust;
 use std::fmt::Write as _;
 use std::path::Path;
 use std::process::Command;
@@ -266,6 +267,39 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         }
         Err(status) => status,
     };
+
+    // The trust floor (§7.16, §2.8): commands from repository files
+    // -- verify of live contracts, the project's ci -- judged against
+    // the recorded fingerprints. Nothing is run; the court stands
+    // before any runner exists. Over rubble it does not judge at all
+    // (review R-4): a broken document may hide the very command a
+    // record answers to, so a skipped court is said aloud instead of
+    // an invented door.
+    let trust_status = if !scan.refusals.is_empty() {
+        t("check-trust-skipped-broken")
+    } else {
+        let commands_judged = trust::live_commands(config, &scan.contracts).len() as u64;
+        for (place, reason, instead) in trust::court(config, &scan.contracts) {
+            rows.push((
+                place,
+                Some(format!(
+                    "{reason}\n           {}: {instead}",
+                    t("word-instead")
+                )),
+            ));
+        }
+        let mut status = ta("check-trust-count", targs!("count" => commands_judged));
+        if config.ci.as_deref() == Some("none") {
+            status.push_str(&t("check-trust-ci-none"));
+        }
+        // The asymmetry named (review R-6): an unwritten ci is not
+        // "undecided" -- there is no command in the files -- but the
+        // silence is not painted green either.
+        if config.present && config.ci.is_none() {
+            status.push_str(&t("check-trust-ci-absent"));
+        }
+        status
+    };
     rows.sort();
 
     let mut report = t("check-title");
@@ -329,8 +363,9 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     }
     writeln!(
         report,
-        "{}\n{}\n{}\n{}\n{}",
+        "{}\n{}\n{}\n{}\n{}\n{}",
         tags_status,
+        trust_status,
         scope_status,
         t("check-checked"),
         t("check-unchecked"),

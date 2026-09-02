@@ -145,6 +145,24 @@ tags-vanished-instead = поверни тест або зніми сценарі
 tags-vanished-gone = тег сценарію "{ $scenario }" був у точці розгалуження і зник у HEAD — разом із самим сценарієм: обіцянку стерто цілком
 tags-vanished-gone-instead = документи не видаляються (§4.12): поверни хвилю і зніми сценарій withdrawn у її файлі (§2.12) — знищення без сліду заборонене
 
+# -- trust: TOFU-суд команд (§7.16, §2.8) ---------------------------
+trust-untrusted = команда "{ $command }" не довірена (§7.16 — нова чи змінена не виконується)
+trust-untrusted-instead = запиши довіру: keel trust — рядок ляже в diff, який затверджує merge
+trust-ci-empty = ci записаний порожнім — не вирішено
+trust-ci-empty-instead = назви команду або скажи "none" вголос
+trust-crooked = запис довіри команди "{ $command }" несе збитий відбиток
+trust-crooked-instead = перезапиши через keel trust, якщо команді справді довіряєш
+trust-door = запис довіри "{ $command }" не відповідає жодній живій команді — двері, відчинені наперед
+trust-door-instead = прибери рядок: зміна чи зняття довіри не успадковує (§7.16)
+trust-title = keel trust — запис довіри відбитком (§7.16)
+trust-recorded-line = записано: "{ $command }" = { $fingerprint }
+trust-nothing-new = нового нема: кожна команда verify/ci вже несе свій відбиток
+trust-approves = рядки лягають у diff, який затверджує merge (§7.16)
+trust-no-config = keel.toml нема — рядок довіри нема куди готувати
+trust-no-config-instead = спершу створи конфіг: команда trust нічого не вигадує
+trust-surgery-broken = хірургія не втримала форму цього файлу ({ $error }) — нічого не записано
+trust-surgery-broken-instead = наведи лад у блоці [trust] руками і біжи keel trust знову
+
 ## модуль adapter
 adapter-no-crate = Cargo.toml нема ні в корені, ні рівно одного на першому рівні тек
 adapter-no-crate-instead = адаптеру cargo потрібен крейт: поклади Cargo.toml у корінь або в одну теку першого рівня
@@ -200,6 +218,10 @@ check-refs-historic-item = { $wave }: { $contract }@{ $recorded } — стара
 check-refs-shallow = історія обрізана (shallow-клон) — законність старих редакцій не звірити, вирок не виноситься
 check-refs-no-history = git-історії тут нема — законність старих редакцій не звірити, вирок не виноситься (§5.6)
 check-tags-count = тегів тестів звірено: { $count }
+check-trust-count = команд verify/ci звірено: { $count }
+check-trust-ci-none = ; ci — відмова вголос: none
+check-trust-ci-absent = ; ci не оголошений
+check-trust-skipped-broken = команди verify/ci не суджено: битий документ може ховати саму команду — спершу полагодь названі файли
 check-tags-skipped-no-adapter = теги тестів не звірялись: adapter у keel.toml не названий — названо вголос, зеленим не замальовано
 check-tags-skipped-adapter = теги тестів не звірялись: адаптер "{ $name }" цим щаблем не обслуговується (лише cargo) — названо вголос, зеленим не замальовано
 check-tags-skipped-refused = теги тестів не звірялись: адаптер відмовив посеред роботи — його відмова стоїть серед знахідок
@@ -211,7 +233,7 @@ check-scope-skipped-no-git = scope не звірявся: git не дає гіл
 check-scope-skipped-refused = scope не звірявся: git відмовив посеред порівняння — його відмова стоїть серед знахідок
 check-header-reads = шапка читається
 check-no-documents = документів ще нема
-check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9); посилання на контракти і їхні редакції (§7.1, §7.3), стара редакція судиться по історії файлу для закритих хвиль (§5.6); звʼязки графа (глава 3: розрізи, тиша, implements, depends_on, наступники; §7.2, §10.3); scope гілки, що зветься як хвиля (§4.1, §4.4–§4.6, §4.8); редакції сценаріїв у тегах тестів (§5.5, §7.5) і зниклі теги проти точки розгалуження (§7.15); закриття судить keel close (§6.5)
+check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9); посилання на контракти і їхні редакції (§7.1, §7.3), стара редакція судиться по історії файлу для закритих хвиль (§5.6); звʼязки графа (глава 3: розрізи, тиша, implements, depends_on, наступники; §7.2, §10.3); scope гілки, що зветься як хвиля (§4.1, §4.4–§4.6, §4.8); редакції сценаріїв у тегах тестів (§5.5, §7.5) і зниклі теги проти точки розгалуження (§7.15); довіра команд verify/ci проти записаних відбитків (§7.16, §2.8); закриття судить keel close (§6.5)
 check-unchecked = ще не перевірено: тримання контрактів (§7.6), шапка↔тіло (§7.7) — щаблі попереду
 check-ref-missing = хвиля { $wave }: посилання { $contract }@{ $recorded } показує на контракт, файлу якого нема
 check-ref-missing-instead = створи keel/contracts/{ $contract }.md або виправ слаг (§7.1)
@@ -228,7 +250,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 7 — довіра TOFU (§7.16) і CLI
+check-next-rung = наступний крок: щабель 8 — пакет рецензента (keel review, §9.9)
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -269,4 +291,4 @@ main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
 main-gate-no-message = відмова: gate потребує файл повідомлення commit-а
 main-gate-no-message-reason = причина: суд читає повідомлення, яке віддає commit-msg hook
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel hook [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel trust [тека] | keel hook [тека]
