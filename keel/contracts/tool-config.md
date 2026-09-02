@@ -2,7 +2,7 @@
 module: keel::config
 exports:
   - "pub fn read(root: &Path) -> Result<Config, Refusal>"
-  - "pub struct Config { version, adapter, ci, lang, mode, trust, generated, present, lang_set, mode_set }"
+  - "pub struct Config"
   - "pub const LANGUAGES: [&str; 2]"
   - "pub const MODES: [&str; 3]"
 ---
@@ -30,3 +30,8 @@ exports:
   спираються check, gate і main (школа R-8 рецензії 0004: контракт
   обіцяє все, чим користуються сусіди).
 - Модуль нічого не пише на диск.
+
+Поверхню полів Config механіка з 0010 не звіряє: export тримає
+лише існування структури (коротка форма §2.9), а поля словника —
+ця проза і рецензент. Зникнення поля побачать тести хвиль, що на
+нього спираються, не суд форми.

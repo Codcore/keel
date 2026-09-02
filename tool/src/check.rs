@@ -7,6 +7,7 @@ use crate::adapter;
 use crate::config::Config;
 use crate::docs;
 use crate::graph;
+use crate::holding;
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::rev;
@@ -300,6 +301,34 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         }
         status
     };
+
+    // The form floor (§7.6, §2.9): promised signatures against the
+    // module's source, as collapsed text; the incomparable is a
+    // word with its reason, never green. On a plan branch the court
+    // does not run at all (§8.3; 0010 review R-1): the plan grows
+    // exports ahead of the code by design (§4.9), and a gate that is
+    // always shut stops being read.
+    let plan_branch = scope::current_branch(root).is_some_and(|b| b.starts_with("plan/"));
+    let holding_status = if plan_branch {
+        t("check-holding-plan")
+    } else {
+        for (place, reason, instead) in holding::court(root, config, &scan.contracts) {
+            rows.push((
+                place,
+                Some(format!(
+                    "{reason}\n           {}: {instead}",
+                    t("word-instead")
+                )),
+            ));
+        }
+        let (signatures_checked, uncompared) = holding::survey(root, config, &scan.contracts);
+        let mut status = ta("check-holding-count", targs!("count" => signatures_checked));
+        for line in uncompared {
+            status.push('\n');
+            status.push_str(&line);
+        }
+        status
+    };
     rows.sort();
 
     let mut report = t("check-title");
@@ -363,9 +392,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     }
     writeln!(
         report,
-        "{}\n{}\n{}\n{}\n{}\n{}",
+        "{}\n{}\n{}\n{}\n{}\n{}\n{}",
         tags_status,
         trust_status,
+        holding_status,
         scope_status,
         t("check-checked"),
         t("check-unchecked"),

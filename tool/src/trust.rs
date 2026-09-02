@@ -12,13 +12,15 @@ use crate::targs;
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-/// The §5.3 school over a command's text -- whitespace runs to one
-/// space, edges trimmed, sha256 -- but twelve hex characters, not
-/// six: this is the trust court, and the concept's own example is
-/// this long.
+/// sha256 over the command's verbatim text, edges trimmed, twelve
+/// hex characters. Verbatim deliberately (0010 review R-4): inside
+/// quotes whitespace is the shell's own -- a command changed there
+/// must read as changed, so the §7.16 words "new or changed does
+/// not run" hold at the runner. Whitespace collapse remains the
+/// school for KEY matching only (twin detection), never for the
+/// fingerprint itself.
 pub fn fingerprint(command: &str) -> String {
-    let flat = collapse(command);
-    let digest = Sha256::digest(flat.as_bytes());
+    let digest = Sha256::digest(command.trim().as_bytes());
     let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
     hex[..12].to_string()
 }
@@ -97,6 +99,17 @@ pub fn court(config: &Config, contracts: &[Contract]) -> Vec<(String, String, St
     }
 
     out
+}
+
+/// Whether a command's fingerprint is recorded and true -- the
+/// read-only gate the §7.6 runner asks before running anything;
+/// this module itself still executes nothing.
+pub(crate) fn trusted(config: &Config, command: &str) -> bool {
+    let flat = collapse(command);
+    config
+        .trust
+        .iter()
+        .any(|(key, recorded)| collapse(key) == flat && *recorded == fingerprint(command))
 }
 
 /// The recording hand of §7.16 (`keel trust`): writes the

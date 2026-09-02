@@ -4,7 +4,7 @@
 
 use crate::adapter;
 use crate::config;
-use crate::docs;
+use crate::docs::{self, Wave};
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::rev;
@@ -60,7 +60,77 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         "close-battery",
         targs!("count" => battery.len() as u64),
     ));
-    report.push_str("\n\n");
+    report.push('\n');
+
+    // The verify of live contracts (§7.6, §2.8), under the §7.16
+    // trust court: only a matching fingerprint runs; a failing
+    // command is a blocker -- a broken foreign promise does not
+    // merge; distrust is check's verdict, said here by name only.
+    // ci is not run: the project's own gate proves no contract.
+    let mut verify_count: u64 = 0;
+    let mut verify_blockers = 0usize;
+    let mut verify_lines: Vec<String> = Vec::new();
+    for contract in &scan.contracts {
+        if contract.withdrawn.is_some() {
+            continue;
+        }
+        let Some(command) = &contract.verify else {
+            continue;
+        };
+        verify_count += 1;
+        if !crate::trust::trusted(&config, command) {
+            verify_lines.push(ta(
+                "close-verify-untrusted",
+                targs!("command" => command.clone(), "contract" => contract.slug.clone()),
+            ));
+            continue;
+        }
+        let ran = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .current_dir(root)
+            .output();
+        match ran {
+            Ok(out) if out.status.success() => verify_lines.push(ta(
+                "close-verify-passed",
+                targs!("command" => command.clone(), "contract" => contract.slug.clone()),
+            )),
+            Ok(out) => {
+                // The last non-empty line of stderr, else stdout,
+                // else the keyed word (0010 review R-5): no raw
+                // English inside a localized verdict.
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                let words = stderr
+                    .lines()
+                    .rev()
+                    .find(|l| !l.trim().is_empty())
+                    .or_else(|| stdout.lines().rev().find(|l| !l.trim().is_empty()))
+                    .map(str::to_string)
+                    .unwrap_or_else(|| t("close-verify-no-words"));
+                verify_lines.push(ta(
+                    "close-verify-failed",
+                    targs!("command" => command.clone(), "contract" => contract.slug.clone(), "words" => words),
+                ));
+                verify_blockers += 1;
+            }
+            Err(e) => {
+                verify_lines.push(ta(
+                    "close-verify-failed",
+                    targs!("command" => command.clone(), "contract" => contract.slug.clone(), "words" => e.to_string()),
+                ));
+                verify_blockers += 1;
+            }
+        }
+    }
+    report.push_str(&ta("close-verify-count", targs!("count" => verify_count)));
+    report.push('\n');
+    for line in &verify_lines {
+        report.push_str("  ");
+        report.push_str(line);
+        report.push('\n');
+    }
+    report.push('\n');
 
     let mut blockers = 0usize;
     let mut own_plan = false;
@@ -109,11 +179,19 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     }
 
     report.push('\n');
+    if verify_blockers > 0 {
+        report.push_str(&ta(
+            "close-verify-blockers",
+            targs!("count" => verify_blockers as u64),
+        ));
+        report.push('\n');
+    }
     if blockers > 0 {
         report.push_str(&ta(
             "close-blockers",
             targs!("wave" => branch.unwrap_or_default(), "count" => blockers as u64),
         ));
+        report.push('\n');
     } else if own_plan {
         // The honest footer for the plan branch (review R-2): a plan
         // PR merges as a plan (§6.6), and the old words would lie.
@@ -121,18 +199,19 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             "close-plan-own",
             targs!("wave" => branch.unwrap_or_default()),
         ));
-    } else {
+        report.push('\n');
+    } else if verify_blockers == 0 {
         report.push_str(&t("close-no-blockers"));
+        report.push('\n');
     }
-    report.push('\n');
-    Ok((report, blockers))
+    Ok((report, blockers + verify_blockers))
 }
 
 /// Structural closure -- without running the tests: every live
 /// scenario carries a matching tag, the references converge, a full
 /// wave has its review file. The §5.6 floor in check leans on this:
 /// the history blessing belongs to the structurally closed.
-pub fn structural(root: &Path, wave: &docs::Wave, tags: &[TestTag]) -> Result<bool, Refusal> {
+pub fn structural(root: &Path, wave: &Wave, tags: &[TestTag]) -> Result<bool, Refusal> {
     // Without the whole project's waves in hand, structural judges a
     // namesake tag conservatively: a foreign revision does not count,
     // so the blessing is withheld, never wrongly granted.
