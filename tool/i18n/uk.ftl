@@ -228,7 +228,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 6 — карта якості (§10.7)
+check-next-rung = наступний крок: щабель 7 — довіра TOFU (§7.16) і CLI
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -250,6 +250,18 @@ close-blockers = блокери хвилі цієї гілки { $wave }: { $cou
 close-no-blockers = блокерів нема: гілка не зветься як незакрита хвиля — стани вище інформують
 close-plan-own = хвиля цієї гілки — затверджена, ще не почата: план-PR зливається планом (§6.6), робота видається після
 
+## команда map (§10.7)
+map-title = keel map — мапа якості (§10.7)
+map-view-wave = мапа хвилі { $wave }: гілка зветься нею (§8.2) — пункт пакета рецензента (§9.9); чесність кожного рядка лишається роботою рецензента
+map-view-project = мапа проєкту: гілка "{ $branch }" не зветься хвилею — по кожному розрізу слово наймолодшої хвилі, що відповіла
+map-covered = закрито: "{ $scenario }" — { $proof }
+map-proof-proven = доведений (тег збіжний, §6.3; зелень тесту — суд keel close)
+map-proof-unproven = ще не доведений (збіжного тега нема)
+map-proof-unread = доведеність не читалась (адаптер у keel.toml не названий)
+map-decided = вирішено: "{ $reason }"
+map-unanswered = без відповіді — суд тиші в keel check (§10.3)
+map-older = давніших відповідей: { $count }
+
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
 main-unknown-command-reason = причина: такої команди keel не знає
@@ -257,4 +269,4 @@ main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
 main-gate-no-message = відмова: gate потребує файл повідомлення commit-а
 main-gate-no-message-reason = причина: суд читає повідомлення, яке віддає commit-msg hook
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel hook [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel hook [тека]

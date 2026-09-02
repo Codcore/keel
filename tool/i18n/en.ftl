@@ -226,7 +226,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 6 -- the quality map (§10.7)
+check-next-rung = next step: rung 7 -- TOFU trust (§7.16) and the CLI
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
@@ -248,6 +248,18 @@ close-blockers = blockers of this branch's wave { $wave }: { $count } -- a full 
 close-no-blockers = no blockers: this branch is named as no unclosed wave -- the states above inform
 close-plan-own = the wave of this branch is approved, not started -- a plan PR merges as a plan (§6.6); the work is issued after
 
+## map command (§10.7)
+map-title = keel map -- the quality map (§10.7)
+map-view-wave = the map of wave { $wave }: this branch is named as it (§8.2) -- the reviewer package item (§9.9); honesty per row stays the reviewer's work
+map-view-project = the project map: branch "{ $branch }" is named as no wave -- per cut, the youngest answering wave's word
+map-covered = closed: "{ $scenario }" -- { $proof }
+map-proof-proven = proven (the tag matches, §6.3; the test's green is keel close's court)
+map-proof-unproven = not yet proven (no matching tag)
+map-proof-unread = proof not read (no adapter named in keel.toml)
+map-decided = decided: "{ $reason }"
+map-unanswered = no answer -- the silence court is keel check (§10.3)
+map-older = older answers: { $count }
+
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: this is not one of the commands keel knows
@@ -255,4 +267,4 @@ main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
 main-gate-no-message = refusal: gate needs the commit message file
 main-gate-no-message-reason = reason: the judgement reads the message the commit-msg hook hands over
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel hook [dir]
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel hook [dir]

@@ -12,6 +12,7 @@ pub mod docs;
 pub mod gate;
 pub mod graph;
 pub mod i18n;
+pub mod map;
 pub mod refusal;
 pub mod rev;
 pub mod scope;
