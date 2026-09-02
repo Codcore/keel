@@ -163,3 +163,71 @@ fn scope_both_ways() {
         "both named:\n{out}"
     );
 }
+
+/// proves: one-new-in-counted@327a30 -- holds §4.1: `one new in
+/// <dir>/` counts strictly. Zero new files in the directory is a
+/// finding, two is a finding naming both, exactly one is silence --
+/// the count is fixed, there is no glob liberty.
+#[test]
+fn one_new_in_counted() {
+    let branch_with = |name: &str, extra: &[(&str, &str)]| -> PathBuf {
+        let dir = sandbox(name);
+        git(&dir, &["init", "-q", "-b", "main"]);
+        write(&dir, "lib/seed.txt", "seed\n");
+        git(&dir, &["add", "."]);
+        git(&dir, &["commit", "-q", "-m", "base"]);
+        git(&dir, &["checkout", "-q", "-b", "0005-scope-w"]);
+        write(
+            &dir,
+            "keel/waves/0005-scope-w.md",
+            &wave_declaring("      - one new in priv/migrations/\n"),
+        );
+        for (rel, text) in extra {
+            write(&dir, rel, text);
+        }
+        git(&dir, &["add", "."]);
+        git(&dir, &["commit", "-q", "-m", "work"]);
+        dir
+    };
+
+    // Zero new files where exactly one was promised.
+    let dir = branch_with("newzero", &[]);
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "zero is a finding:\n{out}");
+    assert!(
+        out.contains("no new file appeared in \"priv/migrations/\""),
+        "the empty promise named:\n{out}"
+    );
+
+    // Exactly one -- silence, and the whole run is green end to end.
+    let dir = branch_with("newone", &[("priv/migrations/001.sql", "create table t;\n")]);
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "exactly one new file passes:\n{out}");
+    assert!(
+        out.contains("scope: branch \"0005-scope-w\""),
+        "compared, not skipped:\n{out}"
+    );
+    assert!(
+        !out.contains("priv/migrations/001.sql"),
+        "the matched file is no drift:\n{out}"
+    );
+
+    // Two new files where exactly one was promised.
+    let dir = branch_with(
+        "newtwo",
+        &[
+            ("priv/migrations/001.sql", "create table t;\n"),
+            ("priv/migrations/002.sql", "drop table t;\n"),
+        ],
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "two is a finding:\n{out}");
+    assert!(
+        out.contains("more than one new file in \"priv/migrations/\""),
+        "the broken count named:\n{out}"
+    );
+    assert!(
+        out.contains("priv/migrations/001.sql") && out.contains("priv/migrations/002.sql"),
+        "both files named:\n{out}"
+    );
+}
