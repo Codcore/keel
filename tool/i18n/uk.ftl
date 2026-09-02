@@ -166,6 +166,10 @@ gate-work-broken = трансформа "{ $transform }": тести не зби
 gate-work-notrun = трансформа "{ $transform }": біг не виконав жодного тесту "{ $test }" сценарію "{ $scenario }"
 gate-unknown-slug = "{ $slug }" — не red: і не трансформа хвилі { $wave }; одрук не проходить як «поза судом» (§8.4)
 gate-soft = mode: soft — ті самі слова, лише попередженням
+gate-hook-installed = commit-msg hook тепер кличе keel gate — записано в { $path }
+gate-hook-already = hook уже наш — тихо той самий файл
+gate-hook-foreign = commit-msg hook тут уже є, і він не наш
+gate-hook-foreign-instead = keel не затирає чужий hook (§9.7); прочитай його і злий або прибери сам, тоді повтори keel hook
 
 ## команда rev
 rev-title = keel rev — чинні редакції

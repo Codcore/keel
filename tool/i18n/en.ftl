@@ -166,6 +166,10 @@ gate-work-broken = transform "{ $transform }": the tests do not compile: { $word
 gate-work-notrun = transform "{ $transform }": the run executed no test named "{ $test }" for scenario "{ $scenario }"
 gate-unknown-slug = "{ $slug }" is neither red: nor a transform of wave { $wave } -- a typo does not pass as "outside the judgement" (§8.4)
 gate-soft = mode: soft -- the same words, a warning only
+gate-hook-installed = the commit-msg hook now calls keel gate -- written to { $path }
+gate-hook-already = the hook is already ours -- quietly the same file
+gate-hook-foreign = a commit-msg hook already exists here, and it is not ours
+gate-hook-foreign-instead = keel does not overwrite someone's hook (§9.7); read it and merge or remove it yourself, then re-run keel hook
 
 ## rev command
 rev-title = keel rev -- current revisions

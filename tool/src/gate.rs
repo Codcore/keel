@@ -217,3 +217,71 @@ fn is_slug(s: &str) -> bool {
         && s.chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
+
+/// The commit-msg hook text keel installs -- flat sh, replaceable by
+/// rewriting with the same command.
+const HOOK: &str = "#!/bin/sh\n# keel gate -- the commit judged by the machine (Keel v2, journal A3).\nexec keel gate \"$1\"\n";
+
+/// Writes `.git/hooks/commit-msg` calling `keel gate`. A repeated
+/// call over our own hook is quietly the same file; a foreign hook
+/// is never overwritten -- a refusal aloud (§9.7). This is the one
+/// thing the module writes.
+pub fn install_hook(root: &Path) -> Result<String, Refusal> {
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--git-dir"])
+        .output()
+        .map_err(|e| Refusal {
+            file: root.to_path_buf(),
+            reason: ta("scope-git-failed", targs!("error" => e.to_string())),
+            instead: t("scope-git-failed-instead"),
+        })?;
+    if !out.status.success() {
+        return Err(Refusal {
+            file: root.to_path_buf(),
+            reason: ta(
+                "scope-git-failed",
+                targs!("error" => String::from_utf8_lossy(&out.stderr).trim().to_string()),
+            ),
+            instead: t("scope-git-failed-instead"),
+        });
+    }
+    let git_dir = root.join(String::from_utf8_lossy(&out.stdout).trim());
+    let hooks = git_dir.join("hooks");
+    let path = hooks.join("commit-msg");
+
+    if path.is_file() {
+        let existing = std::fs::read_to_string(&path).unwrap_or_default();
+        if existing == HOOK {
+            return Ok(t("gate-hook-already"));
+        }
+        return Err(Refusal {
+            file: path,
+            reason: t("gate-hook-foreign"),
+            instead: t("gate-hook-foreign-instead"),
+        });
+    }
+
+    write_hook(&hooks, &path).map_err(|e| Refusal {
+        file: path.clone(),
+        reason: ta("docs-unreadable", targs!("error" => e.to_string())),
+        instead: t("docs-unreadable-instead"),
+    })?;
+    let shown = path.strip_prefix(root).unwrap_or(&path);
+    Ok(ta(
+        "gate-hook-installed",
+        targs!("path" => shown.display().to_string()),
+    ))
+}
+
+fn write_hook(hooks: &Path, path: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(hooks)?;
+    std::fs::write(path, HOOK)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))?;
+    }
+    Ok(())
+}
