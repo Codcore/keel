@@ -307,3 +307,52 @@ fn gate_modes_obeyed() {
         "the pass carries its word:\n{out}"
     );
 }
+
+/// proves: hook-installed-aloud@25a179 -- holds §9.7 and the wave's
+/// install honesty: keel hook writes an executable commit-msg that
+/// calls keel gate; a second run is quietly the same file; a foreign
+/// hook is never overwritten -- a refusal aloud, the file untouched.
+#[test]
+fn hook_installed_aloud() {
+    // A repo without a hook gains one.
+    let dir = project("hookfresh", "", "assert!(true);");
+    let (out, _err, code) = keel(&["hook", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "installation passes:\n{out}");
+    let hook = dir.join(".git/hooks/commit-msg");
+    assert!(hook.is_file(), "the hook file exists");
+    let text = fs::read_to_string(&hook).unwrap();
+    assert!(
+        text.contains("keel gate"),
+        "the hook calls keel gate:\n{text}"
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert!(
+            fs::metadata(&hook).unwrap().permissions().mode() & 0o111 != 0,
+            "the hook is executable"
+        );
+    }
+
+    // The second run: quietly the same file.
+    let (out2, _err, code) = keel(&["hook", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "idempotent:\n{out2}");
+    assert_eq!(
+        text,
+        fs::read_to_string(&hook).unwrap(),
+        "the file is unchanged"
+    );
+
+    // A foreign hook is not overwritten.
+    let dir = project("hookforeign", "", "assert!(true);");
+    let foreign = dir.join(".git/hooks/commit-msg");
+    fs::create_dir_all(foreign.parent().unwrap()).unwrap();
+    fs::write(&foreign, "#!/bin/sh\necho custom\n").unwrap();
+    let (out, err, code) = keel(&["hook", dir.to_str().unwrap()]);
+    assert_ne!(code, 0, "a foreign hook refuses:\n{out}{err}");
+    assert_eq!(
+        fs::read_to_string(&foreign).unwrap(),
+        "#!/bin/sh\necho custom\n",
+        "the foreign file stays untouched"
+    );
+}
