@@ -48,6 +48,20 @@ transforms:
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/check_test.rs
+  review-findings:
+    implements:
+      - contract-refs-verified
+      - revision-recipe-reproduced
+      - rev-command-prints
+    contracts: [tool-rev@882dea, tool-config@63406a]
+    files:
+      - tool/src/check.rs
+      - tool/src/rev.rs
+      - tool/src/main.rs
+      - tool/i18n/en.ftl
+      - tool/i18n/uk.ftl
+      - tool/tests/rev_test.rs
+      - tool/tests/check_test.rs
 
 decisions:
   functional.completeness: "свідомо звужено вголос: цей щабель звіряє редакції КОНТРАКТІВ у шапках хвиль; редакції сценаріїв живуть у тегах тестів, і їх звірить щабель адаптерів — check каже це в рядку «ще не перевірено»"
@@ -141,6 +155,19 @@ tool-docs@2ab9a9 і tool-config@63406a; порівняння за префікс
 і наступний крок; зіпсовані документи стоять поруч відмовами
 (успадковано від scan), не тишею — щоб автор копіював редакції
 звідси, а не рахував руками.
+
+## transform: review-findings
+
+Виправлення за знахідками свіжого рецензента (§9.9), всі вісім —
+виправлення: proves знятих сценаріїв виходять з-під другого поверху
+(§2.12 — знятий поза судом, і захист не бреше §9.8); порожнє після
+згортання тіло секції — відмова (редакція порожнечі — пустушка);
+rev-звіт відкривається рядком конфіга, як check (типове не видає себе
+за прочитане); причина відмови unknown-command переписана без рахунку
+команд (§1.6); звіт check рахує звірені посилання, а знахідки в
+підсумку звуться знахідками; живі редакції сценаріїв хвилі 0001
+прибиті assert-ами. Документна частина (проза рецепта, contracts
+трансформи, Why, дві дужки decisions) — окремим commit-ом до цього.
 
 ## transform: compute-revisions
 
