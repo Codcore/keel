@@ -1,0 +1,20 @@
+# CI інструмента (tool/): формат, lint, тести. Ганяється на PR, що
+# чіпають tool/ — червоні commit-и посеред гілки не судяться.
+name: tool-ci
+on:
+  pull_request:
+    paths:
+      - "tool/**"
+      - ".github/workflows/tool-ci.yml"
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tool
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup update stable && rustup default stable
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
