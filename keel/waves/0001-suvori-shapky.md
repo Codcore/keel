@@ -1,0 +1,167 @@
+---
+scenarios:
+  zlamana-shapka-vidmovliaie:
+    proves: tool-docs@faca26
+    covers: [safety.fail-safe, maintainability.analysability]
+  nevidome-pole-vidmovliaie:
+    proves: tool-docs@faca26
+    covers: [interaction.user-error-protection]
+  tsila-shapka-khvyli-chytaietsia:
+    proves: tool-docs@faca26
+    covers: [functional.correctness, reliability.faultlessness]
+  tsila-shapka-kontraktu-chytaietsia:
+    proves: tool-docs@faca26
+    covers: [functional.completeness]
+  check-zvituie-po-kozhnomu-failu:
+    proves: tool-docs@faca26
+    covers: [reliability.fault-tolerance, safety.hazard-warning, interaction.self-descriptiveness]
+  bez-teky-keel-vidmova-z-krokom:
+    covers: [interaction.user-assistance]
+
+transforms:
+  chytannia-shapok:
+    implements:
+      - zlamana-shapka-vidmovliaie
+      - nevidome-pole-vidmovliaie
+      - tsila-shapka-khvyli-chytaietsia
+      - tsila-shapka-kontraktu-chytaietsia
+    contracts: [tool-docs@faca26]
+    files:
+      - tool/Cargo.toml
+      - tool/Cargo.lock
+      - tool/src/main.rs
+      - tool/src/lib.rs
+      - tool/src/docs.rs
+      - tool/tests/docs_test.rs
+      - .github/workflows/tool-ci.yml
+  check-obkhodyt-proiekt:
+    implements:
+      - check-zvituie-po-kozhnomu-failu
+      - bez-teky-keel-vidmova-z-krokom
+    contracts: [tool-docs@faca26]
+    files:
+      - tool/src/main.rs
+      - tool/src/check.rs
+      - tool/tests/check_test.rs
+
+decisions:
+  functional.appropriateness: "свідомо без тесту: доречність check судять наступні щаблі самонаведення — вони його перші споживачі"
+  performance.time-behaviour: "свідомо не міряємо: вимога мілісекунд стоїть у концепті і почне боліти у хвилі hook-ів — там і вимір"
+  performance.capacity: "не застосовується: документів у проєкті десятки, не тисячі — межі місткості нема чого міряти"
+  performance.resource-utilisation: "свідомо не міряємо: один прохід читання малих файлів; стане питанням разом із hook-ами"
+  compatibility.co-existence: "не застосовується: check читає файли і виходить — не тримає портів, локів чи демонів"
+  compatibility.interoperability: "свідомо без окремого тесту: єдина домовленість щабля — YAML-шапка, і її тримають сценарії розбору"
+  interaction.appropriateness-recognisability: "свідомо не робимо: «кожна команда друкує наступний крок» — правило концепту для всіх команд, перевіриться CLI-хвилею"
+  interaction.learnability: "не застосовується: одна команда без опцій — вчитися ще нема чого"
+  interaction.operability: "свідомо не робимо: керування (--json та інші опції) прийде CLI-хвилею"
+  interaction.user-engagement: "не застосовується: інструмент перевірки не має тримати увагу"
+  interaction.inclusivity: "свідомо не робимо: вивід — простий текст без кольору; кольори і їх вимикання — питання CLI-хвилі"
+  reliability.availability: "не застосовується: локальний бінарник — доступність вирішує щабель launcher-а, не цей"
+  reliability.recoverability: "не застосовується: у check нема стану — перезапуск і є відновлення"
+  security.confidentiality: "не застосовується: читає файли репозиторію, які бачить кожен, хто має репозиторій; нікуди нічого не шле"
+  security.integrity: "свідомо без тесту: модуль нічого не пише на диск — обіцяно контрактом, видно в коді"
+  security.non-repudiation: "не застосовується: дій, що змінюють стан, щабель не має"
+  security.accountability: "не застосовується: жодної зміни стану — нема чого обліковувати"
+  security.authenticity: "не застосовується: нікого не автентифікує; довіра до команд — щабель TOFU"
+  security.resistance: "свідомо не робимо фаззингу понад суворий розбір: зіпсований вхід — відмова вголос (сценарії); фаззинг додамо, коли заболить"
+  maintainability.modularity: "свідомо без тесту: будову «модуль на главу» тримає концепт і око рецензента"
+  maintainability.reusability: "не застосовується: внутрішній модуль інструмента, не бібліотека"
+  maintainability.modifiability: "свідомо без тесту: міра «скільки зрушити» — судження рецензента, не автоматика"
+  maintainability.testability: "свідомо без окремого тесту: кожна перевірка народжується червоним commit-ом — неперевірна не пройде власного народження"
+  flexibility.adaptability: "свідомо не робимо: крос-платформність заявлена концептом і перевіриться CI-матрицею у хвилі релізів"
+  flexibility.scalability: "не застосовується: обсяги малі за побудовою (див. performance.capacity)"
+  flexibility.installability: "не застосовується: встановлення — щабель launcher-а"
+  flexibility.replaceability: "не застосовується: замінності модуля docs не обіцяємо — він і є та частина, якою інструмент відрізняється"
+  safety.operational-constraints: "свідомо без окремого тесту: «не писати у файли проєкту» тримається тим, що в модулі нема жодного запису; зʼявиться запис — зʼявиться тест"
+  safety.risk-identification: "не застосовується як окрема робота: головна відома загроза — тихий пропуск зіпсованого документа (урок №4 розбору), і її закривають сценарії цієї хвилі"
+  safety.safe-integration: "свідомо без тесту: tool/ — нова тека, жоден наявний файл репозиторію не чіпається; єдиний дотик — новий CI-файл, названий у трансформі"
+---
+
+## Why
+
+Перший щабель самонаведення (NEW-CONCEPT, розділ «Самонаведення»):
+доки формат документів не тримає машина, кожна наступна хвиля спиралася
+б на руки. Тому перша обіцянка інструмента — суворе читання власних
+документів і чесна відмова там, де читання неможливе. Урок №4 розбору
+нотаток: зіпсований документ, який тихо вимикає перевірки, — брехня
+зеленим; у v1 `rev --write` через незакриту шапку пропустив сім
+посилань і сказав «усі редакції збігаються».
+
+Відступ bootstrap-у, названий вголос (тихий відступ заборонений —
+конституція, п. 3 і 5): тексти v2 ще не в main, тому ця повна хвиля не
+має план-PR — план затверджується словом оператора в чаті, записаним у
+commit (§8.6), і їде робочою гілкою v2. Повна механіка гілок (§8.1,
+§8.2) вмикається для хвиль після виходу v2 у main.
+
+## scenario: zlamana-shapka-vidmovliaie
+
+**Дано** файл хвилі, чия шапка не читається (незакриті `---` або битий
+YAML),
+**коли** його читає `read_wave`,
+**тоді** повертається відмова, що називає файл і причину людською
+мовою, — а не порожній документ і не тихий пропуск.
+
+## scenario: nevidome-pole-vidmovliaie
+
+**Дано** шапку з полем, якого методика не знає (одрук на кшталт
+`scenarois`),
+**коли** її читають,
+**тоді** відмова називає невідоме поле і файл: одрук, прочитаний як
+«нічого не оголошено», вимкнув би захист мовчки (§7.9).
+
+## scenario: tsila-shapka-khvyli-chytaietsia
+
+**Дано** файл хвилі з цілою шапкою — сценарії зі звʼязками, трансформи
+з файлами, decisions,
+**коли** його читає `read_wave`,
+**тоді** всі поля доступні як дані: імена сценаріїв, proves і covers,
+файли трансформ, причини decisions — без втрат і без вигаданих значень.
+
+## scenario: tsila-shapka-kontraktu-chytaietsia
+
+**Дано** файл контракту з module і exports,
+**коли** його читає `read_contract`,
+**тоді** імʼя одиниці коду і сигнатури доступні як дані.
+
+## scenario: check-zvituie-po-kozhnomu-failu
+
+**Дано** теку `keel/` з кількома документами, один з яких зіпсований,
+**коли** біжить `keel check`,
+**тоді** у звіті є рядок по кожному файлу: цілі — перевірені,
+зіпсований — названий з причиною; зіпсований не зупинив перевірку
+сусідів і не зник зі звіту.
+
+## scenario: bez-teky-keel-vidmova-z-krokom
+
+**Дано** запуск `keel check` там, де теки `keel/` нема,
+**коли** команда завершується,
+**тоді** відмова каже, чого бракує і що зробити натомість (створити
+`keel/waves/` і `keel/contracts/` або перейти в корінь проєкту), — і
+код виходу ненульовий.
+
+## transform: chytannia-shapok
+
+Модуль `docs`: типи Wave, Contract, Refusal і функції читання. Разом
+їде ґрунт (§4.7): cargo-проєкт у `tool/` і CI-крок, що ганяє його
+тести.
+
+Застереження: рецепт редакції в цій хвилі виконано руками — повторні
+пробіли і переноси згорнуті в один пробіл (§5.4), sha256, перші шість
+шістнадцяткових знаків. Машинним рецепт стане на щаблі 2 (`keel rev`),
+і тест щабля 2 зобовʼязаний відтворити його на цьому ж файлі
+контракту.
+
+Застереження: `scan` бере корінь проєкту аргументом, а не з
+`keel.toml` — читати конфіг інструмент ще не вміє; це щабель конфіга.
+
+Застереження: все, що ця хвиля обіцяє про саму себе (scope, звʼязки,
+редакції, повнота decisions), перевірено руками автора за текстом
+METHODOLOGY-V2 — машинної перевірки ще нема, і саме її ця хвиля
+будує.
+
+## transform: check-obkhodyt-proiekt
+
+Підкоманда `check`: обхід `keel/` через `scan`, звіт по кожному файлу,
+ненульовий вихід за будь-якої відмови. Це ще не весь check методики —
+лише перший поверх: «документи читаються». Стадії перевірок (глава 7)
+виростуть наступними щаблями, кожна своїм червоним commit-ом.
