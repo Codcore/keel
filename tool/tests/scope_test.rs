@@ -162,6 +162,64 @@ fn scope_both_ways() {
         out.contains("\"lib/a.txt\" is untouched") && out.contains("\"lib/b.txt\" is untouched"),
         "both named:\n{out}"
     );
+
+    // Second birth (work-check finding): a declared file with a
+    // non-ASCII name must compare as itself -- git's default path
+    // quoting ("\321\204...") must not turn an honest Ukrainian
+    // filename into false drift plus false untouched.
+    let dir = sandbox("cyrillic");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    write(&dir, "lib/файл.txt", "one\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    git(&dir, &["checkout", "-q", "-b", "0005-scope-w"]);
+    write(
+        &dir,
+        "keel/waves/0005-scope-w.md",
+        &wave_declaring("      - lib/файл.txt\n"),
+    );
+    write(&dir, "lib/файл.txt", "one, changed\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "work"]);
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "a declared and touched non-ASCII file is silence:\n{out}"
+    );
+
+    // Second birth (work-check finding): on a fresh clone the local
+    // main often does not exist -- only origin/main does; the base
+    // must come from there, not slide to the first commit and flood
+    // the report with false drift.
+    let dir = sandbox("originmain");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    write(&dir, "lib/a.txt", "one\n");
+    write(&dir, "lib/old.txt", "history\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    git(&dir, &["checkout", "-q", "-b", "0005-scope-w"]);
+    write(
+        &dir,
+        "keel/waves/0005-scope-w.md",
+        &wave_declaring("      - lib/a.txt\n"),
+    );
+    write(&dir, "lib/a.txt", "one, changed\n");
+    git(&dir, &["add", "."]);
+    git(&dir, &["commit", "-q", "-m", "work"]);
+    // The clone shape: origin/main knows the base, local main is gone.
+    git(&dir, &["update-ref", "refs/remotes/origin/main", "main"]);
+    git(&dir, &["branch", "-q", "-D", "main"]);
+
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "the base comes from origin/main, no drift flood:\n{out}"
+    );
+    assert!(
+        out.contains("merge-base with main"),
+        "the base still named as main's:\n{out}"
+    );
 }
 
 /// proves: one-new-in-counted@327a30 -- holds §4.1: `one new in
