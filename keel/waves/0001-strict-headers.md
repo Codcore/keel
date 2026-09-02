@@ -1,30 +1,30 @@
 ---
 scenarios:
-  zlamana-shapka-vidmovliaie:
+  broken-header-refuses:
     proves: tool-docs@faca26
     covers: [safety.fail-safe, maintainability.analysability]
-  nevidome-pole-vidmovliaie:
+  unknown-field-refuses:
     proves: tool-docs@faca26
     covers: [interaction.user-error-protection]
-  tsila-shapka-khvyli-chytaietsia:
+  valid-wave-parses:
     proves: tool-docs@faca26
     covers: [functional.correctness, reliability.faultlessness]
-  tsila-shapka-kontraktu-chytaietsia:
+  valid-contract-parses:
     proves: tool-docs@faca26
     covers: [functional.completeness]
-  check-zvituie-po-kozhnomu-failu:
+  check-reports-every-file:
     proves: tool-docs@faca26
     covers: [reliability.fault-tolerance, safety.hazard-warning, interaction.self-descriptiveness]
-  bez-teky-keel-vidmova-z-krokom:
+  missing-keel-dir-refuses:
     covers: [interaction.user-assistance]
 
 transforms:
-  chytannia-shapok:
+  read-headers:
     implements:
-      - zlamana-shapka-vidmovliaie
-      - nevidome-pole-vidmovliaie
-      - tsila-shapka-khvyli-chytaietsia
-      - tsila-shapka-kontraktu-chytaietsia
+      - broken-header-refuses
+      - unknown-field-refuses
+      - valid-wave-parses
+      - valid-contract-parses
     contracts: [tool-docs@faca26]
     files:
       - tool/Cargo.toml
@@ -34,10 +34,10 @@ transforms:
       - tool/src/docs.rs
       - tool/tests/docs_test.rs
       - .github/workflows/tool-ci.yml
-  check-obkhodyt-proiekt:
+  check-walks-project:
     implements:
-      - check-zvituie-po-kozhnomu-failu
-      - bez-teky-keel-vidmova-z-krokom
+      - check-reports-every-file
+      - missing-keel-dir-refuses
     contracts: [tool-docs@faca26]
     files:
       - tool/src/main.rs
@@ -93,7 +93,7 @@ decisions:
 commit (§8.6), і їде робочою гілкою v2. Повна механіка гілок (§8.1,
 §8.2) вмикається для хвиль після виходу v2 у main.
 
-## scenario: zlamana-shapka-vidmovliaie
+## scenario: broken-header-refuses
 
 **Дано** файл хвилі, чия шапка не читається (незакриті `---` або битий
 YAML),
@@ -101,7 +101,7 @@ YAML),
 **тоді** повертається відмова, що називає файл і причину людською
 мовою, — а не порожній документ і не тихий пропуск.
 
-## scenario: nevidome-pole-vidmovliaie
+## scenario: unknown-field-refuses
 
 **Дано** шапку з полем, якого методика не знає (одрук на кшталт
 `scenarois`),
@@ -109,7 +109,7 @@ YAML),
 **тоді** відмова називає невідоме поле і файл: одрук, прочитаний як
 «нічого не оголошено», вимкнув би захист мовчки (§7.9).
 
-## scenario: tsila-shapka-khvyli-chytaietsia
+## scenario: valid-wave-parses
 
 **Дано** файл хвилі з цілою шапкою — сценарії зі звʼязками, трансформи
 з файлами, decisions,
@@ -117,13 +117,13 @@ YAML),
 **тоді** всі поля доступні як дані: імена сценаріїв, proves і covers,
 файли трансформ, причини decisions — без втрат і без вигаданих значень.
 
-## scenario: tsila-shapka-kontraktu-chytaietsia
+## scenario: valid-contract-parses
 
 **Дано** файл контракту з module і exports,
 **коли** його читає `read_contract`,
 **тоді** імʼя одиниці коду і сигнатури доступні як дані.
 
-## scenario: check-zvituie-po-kozhnomu-failu
+## scenario: check-reports-every-file
 
 **Дано** теку `keel/` з кількома документами, один з яких зіпсований,
 **коли** біжить `keel check`,
@@ -131,7 +131,7 @@ YAML),
 зіпсований — названий з причиною; зіпсований не зупинив перевірку
 сусідів і не зник зі звіту.
 
-## scenario: bez-teky-keel-vidmova-z-krokom
+## scenario: missing-keel-dir-refuses
 
 **Дано** запуск `keel check` там, де теки `keel/` нема,
 **коли** команда завершується,
@@ -139,7 +139,7 @@ YAML),
 `keel/waves/` і `keel/contracts/` або перейти в корінь проєкту), — і
 код виходу ненульовий.
 
-## transform: chytannia-shapok
+## transform: read-headers
 
 Модуль `docs`: типи Wave, Contract, Refusal і функції читання. Разом
 їде ґрунт (§4.7): cargo-проєкт у `tool/` і CI-крок, що ганяє його
@@ -159,7 +159,7 @@ YAML),
 METHODOLOGY-V2 — машинної перевірки ще нема, і саме її ця хвиля
 будує.
 
-## transform: check-obkhodyt-proiekt
+## transform: check-walks-project
 
 Підкоманда `check`: обхід `keel/` через `scan`, звіт по кожному файлу,
 ненульовий вихід за будь-якої відмови. Це ще не весь check методики —
