@@ -5,4 +5,5 @@
 //! параграф, який тримає.
 
 pub mod check;
+pub mod config;
 pub mod docs;
