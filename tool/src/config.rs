@@ -24,6 +24,9 @@ pub struct Config {
     /// The file really existed -- defaults do not pass themselves
     /// off as something read.
     pub present: bool,
+    /// The lang field was written by hand; false means the default is
+    /// in effect and must be named aloud, not printed as if read.
+    pub lang_set: bool,
 }
 
 impl Default for Config {
@@ -36,6 +39,7 @@ impl Default for Config {
             trust: Vec::new(),
             generated: Vec::new(),
             present: false,
+            lang_set: false,
         }
     }
 }
@@ -80,6 +84,7 @@ pub fn read(root: &Path) -> Result<Config, Refusal> {
             .to_string(),
     })?;
 
+    let lang_set = raw.lang.is_some();
     let lang = raw.lang.unwrap_or_else(|| "en".to_string());
     if !LANGUAGES.contains(&lang.as_str()) {
         return Err(Refusal {
@@ -102,5 +107,6 @@ pub fn read(root: &Path) -> Result<Config, Refusal> {
         trust: raw.trust.unwrap_or_default().into_iter().collect(),
         generated: raw.generated.unwrap_or_default().into_iter().collect(),
         present: true,
+        lang_set,
     })
 }

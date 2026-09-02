@@ -93,6 +93,7 @@ docs-contract-empty-instead = give signatures with module (§2.7) or a verify co
 check-title = keel check -- documents (rung 1)
 check-config-present = config: keel.toml (lang = { $lang })
 check-config-absent = no keel.toml -- defaults in effect (lang = en); a default does not pass itself off as read
+check-config-lang-default = config: keel.toml (lang not set -- default en in effect; a default does not pass itself off as read)
 check-header-reads = header reads
 check-no-documents = no documents yet
 check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9)

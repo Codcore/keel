@@ -177,6 +177,12 @@ fn output_follows_lang() {
         "the config named in the report:\n{out}"
     );
 
+    // And a refusal follows lang too, not only the green lines (Z-4b).
+    write(&dir, "keel/contracts/broken.md", "---\nmodule: X\n");
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("not closed"), "the refusal in English:\n{out}");
+
     // lang = "uk" -- a Ukrainian report, and the refusal in Ukrainian too.
     let dir = sandbox("lang-uk");
     write(&dir, "keel.toml", "lang = \"uk\"\n");

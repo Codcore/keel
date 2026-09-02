@@ -93,6 +93,7 @@ docs-contract-empty-instead = дай сигнатури з module (§2.7) або
 check-title = keel check — документи (щабель 1)
 check-config-present = конфіг: keel.toml (lang = { $lang })
 check-config-absent = keel.toml нема — діють типові значення (lang = en); типове не видає себе за прочитане
+check-config-lang-default = конфіг: keel.toml (lang не заданий — діє типове en; типове не видає себе за прочитане)
 check-header-reads = шапка читається
 check-no-documents = документів ще нема
 check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9)

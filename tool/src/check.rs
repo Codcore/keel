@@ -47,13 +47,15 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
 
     let mut report = t("check-title");
     report.push('\n');
-    let config_line = if config.present {
+    let config_line = if !config.present {
+        t("check-config-absent")
+    } else if config.lang_set {
         ta(
             "check-config-present",
             targs!("lang" => config.lang.clone()),
         )
     } else {
-        t("check-config-absent")
+        t("check-config-lang-default")
     };
     writeln!(report, "{config_line}\n").unwrap();
 

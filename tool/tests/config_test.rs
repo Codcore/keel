@@ -62,17 +62,19 @@ fn config_reads_strictly() {
     assert!(r.reason.contains("langg"), "names the field: {}", r.reason);
     assert!(!r.instead.is_empty());
 
-    // A wrong type refuses.
+    // A wrong type refuses, naming the field and the line (Z-4a).
     let dir = sandbox("badtype");
     write(&dir, "keel.toml", "lang = 42\n");
     let r = config::read(&dir).unwrap_err();
-    assert!(!r.reason.is_empty() && !r.instead.is_empty());
+    assert!(r.reason.contains("lang"), "names the field: {}", r.reason);
+    assert!(r.reason.contains("line"), "names the line: {}", r.reason);
+    assert!(!r.instead.is_empty());
 
-    // Broken TOML refuses.
+    // Broken TOML refuses, with a position (Z-4a).
     let dir = sandbox("broken");
     write(&dir, "keel.toml", "lang = \"uk\n");
     let r = config::read(&dir).unwrap_err();
-    assert!(!r.reason.is_empty());
+    assert!(r.reason.contains("line"), "names the line: {}", r.reason);
 
     // lang outside the embedded set refuses, naming the available.
     let dir = sandbox("nolang");
