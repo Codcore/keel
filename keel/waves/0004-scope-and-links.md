@@ -12,13 +12,13 @@ scenarios:
     proves: tool-graph@31feb7
     covers: [reliability.faultlessness]
   scope-both-ways:
-    proves: tool-scope@14384c
+    proves: tool-scope@b8ada4
     covers: [functional.correctness, security.integrity]
   one-new-in-counted:
-    proves: tool-scope@14384c
+    proves: tool-scope@b8ada4
     covers: [safety.operational-constraints]
   scope-honest-when-unknown:
-    proves: tool-scope@14384c
+    proves: tool-scope@b8ada4
     covers: [interaction.self-descriptiveness, safety.fail-safe]
 
 transforms:
@@ -41,7 +41,7 @@ transforms:
       - scope-both-ways
       - one-new-in-counted
       - scope-honest-when-unknown
-    contracts: [tool-scope@14384c, tool-docs@2ab9a9, tool-config@63406a]
+    contracts: [tool-scope@b8ada4, tool-docs@2ab9a9, tool-config@63406a]
     files:
       - tool/src/scope.rs
       - tool/src/check.rs
@@ -53,7 +53,7 @@ transforms:
 
 decisions:
   functional.appropriateness: "свідомо без тесту: доречність судять хвилі, що підуть під цими перевірками, — першою ця сама"
-  performance.time-behaviour: "свідомо не міряємо: один git diff і прохід по шапках; вимір прийде з hook-хвилею"
+  performance.time-behaviour: "свідомо не міряємо: кілька викликів git і прохід по шапках на разовий біг; вимір прийде з hook-хвилею"
   performance.capacity: "не застосовується: хвиль і файлів у scope — десятки"
   performance.resource-utilisation: "свідомо не міряємо: разовий виклик git і память на списки імен"
   compatibility.co-existence: "не застосовується: читає, питає git, виходить — нічого не тримає"
@@ -71,7 +71,7 @@ decisions:
   security.non-repudiation: "не застосовується: дій зі станом нема"
   security.accountability: "не застосовується: те саме"
   security.authenticity: "не застосовується: нікого не автентифікує; git кличеться як команда системи, не з файлів репо — TOFU (§7.16) не потрібен"
-  security.resistance: "свідомо не робимо фаззингу: вхід — шапки після суворого розбору docs і вивід git; зловмисні імена файлів — просто рядки для порівняння"
+  security.resistance: "свідомо не робимо фаззингу: вхід — шапки після суворого розбору docs і вивід git; зловмисні імена файлів — рядки для порівняння, а імʼя з керівними знаками git лапкує попри quotePath=false — читається як дрейф (fail-closed), не тиша"
   maintainability.modularity: "свідомо без тесту: graph без диска і git, scope без словників — межі модулів рівно по главах 3 і 4"
   maintainability.reusability: "не застосовується: внутрішні модулі"
   maintainability.analysability: "свідомо без нового тесту: кожна знахідка називає слаг/файл/хвилю поіменно — це і assert-иться в сценаріях"
@@ -174,7 +174,16 @@ bootstrap-у), або теку без git,
 `check` дістає scope-поверх; тести будують справжні git-репозиторії в
 пісочницях.
 
-Застереження: точка порівняння — merge-base з main; де main-а нема
-(голий тест-репозиторій), береться перший commit гілки, і звіт каже,
-що взяв. Дельта тегів (§7.15) і закриття (§6.5) — щаблі попереду, і
-рядок «ще не перевірено» це далі називає.
+Застереження: точка порівняння — merge-base з main (локальним або
+origin/main на клоні); де main-а нема (голий тест-репозиторій),
+береться перший commit гілки, і звіт каже, що взяв. Дельта тегів
+(§7.15), закриття (§6.5) і суд «рівно однієї» відповіді по розрізу
+(§10.3 — зараз судиться лише тиша) — щаблі попереду, і рядок «ще не
+перевірено» їх називає.
+
+Застереження після рецензії, вголос: виняток §4.8 звужено до теки
+keel/ — скіли, CI-файли й блок AGENTS.md поки оголошуються у files;
+ширший виняток — рішення оператора пізнішим щаблем. І відступ від
+§8.4: червоний commit 90a0d6f другого народження названий не слагом
+сценарію (мав би бути «red: scope-both-ways») — брама §7.12 такого не
+пустить; названо тут, історія не переписується.
