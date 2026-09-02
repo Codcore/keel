@@ -62,11 +62,10 @@ fn stale_tag_found() {
         "keel/waves/0009-w.md",
         &format!(
             "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\n  ok: {{covers: [performance.capacity]}}\n  gone:\n    covers: [security.integrity]\n    withdrawn: \"folded\"\ntransforms:\n  t:\n    implements: [s, ok]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nbody of s\n\n## scenario: ok\n\nbody of ok\n\n## scenario: gone\n\nold body\n",
-            all_decided_except(&[
-                "functional.correctness",
-                "performance.capacity",
-                "security.integrity"
-            ])
+            // gone's dead cover does not answer security.integrity
+            // (§2.12), so the decisions block still carries it -- no
+            // side finding blurs the exit codes (review R-6e).
+            all_decided_except(&["functional.correctness", "performance.capacity"])
         ),
     );
     let ok_rev = keel::rev::text_rev("body of ok\n");
@@ -133,5 +132,34 @@ fn stale_tag_found() {
     assert!(
         out.contains("4") && out.contains("hex") && out.contains("§5.2"),
         "the refusal names the shape, not a fake staleness:\n{out}"
+    );
+
+    // A dangling tag -- no test function right after it -- refuses by
+    // name, e2e (review R-6d holds the tool-tags promise by run).
+    let dir = sandbox("dangling");
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(
+        &dir,
+        "keel/waves/0009-w.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nbody of s\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
+    write(
+        &dir,
+        "tests/x_test.rs",
+        "/// proves: s@abcdef\nconst NOT_A_TEST: u8 = 0;\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a dangling tag is a finding:\n{out}");
+    assert!(
+        out.contains("no test function right after"),
+        "the dangling tag named:\n{out}"
     );
 }

@@ -90,6 +90,16 @@ fn judge(root: &Path, wave: &docs::Wave, subject: &str) -> Result<Verdict, Refus
                 targs!("slug" => head.to_string(), "wave" => wave.slug.clone()),
             )));
         }
+        // The capitalized twin of a birth or a transform -- the
+        // likeliest field typo -- does not walk past as "outside the
+        // judgement" (review R-3).
+        let lower = head.to_lowercase();
+        if is_slug(&lower) && (lower == "red" || wave.transforms.iter().any(|(n, _)| *n == lower)) {
+            return Ok(Verdict::Refuse(ta(
+                "gate-case",
+                targs!("head" => head.to_string()),
+            )));
+        }
     }
     Ok(Verdict::Pass(t("gate-outside")))
 }
@@ -154,6 +164,7 @@ fn judge_work(
     let found = tags::scan(&adapter::test_files(root)?)?;
 
     let mut checked: u64 = 0;
+    let mut live: u64 = 0;
     for scenario in scenarios {
         let withdrawn = wave
             .scenarios
@@ -163,6 +174,7 @@ fn judge_work(
         if withdrawn {
             continue;
         }
+        live += 1;
         let current = revs
             .iter()
             .find(|(n, _)| n == scenario)
@@ -205,6 +217,14 @@ fn judge_work(
             }
         }
     }
+    if live == 0 {
+        // A vacuum is not a quiet zero: no live scenario was judged
+        // (§2.12; review R-10).
+        return Ok(Verdict::Pass(ta(
+            "gate-work-vacuum",
+            targs!("transform" => slug.to_string()),
+        )));
+    }
     Ok(Verdict::Pass(ta(
         "gate-work-pass",
         targs!("transform" => slug.to_string(), "count" => checked),
@@ -227,10 +247,15 @@ const HOOK: &str = "#!/bin/sh\n# keel gate -- the commit judged by the machine (
 /// is never overwritten -- a refusal aloud (§9.7). This is the one
 /// thing the module writes.
 pub fn install_hook(root: &Path) -> Result<String, Refusal> {
+    // --git-path hooks answers with the directory git will actually
+    // read -- the shared hooks of the common dir in a worktree, and
+    // core.hooksPath where someone set it (review R-1): "installed"
+    // about a file git never reads would be the very lie this gate
+    // exists to stop.
     let out = std::process::Command::new("git")
         .arg("-C")
         .arg(root)
-        .args(["rev-parse", "--git-dir"])
+        .args(["rev-parse", "--git-path", "hooks"])
         .output()
         .map_err(|e| Refusal {
             file: root.to_path_buf(),
@@ -247,8 +272,7 @@ pub fn install_hook(root: &Path) -> Result<String, Refusal> {
             instead: t("scope-git-failed-instead"),
         });
     }
-    let git_dir = root.join(String::from_utf8_lossy(&out.stdout).trim());
-    let hooks = git_dir.join("hooks");
+    let hooks = root.join(String::from_utf8_lossy(&out.stdout).trim());
     let path = hooks.join("commit-msg");
 
     if path.is_file() {

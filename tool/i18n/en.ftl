@@ -134,6 +134,8 @@ tags-orphan = the tag on test "{ $test }" proves "{ $scenario }" -- no wave know
 tags-orphan-instead = name an existing scenario or drop the tag (§5.5)
 tags-dangling = the tag proves: { $scenario }@{ $rev } has no test function right after it
 tags-dangling-instead = put the tag on its test (§5.5); a record that holds nothing is worse than none
+tags-bad-rev = the tag on "{ $scenario }" holds the record "{ $rev }" -- a revision is written as 4-6 hex characters (§5.2)
+tags-bad-rev-instead = recompute with keel rev and record its prefix; a crooked record holds nothing
 
 ## adapter module
 adapter-no-crate = no Cargo.toml at the root and none exactly one level down
@@ -165,6 +167,8 @@ gate-work-untagged = transform "{ $transform }": scenario "{ $scenario }" has no
 gate-work-broken = transform "{ $transform }": the tests do not compile: { $words }
 gate-work-notrun = transform "{ $transform }": the run executed no test named "{ $test }" for scenario "{ $scenario }"
 gate-unknown-slug = "{ $slug }" is neither red: nor a transform of wave { $wave } -- a typo does not pass as "outside the judgement" (§8.4)
+gate-case = "{ $head }" wears capitals -- red: and slugs are written lowercase (§1.2, §8.4); a capitalized twin does not pass as outside the judgement
+gate-work-vacuum = transform "{ $transform }": no live scenario left to judge -- the withdrawn are outside the judgement (§2.12), passing with this word
 gate-soft = mode: soft -- the same words, a warning only
 gate-hook-installed = the commit-msg hook now calls keel gate -- written to { $path }
 gate-hook-already = the hook is already ours -- quietly the same file
@@ -183,6 +187,7 @@ check-config-lang-default = config: keel.toml (lang not set -- default en in eff
 check-refs-count = contract references checked: { $count }
 check-refs-historic = old revisions, true in the file's history: { $count } (§5.6)
 check-refs-shallow = history is truncated (shallow clone) -- old revisions cannot be verified, and are not judged
+check-refs-no-history = no git history here -- old revisions cannot be verified, and are not judged (§5.6)
 check-tags-count = test tags checked: { $count }
 check-tags-skipped-no-adapter = test tags not compared: no adapter named in keel.toml -- said aloud, not painted green
 check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not served on this rung (only cargo is) -- said aloud, not painted green

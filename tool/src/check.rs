@@ -55,10 +55,12 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // lived in the file's git history is legal (§5.6) -- and a
     // truncated history gets a word, not a judgement.
     let shallow = is_shallow(root);
+    let has_history = has_git(root);
     let mut ref_rows: std::collections::BTreeSet<(String, String)> = Default::default();
     let mut refs_checked: u64 = 0;
     let mut refs_historic: u64 = 0;
     let mut refs_unjudged: u64 = 0;
+    let mut refs_no_history: u64 = 0;
     for wave in &scan.waves {
         let wave_path = format!("keel/waves/{}.md", wave.slug);
         // A withdrawn scenario is outside judgement (§2.12): its
@@ -95,7 +97,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                     }
                     Ok(actual) => {
                         let relative = format!("keel/contracts/{}.md", reference.slug);
-                        if shallow {
+                        if !has_history {
+                            // "Where there is no history -- no
+                            // verdict" (§5.6; review R-2): the
+                            // absence of git is not the wave's fault.
+                            refs_no_history += 1;
+                            None
+                        } else if shallow {
                             refs_unjudged += 1;
                             None
                         } else if revision_in_history(root, &relative, &reference.rev) {
@@ -289,6 +297,9 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     if refs_unjudged > 0 {
         writeln!(report, "{}", t("check-refs-shallow")).unwrap();
     }
+    if refs_no_history > 0 {
+        writeln!(report, "{}", t("check-refs-no-history")).unwrap();
+    }
     writeln!(
         report,
         "{}\n{}\n{}\n{}\n{}",
@@ -407,6 +418,18 @@ fn revision_in_history(root: &Path, relative: &str, recorded: &str) -> bool {
         }
     }
     false
+}
+
+/// Whether git serves this root at all -- without it there is no
+/// history to testify, and no verdict is passed on old revisions
+/// (§5.6).
+fn has_git(root: &Path) -> bool {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--git-dir"])
+        .output();
+    matches!(out, Ok(o) if o.status.success())
 }
 
 /// A shallow clone's history is truncated -- old revisions cannot be

@@ -94,7 +94,11 @@ fn project(name: &str, mode_line: &str, test_fn_body: &str) -> PathBuf {
         "keel/waves/0009-w.md",
         &format!(
             "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\n  gone:\n    covers: [performance.capacity]\n    withdrawn: \"folded\"\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nbody of s\n\n## scenario: gone\n\nold body\n",
-            all_decided_except(&["functional.correctness", "performance.capacity"])
+            // The dead cover of `gone` does not answer its cut
+            // (§2.12), so the decisions block still carries it -- the
+            // fixture leaves no side finding to blur exit codes
+            // (review R-6e).
+            all_decided_except(&["functional.correctness"])
         ),
     );
     git(&dir, &["init", "-q", "-b", "0009-w"]);
@@ -162,6 +166,16 @@ fn red_commit_needs_failing_test() {
         out.contains("lowercase"),
         "the refusal teaches the shape:\n{out}"
     );
+
+    // A birth claimed with no tagged test refuses (review R-6d).
+    let dir = project("reduntagged", "", "assert!(true);");
+    write(&dir, "tests/t_test.rs", "#[test]\nfn plain() {}\n");
+    let (out, code) = gate(&dir, "red: s");
+    assert_eq!(code, 1, "an untagged birth refuses:\n{out}");
+    assert!(
+        out.contains("no test carries"),
+        "the missing tag named:\n{out}"
+    );
 }
 
 /// proves: work-commit-needs-green@12c44c -- holds §8.4/§2.4: a work
@@ -204,6 +218,22 @@ fn work_commit_needs_green() {
         "the missing tag named:\n{out}"
     );
 
+    // All tags of a scenario run, whichever file they live in -- the
+    // second, failing one blocks the work (review R-6c).
+    let dir = project("worktwotags", "", "assert!(true);");
+    let s_rev = keel::rev::text_rev("body of s\n");
+    write(
+        &dir,
+        "tests/second_test.rs",
+        &format!("/// proves: s@{s_rev}\n#[test]\nfn holds_s_again() {{ assert!(false); }}\n"),
+    );
+    let (out, code) = gate(&dir, "t: does the declared work");
+    assert_eq!(code, 1, "every tag of the scenario runs:\n{out}");
+    assert!(
+        out.contains("holds_s_again"),
+        "the second, failing test named:\n{out}"
+    );
+
     // A slug-shaped stranger is a typo, not \"outside the judgement\".
     let dir = project("workstranger", "", "assert!(true);");
     let (out, code) = gate(&dir, "typo-slug: something");
@@ -240,7 +270,7 @@ fn work_commit_needs_green() {
         "keel/waves/0009-w.md",
         &format!(
             "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\n  gone:\n    covers: [performance.capacity]\n    withdrawn: \"folded\"\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n  empty-t:\n    implements: [gone]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\nbody of s\n\n## scenario: gone\n\nold body\n",
-            all_decided_except(&["functional.correctness", "performance.capacity"])
+            all_decided_except(&["functional.correctness"])
         ),
     );
     git(&dir, &["add", "."]);
@@ -329,7 +359,8 @@ fn gate_modes_obeyed() {
         "the default named as a default:\n{out}"
     );
 
-    // A branch named as no wave -- nothing to judge, in every mode.
+    // A branch named as no wave -- nothing to judge, in every mode
+    // (review R-6b: soft and manual proven too, not only strict).
     let dir = project("modenotwave", "mode = \"strict\"\n", "assert!(true);");
     git(&dir, &["checkout", "-q", "-b", "just-work"]);
     let (out, code) = gate(&dir, "red: s");
@@ -337,6 +368,28 @@ fn gate_modes_obeyed() {
     assert!(
         out.contains("nothing to judge"),
         "the pass carries its word:\n{out}"
+    );
+    let dir = project("modenotwavesoft", "mode = \"soft\"\n", "assert!(true);");
+    git(&dir, &["checkout", "-q", "-b", "just-work"]);
+    let (out, code) = gate(&dir, "red: s");
+    assert_eq!(code, 0, "soft passes a non-wave branch too:\n{out}");
+    assert!(out.contains("nothing to judge"), "with the word:\n{out}");
+    let dir = project("modenotwavemanual", "mode = \"manual\"\n", "assert!(true);");
+    git(&dir, &["checkout", "-q", "-b", "just-work"]);
+    let (out, code) = gate(&dir, "red: s");
+    assert_eq!(code, 0, "manual passes everywhere:\n{out}");
+    assert!(
+        out.contains("judgement is off"),
+        "manual's own word stands:\n{out}"
+    );
+
+    // A mode outside the three refuses with the list (review R-6d).
+    let dir = project("modebad", "mode = \"STRICT\"\n", "assert!(true);");
+    let (out, code) = gate(&dir, "red: s");
+    assert_eq!(code, 2, "an unknown mode is a machine refusal:\n{out}");
+    assert!(
+        out.contains("strict, soft, manual"),
+        "the three named:\n{out}"
     );
 }
 
@@ -397,7 +450,10 @@ fn hook_installed_aloud() {
     git(&dir, &["checkout", "-q", "-b", "parking"]);
     let wt = std::env::temp_dir().join(format!("keel-0005g-{}-hookwt-wt", std::process::id()));
     let _ = fs::remove_dir_all(&wt);
-    git(&dir, &["worktree", "add", "-q", wt.to_str().unwrap(), "0009-w"]);
+    git(
+        &dir,
+        &["worktree", "add", "-q", wt.to_str().unwrap(), "0009-w"],
+    );
 
     let (out, _err, code) = keel(&["hook", wt.to_str().unwrap()]);
     assert_eq!(code, 0, "installation from a worktree passes:\n{out}");
@@ -439,5 +495,8 @@ fn hook_installed_aloud() {
         String::from_utf8_lossy(&commit.stdout),
         String::from_utf8_lossy(&commit.stderr)
     );
-    git(&dir, &["worktree", "remove", "--force", wt.to_str().unwrap()]);
+    git(
+        &dir,
+        &["worktree", "remove", "--force", wt.to_str().unwrap()],
+    );
 }

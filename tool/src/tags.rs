@@ -26,11 +26,21 @@ pub fn scan(files: &[PathBuf]) -> Result<Vec<TestTag>, Refusal> {
         let mut pending: Option<(String, String)> = None;
         for line in text.lines() {
             let trimmed = line.trim();
-            if let Some(tag) = tag_in(trimmed) {
-                if let Some((scenario, rev)) = pending.take() {
-                    return Err(dangling(file, &scenario, &rev));
+            if let Some((scenario, rev)) = tag_in(trimmed) {
+                if let Some((held, held_rev)) = pending.take() {
+                    return Err(dangling(file, &held, &held_rev));
                 }
-                pending = Some(tag);
+                // The record's shape is §5.2's: 4-6 hex characters --
+                // a crooked record refuses as itself, not as a
+                // dressed-up staleness (review R-8).
+                if !(4..=6).contains(&rev.len()) || !rev.chars().all(|c| c.is_ascii_hexdigit()) {
+                    return Err(Refusal {
+                        file: file.clone(),
+                        reason: ta("tags-bad-rev", targs!("scenario" => scenario, "rev" => rev)),
+                        instead: t("tags-bad-rev-instead"),
+                    });
+                }
+                pending = Some((scenario, rev));
                 continue;
             }
             if let Some(name) = fn_name(trimmed) {

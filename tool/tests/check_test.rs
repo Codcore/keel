@@ -106,6 +106,16 @@ fn check_reports_every_file() {
         out.contains("holding (§7.6)"),
         "contract holding among the unchecked:\n{out}"
     );
+    // The unchecked line itself no longer names test tags -- they
+    // moved to the checked side with the tag floor (review R-6a).
+    let unchecked_line = out
+        .lines()
+        .find(|l| l.contains("not yet checked"))
+        .expect("the unchecked line exists");
+    assert!(
+        !unchecked_line.contains("test tags"),
+        "tags left the unchecked line:\n{unchecked_line}"
+    );
 
     // Without the broken file -- exit 0; honesty about the unchecked stays.
     fs::remove_file(dir.join("keel/contracts/broken.md")).unwrap();
@@ -297,6 +307,10 @@ fn contract_refs_verified() {
     );
 
     // A stale reference is a finding naming both revisions and §5.6.
+    // Since the tag floor the fixture carries real git history --
+    // where history exists and never held beef00, the strict verdict
+    // stands (a no-git directory gets a word instead, held by
+    // old_revision_legal_when_historic).
     write(
         &dir,
         "keel/waves/0006-stale.md",
@@ -305,6 +319,30 @@ fn contract_refs_verified() {
             all_decided_except(&["functional.correctness"])
         ),
     );
+    let git = |args: &[&str]| {
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(&dir)
+            .args([
+                "-c",
+                "user.email=keel@test",
+                "-c",
+                "user.name=keel-test",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?}:\n{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["add", "."]);
+    git(&["commit", "-q", "-m", "history that never held beef00"]);
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "a stale revision is a finding:\n{out}");
     assert!(

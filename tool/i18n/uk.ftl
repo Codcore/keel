@@ -134,6 +134,8 @@ tags-orphan = тег тесту "{ $test }" доводить "{ $scenario }" —
 tags-orphan-instead = назви наявний сценарій або прибери тег (§5.5)
 tags-dangling = тег proves: { $scenario }@{ $rev } не має тест-функції одразу за собою
 tags-dangling-instead = постав тег на його тест (§5.5); запис, який нічого не тримає, гірший за відсутній
+tags-bad-rev = тег "{ $scenario }" тримає запис "{ $rev }" — редакція пишеться 4–6 hex-знаками (§5.2)
+tags-bad-rev-instead = перерахуй через keel rev і запиши її префікс; кривий запис нічого не тримає
 
 ## модуль adapter
 adapter-no-crate = Cargo.toml нема ні в корені, ні рівно одного на першому рівні тек
@@ -165,6 +167,8 @@ gate-work-untagged = трансформа "{ $transform }": сценарій "{ 
 gate-work-broken = трансформа "{ $transform }": тести не збираються: { $words }
 gate-work-notrun = трансформа "{ $transform }": біг не виконав жодного тесту "{ $test }" сценарію "{ $scenario }"
 gate-unknown-slug = "{ $slug }" — не red: і не трансформа хвилі { $wave }; одрук не проходить як «поза судом» (§8.4)
+gate-case = "{ $head }" носить великі літери — red: і слаги пишуться малими (§1.2, §8.4); капіталізований двійник не проходить як «поза судом»
+gate-work-vacuum = трансформа "{ $transform }": живих сценаріїв судити не лишилось — зняті поза судом (§2.12), пропуск із цим словом
 gate-soft = mode: soft — ті самі слова, лише попередженням
 gate-hook-installed = commit-msg hook тепер кличе keel gate — записано в { $path }
 gate-hook-already = hook уже наш — тихо той самий файл
@@ -183,6 +187,7 @@ check-config-lang-default = конфіг: keel.toml (lang не заданий �
 check-refs-count = посилань на контракти звірено: { $count }
 check-refs-historic = старих редакцій, справжніх в історії файлу: { $count } (§5.6)
 check-refs-shallow = історія обрізана (shallow-клон) — законність старих редакцій не звірити, вирок не виноситься
+check-refs-no-history = git-історії тут нема — законність старих редакцій не звірити, вирок не виноситься (§5.6)
 check-tags-count = тегів тестів звірено: { $count }
 check-tags-skipped-no-adapter = теги тестів не звірялись: adapter у keel.toml не названий — названо вголос, зеленим не замальовано
 check-tags-skipped-adapter = теги тестів не звірялись: адаптер "{ $name }" цим щаблем не обслуговується (лише cargo) — названо вголос, зеленим не замальовано
