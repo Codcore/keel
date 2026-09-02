@@ -173,6 +173,7 @@ check-holding-uncompared = { $contract } — форму ніхто не порі
 holding-why-no-adapter = адаптер у keel.toml не названий
 holding-why-deep = шлях module глибший, ніж порівнює це покоління
 holding-why-no-file = файл модуля в crate не знайдено
+check-holding-plan = план-гілка: суд форми не біжить (§8.3) — exports ростуть наперед коду (§4.9)
 
 # -- review: пакет рецензента (§9.9) --------------------------------
 review-title = keel review — пакет рецензента (§9.9)
@@ -321,6 +322,7 @@ close-verify-passed = verify "{ $command }" контракту { $contract } —
 close-verify-failed = verify "{ $command }" контракту { $contract } — ВПАЛА ({ $words }) — зламана чужа обіцянка не зливається (§2.8)
 close-verify-untrusted = verify "{ $command }" контракту { $contract } — не бігала: недовірена (§7.16); той вирок тримає check
 close-verify-blockers = зламаних чужих обіцянок: { $count } — вихід червоний
+close-verify-no-words = команда не лишила слів
 close-plan-own = хвиля цієї гілки — затверджена, ще не почата: план-PR зливається планом (§6.6), робота видається після
 
 ## команда map (§10.7)

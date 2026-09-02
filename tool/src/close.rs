@@ -96,13 +96,18 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
                 targs!("command" => command.clone(), "contract" => contract.slug.clone()),
             )),
             Ok(out) => {
+                // The last non-empty line of stderr, else stdout,
+                // else the keyed word (0010 review R-5): no raw
+                // English inside a localized verdict.
                 let stderr = String::from_utf8_lossy(&out.stderr);
+                let stdout = String::from_utf8_lossy(&out.stdout);
                 let words = stderr
                     .lines()
                     .rev()
                     .find(|l| !l.trim().is_empty())
-                    .unwrap_or("no words from the command")
-                    .to_string();
+                    .or_else(|| stdout.lines().rev().find(|l| !l.trim().is_empty()))
+                    .map(str::to_string)
+                    .unwrap_or_else(|| t("close-verify-no-words"));
                 verify_lines.push(ta(
                     "close-verify-failed",
                     targs!("command" => command.clone(), "contract" => contract.slug.clone(), "words" => words),

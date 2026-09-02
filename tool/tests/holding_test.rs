@@ -130,7 +130,8 @@ fn exports_held() {
     );
 }
 
-/// Second birth (review 0010 R-1a/R-3/R-6), riding exports-held:
+/// proves: exports-held@ec9457 -- the second birth out of review
+/// 0010 (R-1a/R-3/R-6), riding exports-held:
 /// green must mean the form stands -- a short-form promise is not
 /// satisfied by a longer neighbour's name, a signature surviving
 /// only in a comment is vanished, the verdict words tell divergence
@@ -181,7 +182,11 @@ fn exports_held_second_birth() {
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     );
     write(&dir, "src/lib.rs", "pub mod alpha;\n");
-    write(&dir, "src/alpha.rs", "pub fn stays(x: u32) -> u32 {\n    x\n}\n");
+    write(
+        &dir,
+        "src/alpha.rs",
+        "pub fn stays(x: u32) -> u32 {\n    x\n}\n",
+    );
     write(
         &dir,
         "keel/contracts/toy-alpha.md",
@@ -192,7 +197,10 @@ fn exports_held_second_birth() {
     git2(&dir, &["commit", "-q", "-m", "the plan rides its branch"]);
     let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
-    assert_eq!(code, 0, "a plan branch is not red for growing exports (§8.3):\n{out}");
+    assert_eq!(
+        code, 0,
+        "a plan branch is not red for growing exports (§8.3):\n{out}"
+    );
     assert!(
         out.contains("plan branch") && out.contains("form court does not run"),
         "the skip is said aloud (§8.3):\n{out}"

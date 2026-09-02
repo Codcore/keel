@@ -173,6 +173,7 @@ check-holding-uncompared = { $contract } — no one compared the form: { $why } 
 holding-why-no-adapter = no adapter named in keel.toml
 holding-why-deep = the module path is deeper than this generation compares
 holding-why-no-file = the module's file was not found in the crate
+check-holding-plan = a plan branch: the form court does not run (§8.3) — exports may grow ahead of the code (§4.9)
 
 # -- review: the reviewer's package (§9.9) --------------------------
 review-title = keel review — the reviewer's package (§9.9)
@@ -319,6 +320,7 @@ close-verify-passed = verify "{ $command }" of { $contract } — passed
 close-verify-failed = verify "{ $command }" of { $contract } — FAILED ({ $words }) — a broken foreign promise does not merge (§2.8)
 close-verify-untrusted = verify "{ $command }" of { $contract } — did not run: not trusted (§7.16); check holds that verdict
 close-verify-blockers = broken foreign promises: { $count } — the exit is red
+close-verify-no-words = the command left no words
 close-plan-own = the wave of this branch is approved, not started -- a plan PR merges as a plan (§6.6); the work is issued after
 
 ## map command (§10.7)

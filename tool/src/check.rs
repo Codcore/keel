@@ -304,22 +304,31 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
 
     // The form floor (§7.6, §2.9): promised signatures against the
     // module's source, as collapsed text; the incomparable is a
-    // word with its reason, never green.
-    for (place, reason, instead) in holding::court(root, config, &scan.contracts) {
-        rows.push((
-            place,
-            Some(format!(
-                "{reason}\n           {}: {instead}",
-                t("word-instead")
-            )),
-        ));
-    }
-    let (signatures_checked, uncompared) = holding::survey(root, config, &scan.contracts);
-    let mut holding_status = ta("check-holding-count", targs!("count" => signatures_checked));
-    for line in uncompared {
-        holding_status.push('\n');
-        holding_status.push_str(&line);
-    }
+    // word with its reason, never green. On a plan branch the court
+    // does not run at all (§8.3; 0010 review R-1): the plan grows
+    // exports ahead of the code by design (§4.9), and a gate that is
+    // always shut stops being read.
+    let plan_branch = scope::current_branch(root).is_some_and(|b| b.starts_with("plan/"));
+    let holding_status = if plan_branch {
+        t("check-holding-plan")
+    } else {
+        for (place, reason, instead) in holding::court(root, config, &scan.contracts) {
+            rows.push((
+                place,
+                Some(format!(
+                    "{reason}\n           {}: {instead}",
+                    t("word-instead")
+                )),
+            ));
+        }
+        let (signatures_checked, uncompared) = holding::survey(root, config, &scan.contracts);
+        let mut status = ta("check-holding-count", targs!("count" => signatures_checked));
+        for line in uncompared {
+            status.push('\n');
+            status.push_str(&line);
+        }
+        status
+    };
     rows.sort();
 
     let mut report = t("check-title");

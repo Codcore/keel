@@ -37,13 +37,16 @@ pub fn court(
         let Comparability::Source(source) = comparability(root, config, module) else {
             continue;
         };
-        let flat_source = collapse(&source);
+        // Comments are not code (0010 review R-3): a promise that
+        // survives only in a comment has vanished.
+        let bare = strip_comments(&source);
+        let flat_source = collapse(&bare);
         for signature in &contract.exports {
-            if flat_source.contains(&collapse(signature)) {
+            if found_bounded(&flat_source, &collapse(signature)) {
                 continue;
             }
             let name = unit_name(signature).unwrap_or_else(|| signature.clone());
-            if source.contains(&name) {
+            if found_bounded(&bare, &name) {
                 out.push((
                     place.clone(),
                     ta(
@@ -128,6 +131,61 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
     match std::fs::read_to_string(path) {
         Ok(source) => Comparability::Source(source),
         Err(_) => Comparability::NoFile,
+    }
+}
+
+/// A match is a match only on token boundaries (0010 review
+/// R-3/R-6): `pub fn run` is not satisfied by `run_all`, and the
+/// verdict words tell divergence from disappearance apart.
+fn found_bounded(haystack: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return false;
+    }
+    let ident = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    let bytes = haystack.as_bytes();
+    let mut from = 0;
+    while let Some(pos) = haystack[from..].find(needle) {
+        let at = from + pos;
+        let end = at + needle.len();
+        let before_ok = at == 0 || !ident(bytes[at - 1]);
+        let after_ok = end >= bytes.len() || !ident(bytes[end]);
+        if before_ok && after_ok {
+            return true;
+        }
+        from = at + 1;
+    }
+    false
+}
+
+/// Line and block comments cut out; string literals stay text --
+/// that limit is named by the contract.
+fn strip_comments(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    let mut rest = source;
+    loop {
+        let line = rest.find("//");
+        let block = rest.find("/*");
+        match (line, block) {
+            (None, None) => {
+                out.push_str(rest);
+                return out;
+            }
+            (Some(l), None) => {
+                out.push_str(&rest[..l]);
+                rest = rest[l..].split_once('\n').map_or("", |(_, tail)| tail);
+                out.push('\n');
+            }
+            (Some(l), Some(b)) if l < b => {
+                out.push_str(&rest[..l]);
+                rest = rest[l..].split_once('\n').map_or("", |(_, tail)| tail);
+                out.push('\n');
+            }
+            (_, Some(b)) => {
+                out.push_str(&rest[..b]);
+                rest = rest[b..].split_once("*/").map_or("", |(_, tail)| tail);
+                out.push(' ');
+            }
+        }
     }
 }
 
