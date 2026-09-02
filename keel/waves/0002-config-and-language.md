@@ -20,7 +20,6 @@ transforms:
   read-config:
     implements:
       - config-reads-strictly
-      - missing-config-defaults
     contracts: [tool-config@63406a]
     files:
       - tool/Cargo.toml
@@ -30,6 +29,7 @@ transforms:
       - tool/tests/config_test.rs
   speak-by-keys:
     implements:
+      - missing-config-defaults
       - output-follows-lang
       - missing-key-falls-back
       - plural-forms-correct
