@@ -1,19 +1,22 @@
 ---
 scenarios:
   broken-header-refuses:
-    proves: tool-docs@faca26
+    proves: tool-docs@586e6a
     covers: [safety.fail-safe, maintainability.analysability]
   unknown-field-refuses:
-    proves: tool-docs@faca26
+    proves: tool-docs@586e6a
     covers: [interaction.user-error-protection]
   valid-wave-parses:
-    proves: tool-docs@faca26
+    proves: tool-docs@586e6a
     covers: [functional.correctness, reliability.faultlessness]
   valid-contract-parses:
-    proves: tool-docs@faca26
+    proves: tool-docs@586e6a
     covers: [functional.completeness]
+  duplicate-name-refuses:
+    proves: tool-docs@586e6a
+    covers: [interaction.user-error-protection]
   check-reports-every-file:
-    proves: tool-docs@faca26
+    proves: tool-docs@586e6a
     covers: [reliability.fault-tolerance, safety.hazard-warning, interaction.self-descriptiveness]
   missing-keel-dir-refuses:
     covers: [interaction.user-assistance]
@@ -25,7 +28,8 @@ transforms:
       - unknown-field-refuses
       - valid-wave-parses
       - valid-contract-parses
-    contracts: [tool-docs@faca26]
+      - duplicate-name-refuses
+    contracts: [tool-docs@586e6a]
     files:
       - tool/Cargo.toml
       - tool/Cargo.lock
@@ -38,7 +42,7 @@ transforms:
     implements:
       - check-reports-every-file
       - missing-keel-dir-refuses
-    contracts: [tool-docs@faca26]
+    contracts: [tool-docs@586e6a]
     files:
       - tool/src/main.rs
       - tool/src/check.rs
@@ -95,8 +99,8 @@ commit (§8.6), і їде робочою гілкою v2. Повна механ�
 
 ## scenario: broken-header-refuses
 
-**Дано** файл хвилі, чия шапка не читається (незакриті `---` або битий
-YAML),
+**Дано** файл хвилі, чия шапка не читається (незакриті `---`, шапки
+нема зовсім або битий YAML),
 **коли** його читає `read_wave`,
 **тоді** повертається відмова, що називає файл і причину людською
 мовою, — а не порожній документ і не тихий пропуск.
@@ -123,13 +127,23 @@ YAML),
 **коли** його читає `read_contract`,
 **тоді** імʼя одиниці коду і сигнатури доступні як дані.
 
+## scenario: duplicate-name-refuses
+
+**Дано** шапку, де два сценарії чи дві трансформи назвались одним
+імʼям,
+**коли** її читають,
+**тоді** відмова називає імʼя-дубль: YAML мовчки лишив би останнього,
+і половина плану зникла б без сліду.
+
 ## scenario: check-reports-every-file
 
 **Дано** теку `keel/` з кількома документами, один з яких зіпсований,
 **коли** біжить `keel check`,
 **тоді** у звіті є рядок по кожному файлу: цілі — перевірені,
 зіпсований — названий з причиною; зіпсований не зупинив перевірку
-сусідів і не зник зі звіту.
+сусідів і не зник зі звіту. І звіт називає, що́ цим поверхом
+перевірено (шапки), а що ще ні (редакції, scope, тести, §7.7 —
+щаблі попереду): зелене про неперевірене заборонене (урок №4).
 
 ## scenario: missing-keel-dir-refuses
 
