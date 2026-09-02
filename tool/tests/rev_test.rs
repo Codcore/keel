@@ -92,4 +92,26 @@ fn revision_recipe_reproduced() {
         "names the duplicate: {}",
         r.reason
     );
+
+    // An empty-after-collapse section body refuses too: a revision of
+    // emptiness is the same bare promise 0001 fought (review Z-2).
+    let wave = dir.join("keel/waves/0012-w.md");
+    fs::write(
+        &wave,
+        "---\nscenarios:\n  hollow: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [hollow]\n    files: [lib/a.ex]\n---\n\n## scenario: hollow\n\n   \n\n## Why\n\ntext\n",
+    )
+    .unwrap();
+    let r = rev::scenario_revs(&wave).unwrap_err();
+    assert!(
+        r.reason.contains("hollow"),
+        "names the hollow scenario: {}",
+        r.reason
+    );
+
+    // The live scenario revisions of wave 0001 -- computed by hand
+    // then, reproduced by the machine now (review Z-7).
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let live = rev::scenario_revs(&root.join("keel/waves/0001-strict-headers.md")).unwrap();
+    assert!(live.contains(&("broken-header-refuses".to_string(), "240948".to_string())));
+    assert!(live.contains(&("bare-scenario-refuses".to_string(), "0d40d4".to_string())));
 }
