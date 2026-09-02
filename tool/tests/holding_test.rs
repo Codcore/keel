@@ -244,14 +244,17 @@ fn plan_window_forgiven() {
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     );
     write(&dir, "src/lib.rs", "pub mod alpha;\n");
-    write(&dir, "src/alpha.rs", "pub fn stays(x: u32) -> u32 {\n    x\n}\n");
+    write(
+        &dir,
+        "src/alpha.rs",
+        "pub fn stays(x: u32) -> u32 {\n    x\n}\n",
+    );
     write(
         &dir,
         "keel/contracts/toy-alpha.md",
         "---\nmodule: toy::alpha\nexports:\n  - \"pub fn stays(x: u32) -> u32\"\n  - \"pub fn planned_ahead() -> bool\"\n---\n\nThe plan grew this promise ahead of the code (§4.9).\n",
     );
-    let contract_rev =
-        keel::rev::contract_rev(&dir.join("keel/contracts/toy-alpha.md")).unwrap();
+    let contract_rev = keel::rev::contract_rev(&dir.join("keel/contracts/toy-alpha.md")).unwrap();
     let mut decided = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
         if *cut != "functional.correctness" {

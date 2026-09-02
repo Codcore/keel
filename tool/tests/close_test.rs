@@ -559,7 +559,9 @@ fn untrusted_not_run_second_birth() {
         "shim/crookedcmd",
         &format!("#!/bin/sh\necho called >> {}\n", log.display()),
     );
-    let mut perms = fs::metadata(dir.join("shim/crookedcmd")).unwrap().permissions();
+    let mut perms = fs::metadata(dir.join("shim/crookedcmd"))
+        .unwrap()
+        .permissions();
     perms.set_mode(0o755);
     fs::set_permissions(dir.join("shim/crookedcmd"), perms).unwrap();
     write(
@@ -590,7 +592,10 @@ fn untrusted_not_run_second_birth() {
         text.contains("did not run") && text.contains("not trusted"),
         "a crooked fingerprint does not run (the scenario's second half):\n{text}"
     );
-    assert!(!log.exists(), "the shim proves the crooked one was not called:\n{text}");
+    assert!(
+        !log.exists(),
+        "the shim proves the crooked one was not called:\n{text}"
+    );
 
     // Changed inside the quotes: trust recorded for `qecho "a b"`,
     // the contract now says `qecho "a  b"` -- whitespace the shell
