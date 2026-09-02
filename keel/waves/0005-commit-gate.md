@@ -38,6 +38,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/tests/tags_test.rs
       - tool/tests/check_test.rs
+      - keel.toml
   gate-command:
     implements:
       - red-commit-needs-failing-test
