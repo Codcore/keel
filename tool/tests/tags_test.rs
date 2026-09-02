@@ -79,7 +79,10 @@ fn stale_tag_found() {
     );
 
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
-    assert_eq!(code, 1, "a stale tag and an orphan tag are findings:\n{out}");
+    assert_eq!(
+        code, 1,
+        "a stale tag and an orphan tag are findings:\n{out}"
+    );
     let s_rev = keel::rev::text_rev("body of s\n");
     assert!(
         out.contains("s@aaaaaa") && out.contains(&s_rev),

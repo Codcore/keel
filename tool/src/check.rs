@@ -3,6 +3,7 @@
 //! itself: green about the unchecked is forbidden (lesson 4 of the
 //! notes triage).
 
+use crate::adapter;
 use crate::config::Config;
 use crate::docs;
 use crate::graph;
@@ -10,9 +11,11 @@ use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::rev;
 use crate::scope;
+use crate::tags;
 use crate::targs;
 use std::fmt::Write as _;
 use std::path::Path;
+use std::process::Command;
 
 pub struct Outcome {
     pub report: String,
@@ -48,8 +51,14 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     }
     // The second floor (§7.1/§7.3): every contract reference in a
     // wave header is followed to its file and its revision compared.
+    // A mismatch is not yet a verdict: an old revision that truly
+    // lived in the file's git history is legal (§5.6) -- and a
+    // truncated history gets a word, not a judgement.
+    let shallow = is_shallow(root);
     let mut ref_rows: std::collections::BTreeSet<(String, String)> = Default::default();
     let mut refs_checked: u64 = 0;
+    let mut refs_historic: u64 = 0;
+    let mut refs_unjudged: u64 = 0;
     for wave in &scan.waves {
         let wave_path = format!("keel/waves/{}.md", wave.slug);
         // A withdrawn scenario is outside judgement (§2.12): its
@@ -84,13 +93,24 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                         refs_checked += 1;
                         None
                     }
-                    Ok(actual) => Some((
-                        ta(
-                            "check-ref-stale",
-                            targs!("wave" => wave.slug.clone(), "contract" => reference.slug.clone(), "recorded" => reference.rev.clone(), "actual" => actual),
-                        ),
-                        t("check-ref-stale-instead"),
-                    )),
+                    Ok(actual) => {
+                        let relative = format!("keel/contracts/{}.md", reference.slug);
+                        if shallow {
+                            refs_unjudged += 1;
+                            None
+                        } else if revision_in_history(root, &relative, &reference.rev) {
+                            refs_historic += 1;
+                            None
+                        } else {
+                            Some((
+                                ta(
+                                    "check-ref-stale",
+                                    targs!("wave" => wave.slug.clone(), "contract" => reference.slug.clone(), "recorded" => reference.rev.clone(), "actual" => actual),
+                                ),
+                                t("check-ref-stale-instead"),
+                            ))
+                        }
+                    }
                     Err(refusal) => Some((refusal.reason, refusal.instead)),
                 }
             };
@@ -180,6 +200,40 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             }
         },
     };
+    // The tag floor (§5.5, §7.5): proves tags in the test files the
+    // adapter names, judged against the scenarios' current revisions.
+    // A withdrawn scenario's tag is not judged (§2.12). Only the
+    // cargo adapter is served on this rung -- anything else is a
+    // skip said aloud, never a silent green.
+    let mut tags_checked: u64 = 0;
+    let tags_status = match config.adapter.as_deref() {
+        None => t("check-tags-skipped-no-adapter"),
+        Some("cargo") => match tag_rows(root, &scan.waves, &mut tags_checked) {
+            Ok(tag_findings) => {
+                for (path, text) in tag_findings {
+                    rows.push((path, Some(text)));
+                }
+                ta("check-tags-count", targs!("count" => tags_checked))
+            }
+            Err(refusal) => {
+                let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
+                rows.push((
+                    shown.display().to_string(),
+                    Some(format!(
+                        "{}\n           {}: {}",
+                        refusal.reason,
+                        t("word-instead"),
+                        refusal.instead
+                    )),
+                ));
+                t("check-tags-skipped-refused")
+            }
+        },
+        Some(other) => ta(
+            "check-tags-skipped-adapter",
+            targs!("name" => other.to_string()),
+        ),
+    };
     rows.sort();
 
     let mut report = t("check-title");
@@ -220,8 +274,25 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let documents = scan.waves.len() + scan.contracts.len();
     writeln!(
         report,
-        "\n{}\n{}\n{}\n{}\n{}",
-        ta("check-refs-count", targs!("count" => refs_checked)),
+        "\n{}",
+        ta("check-refs-count", targs!("count" => refs_checked))
+    )
+    .unwrap();
+    if refs_historic > 0 {
+        writeln!(
+            report,
+            "{}",
+            ta("check-refs-historic", targs!("count" => refs_historic))
+        )
+        .unwrap();
+    }
+    if refs_unjudged > 0 {
+        writeln!(report, "{}", t("check-refs-shallow")).unwrap();
+    }
+    writeln!(
+        report,
+        "{}\n{}\n{}\n{}\n{}",
+        tags_status,
         scope_status,
         t("check-checked"),
         t("check-unchecked"),
@@ -241,4 +312,112 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     writeln!(report, "{next}").unwrap();
 
     Ok(Outcome { report, findings })
+}
+
+/// The tag floor's findings: stale tags and orphan tags, judged
+/// against every wave's scenario revisions; matching tags counted.
+/// A scenario slug may live in several waves -- any matching
+/// revision passes, and the stale message shows the first.
+fn tag_rows(
+    root: &Path,
+    waves: &[docs::Wave],
+    checked: &mut u64,
+) -> Result<Vec<(String, String)>, Refusal> {
+    let files = adapter::test_files(root)?;
+    let found = tags::scan(&files)?;
+
+    let mut revs: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+    let mut withdrawn: std::collections::BTreeSet<String> = Default::default();
+    for wave in waves {
+        let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
+        for (name, revision) in rev::scenario_revs(&path)? {
+            let entry = wave.scenarios.iter().find(|(n, _)| *n == name);
+            if entry.is_some_and(|(_, sc)| sc.withdrawn.is_some()) {
+                withdrawn.insert(name.clone());
+            }
+            revs.entry(name).or_default().push(revision);
+        }
+    }
+
+    let mut out = Vec::new();
+    for tag in &found {
+        if withdrawn.contains(&tag.scenario) {
+            continue;
+        }
+        let shown = tag.file.strip_prefix(root).unwrap_or(&tag.file);
+        match revs.get(&tag.scenario) {
+            None => out.push((
+                shown.display().to_string(),
+                format!(
+                    "{}\n           {}: {}",
+                    ta(
+                        "tags-orphan",
+                        targs!("test" => tag.test.clone(), "scenario" => tag.scenario.clone()),
+                    ),
+                    t("word-instead"),
+                    t("tags-orphan-instead")
+                ),
+            )),
+            Some(current) if current.iter().any(|c| rev::matches(&tag.rev, c)) => {
+                *checked += 1;
+            }
+            Some(current) => out.push((
+                shown.display().to_string(),
+                format!(
+                    "{}\n           {}: {}",
+                    ta(
+                        "tags-stale",
+                        targs!("test" => tag.test.clone(), "scenario" => tag.scenario.clone(), "recorded" => tag.rev.clone(), "actual" => current[0].clone()),
+                    ),
+                    t("word-instead"),
+                    t("tags-stale-instead")
+                ),
+            )),
+        }
+    }
+    Ok(out)
+}
+
+/// Whether the recorded revision truly lived in the git history of
+/// the contract file (§5.6). Any git trouble reads as "not found":
+/// the strict verdict stands where history cannot testify.
+fn revision_in_history(root: &Path, relative: &str, recorded: &str) -> bool {
+    let log = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["log", "--format=%H", "--", relative])
+        .output();
+    let Ok(log) = log else { return false };
+    if !log.status.success() {
+        return false;
+    }
+    for sha in String::from_utf8_lossy(&log.stdout).lines() {
+        let show = Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(["show", &format!("{}:{relative}", sha.trim())])
+            .output();
+        let Ok(show) = show else { continue };
+        if !show.status.success() {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&show.stdout);
+        if rev::matches(recorded, &rev::text_rev(&text)) {
+            return true;
+        }
+    }
+    false
+}
+
+/// A shallow clone's history is truncated -- old revisions cannot be
+/// verified there, and the absence of history is not the wave's
+/// fault.
+fn is_shallow(root: &Path) -> bool {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--is-shallow-repository"])
+        .output();
+    matches!(out, Ok(o) if o.status.success()
+        && String::from_utf8_lossy(&o.stdout).trim() == "true")
 }

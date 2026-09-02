@@ -96,7 +96,7 @@ fn check_reports_every_file() {
     );
     assert!(
         out.contains("test tags (§5.5"),
-        "scenario revisions among the unchecked:\n{out}"
+        "test tags among the checked since the tag floor:\n{out}"
     );
     assert!(
         out.contains("links (chapter 3"),
@@ -656,13 +656,14 @@ fn old_revision_legal_when_historic() {
     );
     git(&dir, &["add", "."]);
     git(&dir, &["commit", "-q", "-m", "newest contract"]);
-    write(&dir, ".git/shallow", "0000000000000000000000000000000000000000\n");
+    write(
+        &dir,
+        ".git/shallow",
+        "0000000000000000000000000000000000000000\n",
+    );
 
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
-    assert_eq!(
-        code, 0,
-        "truncated history is not the wave's fault:\n{out}"
-    );
+    assert_eq!(code, 0, "truncated history is not the wave's fault:\n{out}");
     assert!(
         out.contains("history is truncated"),
         "the shallow clone named with a word, no verdict:\n{out}"

@@ -4,6 +4,7 @@
 //! every check is a function with its own test, and every test names
 //! the paragraph it holds.
 
+pub mod adapter;
 pub mod check;
 pub mod config;
 pub mod docs;
@@ -12,3 +13,4 @@ pub mod i18n;
 pub mod refusal;
 pub mod rev;
 pub mod scope;
+pub mod tags;

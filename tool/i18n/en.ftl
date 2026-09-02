@@ -127,6 +127,20 @@ scope-one-new-count-instead = make the counts meet (§4.1): one line per expecte
 scope-git-failed = git refuses here: { $error }
 scope-git-failed-instead = scope is judged against the branch (§4.5); make git answer in this directory and re-run keel check
 
+## tags module
+tags-stale = the tag on test "{ $test }" holds { $scenario }@{ $recorded }, the scenario's text now gives { $actual }
+tags-stale-instead = reread the scenario and update the tag deliberately (§5.1, §7.5) -- or the test no longer holds what changed
+tags-orphan = the tag on test "{ $test }" proves "{ $scenario }" -- no wave knows that scenario
+tags-orphan-instead = name an existing scenario or drop the tag (§5.5)
+tags-dangling = the tag proves: { $scenario }@{ $rev } has no test function right after it
+tags-dangling-instead = put the tag on its test (§5.5); a record that holds nothing is worse than none
+
+## adapter module
+adapter-no-crate = no Cargo.toml at the root and none exactly one level down
+adapter-no-crate-instead = the cargo adapter needs a crate: put Cargo.toml at the root or in one first-level directory
+adapter-many-crates = several first-level crates: { $found }
+adapter-many-crates-instead = the adapter does not guess; keep one crate at the first level or run keel from the crate's own project
+
 ## rev command
 rev-title = keel rev -- current revisions
 rev-next = next step: hold these revisions in proves/contracts and in test tags (§5.5); reread before updating a stale one (§5.1)
@@ -137,6 +151,12 @@ check-config-present = config: keel.toml (lang = { $lang })
 check-config-absent = no keel.toml -- defaults in effect (lang = en); a default does not pass itself off as read
 check-config-lang-default = config: keel.toml (lang not set -- default en in effect; a default does not pass itself off as read)
 check-refs-count = contract references checked: { $count }
+check-refs-historic = old revisions, true in the file's history: { $count } (§5.6)
+check-refs-shallow = history is truncated (shallow clone) -- old revisions cannot be verified, and are not judged
+check-tags-count = test tags checked: { $count }
+check-tags-skipped-no-adapter = test tags not compared: no adapter named in keel.toml -- said aloud, not painted green
+check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not served on this rung (only cargo is) -- said aloud, not painted green
+check-tags-skipped-refused = test tags not compared: the adapter refused mid-way -- its refusal stands among the findings
 check-scope-compared = scope: branch "{ $branch }" is the wave -- compared against { $base }
 check-scope-base-main = the merge-base with main @ { $sha }
 check-scope-base-first = the first commit of the branch @ { $sha } (no main here)
@@ -145,8 +165,8 @@ check-scope-skipped-no-git = scope not compared: git serves no branch for this r
 check-scope-skipped-refused = scope not compared: git refused mid-way -- its refusal stands among the findings
 check-header-reads = header reads
 check-no-documents = no documents yet
-check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3 -- for a closed wave an old revision is legal, §5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8)
-check-unchecked = not yet checked: scenario revisions in test tags (§5.5, §7.5), tag deltas (§7.15), closure (§6.5), a doubled answer per cut (§10.3), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
+check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5)
+check-unchecked = not yet checked: tag deltas (§7.15), closure (§6.5), a doubled answer per cut (§10.3), contracts holding (§7.6), header-vs-body (§7.7) -- rungs ahead
 check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
 check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
 check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }
