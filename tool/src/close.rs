@@ -14,7 +14,9 @@ use crate::targs;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-enum State {
+/// The structural stages of a wave -- close's own verdicts, opened
+/// pub(crate) so the stage eye (rung 11) asks instead of duplicating.
+pub(crate) enum State {
     Closed { refs_unjudged: u64 },
     ClosedLight,
     Plan,
@@ -226,7 +228,7 @@ pub fn structural(root: &Path, wave: &Wave, tags: &[TestTag]) -> Result<bool, Re
     ))
 }
 
-fn wave_state(
+pub(crate) fn wave_state(
     root: &Path,
     wave: &docs::Wave,
     found: &[TestTag],

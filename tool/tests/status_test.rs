@@ -100,7 +100,7 @@ fn status_tells_where() {
         "the started wave is in progress:\n{out}"
     );
     assert!(
-        out.contains("the review report"),
+        out.contains("the review file"),
         "the lack is named next to the in-progress wave (§9.9):\n{out}"
     );
     assert!(

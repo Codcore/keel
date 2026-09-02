@@ -306,7 +306,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 11 — стадії лупа (keel status і next)
+check-next-rung = наступний крок: щабель 12 — скелети планування (keel plan і new contract)
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -346,6 +346,24 @@ map-decided = вирішено: "{ $reason }"
 map-unanswered = без відповіді — суд тиші в keel check (§10.3)
 map-older = давніших відповідей: { $count }
 
+## команда status (§6.5, §6.8, §9.2)
+status-title = keel status — де ми (§6.5, §6.8)
+status-branch-wave = гілка "{ $branch }" і є хвилею — ми стоїмо всередині неї (§8.2)
+status-branch-plan = гілка "{ $branch }" — план-гілка: план пишеться (§8.2)
+status-branch-other = гілка "{ $branch }" не зветься жодною хвилею — огляд без хвилі
+status-branch-none = git не назвав гілки для цього кореня — огляд їде без неї, ніколи не здогад
+status-wave-closed = { "  " }{ $wave } — повна, закрита за структурою: теги збіжні, посилання сходяться, звіт поруч
+status-wave-closed-unjudged = { "  " }{ $wave } — повна, закрита за структурою; посилань не звірено: { $count } — історія тут не свідчить (§5.6)
+status-wave-closed-light = { "  " }{ $wave } — легка, закрита фактом merge (§6.8)
+status-wave-plan = { "  " }{ $wave } — повна, затверджена, ще не почата (§6.5)
+status-wave-progress = { "  " }{ $wave } — повна, в роботі; нестачі поіменно:
+status-awaiting = { "  " }чекає старту: хвиля { $wave } — гілка "{ $wave }" (§8.2)
+status-counts = пораховано: закритих { $closed }, у роботі { $working }, планів { $plans }
+status-no-battery = стадія тут — структурна (теги, посилання, звіт) — батарея не бігла: зелень тестів судять close і hook (§9.2)
+status-next = далі — keel next
+status-needs-adapter = око стадій потребує адаптера cargo, названого в keel.toml: теги — памʼять стадій
+status-needs-adapter-instead = постав adapter = "cargo" (NEW-CONCEPT, Config); інші адаптери приїдуть своїми хвилями
+
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
 main-unknown-command-reason = причина: такої команди keel не знає
@@ -353,4 +371,4 @@ main-no-command = відмова: не названо команди
 main-no-command-reason = причина: keel не вгадує, що робити
 main-gate-no-message = відмова: gate потребує файл повідомлення commit-а
 main-gate-no-message-reason = причина: суд читає повідомлення, яке віддає commit-msg hook
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel trust [тека] | keel hook [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel trust [тека] | keel hook [тека]

@@ -304,7 +304,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 11 -- the loop's stages (keel status and next)
+check-next-rung = next step: rung 12 -- the planning skeletons (keel plan and new contract)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
@@ -344,6 +344,24 @@ map-decided = decided: "{ $reason }"
 map-unanswered = no answer -- the silence court is keel check (§10.3)
 map-older = older answers: { $count }
 
+## status command (§6.5, §6.8, §9.2)
+status-title = keel status -- where we stand (§6.5, §6.8)
+status-branch-wave = the branch "{ $branch }" is the wave itself -- we stand inside it (§8.2)
+status-branch-plan = the branch "{ $branch }" is a plan branch -- the plan is being written (§8.2)
+status-branch-other = the branch "{ $branch }" is named as no wave -- an overview without one
+status-branch-none = git named no branch for this root -- the overview rides without one, never a guess
+status-wave-closed = { "  " }{ $wave } — full, closed structurally: tags match, references converge, the review lies next to it
+status-wave-closed-unjudged = { "  " }{ $wave } — full, closed structurally; { $count } references not judged: history cannot testify here (§5.6)
+status-wave-closed-light = { "  " }{ $wave } — light, closed by merge (§6.8)
+status-wave-plan = { "  " }{ $wave } — full, approved, not started (§6.5)
+status-wave-progress = { "  " }{ $wave } — full, in progress; the lacks, by name:
+status-awaiting = { "  " }awaits its start: the wave { $wave } — the branch "{ $wave }" (§8.2)
+status-counts = counted: closed { $closed }, in progress { $working }, plans { $plans }
+status-no-battery = the stage here is structural (tags, references, the review) — the battery was not run: green tests are judged by close and the hook (§9.2)
+status-next = onwards — keel next
+status-needs-adapter = the stage eye needs the cargo adapter named in keel.toml: tags are the memory of stages
+status-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
+
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: this is not one of the commands keel knows
@@ -351,4 +369,4 @@ main-no-command = refusal: no command given
 main-no-command-reason = reason: keel does not guess what to do
 main-gate-no-message = refusal: gate needs the commit message file
 main-gate-no-message-reason = reason: the judgement reads the message the commit-msg hook hands over
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel trust [dir] | keel hook [dir]
+main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel trust [dir] | keel hook [dir]
