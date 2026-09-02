@@ -100,7 +100,7 @@ fn check_reports_every_file() {
     );
     assert!(
         out.contains("links (chapter 3"),
-        "links among the unchecked:\n{out}"
+        "links among the checked since the graph floor:\n{out}"
     );
     assert!(
         out.contains("holding (§7.6)"),

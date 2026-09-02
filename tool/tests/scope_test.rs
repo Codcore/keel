@@ -200,7 +200,10 @@ fn one_new_in_counted() {
     );
 
     // Exactly one -- silence, and the whole run is green end to end.
-    let dir = branch_with("newone", &[("priv/migrations/001.sql", "create table t;\n")]);
+    let dir = branch_with(
+        "newone",
+        &[("priv/migrations/001.sql", "create table t;\n")],
+    );
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "exactly one new file passes:\n{out}");
     assert!(

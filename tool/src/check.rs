@@ -9,6 +9,7 @@ use crate::graph;
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::rev;
+use crate::scope;
 use crate::targs;
 use std::fmt::Write as _;
 use std::path::Path;
@@ -127,6 +128,58 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             )),
         ));
     }
+
+    // The scope floor (chapter 4): the branch judged against the
+    // declared files -- or an honest line that no judging happened.
+    // Not compared is not a finding: the deviation is named, green is
+    // not painted over the unverified.
+    let scope_status = match scope::current_branch(root) {
+        None => t("check-scope-skipped-no-git"),
+        Some(branch) => match scope::branch_wave(root, &scan.waves) {
+            None => ta("check-scope-skipped-not-wave", targs!("branch" => branch)),
+            Some(slug) => {
+                let wave_path = format!("keel/waves/{slug}.md");
+                let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
+                let compared = scope::compare_base(root)
+                    .and_then(|base| scope::findings(root, wave).map(|list| (base, list)));
+                match compared {
+                    Ok(((sha, from_main), list)) => {
+                        for (reason, instead) in list {
+                            rows.push((
+                                wave_path.clone(),
+                                Some(format!(
+                                    "{reason}\n           {}: {instead}",
+                                    t("word-instead")
+                                )),
+                            ));
+                        }
+                        let short = sha.get(..7).unwrap_or(&sha).to_string();
+                        let base_text = if from_main {
+                            ta("check-scope-base-main", targs!("sha" => short))
+                        } else {
+                            ta("check-scope-base-first", targs!("sha" => short))
+                        };
+                        ta(
+                            "check-scope-compared",
+                            targs!("branch" => slug, "base" => base_text),
+                        )
+                    }
+                    Err(refusal) => {
+                        rows.push((
+                            wave_path,
+                            Some(format!(
+                                "{}\n           {}: {}",
+                                refusal.reason,
+                                t("word-instead"),
+                                refusal.instead
+                            )),
+                        ));
+                        t("check-scope-skipped-refused")
+                    }
+                }
+            }
+        },
+    };
     rows.sort();
 
     let mut report = t("check-title");
@@ -167,8 +220,9 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let documents = scan.waves.len() + scan.contracts.len();
     writeln!(
         report,
-        "\n{}\n{}\n{}\n{}",
+        "\n{}\n{}\n{}\n{}\n{}",
         ta("check-refs-count", targs!("count" => refs_checked)),
+        scope_status,
         t("check-checked"),
         t("check-unchecked"),
         ta(
