@@ -23,6 +23,7 @@ transforms:
       - tool/src/main.rs
       - tool/src/lib.rs
       - tool/src/check.rs
+      - tool/src/docs.rs
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/review_test.rs

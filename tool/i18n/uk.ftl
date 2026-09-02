@@ -285,7 +285,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 8 — пакет рецензента (keel review, §9.9)
+check-next-rung = наступний крок: щабель 9 — тримання контрактів (§7.6)
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)

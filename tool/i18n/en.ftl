@@ -283,7 +283,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 8 -- the reviewer's package (keel review, §9.9)
+check-next-rung = next step: rung 9 -- contracts holding (§7.6)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
