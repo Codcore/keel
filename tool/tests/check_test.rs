@@ -381,3 +381,21 @@ fn rev_command_prints() {
         "the defaults do not pass themselves off as read, in rev too:\n{out}"
     );
 }
+
+/// proves: unknown-cut-refused@be4afe -- holds §3.4: a slug outside
+/// the embedded vocabulary is a finding, not a new answer.
+#[test]
+fn unknown_cut_refused() {
+    let dir = sandbox("badcut");
+    write(
+        &dir,
+        "keel/waves/0005-w.md",
+        "---\nscenarios:\n  s: {covers: [functional.correctnes]}\ntransforms:\n  t:\n    implements: [s]\n    files: [lib/a.ex]\n---\n\n## scenario: s\n\nbody\n",
+    );
+    let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "an alien slug is a finding:\n{out}");
+    assert!(
+        out.contains("functional.correctnes"),
+        "names the alien slug:\n{out}"
+    );
+}
