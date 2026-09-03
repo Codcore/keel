@@ -852,7 +852,7 @@ fn json_of(dir: &Path, rel: &str) -> serde_json::Value {
     serde_json::from_str(&text).unwrap_or_else(|e| panic!("{rel} is not JSON: {e}\n{text}"))
 }
 
-/// proves: hook-speaks-the-next-step@48185c -- the second half of the
+/// proves: hook-speaks-the-next-step@d2a5fe -- the second half of the
 /// operator's §8.6 decision: the tool speaks BEFORE the work, through
 /// each agent's own session hook, in the answer shape that agent
 /// documents; a file of someone else's settings is never written over
@@ -964,6 +964,36 @@ fn hook_speaks_the_next_step() {
         context.contains(plain.trim()) || plain.contains(context.trim()),
         "and both tongues say the SAME step:\nplain: {plain}\njson: {context}"
     );
+    // A hook that speaks, speaks always. Right after `keel init`
+    // there is no wave yet and the step refuses; a broken keel.toml
+    // refuses even earlier, in the config court. In both states the
+    // answer must still be VALID JSON for Cursor and the exit must
+    // stay green -- an exit code of 2 means "block the action" there.
+    for (name, config) in [
+        ("hook-fresh", "lang = \"en\"\nadapter = \"rust\"\n"),
+        ("hook-broken", "lang = \"en\"\nadapter = [broken\n"),
+    ] {
+        let bare = sandbox(name);
+        write(&bare, "keel.toml", config);
+        git(&bare, &["init", "-q", "-b", "main"]);
+        let (said, code) = keel(&["next", "--for", "cursor", bare.to_str().unwrap()]);
+        assert_eq!(code, 0, "{name}: a refusing hook does not block:\n{said}");
+        let envelope: serde_json::Value = serde_json::from_str(said.trim())
+            .unwrap_or_else(|e| panic!("{name}: the answer is still JSON: {e}\n{said}"));
+        assert!(
+            envelope["additional_context"]
+                .as_str()
+                .is_some_and(|c| c.contains("keel")),
+            "{name}: and it carries the refusal as the word the agent needs: {envelope}"
+        );
+        // The plain step keeps its own behaviour, untouched.
+        let (_, plain_code) = keel(&["next", bare.to_str().unwrap()]);
+        assert!(
+            plain_code == 0 || plain_code == 2,
+            "{name}: plain next answers as it always did, not as a hook"
+        );
+    }
+
     let (refusal, code) = keel(&["next", "--for", "clod", dir.to_str().unwrap()]);
     assert_ne!(code, 0, "an unknown agent is refused:\n{refusal}");
     assert!(

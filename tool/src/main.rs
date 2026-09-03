@@ -338,6 +338,25 @@ fn main() -> ExitCode {
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
+                    // Asked for by a hook, the config's own refusal is
+                    // still the word the agent needs, and it rides in
+                    // the agent's shape with a green exit -- the same
+                    // law as in next::step_for, and for the same
+                    // measured reason: in Cursor an exit code of 2
+                    // means "block the action". Asked for by a
+                    // person, nothing changes.
+                    if let Some(named) = &agent {
+                        match keel::next::say_for(named, &format!("{refusal}")) {
+                            Ok(said) => {
+                                print!("{said}");
+                                return ExitCode::SUCCESS;
+                            }
+                            Err(refusal) => {
+                                eprintln!("{refusal}");
+                                return ExitCode::from(2);
+                            }
+                        }
+                    }
                     eprintln!("{refusal}");
                     return ExitCode::from(2);
                 }

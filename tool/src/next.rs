@@ -32,22 +32,34 @@ use std::path::Path;
 /// generated, which knows files, not words.
 pub fn step_for(root: &Path, agent: &str) -> Result<String, Refusal> {
     if !crate::config::AGENTS.contains(&agent) {
-        return Err(Refusal {
-            file: root.to_path_buf(),
-            reason: format!(
-                "agent \"{agent}\" is not one this release knows: {}",
-                crate::config::AGENTS.join(", ")
-            ),
-            instead: format!(
-                "name one of {} -- the answer shape of a session hook is the agent's own, \
-                 and an unnamed agent has no documented shape to speak in",
-                crate::config::AGENTS.join(", ")
-            ),
-        });
+        return Err(unknown_agent(root, agent));
     }
-    let said = step(root)?;
+    // A hook that speaks must always speak. When the step cannot be
+    // said -- no keel/ here yet, a broken keel.toml, a document that
+    // does not read -- the refusal is itself the word the agent
+    // needs, so it rides in the agent's own shape and the exit stays
+    // green. Measured, not guessed: right after `keel init`, with no
+    // wave yet, the step refuses; and in Cursor an exit code of 2
+    // means "block the action" (their docs, for compatibility with
+    // Claude Code), so a refusing hook must not exit 2. `keel next`
+    // without --for keeps its own behaviour, untouched.
+    let said = match step(root) {
+        Ok(said) => said,
+        Err(refusal) => format!("{refusal}"),
+    };
+    say_for(agent, &said)
+}
+
+/// One word in a named agent's answer shape. The hook of a tool whose
+/// config court refused needs this before any step can be read, so
+/// the shaping is its own hand -- and it judges the agent's name the
+/// same way, from the one home (config::AGENTS).
+pub fn say_for(agent: &str, said: &str) -> Result<String, Refusal> {
+    if !crate::config::AGENTS.contains(&agent) {
+        return Err(unknown_agent(Path::new("."), agent));
+    }
     if agent != "cursor" {
-        return Ok(said);
+        return Ok(said.to_string());
     }
     // JSON by hand, and only because the payload is one string: the
     // escaping below is the whole of the JSON string grammar we need,
@@ -65,6 +77,22 @@ pub fn step_for(root: &Path, agent: &str) -> Result<String, Refusal> {
         }
     }
     Ok(format!("{{\"additional_context\": \"{escaped}\"}}\n"))
+}
+
+/// The one word for an agent this release does not know.
+fn unknown_agent(root: &Path, agent: &str) -> Refusal {
+    Refusal {
+        file: root.to_path_buf(),
+        reason: format!(
+            "agent \"{agent}\" is not one this release knows: {}",
+            crate::config::AGENTS.join(", ")
+        ),
+        instead: format!(
+            "name one of {} -- the answer shape of a session hook is the agent's own, \
+             and an unnamed agent has no documented shape to speak in",
+            crate::config::AGENTS.join(", ")
+        ),
+    }
 }
 
 pub fn step(root: &Path) -> Result<String, Refusal> {
