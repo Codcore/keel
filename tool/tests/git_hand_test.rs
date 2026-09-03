@@ -21,7 +21,6 @@ const GIT_ENV: [&str; 10] = [
 
 mod common;
 
-#[allow(unused_imports)]
 use common::{Sandbox, keel_sandbox};
 
 use std::fs;

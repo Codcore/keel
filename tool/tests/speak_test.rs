@@ -4,31 +4,20 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
+mod common;
+
+use common::{Sandbox, sandbox};
+
 use std::fs;
-use std::path::PathBuf;
 use std::process::Command;
 
-// The sandboxes THIS test made, swept when it ends (school of review
-// 0026 R-18): per THREAD, not per process, because tests of one
-// binary run in parallel and share a pid.
-thread_local! {
-    static MADE: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
-}
-
-fn sweep() {
-    MADE.with(|made| {
-        for dir in made.borrow_mut().drain(..) {
-            let _ = fs::remove_dir_all(dir);
-        }
-    });
-}
-
-/// A bare project directory: git, and nothing else.
-fn bare(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0028-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    MADE.with(|made| made.borrow_mut().push(dir.clone()));
+/// A bare project directory: git, and nothing else -- through the
+/// one hand of wave 0030, so it does not outlive its test. Review
+/// 0030 R-1 found this file making its own directories and sweeping
+/// them on the LAST LINE of a test body, which a panic skips: two
+/// were left behind, silently, by a single red test here.
+fn bare(name: &str) -> Sandbox {
+    let dir = sandbox(name);
     Command::new("git")
         .args(["init", "-q", "-b", "main"])
         .current_dir(&dir)
@@ -284,16 +273,13 @@ fn the_tool_says_what_it_judges_by() {
 
     // Neither mouth reads the disk: served from a directory that has
     // no documents at all, they still speak in full.
-    let bare = std::env::temp_dir().join(format!("keel-0027-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&bare);
-    std::fs::create_dir_all(&bare).unwrap();
+    let bare = sandbox("no-documents");
     let (elsewhere, code) = keel(&["cuts", bare.to_str().unwrap()]);
     assert_eq!(code, 0, "the cuts are served anywhere:\n{elsewhere}");
     assert!(
         elsewhere.contains("functional.correctness"),
         "in full, from a project that has no checklist of its own:\n{elsewhere}"
     );
-    let _ = std::fs::remove_dir_all(&bare);
 }
 
 /// proves: the-checklist-speaks-the-project-language@2d1d52 -- the
@@ -422,8 +408,6 @@ fn the_checklist_speaks_the_project_language() {
         refused.contains("ua"),
         "and the refusal names what was asked for:\n{refused}"
     );
-
-    sweep();
 }
 
 /// proves: the-methodology-speaks-the-project-language@aa2a19 -- the
@@ -569,6 +553,4 @@ fn the_methodology_speaks_the_project_language() {
         rows >= 1,
         "the gate judges the methodology's skeleton too:\n{checked}"
     );
-
-    sweep();
 }

@@ -7,7 +7,6 @@
 
 mod common;
 
-#[allow(unused_imports)]
 use common::{Sandbox, keel_sandbox, sandbox};
 
 use std::fs;
@@ -445,8 +444,14 @@ fn hook_installed_aloud() {
     // against.
     let dir = project("hookwt", "", "assert!(true);");
     git(&dir, &["checkout", "-q", "-b", "parking"]);
-    let wt = std::env::temp_dir().join(format!("keel-0005g-{}-hookwt-wt", std::process::id()));
-    let _ = fs::remove_dir_all(&wt);
+    // The worktree lives INSIDE a sandbox, so it goes when the
+    // sandbox goes: review 0030 R-3 found this directory built by
+    // hand and removed on the last line of the body -- any panic
+    // between the two left it on disk, the very pattern this wave
+    // calls broken. git makes the leaf itself, so only the parent is
+    // ours to hold.
+    let parking = sandbox("hookwt-wt");
+    let wt = parking.join("tree");
     git(
         &dir,
         &["worktree", "add", "-q", wt.to_str().unwrap(), "0009-w"],

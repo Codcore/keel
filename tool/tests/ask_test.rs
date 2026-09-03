@@ -6,34 +6,12 @@
 
 mod common;
 
-#[allow(unused_imports)]
 use common::{Sandbox, sandbox};
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use std::time::{Duration, Instant};
-
-// The sandboxes THIS test made, swept when it ends. Review 0026
-// R-18 found ten thousand of them holding seventeen gigabytes:
-// every probe since 0005 has made them and none has removed one.
-//
-// Per THREAD, not per process: tests of one binary run in parallel
-// and share a pid, so a sweep by pid deletes a neighbour's sandbox
-// mid-run -- measured, and it turned a green battery red once
-// before this note was written. Best effort by design: a panicking
-// test keeps its sandbox, because that is the one a person wants.
-thread_local! {
-    static MADE: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
-}
-
-fn sweep() {
-    MADE.with(|made| {
-        for dir in made.borrow_mut().drain(..) {
-            let _ = fs::remove_dir_all(dir);
-        }
-    });
-}
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -430,6 +408,4 @@ fn init_asks_only_when_it_can_hear() {
         "the code's language may be left unnamed -- a project of another tongue \
          is not refused, it simply waits for its own wave"
     );
-
-    sweep();
 }

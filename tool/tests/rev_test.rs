@@ -4,8 +4,7 @@
 
 mod common;
 
-#[allow(unused_imports)]
-use common::{Sandbox, keel_sandbox};
+use common::keel_sandbox;
 
 use keel::rev;
 use std::fs;

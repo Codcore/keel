@@ -8,33 +8,11 @@
 
 mod common;
 
-#[allow(unused_imports)]
 use common::{Sandbox, sandbox};
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
-
-// The sandboxes THIS test made, swept when it ends. Review 0026
-// R-18 found ten thousand of them holding seventeen gigabytes:
-// every probe since 0005 has made them and none has removed one.
-//
-// Per THREAD, not per process: tests of one binary run in parallel
-// and share a pid, so a sweep by pid deletes a neighbour's sandbox
-// mid-run -- measured, and it turned a green battery red once
-// before this note was written. Best effort by design: a panicking
-// test keeps its sandbox, because that is the one a person wants.
-thread_local! {
-    static MADE: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
-}
-
-fn sweep() {
-    MADE.with(|made| {
-        for dir in made.borrow_mut().drain(..) {
-            let _ = fs::remove_dir_all(dir);
-        }
-    });
-}
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -329,8 +307,6 @@ fn generated_block_never_trampled() {
         config.contains("# my comment") && config.contains("[trust]") && config.contains("echo hi"),
         "the config keeps its comment, its order and its other sections (R-5):\n{config}"
     );
-
-    sweep();
 }
 
 /// proves: every-artefact-kept@ae746d -- holds wave 0023: the
@@ -530,8 +506,6 @@ fn every_artefact_kept() {
         text.starts_with("<!-- keel:begin -->"),
         "an empty document gains no blank lines before the block (R-11): {text:?}"
     );
-
-    sweep();
 }
 
 /// A project whose config names its agents (or does not name them at
@@ -861,8 +835,6 @@ fn every_agent_in_its_own_format() {
         dir.join(SHARED_SKILL).is_file(),
         "the skill is born again by the two steps the word names:\n{out}"
     );
-
-    sweep();
 }
 
 /// The hook configs of wave 0025, each in its own tool's home.
@@ -1159,6 +1131,4 @@ fn hook_speaks_the_next_step() {
             );
         }
     }
-
-    sweep();
 }

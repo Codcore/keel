@@ -27,6 +27,11 @@ pub fn keel_sandbox(name: &str) -> Sandbox {
     let sandbox = Sandbox::new(name);
     std::fs::create_dir_all(sandbox.join("keel/waves")).unwrap();
     std::fs::create_dir_all(sandbox.join("keel/contracts")).unwrap();
+    // Six of the twenty-one also made this one, and dropping it
+    // narrowed the fixture in silence: "keel/reviews is absent"
+    // proves a slightly different world from "keel/reviews is empty"
+    // (review 0030 R-6).
+    std::fs::create_dir_all(sandbox.join("keel/reviews")).unwrap();
     sandbox
 }
 
@@ -38,6 +43,7 @@ pub fn keel_sandbox(name: &str) -> Sandbox {
 /// its sandbox: that is the one a person opens to find out what
 /// happened, and a cleanup that eats the evidence is worse than a
 /// leak.
+#[must_use = "a sandbox dropped at once takes its directory with it"]
 pub struct Sandbox {
     path: PathBuf,
 }
@@ -66,6 +72,12 @@ impl std::ops::Deref for Sandbox {
 
     fn deref(&self) -> &Path {
         &self.path
+    }
+}
+
+impl AsRef<std::ffi::OsStr> for Sandbox {
+    fn as_ref(&self) -> &std::ffi::OsStr {
+        self.path.as_os_str()
     }
 }
 
