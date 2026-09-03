@@ -183,12 +183,31 @@ fn ignore_row(root: &Path) -> String {
     // cargo writes beside a crate, the local exclude. Reading a
     // single file instead raised a false alarm on keel itself,
     // whose rule lives in tool/.gitignore (wave 0020, dogfood).
-    let out = std::process::Command::new("git")
-        .arg("-C")
+    let mut git = std::process::Command::new("git");
+    git.arg("-C")
         .arg(root)
         .args(["check-ignore", "-v", "--"])
-        .arg(&shown)
-        .output();
+        .arg(&shown);
+    // A git hook hands its children the repository it runs for
+    // (GIT_DIR and friends), and an inherited one outranks -C: the
+    // row would then judge the repository that spawned keel instead
+    // of the project it was given -- the very lie the adapter's
+    // isolation from an inherited CARGO_TARGET_DIR exists to stop
+    // (schools of reviews 0006, 0008, 0009; here caught by keel's
+    // own gate).
+    for name in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_PREFIX",
+        "GIT_CEILING_DIRECTORIES",
+    ] {
+        git.env_remove(name);
+    }
+    let out = git.output();
     let out = match out {
         Ok(out) => out,
         Err(e) => return ta("init-ignore-unjudged", targs!("error" => e.to_string())),

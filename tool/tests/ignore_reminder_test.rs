@@ -21,8 +21,23 @@ fn write(dir: &Path, rel: &str, text: &str) {
     fs::write(path, text).unwrap();
 }
 
+const GIT_ENV: [&str; 8] = [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_PREFIX",
+    "GIT_CEILING_DIRECTORIES",
+];
+
 fn git(dir: &Path, args: &[&str]) {
-    let out = Command::new("git")
+    let mut command = Command::new("git");
+    for name in GIT_ENV {
+        command.env_remove(name);
+    }
+    let out = command
         .arg("-C")
         .arg(dir)
         .args([
@@ -105,7 +120,7 @@ fn nested_project(name: &str) -> PathBuf {
     dir
 }
 
-/// proves: ignore-reminded@3d57a9 -- holds the third gift of the
+/// proves: ignore-reminded@99d979 -- holds the third gift of the
 /// first field: the frame says aloud what its own adapter will
 /// build into, and git itself judges the rule -- so a nested
 /// .gitignore (the one cargo writes beside a crate) counts, and a
@@ -243,5 +258,15 @@ fn ignore_reminded() {
     assert!(
         out.contains("add exactly"),
         "the row judges the project it was given, not the repository in the environment:\n{out}"
+    );
+    // And the frame WRITES where it was pointed: the hook lands in
+    // this project, never in the repository that spawned keel.
+    assert!(
+        dir.join(".git/hooks/commit-msg").is_file(),
+        "the hook lands in the project the frame was given:\n{out}"
+    );
+    assert!(
+        !foreign.join(".git/hooks/commit-msg").exists(),
+        "no byte is written into the repository of the environment:\n{out}"
     );
 }

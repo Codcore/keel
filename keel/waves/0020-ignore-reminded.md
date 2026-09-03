@@ -3,16 +3,17 @@ depends_on: [0019-ci-and-battery]
 
 scenarios:
   ignore-reminded:
-    proves: tool-init@35cefc
+    proves: tool-init@9fafaa
     covers: [interaction.user-assistance, safety.hazard-warning]
 
 transforms:
   ignore-row:
     implements:
       - ignore-reminded
-    contracts: [tool-init@35cefc, tool-adapter-cargo@68e86c, tool-config@5555a7]
+    contracts: [tool-init@9fafaa, tool-adapter-cargo@68e86c, tool-config@5555a7]
     files:
       - tool/src/init.rs
+      - tool/src/gate.rs
       - tool/src/adapter.rs
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
@@ -102,7 +103,11 @@ hook-конфіги, CI-файл, блок в AGENTS.md), і школа 0014 к�
 правило не суджено; без відомого адаптера — слово, що імени теки
 нема кому назвати; у жодному разі жоден файл ignore не створюється
 і не міняється жодним байтом, і рядок не робить раму червоною
-(рахунок шматів, що не стали, не росте).
+(рахунок шматів, що не стали, не росте). І та сама правда про
+адресу: коли раму запущено з git-hook-а, чий репозиторій живе в
+середовищі (GIT_DIR і рідня, старші за `-C`), рама судить і пише в
+той проєкт, на який її навели, — hook лягає туди ж, а в
+репозиторій середовища не йде жодного байта.
 
 ## transform: ignore-row
 
@@ -125,6 +130,10 @@ hook-конфіги, CI-файл, блок в AGENTS.md), і школа 0014 к�
 глобальний ignore користувача рахується як «не їде», бо з
 репозиторієм його справді нема; крейта, якого адаптер не знайшов
 (нуль чи кілька Cargo.toml), рама не вгадує — каже це вголос;
+виклик git чиститься від успадкованого середовища hook-а (GIT_DIR
+і рідня), бо воно старше за `-C` — інші суди, що кличуть git
+(scope, установка hook-а), тієї чистки ще не мають: то окрема
+хвиля, названа тут, а не мовчана;
 чужий чи невідомий адаптер імени теки не має — своя мова прийде
 своїм адаптером і своїм `BUILD_DIR`.
 
