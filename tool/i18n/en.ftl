@@ -316,7 +316,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 18 -- init reminds about the adapter's .gitignore (a light wave)
+check-next-rung = next step: rung 19 -- the generated integrations (skills, hook configs, the AGENTS.md block) and their digests in [generated]
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
@@ -423,6 +423,13 @@ init-stands = { "  " }already stands: { $piece } — not a byte is touched
 init-fed = { "  " }fed: { $piece } — .gitkeep, so the standing empty directory outlives git
 init-failed = { "  " }did not stand: { $piece } — { $error }; instead: clear the obstruction and re-run keel init
 init-config-header = keel.toml — the §2.9 vocabulary; uncomment to enable, the defaults stay with keel's own words
+init-ignore-missing = ignore rules: git ignores nothing of the adapter's build directory ({ $path }) — add exactly this line to .gitignore: { $rule } (the frame advises; it writes no file of the project's own)
+init-ignore-stands = ignore rules: the build directory ({ $path }) stands ignored — the rule comes from { $source }, and it travels with the repository
+init-ignore-exclude-only = ignore rules: { $path } is ignored only by { $source }, which does not travel with the repository — add exactly this line to .gitignore: { $rule }
+init-ignore-no-crate = ignore rules: the adapter found no crate to name a build directory by ({ $error })
+init-ignore-no-adapter = ignore rules: no adapter of this release is named in keel.toml, so there is no build directory to name
+init-ignore-unknown-adapter = ignore rules: the adapter is named "{ $name }", and this release does not serve it — its own wave will bring its build directory
+init-ignore-unjudged = ignore rules: git said nothing here ({ $error }) — the rule is not judged
 init-eight-seven = §8.7: turn squash and rebase merging off in the repository settings — the rule is held by the disabled button, not by memory
 init-next = onwards — keel plan <the first wave>
 

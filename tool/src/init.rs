@@ -130,10 +130,125 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
         }
     }
 
+    // The ignore rules (wave 0020, the third gift of the first
+    // field): the frame advises and writes nothing of the project's
+    // own -- .gitignore is not the methodology's frame, and the
+    // frame tramples no byte (school 0014). The advice never
+    // reddens the exit: it is no piece that failed to stand.
+    report.push_str("  ");
+    report.push_str(&ignore_row(root));
+    report.push('\n');
+
     report.push('\n');
     report.push_str(&t("init-eight-seven"));
     report.push('\n');
     report.push_str(&t("init-next"));
     report.push('\n');
     Ok((report, failed))
+}
+
+/// What the frame has to say about the ignore rules: four truths
+/// and an honest fifth for a file it cannot read -- never a guess
+/// and never a write. The adapter is asked through the config's own
+/// home (school 0015/0017); the config is read unpinned, so a pin
+/// this binary does not answer to still leaves the frame landing
+/// (wave 0018's caveat).
+fn ignore_row(root: &Path) -> String {
+    // A config that cannot be read is not an unnamed adapter: the
+    // rule is simply not judged, and the reason is said (review
+    // 0020 R-2).
+    let config = match crate::config::read_unpinned(root) {
+        Ok(config) => config,
+        Err(refusal) => return ta("init-ignore-unjudged", targs!("error" => refusal.reason)),
+    };
+    if !config.rust_adapter() {
+        // A named adapter is called by its name; "not named" belongs
+        // to the absent one (review 0020 R-8; the 0017 R-3 school).
+        return match config.adapter {
+            Some(name) => ta("init-ignore-unknown-adapter", targs!("name" => name)),
+            None => t("init-ignore-no-adapter"),
+        };
+    }
+    let dir = crate::adapter::BUILD_DIR;
+    let rule = format!("{dir}/");
+    // Which directory to ask about is the adapter's answer: the
+    // crate may live one level down (keel's own shape), and a root
+    // the adapter cannot name is said aloud, never guessed.
+    let build = match crate::adapter::crate_root(root) {
+        Ok(crate_dir) => crate_dir
+            .strip_prefix(root)
+            .unwrap_or(Path::new(""))
+            .join(dir),
+        Err(refusal) => {
+            return ta("init-ignore-no-crate", targs!("error" => refusal.reason));
+        }
+    };
+    // Asked with the trailing slash git wants: a directory-only
+    // rule (target/) matches a path only when the path is named as
+    // a directory -- and before the first build there is no
+    // directory on disk to speak for itself.
+    let shown = format!("{}/", build.display());
+    // git judges its own rules -- the root file, the nested ones
+    // cargo writes beside a crate, the local exclude. Reading a
+    // single file instead raised a false alarm on keel itself,
+    // whose rule lives in tool/.gitignore (wave 0020, dogfood).
+    // Asked through the frame's own git hand, deaf to the
+    // repository a hook may have left in the environment (§gate).
+    let out = gate::git_at(root)
+        .args(["check-ignore", "-v", "--"])
+        .arg(&shown)
+        .output();
+    let out = match out {
+        Ok(out) => out,
+        Err(e) => return ta("init-ignore-unjudged", targs!("error" => e.to_string())),
+    };
+    let words = String::from_utf8_lossy(&out.stdout);
+    let source = words
+        .lines()
+        .next()
+        .and_then(|line| line.split(':').next())
+        .unwrap_or("")
+        .to_string();
+    // Whether a rule TRAVELS is not a guess from the shape of the
+    // path (review 0020 R-5): it travels only when a .gitignore of
+    // the working tree gave it, and that file is not the one
+    // core.excludesFile names -- a config file, global or local,
+    // reaches no other clone.
+    let named_by_config = gate::git_at(root)
+        .args(["config", "--get", "core.excludesFile"])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .unwrap_or_default();
+    let travels = !source.is_empty()
+        && !source.starts_with('/')
+        && !source.contains(".git/")
+        && Path::new(&source)
+            .file_name()
+            .is_some_and(|name| name == ".gitignore")
+        && (named_by_config.is_empty() || source != named_by_config);
+    match out.status.code() {
+        // Ignored, and the rule comes from a file of the repository
+        // -- it travels with every clone.
+        Some(0) if travels => ta(
+            "init-ignore-stands",
+            targs!("path" => shown, "source" => source),
+        ),
+        // Ignored only here: an exclude of this clone, or the
+        // person's global file -- neither travels (the first
+        // field's R-4 school), so the advice stands.
+        Some(0) => ta(
+            "init-ignore-exclude-only",
+            targs!("path" => shown, "source" => source, "rule" => rule),
+        ),
+        Some(1) => ta(
+            "init-ignore-missing",
+            targs!("path" => shown, "rule" => rule),
+        ),
+        _ => ta(
+            "init-ignore-unjudged",
+            targs!("error" => String::from_utf8_lossy(&out.stderr).trim().to_string()),
+        ),
+    }
 }

@@ -253,6 +253,35 @@ fn judge_work(
 /// rewriting with the same command.
 const HOOK: &str = "#!/bin/sh\n# keel gate -- the commit judged by the machine (Keel v2, journal A3).\nexec keel gate \"$1\"\n";
 
+/// A git command aimed at one project and deaf to the repository
+/// in the environment: a hook hands its children GIT_DIR and its
+/// kin, and those outrank `-C`, so a frame laid from inside a hook
+/// would write into the repository that spawned it instead of the
+/// project it was given (wave 0020, caught by keel's own gate).
+/// The same school as the adapter's isolation from an inherited
+/// CARGO_TARGET_DIR (reviews 0006, 0008, 0009).
+pub(crate) fn git_at(root: &Path) -> std::process::Command {
+    let mut command = std::process::Command::new("git");
+    command.arg("-C").arg(root);
+    for name in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_PREFIX",
+        "GIT_CEILING_DIRECTORIES",
+        // `git -c` travels to children this way, and a hook's own
+        // -c would rewrite our answer (review 0020 R-10).
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT",
+    ] {
+        command.env_remove(name);
+    }
+    command
+}
+
 /// Writes `.git/hooks/commit-msg` calling `keel gate`. A repeated
 /// call over our own hook is quietly the same file; a foreign hook
 /// is never overwritten -- a refusal aloud (§9.7). This is the one
@@ -263,9 +292,7 @@ pub fn install_hook(root: &Path) -> Result<String, Refusal> {
     // core.hooksPath where someone set it (review R-1): "installed"
     // about a file git never reads would be the very lie this gate
     // exists to stop.
-    let out = std::process::Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let out = git_at(root)
         .args(["rev-parse", "--git-path", "hooks"])
         .output()
         .map_err(|e| Refusal {

@@ -11,6 +11,12 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// The directory this adapter builds into: the home of that
+/// knowledge is here, because it is the adapter's own (wave 0020).
+/// The frame asks it to advise an ignore rule; the next language
+/// arrives with its own adapter and its own name.
+pub const BUILD_DIR: &str = "target";
+
 /// Cargo.toml at the root -- the root itself; otherwise exactly one
 /// first-level directory carrying one -- that; zero or several -- a
 /// refusal aloud with what was found. No guessing.

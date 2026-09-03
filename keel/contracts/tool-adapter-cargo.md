@@ -6,6 +6,7 @@ exports:
   - "pub enum Outcome { Failed, Green, BuildBroken(String), NotRun }"
   - "pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal>"
   - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>"
+  - "pub const BUILD_DIR: &str"
 ---
 
 Адаптер cargo (NEW-CONCEPT, «Адаптери»): єдине місце, що знає, як у
@@ -29,6 +30,10 @@ Rust-проєкті звуться файли тестів і як запуст�
   Зшивка цілей із блоками вироків звіряє сама себе: ціль, що
   оголошена, але блока не друкує (harness = false), зсунула б чужі
   вироки — така розбіжність є відмовою вголос, не вгадуванням.
+- `BUILD_DIR` — імʼя теки, куди цей адаптер збирає («target»): дім
+  цього знання тут, бо воно адаптерове. Ним користується рама
+  (`keel init`, хвиля 0020), щоб порадити правило ignore; наступна
+  мова прийде своїм адаптером і своїм іменем.
 - cargo викликається як команда системи; його відмова — відмова
   вголос. Кожен біг ізолюється від успадкованих CARGO_TARGET_DIR і
   його cargo-аліаса CARGO_BUILD_TARGET_DIR: спільний кеш цілей
