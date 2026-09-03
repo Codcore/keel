@@ -44,8 +44,10 @@ fn revision_recipe_reproduced() {
         // 0017 named the adapter by its language; 840bd9 until 0018
         // gave the version pin its court; dac6af until its review put
         // the pin court above mode in words; 5555a7 until 0022 gave
-        // [generated] its meaning -- the pin follows the live text.
-        "544f7a"
+        // [generated] its meaning; 544f7a until 0024 taught the
+        // config which agents a project generates for -- the pin
+        // follows the live text.
+        "0e4d22"
     );
 
     // Prefix comparison (§5.2): 4-6 characters, from the start.

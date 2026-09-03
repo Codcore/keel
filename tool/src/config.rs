@@ -14,6 +14,13 @@ pub const LANGUAGES: [&str; 2] = ["en", "uk"];
 /// The modes of the commit judgement (journal A3).
 pub const MODES: [&str; 3] = ["strict", "soft", "manual"];
 
+/// The agents this release generates integrations for (the
+/// operator's §8.6 decision of 2026-09-03: keel serves more than one
+/// agent, each with its own option). `codex` is postponed by his
+/// word, so this release does not know the name at all -- an
+/// accepted key that writes nothing would promise what is not there.
+pub const AGENTS: [&str; 2] = ["claude", "cursor"];
+
 /// The config as read. `lang` (wave 0002) and `mode` (wave 0005)
 /// carry semantics; the other fields are read as data -- their rungs
 /// are ahead.
@@ -26,6 +33,10 @@ pub struct Config {
     pub mode: String,
     pub trust: Vec<(String, String)>,
     pub generated: Vec<(String, String)>,
+    /// The agents the project named, as written. Judged at read
+    /// time: an empty list and an unknown name are refusals, so what
+    /// stands here is either empty (the key was absent) or known.
+    pub agents: Vec<String>,
     /// The file really existed -- defaults do not pass themselves
     /// off as something read.
     pub present: bool,
@@ -34,6 +45,10 @@ pub struct Config {
     pub lang_set: bool,
     /// Same honesty for mode: absent acts as strict and says so.
     pub mode_set: bool,
+    /// And for agents: absent acts as ["claude"] -- the behaviour of
+    /// every release before 0024 -- and the flag keeps that default
+    /// from passing itself off as something read.
+    pub agents_set: bool,
 }
 
 impl Default for Config {
@@ -46,9 +61,11 @@ impl Default for Config {
             mode: "strict".to_string(),
             trust: Vec::new(),
             generated: Vec::new(),
+            agents: Vec::new(),
             present: false,
             lang_set: false,
             mode_set: false,
+            agents_set: false,
         }
     }
 }
@@ -69,6 +86,23 @@ impl Config {
     /// for its aloud word -- no court compares the string itself.
     pub(crate) fn adapter_synonym(&self) -> bool {
         self.adapter.as_deref() == Some("cargo")
+    }
+
+    /// The one home of the agent question (wave 0024): the canonical
+    /// order and no duplicates, so the table of artefacts is judged
+    /// the same however the list was written. An empty list never
+    /// reaches here -- `read_unpinned` refuses it, because "at least
+    /// one" is the operator's law and it belongs in the config, not
+    /// only in the wizard that will ask the question.
+    pub fn agents(&self) -> Vec<&'static str> {
+        if !self.agents_set {
+            return vec!["claude"];
+        }
+        AGENTS
+            .iter()
+            .copied()
+            .filter(|known| self.agents.iter().any(|named| named == known))
+            .collect()
     }
 
     /// The one home of the pin question (wave 0018; NEW-CONCEPT,
@@ -97,6 +131,7 @@ struct Raw {
     mode: Option<String>,
     trust: Option<BTreeMap<String, String>>,
     generated: Option<BTreeMap<String, String>>,
+    agents: Option<Vec<String>>,
 }
 
 /// Reads and judges: the raw read plus the pin court (wave 0018) --
@@ -145,7 +180,7 @@ pub fn read_unpinned(root: &Path) -> Result<Config, Refusal> {
         file: path.clone(),
         reason: format!("keel.toml does not parse: {e}"),
         instead: "fix the named field; the vocabulary is: version, adapter, ci, \
-                  lang, mode, [trust], [generated] (NEW-CONCEPT, Config)"
+                  lang, mode, agents, [trust], [generated] (NEW-CONCEPT, Config)"
             .to_string(),
     })?;
 
@@ -179,6 +214,43 @@ pub fn read_unpinned(root: &Path) -> Result<Config, Refusal> {
         });
     }
 
+    // The agents (wave 0024, the operator's §8.6 decision). An empty
+    // list is not an answer -- "at least one" is his law, and it
+    // stands here rather than only in the wizard that will ask.
+    let agents_set = raw.agents.is_some();
+    let agents = raw.agents.unwrap_or_default();
+    if agents_set {
+        if agents.is_empty() {
+            return Err(Refusal {
+                file: path,
+                reason: "agents = [] names nobody, and at least one is required".to_string(),
+                instead: format!(
+                    "name at least one of {} -- or remove the key, and the default \"claude\" \
+                     stands, exactly as before (NEW-CONCEPT, Config)",
+                    AGENTS.join(", ")
+                ),
+            });
+        }
+        if let Some(unknown) = agents
+            .iter()
+            .find(|named| !AGENTS.contains(&named.as_str()))
+        {
+            return Err(Refusal {
+                file: path,
+                reason: format!(
+                    "agent \"{unknown}\" is not one this release knows: {}",
+                    AGENTS.join(", ")
+                ),
+                instead: format!(
+                    "name one of {} -- an agent whose integrations this release does not \
+                     generate is not accepted quietly, because a key that writes nothing \
+                     promises what is not there",
+                    AGENTS.join(", ")
+                ),
+            });
+        }
+    }
+
     Ok(Config {
         version: raw.version,
         adapter: raw.adapter,
@@ -187,8 +259,10 @@ pub fn read_unpinned(root: &Path) -> Result<Config, Refusal> {
         mode,
         trust: raw.trust.unwrap_or_default().into_iter().collect(),
         generated: raw.generated.unwrap_or_default().into_iter().collect(),
+        agents,
         present: true,
         lang_set,
         mode_set,
+        agents_set,
     })
 }

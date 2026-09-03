@@ -1,9 +1,10 @@
 # keel (generated -- do not edit; keel update rewrites this file)
 #
-# keel is called as a command and is NOT installed here: the
-# installing step arrives with the distribution rung of the
-# concept (~/.keel/versions/). Until then, put keel on PATH
-# in a step of your own above these.
+# This workflow calls `keel` as a command and does NOT
+# install it: the installing step arrives with the
+# distribution rung of the concept (~/.keel/versions/).
+# Until then, add a step of your own above these that puts
+# `keel` on PATH.
 name: keel
 
 on:
