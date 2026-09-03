@@ -181,10 +181,11 @@ fn workflow(config: &Config) -> String {
     format!(
         "# keel (generated -- do not edit; keel update rewrites this file)\n\
          #\n\
-         # keel is called as a command and is NOT installed here: the\n\
-         # installing step arrives with the distribution rung of the\n\
-         # concept (~/.keel/versions/). Until then, put keel on PATH\n\
-         # in a step of your own above these.\n\
+         # This workflow calls `keel` as a command and does NOT\n\
+         # install it: the installing step arrives with the\n\
+         # distribution rung of the concept (~/.keel/versions/).\n\
+         # Until then, add a step of your own above these that puts\n\
+         # `keel` on PATH.\n\
          name: keel\n\
          \n\
          on:\n\
@@ -342,9 +343,21 @@ fn one(root: &Path, config: &Config, name: &str, kind: &Kind, fresh: &str) -> (S
                 );
             }
             if recorded.as_deref() != Some(digest(text).as_str()) {
+                // Two states, two words (review 0024 R-9, the school
+                // of 0022 R-2: advice must work). Nothing recorded
+                // means the file is not ours at all -- and there is
+                // no line in [generated] to remove, so the word does
+                // not send anybody looking for one. With .agents/
+                // skills/ being a shared namespace, a stranger's file
+                // on our path is a normal state now.
+                let key = if recorded.is_none() {
+                    "generated-foreign-file"
+                } else {
+                    "generated-changed-file"
+                };
                 return (
                     ta(
-                        "generated-changed-file",
+                        key,
                         targs!("file" => name.to_string(), "recorded" => recorded.unwrap_or_else(|| t("generated-none")), "actual" => digest(text)),
                     ),
                     1,

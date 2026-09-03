@@ -514,8 +514,16 @@ fn every_artefact_kept() {
 /// A project whose config names its agents (or does not name them at
 /// all, which is a case of its own).
 fn agents_project(name: &str, agents: Option<&str>) -> PathBuf {
+    agents_project_in(name, agents, "en")
+}
+
+/// The same, in a named language of the release. Both halves of a
+/// bilingual release are judged: until review 0024 R-1 every sandbox
+/// wrote lang = "en", so the Ukrainian templates -- the ones this
+/// very repository generates -- were read by no parser at all.
+fn agents_project_in(name: &str, agents: Option<&str>, lang: &str) -> PathBuf {
     let dir = sandbox(name);
-    let mut text = String::from("lang = \"en\"\nadapter = \"rust\"\n");
+    let mut text = format!("lang = \"{lang}\"\nadapter = \"rust\"\n");
     if let Some(list) = agents {
         text.push_str(&format!("agents = {list}\n"));
     }
@@ -587,12 +595,20 @@ fn advice(text: &str) -> Vec<String> {
 /// home Cursor reads.
 const CLAUDE_SKILL: &str = ".claude/skills/keel/SKILL.md";
 const SHARED_SKILL: &str = ".agents/skills/keel/SKILL.md";
+const WORKFLOW: &str = ".github/workflows/keel.yml";
 
 /// Judge one generated skill by a foreign parser: real YAML, exactly
 /// the two keys every one of the three tools reads, the name equal to
 /// the directory that gives the command, and a description inside the
 /// documented cap.
 fn judge_skill(text: &str, where_from: &str) {
+    // The directory that gives the command, taken from the path
+    // itself -- not a second literal that happens to agree with it
+    // (review 0024 R-11).
+    let home = where_from
+        .rsplit('/')
+        .nth(1)
+        .unwrap_or_else(|| panic!("{where_from}: a skill lives in a directory"));
     let head = front_matter(text);
     let names: Vec<&str> = head.iter().map(|(k, _)| k.as_str()).collect();
     assert_eq!(
@@ -608,7 +624,7 @@ fn judge_skill(text: &str, where_from: &str) {
     };
     assert_eq!(
         value("name"),
-        "keel",
+        home,
         "{where_from}: the name is the directory that gives the command"
     );
     let description = value("description");
@@ -619,7 +635,7 @@ fn judge_skill(text: &str, where_from: &str) {
     );
 }
 
-/// proves: every-agent-in-its-own-format@42e78d -- the operator's
+/// proves: every-agent-in-its-own-format@e98552 -- the operator's
 /// §8.6 decision made mechanical: the generated integrations serve
 /// more than one agent, each artefact in the place and shape its own
 /// tool documents (judged by a foreign parser, never by our memory),
@@ -651,6 +667,13 @@ fn every_agent_in_its_own_format() {
     assert!(
         !dir.join(".claude").exists(),
         "nothing of an agent this project never named:\n{out}"
+    );
+    // "The shared document and the CI file land always" -- said of
+    // every configuration, so judged where it is not trivial: here
+    // claude is not named at all (review 0024 R-4).
+    assert!(
+        dir.join("AGENTS.md").is_file() && dir.join(WORKFLOW).is_file(),
+        "what every agent reads lands whoever was named:\n{out}"
     );
 
     // Both named: both homes, the shared document, and the two files
@@ -726,7 +749,7 @@ fn every_agent_in_its_own_format() {
     let (out, code) = keel(&["init", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "the frame lands:\n{out}");
     let mut named: Vec<String> = Vec::new();
-    for rel in ["AGENTS.md", CLAUDE_SKILL, SHARED_SKILL] {
+    for rel in ["AGENTS.md", CLAUDE_SKILL, SHARED_SKILL, WORKFLOW] {
         let text = fs::read_to_string(dir.join(rel)).unwrap();
         for word in advice(&text) {
             if !named.contains(&word) {
@@ -745,4 +768,74 @@ fn every_agent_in_its_own_format() {
             "the artefacts name {word:?}, and the binary does not know it:\n{answer}"
         );
     }
+
+    // The other half of the release, judged by the same courts: the
+    // Ukrainian templates are what this very repository generates,
+    // and until review 0024 R-1 no parser had ever read them.
+    let dir = agents_project_in("ukrainian", Some("[\"claude\", \"cursor\"]"), "uk");
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the frame lands in Ukrainian:\n{out}");
+    let uk_claude = fs::read_to_string(dir.join(CLAUDE_SKILL)).unwrap();
+    let uk_shared = fs::read_to_string(dir.join(SHARED_SKILL)).unwrap();
+    judge_skill(&uk_claude, CLAUDE_SKILL);
+    judge_skill(&uk_shared, SHARED_SKILL);
+    assert_eq!(
+        uk_claude, uk_shared,
+        "one template, two homes -- in both languages"
+    );
+    let mut uk_named: Vec<String> = Vec::new();
+    for rel in ["AGENTS.md", CLAUDE_SKILL, SHARED_SKILL, WORKFLOW] {
+        let text = fs::read_to_string(dir.join(rel)).unwrap();
+        for word in advice(&text) {
+            if !uk_named.contains(&word) {
+                uk_named.push(word);
+            }
+        }
+    }
+    assert!(
+        uk_named.len() >= 3,
+        "the Ukrainian artefacts name commands too: {uk_named:?}"
+    );
+    for word in &uk_named {
+        let (answer, _) = keel(&[word, "/keel-no-such-directory"]);
+        assert!(
+            !answer.contains("unknown command"),
+            "the Ukrainian artefacts name {word:?}, and the binary does not know it:\n{answer}"
+        );
+    }
+
+    // An agent left the list, the person deleted its file, the agent
+    // came back: the skill does not return, because a deleted file
+    // with a standing record is a decision (0022 R-2). The wave says
+    // so aloud now (review 0024 R-6) -- and the way out it names is
+    // judged here, because advice that does not work is the defect
+    // 0022 R-2 punished.
+    let dir = agents_project("returning", Some("[\"claude\", \"cursor\"]"));
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the frame lands:\n{out}");
+    fs::remove_file(dir.join(SHARED_SKILL)).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "a deleted artefact is a decision, not a gap:\n{out}"
+    );
+    assert!(
+        !dir.join(SHARED_SKILL).exists(),
+        "nothing is written back over a person's decision:\n{out}"
+    );
+    // The named way out: remove its line in [generated] as well.
+    let config = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    let pruned: String = config
+        .lines()
+        .filter(|line| !line.contains(SHARED_SKILL))
+        .map(|line| format!("{line}\n"))
+        .collect();
+    assert_ne!(pruned, config, "the record of the deleted artefact stood");
+    fs::write(dir.join("keel.toml"), &pruned).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "and then the way out works:\n{out}");
+    assert!(
+        dir.join(SHARED_SKILL).is_file(),
+        "the skill is born again by the two steps the word names:\n{out}"
+    );
 }

@@ -240,8 +240,30 @@ fn init_never_tramples_second_birth() {
         "the config refusal is said aloud, not swallowed (R-1):\n{all}"
     );
     assert!(
-        all.contains("not judged") || all.contains("не судяться"),
+        all.contains("not judged"),
         "and the frame says which piece it could not judge:\n{all}"
+    );
+    // The exit code says "at least one piece fell", never "exactly
+    // one" (review 0024 R-7): the old assert code == 0 carried the
+    // half that said NO OTHER piece fell, and that half is restored
+    // by naming the pieces which stood.
+    assert!(
+        all.contains("born: keel/waves")
+            && all.contains("born: keel/contracts")
+            && all.contains("born: keel/reviews"),
+        "the three directories still stand as born:\n{all}"
+    );
+    assert!(
+        all.contains("commit-msg"),
+        "and the hook still lands, so the config is the only piece that fell:\n{all}"
+    );
+    // The ignore advice goes unjudged for the same reason and says
+    // so in its own row -- it is advice, not a piece of the frame,
+    // and it costs no red. So the count is of the piece itself.
+    assert_eq!(
+        all.matches("integrations are not judged").count(),
+        1,
+        "exactly one piece of the frame went unjudged:\n{all}"
     );
     assert!(
         dir.join("keel/waves/.gitkeep").is_file(),
