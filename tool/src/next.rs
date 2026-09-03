@@ -19,6 +19,83 @@ use std::path::Path;
 
 /// The `keel next` package: one step out of the state. A broken
 /// document is the first step of its own -- mend it, by name.
+/// The same step in the ANSWER SHAPE a named agent's session hook
+/// expects (wave 0025). Claude Code injects a hook's plain stdout
+/// into the agent's context, so its shape is the plain step. Cursor
+/// takes context only as JSON, and the field is `additional_context`
+/// (its own docs) -- so for Cursor the step rides wrapped. The names
+/// come from the one home of the agent question (config::AGENTS); an
+/// unknown one is refused with the names that are known, because a
+/// hook that silently says nothing is worse than a hook that refuses.
+///
+/// The shape lives here because the home of the step is one -- not in
+/// generated, which knows files, not words.
+pub fn step_for(root: &Path, agent: &str) -> Result<String, Refusal> {
+    if !crate::config::AGENTS.contains(&agent) {
+        return Err(unknown_agent(root, agent));
+    }
+    // A hook that speaks must always speak. When the step cannot be
+    // said -- no keel/ here yet, a broken keel.toml, a document that
+    // does not read -- the refusal is itself the word the agent
+    // needs, so it rides in the agent's own shape and the exit stays
+    // green. Measured, not guessed: right after `keel init`, with no
+    // wave yet, the step refuses; and in Cursor an exit code of 2
+    // means "block the action" (their docs, for compatibility with
+    // Claude Code), so a refusing hook must not exit 2. `keel next`
+    // without --for keeps its own behaviour, untouched.
+    let said = match step(root) {
+        Ok(said) => said,
+        Err(refusal) => format!("{refusal}"),
+    };
+    say_for(agent, &said)
+}
+
+/// One word in a named agent's answer shape. The hook of a tool whose
+/// config court refused needs this before any step can be read, so
+/// the shaping is its own hand -- and it judges the agent's name the
+/// same way, from the one home (config::AGENTS).
+pub fn say_for(agent: &str, said: &str) -> Result<String, Refusal> {
+    if !crate::config::AGENTS.contains(&agent) {
+        return Err(unknown_agent(Path::new("."), agent));
+    }
+    if agent != "cursor" {
+        return Ok(said.to_string());
+    }
+    // JSON by hand, and only because the payload is one string: the
+    // escaping below is the whole of the JSON string grammar we need,
+    // and the scenario parses the result with a real parser.
+    let mut escaped = String::with_capacity(said.len() + 16);
+    for ch in said.chars() {
+        match ch {
+            '"' => escaped.push_str("\\\""),
+            '\\' => escaped.push_str("\\\\"),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            c if (c as u32) < 0x20 => escaped.push_str(&format!("\\u{:04x}", c as u32)),
+            c => escaped.push(c),
+        }
+    }
+    Ok(format!("{{\"additional_context\": \"{escaped}\"}}\n"))
+}
+
+/// The one word for an agent this release does not know.
+fn unknown_agent(root: &Path, agent: &str) -> Refusal {
+    // Through i18n like every other word of the tool (review 0025
+    // R-6: these two were the only refusals in the file speaking
+    // English into a Ukrainian frame). i18n is already initialised by
+    // the time a hook or a person can reach here.
+    let known = crate::config::AGENTS.join(", ");
+    Refusal {
+        file: root.to_path_buf(),
+        reason: ta(
+            "next-unknown-agent",
+            targs!("agent" => agent.to_string(), "known" => known.clone()),
+        ),
+        instead: ta("next-unknown-agent-instead", targs!("known" => known)),
+    }
+}
+
 pub fn step(root: &Path) -> Result<String, Refusal> {
     let config = config::read(root)?;
     if !config.rust_adapter() {
