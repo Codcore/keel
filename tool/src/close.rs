@@ -271,15 +271,28 @@ fn run_command(root: &Path, command: &str) -> Result<(), String> {
 /// 0010 review R-5, where a verdict must carry words, not noise.
 fn visible(line: &str) -> String {
     let mut out = String::with_capacity(line.len());
-    let mut chars = line.chars();
+    let mut chars = line.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '\u{1b}' {
-            // A CSI sequence runs to its final byte in @..~.
-            for c in chars.by_ref() {
-                if ('@'..='~').contains(&c) {
-                    break;
+            if chars.peek() == Some(&'[') {
+                // A CSI sequence: the opener is not its final byte
+                // (the first cut of this fix broke right here), so
+                // it is eaten before the hunt for one in @..~.
+                chars.next();
+                for c in chars.by_ref() {
+                    if ('@'..='~').contains(&c) {
+                        break;
+                    }
                 }
+            } else {
+                // Two-character escapes such as ESC ( B.
+                chars.next();
             }
+            continue;
+        }
+        if c.is_control() {
+            // Bare control bytes are not words either: rustfmt
+            // paints a shift-in after every reset.
             continue;
         }
         out.push(c);
