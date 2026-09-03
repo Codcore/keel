@@ -147,7 +147,10 @@ pub fn cuts_report() -> String {
         report.push_str(&format!("  {slug} — {question}\n"));
     }
     report.push('\n');
-    report.push_str(&t("speak-cuts-source"));
+    report.push_str(&ta(
+        "speak-cuts-source",
+        targs!("version" => env!("CARGO_PKG_VERSION").to_string()),
+    ));
     report.push('\n');
     report
 }
@@ -162,7 +165,10 @@ pub fn method(asked: Option<&str>) -> Result<String, Refusal> {
             report.push_str(&format!("  {name} — {}\n", paragraphs.len()));
         }
         report.push('\n');
-        report.push_str(&t("speak-method-source"));
+        report.push_str(&ta(
+            "speak-method-source",
+            targs!("version" => env!("CARGO_PKG_VERSION").to_string()),
+        ));
         report.push('\n');
         return Ok(report);
     };
@@ -192,6 +198,17 @@ pub fn method(asked: Option<&str>) -> Result<String, Refusal> {
     })
 }
 
+/// A rule written as "N. **Text**" -- the shape the Constitution
+/// uses instead of §-paragraphs.
+fn numbered_rule(line: &str) -> Option<(String, String)> {
+    let (number, rest) = line.split_once(". ")?;
+    if number.is_empty() || !number.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    rest.starts_with("**")
+        .then(|| (number.to_string(), rest.to_string()))
+}
+
 /// The methodology split into chapters, each with its paragraphs.
 fn chapters() -> Vec<(&'static str, Vec<(String, String)>)> {
     let mut chapters: Vec<(&'static str, Vec<(String, String)>)> = Vec::new();
@@ -202,6 +219,18 @@ fn chapters() -> Vec<(&'static str, Vec<(String, String)>)> {
                 last.1.push((number, text));
             }
             chapters.push((title, Vec::new()));
+            continue;
+        }
+        // A chapter written as numbered RULES rather than
+        // §-paragraphs (the Constitution) has pieces too: counting
+        // only § made it read "0" in the contents -- true by the
+        // letter and puzzling to a reader, which is the same defect
+        // as a silent one.
+        if let Some((number, opening)) = numbered_rule(line) {
+            if let (Some((number, text)), Some(last)) = (carried.take(), chapters.last_mut()) {
+                last.1.push((number, text));
+            }
+            carried = Some((number.clone(), format!("{number}. {opening}")));
             continue;
         }
         if let Some(rest) = line.strip_prefix("**§")

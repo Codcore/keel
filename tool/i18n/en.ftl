@@ -536,7 +536,7 @@ init-config-default = born with the vocabulary commented, nothing chosen for you
 
 # The mouth of the tool (wave 0027)
 speak-cuts-title = keel cuts — the forty quality cuts, as the courts judge by them (§10.1)
-speak-cuts-source = every question above is the checklist QUALITY.md, embedded in this release; the slugs are the vocabulary keel check judges plan completeness by (§10.3)
+speak-cuts-source = every question above is the checklist QUALITY.md as it stood when keel { $version } was BUILT — a snapshot baked into this binary, not the file in your project; a newer checklist needs a newer keel. The slugs are the vocabulary keel check judges plan completeness by (§10.3)
 speak-cuts-drifted = { $count } cut(s) the courts judge by have no question in the checklist: { $cuts }
 speak-cuts-drifted-instead = the judged list and the read list must be one: give each cut its question back in QUALITY.md, or bring the vocabulary of the courts to match it
 speak-cuts-stray = the checklist carries { $count } question(s) no court judges: { $cuts }
@@ -544,7 +544,7 @@ speak-cuts-stray-instead = a question nobody judges is answered for nothing: giv
 speak-cuts-order = the checklist and the courts hold the cuts in a different order: at place { $at } the courts judge "{ $judged }" while the document reads "{ $read }"
 speak-cuts-order-instead = one list, one order — the standard's own; move the question back, or move the court
 speak-method-title = keel method — the methodology of this generation, chapter by chapter (paragraph count on the right)
-speak-method-source = the text is Ukrainian and is served as written — this release does not translate it; ask for one paragraph with: keel method §8.6
+speak-method-source = the text is the methodology as it stood when keel { $version } was BUILT — a snapshot baked into this binary, not a file in your project. It is Ukrainian and this release does not translate it; ask for one piece with: keel method §8.6
 speak-method-unknown = the methodology of this generation has no paragraph "{ $asked }"
 speak-method-unknown-instead = that chapter holds { $bounds }; without an argument keel method shows every chapter
 speak-method-none = no paragraph of that chapter
