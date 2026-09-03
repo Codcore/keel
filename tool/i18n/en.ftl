@@ -308,11 +308,14 @@ check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the sl
 check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }
 check-ref-stale-instead = reread the contract and update the reference deliberately (§5.1); if this wave is already closed, the old revision is legal (§5.6)
 # The verdict's own limits (wave 0031).
-limit-shallow = limit of this verdict: the history is shallow -- { $skipped } checks of old revisions were not run; instead: git fetch --unshallow
-limit-base-stale = limit of this verdict: local main is { $behind } behind origin/main -- scope was judged against a stale base; instead: git fetch origin main:main
-limit-base-local-only = limit of this verdict: this clone knows no origin/main -- the base of comparison is local and its freshness cannot be checked
-limit-unpushed = limit of this verdict: branch "{ $branch }" is not on origin -- what is green here does not exist off this disk; instead: git push -u origin { $branch }
-limit-ahead = limit of this verdict: branch "{ $branch }" differs from origin/{ $branch } -- this judges what origin does not have yet; instead: git push
+limit-shallow = limit of this verdict: the history is shallow -- { $skipped ->
+        [one] { $skipped } check of an old revision was not run
+       *[other] { $skipped } checks of old revisions were not run
+    }, and how many of them this depth COULD have run is not counted; instead: git fetch --unshallow
+limit-base-stale = limit of this verdict: local { $trunk } is { $behind } behind { $base } as of the last fetch (this clone knows nothing newer) -- scope was judged against a stale base; instead: git fetch
+limit-base-local-only = limit of this verdict: this clone knows no remote { $trunk } -- the base of comparison is local and its freshness cannot be checked
+limit-unpushed = limit of this verdict: this clone does not see branch "{ $branch }" in { $remote } -- whether it is really there was not asked (no network); instead: git push -u { $remote } { $branch }
+limit-ahead = limit of this verdict: branch "{ $branch }" differs from { $remote }/{ $branch } as this clone knows them -- this judges what { $remote } may not have yet; instead: git push
 
 check-summary = summary: { $docs ->
         [one] { $docs } document
@@ -344,7 +347,8 @@ close-lack-notrun = scenario "{ $scenario }": the battery ran no test named "{ $
 close-lack-flaky = scenario "{ $scenario }": the test "{ $test }" is green in { $green } of { $runs } runs — not green (§7.13)
 close-lack-ref = the reference { $contract }@{ $recorded } does not converge (§6.4)
 close-lack-review = the review file keel/reviews/<wave>.md is not next to the wave (§9.9)
-close-price = the price of this court: the battery runs three times (§7.13) into its OWN tool/target -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; it wants about { $needed } GB
+close-price = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; it wants about { $needed } GiB free (measured: one closing leaves 1.26 GiB)
+close-price-paid = price paid: { $target } weighs { $size } GiB
 close-no-room = { $free } GB free on disk, and this court wants about { $needed } GB -- better to refuse now than to die halfway through with "no space left on device"
 close-no-room-instead = free some space (rm -rf tool/target clears the previous closing's cache) or run the court where there is room
 close-needs-adapter = the closure court needs the rust adapter named in keel.toml (old spelling cargo accepted)

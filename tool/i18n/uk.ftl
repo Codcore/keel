@@ -310,11 +310,15 @@ check-ref-stale-instead = перечитай контракт і онови по
 # The verdict's own limits (wave 0031): a shallow clone used to end
 # with the same "0 findings" line as a full one, having done 141
 # fewer checks.
-limit-shallow = межа вироку: історія обрізана (shallow) — { $skipped } звірок старих редакцій не зроблено; натомість: git fetch --unshallow
-limit-base-stale = межа вироку: локальний main відстає від origin/main на { $behind } — scope судився проти несвіжої бази; натомість: git fetch origin main:main
-limit-base-local-only = межа вироку: origin/main цьому клонові невідомий — базу порівняння взято локальну, її свіжість не звірити
-limit-unpushed = межа вироку: гілки "{ $branch }" на origin нема — те, що тут зелене, поза цим диском не існує; натомість: git push -u origin { $branch }
-limit-ahead = межа вироку: гілка "{ $branch }" розходиться з origin/{ $branch } — вирок про те, чого на origin ще нема; натомість: git push
+limit-shallow = межа вироку: історія обрізана (shallow) — { $skipped ->
+        [one] { $skipped } звірка старої редакції не зроблена
+        [few] { $skipped } звірки старих редакцій не зроблені
+       *[many] { $skipped } звірок старих редакцій не зроблено
+    }, і скільки з них МОГЛА б зробити ця глибина — не рахується; натомість: git fetch --unshallow
+limit-base-stale = межа вироку: локальний { $trunk } відстає від { $base } на { $behind } станом на останній fetch (свіжішого цей клон не знає) — scope судився проти несвіжої бази; натомість: git fetch
+limit-base-local-only = межа вироку: віддаленого { $trunk } цей клон не знає — базу порівняння взято локальну, її свіжість не звірити
+limit-unpushed = межа вироку: гілки "{ $branch }" цей клон у { $remote } не бачить — чи є вона там насправді, суд не питав (у мережу не ходить); натомість: git push -u { $remote } { $branch }
+limit-ahead = межа вироку: гілка "{ $branch }" розходиться з { $remote }/{ $branch }, як їх знає цей клон — вирок про те, чого в { $remote } може ще не бути; натомість: git push
 
 check-summary = підсумок: { $docs ->
         [one] { $docs } документ
@@ -349,7 +353,8 @@ close-lack-notrun = сценарій "{ $scenario }": батарея не вик
 close-lack-flaky = сценарій "{ $scenario }": тест "{ $test }" зелений у { $green } з { $runs } бігів — не зелений (§7.13)
 close-lack-ref = посилання { $contract }@{ $recorded } не сходиться (§6.4)
 close-lack-review = звіту рецензії keel/reviews/<хвиля>.md поруч із хвилею нема (§9.9)
-close-price = ціна цього суду: батарея жене тричі (§7.13) у ВЛАСНИЙ tool/target — успадкований кеш зсуває вироки (§6.7), тож це рішення, а не вада; місця треба ~{ $needed } ГБ
+close-price = ціна цього суду: батарея жене тричі (§7.13) у ВЛАСНИЙ { $target } — успадкований кеш зсуває вироки (§6.7), тож це рішення, а не вада; місця треба ~{ $needed } ГіБ (зміряно: одне закриття лишає 1,26 ГіБ)
+close-price-paid = ціна сплачена: { $target } важить { $size } ГіБ
 close-no-room = на диску вільно { $free } ГБ, а цьому судові треба ~{ $needed } ГБ — краще відмовитись зараз, ніж померти на півдорозі з «no space left on device»
 close-no-room-instead = звільни місце (rm -rf tool/target прибирає кеш попереднього закриття) або жени суд там, де місце є
 close-needs-adapter = судові закриття потрібен адаптер cargo, названий у keel.toml
