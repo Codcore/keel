@@ -107,7 +107,16 @@ fn project(name: &str) -> PathBuf {
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
     );
     write(&dir, "src/lib.rs", "");
-    write(&dir, "tests/steady_test.rs", "#[test]\nfn steady() {}\n");
+    // The scenario is proven by a tag and a green test; the review
+    // report is what is missing -- so the wave is IN PROGRESS, and
+    // its lack blocks the merge (a wave with no tag at all would be
+    // a plan, and a plan is not red, §6.5).
+    let rev = keel::rev::text_rev("body of never-proven\n");
+    write(
+        &dir,
+        "tests/steady_test.rs",
+        &format!("/// proves: never-proven@{rev}\n#[test]\nfn steady() {{}}\n"),
+    );
     write(
         &dir,
         "keel/waves/0030-unproven.md",
@@ -159,7 +168,7 @@ fn snapshot(root: &Path) -> Vec<(String, Vec<u8>)> {
     out
 }
 
-/// proves: courts-deaf-to-the-environment@f930de -- holds what the
+/// proves: courts-deaf-to-the-environment@dfc133 -- holds what the
 /// 0020 review measured and the wave repairs: a git hook hands its
 /// children GIT_DIR and its kin, those outrank -C, and a court that
 /// inherits them judges the repository that spawned it. Under that
@@ -183,6 +192,10 @@ fn courts_deaf_to_the_environment() {
     assert!(
         out.contains("0030-unproven") && out.contains("in progress"),
         "close names this project's wave and its lack:\n{out}"
+    );
+    assert!(
+        out.contains("review"),
+        "the lack named is the missing review report (§9.9):\n{out}"
     );
 
     // The form court: this project's own findings, none of the
@@ -220,8 +233,8 @@ fn courts_deaf_to_the_environment() {
     // The step hand and the stage eye speak of this project too.
     let (out, _) = keel_from_hook(&["next", dir.to_str().unwrap()], &stranger);
     assert!(
-        out.contains("0030-unproven"),
-        "next speaks of this project's wave:\n{out}"
+        out.contains("steady_test") || out.contains("0030-unproven"),
+        "next speaks of this project's own work, not a stranger's:\n{out}"
     );
 
     // The planning hand counts this project's numbers: 0030 is

@@ -9,7 +9,6 @@ use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::targs;
 use std::path::Path;
-use std::process::Command;
 
 /// The `keel plan <slug>` birth: a full-form wave skeleton, the
 /// §8.2 branches, the §10.2 author's pass -- and the §8.5/§8.8
@@ -211,9 +210,7 @@ fn leading_number(slug: &str) -> Option<u64> {
 /// skipped. Returns whether git answered; false narrows the court
 /// to the disk, and the caller says that aloud.
 fn branch_numbers(root: &Path, slug: &str, taken: &mut Vec<u64>) -> bool {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let out = crate::scope::git_at(root)
         .args([
             "for-each-ref",
             "--format=%(refname:short)",

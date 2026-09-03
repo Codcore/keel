@@ -10,7 +10,7 @@ transforms:
   one-git-hand:
     implements:
       - courts-deaf-to-the-environment
-    contracts: [tool-scope@5bf6e5, tool-gate@942b37, tool-init@9fafaa, tool-plan@89aa74, tool-review@aa0a73, tool-next@ec56ff]
+    contracts: [tool-scope@5bf6e5, tool-gate@0a8613, tool-init@9fafaa, tool-plan@89aa74, tool-review@aa0a73, tool-next@ec56ff]
     files:
       - tool/src/scope.rs
       - tool/src/gate.rs
@@ -95,8 +95,9 @@ ignore і установку hook-а), решта дванадцяти місц�
 
 ## scenario: courts-deaf-to-the-environment
 
-**Дано** проєкт A з незакритою хвилею (сценарій без тега, звіту
-рецензії нема) і чужий репозиторій B, чиї `GIT_DIR`, `GIT_WORK_TREE`
+**Дано** проєкт A з хвилею в роботі (сценарій доведений тегом і
+зеленим тестом, а звіту рецензії §9.9 поруч нема — саме та нестача,
+що блокує merge) і чужий репозиторій B, чиї `GIT_DIR`, `GIT_WORK_TREE`
 і рідня стоять у середовищі — рівно так, як їх лишає git-hook,
 **коли** над A біжать суди — `check`, `close`, `gate`, `review`,
 `status`, `next`, `plan`, — а також `keel trust` і `keel init`,
