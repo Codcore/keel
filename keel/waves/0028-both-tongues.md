@@ -15,6 +15,7 @@ transforms:
       - docs/uk/QUALITY.md
       - tool/src/speak.rs
       - tool/src/check.rs
+      - tool/src/main.rs
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/speak_test.rs
@@ -33,7 +34,7 @@ decisions:
   compatibility.interoperability: "свідомо без тесту: вивід лишається звичайним текстом у stdout"
   interaction.appropriateness-recognisability: "свідомо без нового тесту: команда та сама, змінюється лише мова її вмісту"
   interaction.learnability: "тримає the-checklist-speaks-the-project-language: людина, що поставила lang = uk, читає сорок питань рідною мовою — саме там, де вона їх заповнює в decisions"
-  interaction.operability: "свідомо без нового тесту: жодного нового прапорця; мову бере keel.toml, як і решта рами"
+  interaction.operability: "свідомо без нового тесту: жодного нового прапорця; мову бере keel.toml, як і решта рами. §4.6-ріст списку files на tool/src/main.rs названо вголос: подача мусила дізнатись мову, яку рама вже прочитала, — це один аргумент виклику, і ховати його за «і так зрозуміло» було б тією самою тишею"
   interaction.user-error-protection: "тримає the-checklist-speaks-the-project-language: переклад, що загубив розріз, перейменував його або переставив, — відмова з іменами, як і оригінал; суди 0027 застосовуються до КОЖНОЇ мови, а не до однієї"
   interaction.user-engagement: "не застосовується"
   interaction.self-descriptiveness: "свідомо без нового тесту: рядок джерела називає, з якого документа взято знімок і в мить збірки якого релізу"
