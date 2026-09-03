@@ -1,0 +1,24 @@
+# keel (generated -- do not edit; keel update rewrites this file)
+#
+# This workflow calls `keel` as a command and does NOT
+# install it: the installing step arrives with the
+# distribution rung of the concept (~/.keel/versions/).
+# Until then, add a step of your own above these that puts
+# `keel` on PATH.
+name: keel
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  keel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: the documents judged
+        run: keel check .
+      - name: the closure court
+        run: keel close .

@@ -5,6 +5,7 @@
 //! the paragraph it holds.
 
 pub mod adapter;
+pub mod ask;
 pub mod check;
 pub mod close;
 pub mod confedit;
