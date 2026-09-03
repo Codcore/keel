@@ -316,7 +316,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 20 -- the generated skills and the CI workflow, by the same mechanism as the AGENTS.md block
+check-next-rung = next step: rung 21 -- a contract naming a module that does not exist must be a finding off the plan branch, not advice (review 0022 R-13)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
