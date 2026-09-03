@@ -34,7 +34,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // A row is a document unless it is a court of the binary itself
     // (wave 0027): those two say different things when green, and
     // "the header reads" over a vocabulary would be a small lie.
-    let mut courts: Vec<String> = Vec::new();
+    // Each court says its own green word: "the header reads" over a
+    // vocabulary would be a small lie, and so would the checklist's
+    // word over the methodology's row (wave 0029).
+    let mut courts: Vec<(String, String)> = Vec::new();
     let mut rows: Vec<(String, Option<String>)> = Vec::new();
     for wave in &scan.waves {
         rows.push((format!("keel/waves/{}.md", wave.slug), None));
@@ -70,7 +73,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             "check-cuts-row",
             targs!("lang" => t(&format!("word-lang-{lang}"))),
         );
-        courts.push(row.clone());
+        courts.push((row.clone(), t("check-court-holds")));
         rows.push((
             row,
             crate::speak::cuts_from(document).err().map(|refusal| {
@@ -81,6 +84,32 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                     refusal.instead
                 )
             }),
+        ));
+    }
+
+    // The skeletons of the methodologies (wave 0029), a row PER
+    // TONGUE as the wave promised three times and delivered once
+    // (review 0029 R-8): each row says whether its own text stands
+    // whole, and the pair says whether the two agree.
+    for (lang, text) in crate::speak::methods() {
+        let row = ta(
+            "check-method-row",
+            targs!("lang" => t(&format!("word-lang-{lang}"))),
+        );
+        courts.push((row.clone(), t("check-method-holds")));
+        rows.push((
+            row,
+            crate::speak::methods_agree_from(&[(lang, text)])
+                .and_then(|()| crate::speak::methods_agree())
+                .err()
+                .map(|refusal| {
+                    format!(
+                        "{}\n           {}: {}",
+                        refusal.reason,
+                        t("word-instead"),
+                        refusal.instead
+                    )
+                }),
         ));
     }
 
@@ -434,11 +463,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     for (path, verdict) in &rows {
         match verdict {
             None => {
-                let word = if courts.contains(path) {
-                    t("check-court-holds")
-                } else {
-                    t("check-header-reads")
-                };
+                let word = courts
+                    .iter()
+                    .find(|(row, _)| row == path)
+                    .map_or_else(|| t("check-header-reads"), |(_, word)| word.clone());
                 writeln!(report, "  {:<8} {path} — {word}", t("word-green")).unwrap();
             }
             Some(text) => {

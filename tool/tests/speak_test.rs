@@ -211,7 +211,11 @@ fn the_tool_says_what_it_judges_by() {
     // The methodology: without an argument, the table of contents.
     let (contents, code) = keel(&["method"]);
     assert_eq!(code, 0, "the tool says the methodology:\n{contents}");
-    for chapter in ["Конституція", "Глава 7", "Глава 10", "Додаток"] {
+    // The names are English here because the sandbox names no
+    // language and English is the default: since wave 0029 the mouth
+    // serves the methodology of the project's tongue, so a probe that
+    // asserts chapter names must say which tongue it is standing in.
+    for chapter in ["Constitution", "Chapter 7", "Chapter 10", "Appendix"] {
         assert!(
             contents.contains(chapter),
             "the contents name {chapter:?}:\n{contents}"
@@ -227,7 +231,7 @@ fn the_tool_says_what_it_judges_by() {
         "the paragraph asked for:\n{paragraph}"
     );
     assert!(
-        paragraph.contains("Глава 8"),
+        paragraph.contains("Chapter 8"),
         "with the chapter it lives in:\n{paragraph}"
     );
     let (plain, code) = keel(&["method", "8.6"]);
@@ -246,10 +250,10 @@ fn the_tool_says_what_it_judges_by() {
     // to reach the Constitution's eight rules and the three
     // appendices, a sixth of the methodology that no paragraph number
     // can reach (review 0027 R-6).
-    let (constitution, code) = keel(&["method", "Конституція"]);
+    let (constitution, code) = keel(&["method", "Constitution"]);
     assert_eq!(code, 0, "a chapter is served whole:\n{constitution}");
     assert!(
-        constitution.contains("Вісім правил") && constitution.contains("8."),
+        constitution.contains("Eight rules") && constitution.contains("8."),
         "with its eight rules in it:\n{constitution}"
     );
 
@@ -417,6 +421,153 @@ fn the_checklist_speaks_the_project_language() {
     assert!(
         refused.contains("ua"),
         "and the refusal names what was asked for:\n{refused}"
+    );
+
+    sweep();
+}
+
+/// proves: the-methodology-speaks-the-project-language@aa2a19 -- the
+/// second and last half of the operator's decision of 2026-09-03.
+/// The checklist learned both tongues in wave 0028; the methodology
+/// itself -- 15 chapters, 92 paragraphs of normative prose -- learns
+/// them here.
+#[test]
+fn the_methodology_speaks_the_project_language() {
+    let uk = bare("method-uk");
+    fs::write(uk.join("keel.toml"), "lang = \"uk\"\n").unwrap();
+    let en = bare("method-en");
+    fs::write(en.join("keel.toml"), "lang = \"en\"\n").unwrap();
+
+    // The contents, each in its own tongue.
+    let (said_uk, code) = keel(&["method", uk.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "the methodology is served in Ukrainian:\n{said_uk}"
+    );
+    let (said_en, code) = keel(&["method", en.to_str().unwrap()]);
+    assert_eq!(code, 0, "and in English:\n{said_en}");
+    assert!(
+        said_uk.contains("Конституція") && said_uk.contains("Глава 7"),
+        "the Ukrainian contents name Ukrainian chapters:\n{said_uk}"
+    );
+    assert!(
+        said_en.contains("Constitution") && said_en.contains("Chapter 7"),
+        "the English contents name English chapters:\n{said_en}"
+    );
+    assert!(
+        !said_en.contains("Глава"),
+        "and no Ukrainian chapter is left in the English contents:\n{said_en}"
+    );
+
+    // The same paragraph under the same number, in each tongue.
+    let (para_uk, code) = keel(&["method", "§8.6", uk.to_str().unwrap()]);
+    assert_eq!(code, 0, "a paragraph is served:\n{para_uk}");
+    let (para_en, code) = keel(&["method", "§8.6", en.to_str().unwrap()]);
+    assert_eq!(code, 0, "in both tongues:\n{para_en}");
+    assert!(
+        para_uk.contains("Глава 8") && para_uk.contains("§8.6"),
+        "the Ukrainian one carries its chapter:\n{para_uk}"
+    );
+    assert!(
+        para_en.contains("Chapter 8") && para_en.contains("§8.6"),
+        "and so does the English one:\n{para_en}"
+    );
+    assert!(
+        para_en.contains("questions") || para_en.contains("decided"),
+        "and the English paragraph is English:\n{para_en}"
+    );
+
+    // A chapter asked for by name is served in the tongue that names
+    // it that way.
+    let (whole, code) = keel(&["method", "Constitution", en.to_str().unwrap()]);
+    assert_eq!(code, 0, "an English chapter by name:\n{whole}");
+    assert!(
+        whole.contains("Eight rules"),
+        "served whole and in English:\n{whole}"
+    );
+
+    // Both texts carry the SAME SKELETON: the same chapters in the
+    // same order, the same paragraph numbers, none of them empty.
+    // That is what a machine can hold of a translation -- and it is
+    // held here rather than promised.
+    keel::speak::methods_agree().expect("the two methodologies carry one skeleton");
+
+    // And the court is PLAYED, not promised: broken texts, refusals.
+    // Review 0029 R-3 measured that a mutant answering Ok to
+    // everything passed all eighty-seven tests, because the hand took
+    // no argument and nobody could feed it anything.
+    let uk_text = keel::speak::method_for("uk");
+    let en_text = keel::speak::method_for("en");
+    let renumbered: &'static str =
+        Box::leak(en_text.replace("**§5.3.**", "**§5.30.**").into_boxed_str());
+    let refusal = keel::speak::methods_agree_from(&[("uk", uk_text), ("en", renumbered)])
+        .expect_err("a paragraph that changed its number is refused");
+    let said = format!("{refusal}");
+    assert!(
+        said.contains("5.3") && said.contains("en") && said.contains("uk"),
+        "and the refusal names both numbers and both tongues:\n{said}"
+    );
+
+    let beheaded: &'static str = Box::leak(
+        en_text
+            .replace(
+                "## Appendix B. What is deliberately absent",
+                "## Appendix B0. Nothing\n\n## Appendix B. What is deliberately absent",
+            )
+            .into_boxed_str(),
+    );
+    assert!(
+        keel::speak::methods_agree_from(&[("uk", uk_text), ("en", beheaded)]).is_err(),
+        "a chapter with nothing under its heading is refused"
+    );
+
+    let short: &'static str = Box::leak(en_text.replace("**§5.3.**", "").into_boxed_str());
+    assert!(
+        keel::speak::methods_agree_from(&[("uk", uk_text), ("en", short)]).is_err(),
+        "a text that lost a paragraph is refused"
+    );
+    assert!(
+        keel::speak::methods_agree_from(&[("en", en_text)]).is_ok(),
+        "while the text as it stands is served"
+    );
+
+    // The translation is tied to the revision of its original
+    // (constitution, rule 4; review 0029 R-2): change the Ukrainian
+    // text and the record goes stale, so the translation cannot fall
+    // behind unnoticed.
+    keel::speak::translation_is_current()
+        .expect("the translation records the revision it was made from, and it is current");
+    assert!(
+        en_text.contains("translated_from:"),
+        "and the record stands in the document itself"
+    );
+
+    // The mouth says the English text IS a translation -- before
+    // review 0029 R-1 it said no translation exists, printed over the
+    // English contents it had just served.
+    assert!(
+        said_en.contains("translation") && !said_en.contains("does not translate"),
+        "the source line names the text a translation:\n{said_en}"
+    );
+    assert_eq!(
+        keel::speak::methods().len(),
+        keel::config::LANGUAGES.len(),
+        "one methodology per language of this release"
+    );
+
+    // And the gate says so, per tongue, as it does for the checklist.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let (checked, _) = keel(&["check", root.to_str().unwrap()]);
+    let rows = checked
+        .lines()
+        .filter(|line| line.contains("методик") || line.contains("methodolog"))
+        .count();
+    assert!(
+        rows >= 1,
+        "the gate judges the methodology's skeleton too:\n{checked}"
     );
 
     sweep();

@@ -3,14 +3,14 @@ depends_on: [0028-both-tongues]
 
 scenarios:
   the-methodology-speaks-the-project-language:
-    proves: tool-speak@c9539f
+    proves: tool-speak@5c3ac6
     covers: [interaction.inclusivity, maintainability.analysability]
 
 transforms:
   the-methodology-in-english:
     implements:
       - the-methodology-speaks-the-project-language
-    contracts: [tool-speak@c9539f]
+    contracts: [tool-speak@5c3ac6]
     files:
       - docs/en/METHODOLOGY-V2.md
       - tool/src/speak.rs
@@ -19,6 +19,7 @@ transforms:
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/speak_test.rs
+      - docs/uk/METHODOLOGY-V2.md
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:
@@ -29,16 +30,15 @@ decisions:
   functional.correctness: "тримає the-methodology-speaks-the-project-language: обидві методики несуть ті самі 15 розділів у тому самому порядку і ті самі 92 параграфи з тими самими номерами; розбіжність кістяка — відмова, що називає номер і мову"
   functional.appropriateness: "свідомо без окремого тесту: доречність судить рішення оператора («не має бути укр, якщо в налаштуваннях англ»)"
   performance.time-behaviour: "не застосовується: обидва тексти зашиті, читання диска нема"
-  performance.capacity: "свідомо без тесту: другий текст методики додає ~56 КБ ТЕКСТУ (приріст бінарника буде більшим — школа R-10 рецензії 0027, де я назвав розмір тексту приростом бінарника і схибив у 4,3 раза)"
+  performance.capacity: "виправлено за R-11 рецензії: англійський текст — 37 202 Б (56 КБ — це УКРАЇНСЬКИЙ документ; кирилиця в UTF-8 удвічі важча), приріст бінарника зміряний рецензентом: +72 312 Б, тобто 1,94×. Урок 0027 R-10 засвоєно в напрямку (бінарник росте більше за текст) і схиблено в числі — узято байти не того файлу; це вже друга хвиля поспіль, де я називаю розмір не тим документом"
   performance.resource-utilisation: "свідомо: ціна названа вище і зміряна буде в чеку роботи, а не вгадана"
   compatibility.co-existence: "не застосовується: рот нічого не пише на диск"
   compatibility.interoperability: "свідомо без тесту: вивід лишається текстом у stdout"
-  interaction.appropriateness-recognisability: "свідомо без нового тесту: команда та сама"
   interaction.learnability: "тримає the-methodology-speaks-the-project-language: англомовний читач нарешті може прочитати методику, за якою його судять, — а не лише її назву"
   interaction.operability: "свідомо без нового тесту: жодного нового прапорця; мову бере keel.toml"
   interaction.user-error-protection: "тримає the-methodology-speaks-the-project-language: параграф, що є в одній мові й відсутній в іншій, — відмова, а не тихо коротший текст"
   interaction.user-engagement: "не застосовується"
-  interaction.self-descriptiveness: "свідомо без нового тесту: рядок джерела називає документ і реліз знімка (з 0027)"
+  interaction.self-descriptiveness: "виправлено за R-1 рецензії — найважчою знахідкою хвилі, і саме це рішення її пропустило: рядок джерела казав «It is Ukrainian and this release does not translate it» — ОБОМА мовами і просто над англійським змістом. У проєкті з lang = en це єдине, що читач чує про походження норми. Тепер рядок каже, що текст — переклад рукою, що джерело правди українське і що розбіжність доповідають; і це тримає асерт проби"
   interaction.user-assistance: "не застосовується як нова робота: відмови ті самі"
   reliability.faultlessness: "свідомо без окремого тесту: добір документа за мовою — один match"
   reliability.fault-tolerance: "не застосовується: тексти зашиті"
@@ -51,8 +51,9 @@ decisions:
   security.authenticity: "свідомо без тесту: обидва тексти зашиті include_str"
   security.resistance: "не застосовується: нового входу нема"
   maintainability.modularity: "свідомо без тесту: методики входять тим самим переліком, що й чеклисти; спільна рука судить кістяк обох"
-  maintainability.reusability: "свідомо без тесту: третя мова — рядок у переліку"
+  maintainability.reusability: "виправлено за R-9 рецензії, і це був той самий комплімент собі, який ЦЯ Ж хвиля щойно викреслила з контракту: третя мова — не рядок, а ДЕСЯТЬ місць (два include_str, гілки в checklist_for/method_for/named_method, рядки в checklists/methods, порівняння в cuts_from, LANGUAGES, ftl) — чотири з них додала ця хвиля. Число зміряне рецензентом по коду"
   maintainability.modifiability: "свідомо без тесту: правити переклад — правити документ"
+  interaction.appropriateness-recognisability: "свідомо без нового тесту: команда та сама. Але названо вголос §4.6-ріст: проба хвилі 0027 асертувала УКРАЇНСЬКІ імена розділів, бо рот тоді подавав лише українську; тепер вона стоїть у теці без keel.toml, тобто англійською, і її асерти приведено до мови, у якій вона стоїть — з коментарем чому. Це зміна чужої проби, і вона названа, а не проведена мовчки"
   maintainability.testability: "тримає the-methodology-speaks-the-project-language: обидві мови жене проба, і зіпсований переклад теж"
   flexibility.adaptability: "не застосовується"
   flexibility.scalability: "не застосовується"
@@ -62,7 +63,7 @@ decisions:
   safety.risk-identification: "не застосовується як окрема робота: загроза — дві методики, що розійшлись, — і є сценарієм"
   safety.fail-safe: "свідомо без окремого тесту: рот або подає текст, або відмовляє словом"
   safety.hazard-warning: "**названо вголос, і вдруге**: машина тримає КІСТЯК (розділи, номери, непорожність), СЕНСУ не тримає. Для методики це важить більше, ніж для чеклиста: це НОРМАТИВНИЙ текст, за яким судять роботу. Український лишається джерелом правди — рішення §8.6 записуються ним, і переклад іде за ним. Якщо два тексти скажуть різне, правий український, і це сказано в самому документі, а не лише тут"
-  safety.safe-integration: "тримає the-methodology-speaks-the-project-language: український вивід не міняється ані на байт — судиться прямо"
+  safety.safe-integration: "тримає the-methodology-speaks-the-project-language: український вивід міняється рівно в одному місці (повний шлях у відмові, +8 Б зі 104 174) — сказано в сценарії. Слова «судиться прямо» прибрано: асерту про незмінність українського виводу нема, і обіцяти суд, якого нема, — та сама тиша (R-6 рецензії)"
 ---
 
 ## Why

@@ -629,11 +629,19 @@ fn main() -> ExitCode {
                 named_root = true;
                 root = PathBuf::from(word);
             }
-            let lang = keel::config::read_unpinned(&root)
-                .map(|config| config.lang)
-                .unwrap_or_default();
+            // As for `cuts` (review 0028 R-5): the language decides
+            // WHICH NORMATIVE DOCUMENT is read, so a config that does
+            // not parse or names a language this release does not
+            // carry is a refusal, not a silent fall back to English.
+            let lang = match keel::config::read_unpinned(&root) {
+                Ok(config) => config.lang,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
             keel::i18n::init(&lang);
-            match keel::speak::method(asked.as_deref()) {
+            match keel::speak::method(&lang, asked.as_deref()) {
                 Ok(said) => {
                     print!("{said}");
                     ExitCode::SUCCESS
