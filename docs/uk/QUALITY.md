@@ -81,70 +81,70 @@
 
 ### 1. Функційна придатність
 
-- **functional.completeness** — чи є тут усе, що просили
+- **functional.completeness** — чи все, що просили, тут є
 - **functional.correctness** — чи правильний результат
-- **functional.appropriateness** — чи це полегшує саме ту задачу, а не сусідню
+- **functional.appropriateness** — чи полегшує це саме ту задачу, а не сусідню
 
 ### 2. Ефективність роботи
 
 - **performance.time-behaviour** — скільки це триває
-- **performance.capacity** — скільки воно тримає, доки не перестане працювати
+- **performance.capacity** — скільки воно вміщає, поки не перестане працювати
 - **performance.resource-utilisation** — що воно споживає, поки працює
 
 ### 3. Сумісність
 
-- **compatibility.co-existence** — що це забирає в усього іншого, що біжить на тій самій машині
-- **compatibility.interoperability** — про що воно мусить домовитись, щоб узагалі працювати
+- **compatibility.co-existence** — що воно забирає в сусідів по машині
+- **compatibility.interoperability** — з чим воно мусить домовитися, щоб працювати
 
 ### 4. Здатність до взаємодії
 
-- **interaction.appropriateness-recognisability** — чи може людина зрозуміти, для чого це
-- **interaction.learnability** — чи може вона цього навчитись
-- **interaction.operability** — чи може вона цим керувати
-- **interaction.user-error-protection** — чи спиняє воно її від помилки
-- **interaction.user-engagement** — чи тримає воно її увагу
-- **interaction.inclusivity** — чи працює воно для людей, які інакше читають, бачать або рухаються
-- **interaction.user-assistance** — чи допомагає воно, коли вона застрягла
+- **interaction.appropriateness-recognisability** — чи видно людині, для чого це
+- **interaction.learnability** — чи можна цього навчитися
+- **interaction.operability** — чи можна цим керувати
+- **interaction.user-error-protection** — чи вберігає воно людину від помилки
+- **interaction.user-engagement** — чи тримає воно увагу
+- **interaction.inclusivity** — чи працює воно для людей, які читають, бачать чи рухаються інакше
+- **interaction.user-assistance** — чи допомагає воно, коли людина застрягла
 - **interaction.self-descriptiveness** — чи пояснює воно себе саме
 
 ### 5. Надійність
 
 - **reliability.faultlessness** — чи помиляється воно у звичайному вжитку
 - **reliability.fault-tolerance** — чи переживає воно відмову своїх залежностей
-- **reliability.availability** — чи воно є, коли воно потрібне
-- **reliability.recoverability** — чого треба, щоб повернути його після зупинки
+- **reliability.availability** — чи воно на місці, коли потрібне
+- **reliability.recoverability** — що треба, щоб повернути його після зупинки
 
 ### 6. Безпека
 
-- **security.confidentiality** — хто ще це бачить
+- **security.confidentiality** — хто ще може це бачити
 - **security.integrity** — хто ще може це змінити
-- **security.non-repudiation** — чи можна відхреститись від дії потім
+- **security.non-repudiation** — чи можна потім відхреститися від дії
 - **security.accountability** — чи видно, хто що зробив
-- **security.authenticity** — чи той, хто кличе, справді той, ким назвався
-- **security.resistance** — що воно робить із тим, хто пробує
+- **security.authenticity** — чи той, хто звертається, справді той, ким назвався
+- **security.resistance** — що воно робить з тим, хто його ламає
 
 ### 7. Супроводжуваність
 
 - **maintainability.modularity** — воно одним шматком чи кількома
-- **maintainability.reusability** — чи придатне щось із цього деінде
-- **maintainability.analysability** — чи може людина зʼясувати, що зламалось
-- **maintainability.modifiability** — скільки треба посунути, щоб це змінити
-- **maintainability.testability** — чи це взагалі можна протестувати
+- **maintainability.reusability** — чи придасться щось із цього деінде
+- **maintainability.analysability** — чи знайде людина, що зламалося
+- **maintainability.modifiability** — скільки треба зрушити, щоб змінити
+- **maintainability.testability** — чи можна це взагалі тестувати
 
 ### 8. Гнучкість
 
-- **flexibility.adaptability** — чи переживе воно зміну середовища
-- **flexibility.scalability** — чи переживе воно більше всього
-- **flexibility.installability** — чого коштує це поставити
-- **flexibility.replaceability** — чого коштує це замінити
+- **flexibility.adaptability** — чи переживає воно зміну середовища
+- **flexibility.scalability** — чи переживає воно «всього стало більше»
+- **flexibility.installability** — що треба, щоб його поставити
+- **flexibility.replaceability** — що треба, щоб його замінити
 
 ### 9. Безпечність
 
-- **safety.operational-constraints** — чого не має статись ніколи, поки воно працює
-- **safety.risk-identification** — які з цих речей відомі
-- **safety.fail-safe** — що воно робить, коли падає
-- **safety.hazard-warning** — чи попереджає воно до шкоди
-- **safety.safe-integration** — чим ризикує жива система, коли це до неї додають
+- **safety.operational-constraints** — чого ніколи не сміє статись, поки воно працює
+- **safety.risk-identification** — які з цих загроз відомі
+- **safety.fail-safe** — що воно робить, коли відмовляє
+- **safety.hazard-warning** — чи попереджає воно, перш ніж станеться шкода
+- **safety.safe-integration** — чим ризикує додавання його в живу систему
 
 **Не кожен розріз стосується кожної хвилі, і вдавати протилежне — найкоротша
 дорога до переліку, який більше не читають.** Розріз, якому нема чого сказати,

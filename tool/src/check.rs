@@ -65,7 +65,11 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // Every tongue this release carries, not only the one it serves:
     // a translation drifts as easily as an original (wave 0028).
     for (lang, document) in crate::speak::checklists() {
-        let row = ta("check-cuts-row", targs!("lang" => lang.to_string()));
+        // A person reads a language, not a code (review 0028 R-10).
+        let row = ta(
+            "check-cuts-row",
+            targs!("lang" => t(&format!("word-lang-{lang}"))),
+        );
         courts.push(row.clone());
         rows.push((
             row,

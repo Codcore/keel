@@ -567,9 +567,22 @@ fn main() -> ExitCode {
                 eprintln!("{}", t("main-usage"));
                 return ExitCode::from(2);
             }
-            let lang = keel::config::read_unpinned(&root)
-                .map(|config| config.lang)
-                .unwrap_or_default();
+            // The language now decides WHICH NORMATIVE DOCUMENT a
+            // person reads, not merely the chrome of the output, so a
+            // config that does not parse -- or names a language this
+            // release does not carry -- is a refusal here exactly as
+            // it is everywhere else in the frame. It used to be
+            // swallowed, and `lang = "ua"` (the commonest typo: the
+            // language code is uk, the domain is ua) silently handed
+            // a Ukrainian project forty English questions (review
+            // 0028 R-5).
+            let lang = match keel::config::read_unpinned(&root) {
+                Ok(config) => config.lang,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
             keel::i18n::init(&lang);
             match keel::speak::cuts_report(&lang) {
                 Ok(said) => {

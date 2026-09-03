@@ -536,7 +536,9 @@ init-config-default = born with the vocabulary commented, nothing chosen for you
 
 # The mouth of the tool (wave 0027)
 check-court-holds = the courts and the checklist hold one list: same forty, same order
-check-cuts-row = the vocabulary of this keel binary, in { $lang } (the forty cuts and their questions)
+word-lang-en = in English
+word-lang-uk = in Ukrainian
+check-cuts-row = the vocabulary of this keel binary, { $lang } (the forty cuts and their questions)
 speak-cuts-title = keel cuts — the forty quality cuts, as the courts judge by them (§10.1)
 speak-cuts-source = every question above is the checklist QUALITY.md as it stood when keel { $version } was BUILT — a snapshot baked into this binary, not the file in your project; a newer checklist needs a newer keel. The slugs are the vocabulary keel check judges plan completeness by (§10.3)
 speak-cuts-drifted = { $count } cut(s) the courts judge by have no question in the checklist: { $cuts }
@@ -545,6 +547,8 @@ speak-cuts-stray = the checklist carries { $count } question(s) no court judges:
 speak-cuts-stray-instead = a question nobody judges is answered for nothing: give it a court in the vocabulary, or take it out of QUALITY.md
 speak-cuts-order = the checklist and the courts hold the cuts in a different order: at place { $at } the courts judge "{ $judged }" while the document reads "{ $read }"
 speak-cuts-order-instead = one list, one order — the standard's own; move the question back, or move the court
+speak-cuts-headings = the checklist carries { $read } headings where the courts group the cuts under { $judged }
+speak-cuts-headings-instead = nine families, nine headings, in the order the vocabulary holds them — a list a person reads grouped differently from the list that is judged is two lists again
 speak-cuts-hollow = { $count } cut(s) stand in the checklist with no question at all: { $cuts }
 speak-cuts-hollow-instead = a slug with an empty question serves a dash and nothing else — give it its question back in QUALITY.md
 speak-method-nowhere-instead = no chapter of this methodology numbers its paragraphs that way; the chapters are: { $chapters } — ask for one by name, or run keel method with no argument

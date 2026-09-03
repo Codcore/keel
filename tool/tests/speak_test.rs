@@ -292,7 +292,7 @@ fn the_tool_says_what_it_judges_by() {
     let _ = std::fs::remove_dir_all(&bare);
 }
 
-/// proves: the-checklist-speaks-the-project-language@ff9ab1 -- the
+/// proves: the-checklist-speaks-the-project-language@2d1d52 -- the
 /// operator's decision of 2026-09-03: everything is translated, and
 /// there is no Ukrainian where the settings say English or the other
 /// way round. Before this wave a project with lang = "uk" got forty
@@ -317,7 +317,7 @@ fn the_checklist_speaks_the_project_language() {
 
     // The forty questions arrive in the language the project speaks.
     assert!(
-        said_uk.contains("чи є тут усе, що просили"),
+        said_uk.contains("чи все, що просили, тут є"),
         "the Ukrainian project reads its questions in Ukrainian:\n{said_uk}"
     );
     assert!(
@@ -329,8 +329,18 @@ fn the_checklist_speaks_the_project_language() {
         "the English project reads them in English:\n{said_en}"
     );
     assert!(
-        !said_en.contains("чи є тут усе, що просили"),
+        !said_en.contains("чи все, що просили, тут є"),
         "and the English road did not change:\n{said_en}"
+    );
+
+    // Every tongue this release carries is served and judged -- not
+    // "at least one" (review 0028 R-2: the loop below was true for a
+    // single language, so the Ukrainian document could have fallen
+    // out from under the courts and nothing would have noticed).
+    assert_eq!(
+        keel::speak::checklists().len(),
+        keel::config::LANGUAGES.len(),
+        "one checklist per language of this release"
     );
 
     // Both lists are the same list: the same forty slugs, in the same
@@ -361,15 +371,52 @@ fn the_checklist_speaks_the_project_language() {
         "and the refusal names it:\n{refusal}"
     );
 
+    // The forty ENGLISH questions do not move: a wave that adds a
+    // language and quietly edits the existing text has broken more
+    // than it built. Held as a snapshot, since review 0028 R-1 found
+    // this clause asserted by nobody -- and found the wave's own
+    // claim of "not a byte" false for the chrome around the
+    // questions, which did change and had to.
+    for question in [
+        "is everything that was asked for here",
+        "what does it consume while it works",
+        "what does it do to somebody trying",
+        "what does adding it to a running system risk",
+    ] {
+        assert!(
+            said_en.contains(question),
+            "the English question stands unchanged: {question:?}\n{said_en}"
+        );
+    }
+
     // The gate judges every tongue, not only the one it serves.
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
         .to_path_buf();
     let (checked, _) = keel(&["check", root.to_str().unwrap()]);
+    // One row per language, counted -- not a substring that a single
+    // row would satisfy (review 0028 R-2).
+    let rows = checked
+        .lines()
+        .filter(|line| line.contains("сорок розрізів") || line.contains("forty cuts"))
+        .count();
+    assert_eq!(
+        rows,
+        keel::config::LANGUAGES.len(),
+        "the gate judges the vocabulary of every tongue:\n{checked}"
+    );
+
+    // A language this release does not carry is a refusal, as it is
+    // everywhere else in the frame -- not a silent fall back to
+    // English (review 0028 R-5).
+    let strange = bare("strange-tongue");
+    fs::write(strange.join("keel.toml"), "lang = \"ua\"\n").unwrap();
+    let (refused, code) = keel(&["cuts", strange.to_str().unwrap()]);
+    assert_ne!(code, 0, "an unknown language is refused:\n{refused}");
     assert!(
-        checked.contains("сорок розрізів") || checked.contains("forty cuts"),
-        "the vocabulary court still stands at the gate:\n{checked}"
+        refused.contains("ua"),
+        "and the refusal names what was asked for:\n{refused}"
     );
 
     sweep();

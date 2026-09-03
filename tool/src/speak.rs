@@ -53,20 +53,32 @@ pub fn cuts() -> Vec<(&'static str, &'static str, &'static str)> {
     cuts_from(CHECKLIST).unwrap_or_default()
 }
 
-/// The forty cuts in the language a project speaks.
-pub fn cuts_for(lang: &str) -> Vec<(&'static str, &'static str, &'static str)> {
-    cuts_from(checklist_for(lang)).unwrap_or_default()
-}
-
 /// The same, from a checklist handed in -- so the court between the
 /// judge's list and the document a person reads can be PLAYED, not
 /// merely promised. A cut whose question the document no longer
 /// carries is a refusal: what is judged and what is read must be one
 /// list, or the difference must be said aloud.
 pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
+    // Which document this is, so a refusal can name it. A checklist
+    // handed in from elsewhere (a probe, a doctored copy) is judged
+    // as the tongue it matches, and named as the tongue it is
+    // (review 0028 R-6: every refusal used to name QUALITY.md, the
+    // English file, whichever document it had just judged).
+    let named = if checklist == CHECKLIST_UK {
+        "docs/uk/QUALITY.md"
+    } else {
+        "QUALITY.md"
+    };
     let mut family = String::new();
     let mut found: Vec<(String, &str)> = Vec::new();
     let mut hollow: Vec<String> = Vec::new();
+    // The nine headings a person reads, in the order they stand.
+    // Judged too (review 0028 R-3): a document whose items carry full
+    // slugs used to skip the family branch entirely, so all nine
+    // headings could be deleted from the Ukrainian checklist and both
+    // `keel cuts` and `keel check` stayed green while the document a
+    // person reads had become wrong.
+    let mut headings: Vec<String> = Vec::new();
     for line in checklist.lines() {
         if let Some(title) = line.strip_prefix("### ") {
             // "1. Functional suitability" -> the first word, lowered,
@@ -79,6 +91,7 @@ pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
                 .next()
                 .unwrap_or("")
                 .to_lowercase();
+            headings.push(title.to_string());
             continue;
         }
         let Some(rest) = line.strip_prefix("- **") else {
@@ -110,7 +123,7 @@ pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
 
     if !hollow.is_empty() {
         return Err(Refusal {
-            file: Path::new("QUALITY.md").to_path_buf(),
+            file: Path::new(named).to_path_buf(),
             reason: ta(
                 "speak-cuts-hollow",
                 targs!("cuts" => hollow.join(", "), "count" => hollow.len().to_string()),
@@ -132,7 +145,7 @@ pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
     }
     if !lost.is_empty() {
         return Err(Refusal {
-            file: Path::new("QUALITY.md").to_path_buf(),
+            file: Path::new(named).to_path_buf(),
             reason: ta(
                 "speak-cuts-drifted",
                 targs!("cuts" => lost.join(", "), "count" => lost.len().to_string()),
@@ -154,7 +167,7 @@ pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
         .collect();
     if !stray.is_empty() {
         return Err(Refusal {
-            file: Path::new("QUALITY.md").to_path_buf(),
+            file: Path::new(named).to_path_buf(),
             reason: ta(
                 "speak-cuts-stray",
                 targs!("cuts" => stray.join(", "), "count" => stray.len().to_string()),
@@ -162,6 +175,30 @@ pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
             instead: t("speak-cuts-stray-instead"),
         });
     }
+    // Nine headings, one per family, in the order the courts hold the
+    // families: what a person reads must be grouped the way the
+    // vocabulary is grouped, in every tongue.
+    let families: Vec<&str> = {
+        let mut seen: Vec<&str> = Vec::new();
+        for slug in crate::graph::cuts() {
+            let (family, _) = slug.split_once('.').unwrap_or((slug, slug));
+            if !seen.contains(&family) {
+                seen.push(family);
+            }
+        }
+        seen
+    };
+    if headings.len() != families.len() {
+        return Err(Refusal {
+            file: Path::new(named).to_path_buf(),
+            reason: ta(
+                "speak-cuts-headings",
+                targs!("read" => headings.len().to_string(), "judged" => families.len().to_string()),
+            ),
+            instead: t("speak-cuts-headings-instead"),
+        });
+    }
+
     let read: Vec<&str> = found.iter().map(|(name, _)| name.as_str()).collect();
     if let Some((at, (judged, was))) = crate::graph::cuts()
         .iter()
@@ -170,7 +207,7 @@ pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
         .find(|(_, (judged, was))| **judged != **was)
     {
         return Err(Refusal {
-            file: Path::new("QUALITY.md").to_path_buf(),
+            file: Path::new(named).to_path_buf(),
             reason: ta(
                 "speak-cuts-order",
                 targs!("at" => (at + 1).to_string(), "judged" => (*judged).to_string(), "read" => (*was).to_string()),
