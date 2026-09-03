@@ -190,7 +190,7 @@ fn judged(contract: &Contract) -> Option<(&str, String)> {
 /// the file (the bare crate itself is src/lib.rs); deeper paths are
 /// beyond this generation.
 fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
-    if config.adapter.as_deref() != Some("cargo") {
+    if !config.rust_adapter() {
         return Comparability::NoAdapter;
     }
     let segments: Vec<&str> = module.split("::").collect();

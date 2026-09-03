@@ -239,12 +239,15 @@ fn branch_numbers(root: &Path, slug: &str, taken: &mut Vec<u64>) -> bool {
     true
 }
 
-/// One whole new file or a refusal -- never half of one and never
-/// over something that exists: the text lands in a dot-temp next to
-/// its place (dot-files are outside every court) and arrives by
-/// rename, so a failure mid-write leaves no stub (review 0013 R-4);
-/// the refusal speaks of a birth, not of reading. The one home of
-/// the write school (wave 0015): init asks here.
+/// One whole file or a refusal -- never half of one: the text
+/// lands in a dot-temp next to its place (dot-files are outside
+/// every court) and arrives by rename, so a failure mid-write
+/// leaves no stub (review 0013 R-4); the refusal speaks of a
+/// birth, not of reading. The one home of the write school (wave
+/// 0015): the skeleton hands and init lay only NEW files through
+/// it -- their exists-checks stand before the call -- while
+/// rev --write lawfully sits over an existing wave file (review
+/// 0016 R-5: the home's words tell the truth about its residents).
 pub(crate) fn write_new(file: &Path, text: &str) -> Result<(), Refusal> {
     let refuse = |e: std::io::Error| Refusal {
         file: file.to_path_buf(),

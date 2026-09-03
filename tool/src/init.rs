@@ -80,7 +80,7 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
         report.push('\n');
     } else {
         let text = format!(
-            "# {}\n# lang = \"uk\"\n# adapter = \"cargo\"\n# mode = \"strict\"\n",
+            "# {}\n# lang = \"uk\"\n# adapter = \"rust\"\n# mode = \"strict\"\n",
             t("init-config-header")
         );
         match crate::plan::write_new(&config, &text).map_err(|refusal| refusal.reason) {

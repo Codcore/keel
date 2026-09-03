@@ -60,9 +60,9 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let has_history = has_git(root);
     // Tags are read once and serve three floors: the tag floor, the
     // §7.15 delta, and the §5.6 narrowing through structural closure.
-    let found_tags: Option<Result<Vec<tags::TestTag>, Refusal>> = (config.adapter.as_deref()
-        == Some("cargo"))
-    .then(|| adapter::test_files(root).and_then(|files| tags::scan(&files)));
+    let found_tags: Option<Result<Vec<tags::TestTag>, Refusal>> = config
+        .rust_adapter()
+        .then(|| adapter::test_files(root).and_then(|files| tags::scan(&files)));
     let mut ref_rows: std::collections::BTreeSet<(String, String)> = Default::default();
     let mut refs_checked: u64 = 0;
     let mut refs_historic: u64 = 0;
@@ -257,9 +257,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // cargo adapter is served on this rung -- anything else is a
     // skip said aloud, never a silent green.
     let mut tags_checked: u64 = 0;
-    let judged = match (config.adapter.as_deref(), &found_tags) {
+    let known = config.rust_adapter();
+    let judged = match (&config.adapter, &found_tags) {
         (None, _) => Err(t("check-tags-skipped-no-adapter")),
-        (Some("cargo"), Some(Ok(found))) => {
+        (Some(_), Some(Ok(found))) if known => {
             match tag_rows(root, &scan.waves, found, &mut tags_checked) {
                 Ok(tag_findings) => Ok((found, tag_findings)),
                 Err(refusal) => {
@@ -268,7 +269,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 }
             }
         }
-        (Some("cargo"), Some(Err(refusal))) => {
+        (Some(_), Some(Err(refusal))) if known => {
             push_refusal_row(&mut rows, root, refusal);
             Err(t("check-tags-skipped-refused"))
         }
@@ -389,7 +390,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     } else {
         t("check-config-lang-default")
     };
-    writeln!(report, "{config_line}\n").unwrap();
+    writeln!(report, "{config_line}").unwrap();
+    // The old spelling is a synonym said aloud, never a silent
+    // acceptance (wave 0017): the canonical name is the language's.
+    if config.adapter.as_deref() == Some("cargo") {
+        writeln!(report, "{}", t("check-adapter-synonym")).unwrap();
+    }
+    writeln!(report).unwrap();
 
     for (path, verdict) in &rows {
         match verdict {

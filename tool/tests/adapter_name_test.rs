@@ -87,7 +87,10 @@ fn adapter_named_by_language() {
     );
     let (out, err, code) = keel(&["next", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
-    assert_eq!(code, 0, "the step hand runs under the language name:\n{out}");
+    assert_eq!(
+        code, 0,
+        "the step hand runs under the language name:\n{out}"
+    );
 
     // cargo still works -- and check says the synonym aloud.
     let dir = sandbox("synonym");
@@ -95,7 +98,10 @@ fn adapter_named_by_language() {
     crate_files(&dir);
     let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
-    assert_eq!(code, 0, "the old spelling still works -- no config breaks silently:\n{out}");
+    assert_eq!(
+        code, 0,
+        "the old spelling still works -- no config breaks silently:\n{out}"
+    );
     let (out, err, _) = keel(&["check", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(

@@ -107,7 +107,7 @@ rev-dup-transform-instead = лиши одну секцію: методика н�
 
 rev-write-title = keel rev --write — розійшлі записи (NEW-CONCEPT)
 rev-write-needs-adapter = рука перепису потребує адаптера cargo, названого в keel.toml: закритість судиться тегами
-rev-write-needs-adapter-instead = постав adapter = "cargo" (NEW-CONCEPT, Config); інші адаптери приїдуть своїми хвилями
+rev-write-needs-adapter-instead = постав adapter = "rust" — імʼям мови; "cargo" — прийнятий синонім (NEW-CONCEPT, Config); інші мови приїдуть своїми хвилями
 rev-write-rewritten = { "  " }{ $wave }: { $contract }@{ $old } → { $contract }@{ $new } — запис тепер тримає чинну редакцію
 rev-write-kept = { "  " }{ $wave }: закрита — лишаю її записи судові історії (§5.6)
 rev-write-none = у відкритих хвилях нічого не розійшлось — кожен їхній запис чинний
@@ -298,6 +298,7 @@ check-scope-skipped-refused = scope не звірявся: git відмовив 
 check-header-reads = шапка читається
 check-no-documents = документів ще нема
 check-checked = перевірено цим поверхом: шапки — словник і форма (глави 2–4, §7.9); посилання на контракти і їхні редакції (§7.1, §7.3), стара редакція судиться по історії файлу для закритих хвиль (§5.6); звʼязки графа (глава 3: розрізи, тиша, implements, depends_on, наступники; §7.2, §10.3); scope гілки, що зветься як хвиля (§4.1, §4.4–§4.6, §4.8); редакції сценаріїв у тегах тестів (§5.5, §7.5) і зниклі теги проти точки розгалуження (§7.15); довіра команд verify/ci проти записаних відбитків (§7.16, §2.8); тримання форми контрактів (§7.6, §2.9); шапка↔тіло в обидва боки (§7.7); закриття судить keel close (§6.5)
+check-adapter-synonym = adapter = "cargo" — прийнятий синонім; канонічне імʼя — мовою проєкту: adapter = "rust" (NEW-CONCEPT, Config; хвиля 0017)
 check-borders = межа зеленого (§7.8): зелений тест означає «існує, збігається і проходить» — не «обіцянку доведено по суті»; зелена форма — ще не сенс. Цієї щілини механіка не закриває: її тримає свіжий рецензент чотирма питаннями (§9.9)
 check-ref-missing = хвиля { $wave }: посилання { $contract }@{ $recorded } показує на контракт, файлу якого нема
 check-ref-missing-instead = створи keel/contracts/{ $contract }.md або виправ слаг (§7.1)
@@ -372,12 +373,12 @@ status-counts = пораховано: закритих { $closed }, у робо�
 status-no-battery = стадія тут — структурна (теги, посилання, звіт) — батарея не бігла: зелень тестів судять close і hook (§9.2)
 status-next = далі — keel next
 status-needs-adapter = око стадій потребує адаптера cargo, названого в keel.toml: теги — памʼять стадій
-status-needs-adapter-instead = постав adapter = "cargo" (NEW-CONCEPT, Config); інші адаптери приїдуть своїми хвилями
+status-needs-adapter-instead = постав adapter = "rust" — імʼям мови; "cargo" — прийнятий синонім (NEW-CONCEPT, Config); інші мови приїдуть своїми хвилями
 
 ## команда next (§9.2, §9.10, §8.4)
 next-title = keel next — один крок (§9.2)
 next-needs-adapter = рука кроку потребує адаптера cargo, названого в keel.toml: без тегів стадія була б здогадом
-next-needs-adapter-instead = постав adapter = "cargo" (NEW-CONCEPT, Config); інші адаптери приїдуть своїми хвилями
+next-needs-adapter-instead = постав adapter = "rust" — імʼям мови; "cargo" — прийнятий синонім (NEW-CONCEPT, Config); інші мови приїдуть своїми хвилями
 next-step-fix = крок: полагодь документ { $file } — { $reason }; натомість: { $instead }
 next-step-fix-more = { "  " }і ще { $count ->
         [one] { $count } відмова

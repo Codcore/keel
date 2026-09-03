@@ -40,9 +40,10 @@ fn revision_recipe_reproduced() {
         // field; 684c79 until its review made the contract promise
         // the whole surface; 2b1bf3 until 0010's form court shortened
         // the Config export to §2.9's short form; cc126c until its review
-        // said aloud the field surface is prose-held -- the pin follows
+        // said aloud the field surface is prose-held; 7dd1d7 until
+        // 0017 named the adapter by its language -- the pin follows
         // the live text.
-        "7dd1d7"
+        "840bd9"
     );
 
     // Prefix comparison (§5.2): 4-6 characters, from the start.
