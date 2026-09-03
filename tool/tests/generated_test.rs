@@ -159,7 +159,8 @@ fn generated_block_never_trampled() {
     );
 
     // Markers removed altogether -- a person saying "not this":
-    // update writes nothing back.
+    // update writes nothing back, and the word says how to have the
+    // block again, because the refusal above pointed here (R-2).
     let dir = project("removed");
     keel(&["init", dir.to_str().unwrap()]);
     write(&dir, "AGENTS.md", "# Mine alone\n");
@@ -169,5 +170,141 @@ fn generated_block_never_trampled() {
         fs::read_to_string(dir.join("AGENTS.md")).unwrap(),
         "# Mine alone\n",
         "a removed block is a decision, not a gap to fill"
+    );
+    assert!(
+        out.contains("[generated]"),
+        "the word says the second step, so the advice of the refusal is true (R-2):\n{out}"
+    );
+
+    // Following that advice really works: remove the block AND its
+    // line, and the block comes back (review 0022 R-2 -- the old
+    // advice led nowhere).
+    let config = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    let without: String = config
+        .lines()
+        .filter(|l| !l.contains("AGENTS.md"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(dir.join("keel.toml"), format!("{without}\n")).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the advice of the refusal works:\n{out}");
+    assert!(
+        fs::read_to_string(dir.join("AGENTS.md"))
+            .unwrap()
+            .contains("<!-- keel:begin -->"),
+        "the block returns when both steps are taken (R-2):\n{out}"
+    );
+
+    // ---- the second birth, out of review 0022 ----
+
+    // R-3: no keel.toml -- no project of ours. Nothing is invented.
+    let dir = sandbox("notaproject");
+    write(&dir, "main.py", "print('mine')\n");
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_ne!(
+        code, 0,
+        "update refuses where there is no keel project:\n{out}"
+    );
+    assert!(
+        !dir.join("AGENTS.md").exists() && !dir.join("keel.toml").exists(),
+        "not one file is invented for a stranger's directory (R-3):\n{out}"
+    );
+
+    // R-1: a block byte-identical to what this release writes is
+    // ours by self-evidence -- even with no digest recorded at all,
+    // which is exactly the state a failed write leaves behind.
+    let dir = project("selfevident");
+    let fresh = keel::generated::block("en");
+    write(&dir, "AGENTS.md", &format!("# Mine\n\n{fresh}\n"));
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "a block equal to this release's own is never called a hand's edit (R-1):\n{out}"
+    );
+    assert!(
+        keel::generated::digest(&fresh) == recorded(&dir).unwrap_or_default(),
+        "and its digest is recorded, so the state heals itself (R-1)"
+    );
+
+    // R-6: an edit of whitespace alone is an edit.
+    let dir = project("whitespace");
+    keel(&["init", dir.to_str().unwrap()]);
+    let text = fs::read_to_string(dir.join("AGENTS.md")).unwrap();
+    let spaced = text.replace("- `keel next`", "-   `keel next`");
+    assert_ne!(spaced, text, "the probe really changed the spacing");
+    fs::write(dir.join("AGENTS.md"), &spaced).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 1,
+        "spacing is text too -- the edit is refused (R-6):\n{out}"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.join("AGENTS.md")).unwrap(),
+        spaced,
+        "and the spacing a person chose is not trampled (R-6)"
+    );
+
+    // R-7: a document written with CRLF keeps its line endings.
+    let dir = project("crlf");
+    keel(&["init", dir.to_str().unwrap()]);
+    let text = fs::read_to_string(dir.join("AGENTS.md")).unwrap();
+    let crlf = text.replace('\n', "\r\n");
+    fs::write(dir.join("AGENTS.md"), &crlf).unwrap();
+    // Record the digest of the block as it now stands, so this is a
+    // refresh and not a refusal.
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    let after = fs::read_to_string(dir.join("AGENTS.md")).unwrap();
+    assert!(
+        after.matches("\r\n").count() > 5,
+        "the document keeps its own line endings (R-7), code {code}:\n{out}"
+    );
+
+    // R-11: two blocks -- which one is ours is not guessed.
+    let dir = project("twoblocks");
+    keel(&["init", dir.to_str().unwrap()]);
+    let text = fs::read_to_string(dir.join("AGENTS.md")).unwrap();
+    fs::write(dir.join("AGENTS.md"), format!("{text}\n{text}")).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 1,
+        "a second block is a refusal, not a silent choice (R-11):\n{out}"
+    );
+
+    // R-5: a REAL refresh -- a block of another release, recorded --
+    // and the rest of the config kept byte for byte.
+    let dir = sandbox("refresh");
+    let older = format!("<!-- keel:begin -->\nan older release wrote this\n<!-- keel:end -->");
+    write(
+        &dir,
+        "AGENTS.md",
+        &format!("# Mine\n\n{older}\n\nAfter the block.\n"),
+    );
+    write(
+        &dir,
+        "keel.toml",
+        &format!(
+            "# my comment\nlang = \"en\"\nadapter = \"rust\"\n\n[trust]\n\"echo hi\" = \"aaaaaaaaaaaa\"\n\n[generated]\n\"AGENTS.md\" = \"{}\"\n",
+            keel::generated::digest(&older)
+        ),
+    );
+    git(&dir, &["init", "-q", "-b", "main"]);
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "a recorded block of an older release refreshes:\n{out}"
+    );
+    let after = fs::read_to_string(dir.join("AGENTS.md")).unwrap();
+    assert!(
+        after.starts_with("# Mine\n") && after.ends_with("After the block.\n"),
+        "everything outside the markers survives the refresh (R-5):\n{after}"
+    );
+    assert!(
+        after.contains("keel next"),
+        "and the block itself is this release's:\n{after}"
+    );
+    let config = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        config.contains("# my comment") && config.contains("[trust]") && config.contains("echo hi"),
+        "the config keeps its comment, its order and its other sections (R-5):\n{config}"
     );
 }
