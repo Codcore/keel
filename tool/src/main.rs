@@ -39,8 +39,9 @@ fn main() -> ExitCode {
             }
         }
         Some("rev") => {
+            let write_mode = args.get(1).map(String::as_str) == Some("--write");
             let root = args
-                .get(1)
+                .get(if write_mode { 2 } else { 1 })
                 .map_or_else(|| PathBuf::from("."), PathBuf::from);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
@@ -50,6 +51,18 @@ fn main() -> ExitCode {
                 }
             };
             keel::i18n::init(&config.lang);
+            if write_mode {
+                return match keel::rev::write(&root) {
+                    Ok((report, _)) => {
+                        print!("{report}");
+                        ExitCode::SUCCESS
+                    }
+                    Err(refusal) => {
+                        eprintln!("{refusal}");
+                        ExitCode::from(2)
+                    }
+                };
+            }
             match keel::rev::report(&root, &config) {
                 Ok((report, findings)) => {
                     print!("{report}");

@@ -105,6 +105,14 @@ rev-nearmiss-instead = write "## scenario: <name>" / "## transform: <name>" with
 rev-dup-transform = the body carries the "## transform: { $name }" section more than once — "{ $name }" is not guessed between (§7.7)
 rev-dup-transform-instead = keep one section: the methodology will not guess which body carries the work's words (§2.10)
 
+rev-write-title = keel rev --write — the drifted records (NEW-CONCEPT)
+rev-write-needs-adapter = the rewriting hand needs the cargo adapter named in keel.toml: closedness is judged by tags
+rev-write-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
+rev-write-rewritten = { "  " }{ $wave }: { $contract }@{ $old } → { $contract }@{ $new } — the record now holds the current revision
+rev-write-kept = { "  " }{ $wave }: closed — leaving its records to history's court (§5.6)
+rev-write-none = nothing has drifted in the open waves — every record they hold is current
+rev-write-count = records rewritten: { $count }
+
 ## graph module
 graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
 graph-unknown-cut-instead = the forty cuts ship with the release (§3.4); pick one of them or fix the typo
@@ -447,4 +455,4 @@ main-new-unknown = refusal: keel new knows only: contract
 main-new-unknown-reason = reason: other document kinds are born by their own commands (waves by keel plan)
 main-new-no-slug = refusal: new contract needs the contract's name
 main-new-no-slug-reason = reason: the skeleton is born under the name that becomes its file (§1.4)
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [dir] | keel trust [dir] | keel hook [dir]
+main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [dir] | keel trust [dir] | keel hook [dir]

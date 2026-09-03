@@ -105,6 +105,14 @@ rev-nearmiss-instead = напиши "## scenario: <імʼя>" / "## transform: <
 rev-dup-transform = секція "## transform: { $name }" стоїть у тілі більш як один раз — "{ $name }" не вгадується поміж них (§7.7)
 rev-dup-transform-instead = лиши одну секцію: методика не вгадує, котре тіло несе слова роботи (§2.10)
 
+rev-write-title = keel rev --write — розійшлі записи (NEW-CONCEPT)
+rev-write-needs-adapter = рука перепису потребує адаптера cargo, названого в keel.toml: закритість судиться тегами
+rev-write-needs-adapter-instead = постав adapter = "cargo" (NEW-CONCEPT, Config); інші адаптери приїдуть своїми хвилями
+rev-write-rewritten = { "  " }{ $wave }: { $contract }@{ $old } → { $contract }@{ $new } — запис тепер тримає чинну редакцію
+rev-write-kept = { "  " }{ $wave }: закрита — лишаю її записи судові історії (§5.6)
+rev-write-none = у відкритих хвилях нічого не розійшлось — кожен їхній запис чинний
+rev-write-count = записів переписано: { $count }
+
 ## модуль graph
 graph-unknown-cut = "{ $holder }" показує на розріз "{ $slug }", якого у словнику нема
 graph-unknown-cut-instead = сорок розрізів їдуть з релізом (§3.4); вибери один із них або виправ одрук
@@ -450,4 +458,4 @@ main-new-unknown = відмова: keel new знає лише: contract
 main-new-unknown-reason = причина: інші види документів народжуються своїми командами (хвилі — keel plan)
 main-new-no-slug = відмова: new contract потребує імени контракту
 main-new-no-slug-reason = причина: скелет народжується під імʼям, що стане його файлом (§1.4)
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [тека] | keel trust [тека] | keel hook [тека]
+main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [тека] | keel trust [тека] | keel hook [тека]
