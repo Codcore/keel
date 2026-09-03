@@ -1,6 +1,8 @@
-//! Scenario tests of wave 0022-generated-block, transform
-//! block-and-digest: the generated block lives between its markers,
-//! and a block a person edited is never trampled.
+//! Scenario tests of waves 0022-generated-block (the block and its
+//! boundary) and 0023-generated-many (the table of artefacts, and
+//! files wholly ours): what is generated is refreshed, what a hand
+//! has touched is refused, and what a person removed stays
+//! removed.
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
@@ -307,5 +309,204 @@ fn generated_block_never_trampled() {
     assert!(
         config.contains("# my comment") && config.contains("[trust]") && config.contains("echo hi"),
         "the config keeps its comment, its order and its other sections (R-5):\n{config}"
+    );
+}
+
+/// proves: every-artefact-kept@ae746d -- holds wave 0023: the
+/// mechanism of 0022 made many. Three artefacts, two kinds of
+/// boundary -- a block inside a person's document, and files that
+/// are wholly ours -- each with its own row, its own line in
+/// [generated] and its own fate: born, standing, refused by name
+/// when a hand changed it, and never resurrected when a person
+/// deleted it. A neighbour's files in the same directories are none
+/// of our business.
+#[test]
+fn every_artefact_kept() {
+    // All three are born, each with its own row and its own line in
+    // [generated] (wave 0023).
+    let dir = project("three");
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the frame lands:\n{out}");
+    for artefact in [
+        "AGENTS.md",
+        ".claude/skills/keel/SKILL.md",
+        ".github/workflows/keel.yml",
+    ] {
+        assert!(
+            dir.join(artefact).is_file(),
+            "{artefact} is born by the frame:\n{out}"
+        );
+        let config = fs::read_to_string(dir.join("keel.toml")).unwrap();
+        assert!(
+            config.contains(artefact),
+            "{artefact} has its own line in [generated]:\n{config}"
+        );
+    }
+
+    // A whole-file artefact edited by hand: refused by name, and not
+    // one byte of it is rewritten -- while the others still stand.
+    let skill = dir.join(".claude/skills/keel/SKILL.md");
+    let mine = format!(
+        "{}\n\nA line I added myself.\n",
+        fs::read_to_string(&skill).unwrap()
+    );
+    fs::write(&skill, &mine).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a hand-edited artefact reddens the run:\n{out}");
+    assert!(
+        out.contains("SKILL.md"),
+        "the refusal names the artefact it means:\n{out}"
+    );
+    assert_eq!(
+        fs::read_to_string(&skill).unwrap(),
+        mine,
+        "the person's work is not trampled"
+    );
+    assert!(
+        out.contains("AGENTS.md") && out.contains("keel.yml"),
+        "the other artefacts still get their own words -- one failure stops nothing:\n{out}"
+    );
+
+    // A whole-file artefact deleted while its digest stands: a
+    // decision, not a gap -- it is not resurrected in silence.
+    let dir = project("deleted");
+    keel(&["init", dir.to_str().unwrap()]);
+    let flow = dir.join(".github/workflows/keel.yml");
+    fs::remove_file(&flow).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "a deleted artefact is not an error:\n{out}");
+    assert!(
+        !flow.exists(),
+        "what a person deleted stays deleted:\n{out}"
+    );
+
+    // Foreign files in the same directories are none of our
+    // business.
+    let dir = project("neighbours");
+    write(&dir, ".github/workflows/mine.yml", "name: mine\n");
+    write(&dir, ".claude/skills/mine/SKILL.md", "# mine\n");
+    keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(
+        fs::read_to_string(dir.join(".github/workflows/mine.yml")).unwrap(),
+        "name: mine\n",
+        "a neighbour's workflow is untouched"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.join(".claude/skills/mine/SKILL.md")).unwrap(),
+        "# mine\n",
+        "a neighbour's skill is untouched"
+    );
+
+    // ---- the second birth, out of review 0023 ----
+
+    // R-1: the skill's front matter must be valid YAML. A plain
+    // scalar carrying ": " opens a mapping and breaks every parser
+    // that reads it -- and the file exists to be read by one.
+    let dir = project("frontmatter");
+    keel(&["init", dir.to_str().unwrap()]);
+    let skill = fs::read_to_string(dir.join(".claude/skills/keel/SKILL.md")).unwrap();
+    let description = skill
+        .lines()
+        .find(|l| l.starts_with("description:"))
+        .expect("the skill carries a description")
+        .to_string();
+    let value = description.trim_start_matches("description:").trim();
+    assert!(
+        value.starts_with('"') && value.ends_with('"'),
+        "the description is quoted, so a colon in it is text, not a mapping (R-1): {description}"
+    );
+
+    // R-2: the word about a WHOLE file speaks of a file, not a
+    // block, and its advice names what can really be removed.
+    let dir = project("wholeword");
+    keel(&["init", dir.to_str().unwrap()]);
+    fs::write(dir.join(".github/workflows/keel.yml"), "name: mine\n").unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a hand-edited whole file is refused:\n{out}");
+    assert!(
+        !out.contains("block") && !out.contains("блок"),
+        "a whole file is never called a block (R-2):\n{out}"
+    );
+
+    // R-3: a whole file with CRLF keeps its line endings, and is
+    // ours by self-evidence even with nothing recorded.
+    let dir = project("crlfwhole");
+    keel(&["init", dir.to_str().unwrap()]);
+    let flow = dir.join(".github/workflows/keel.yml");
+    let text = fs::read_to_string(&flow).unwrap();
+    fs::write(&flow, text.replace('\n', "\r\n")).unwrap();
+    let config = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    let without: String = config
+        .lines()
+        .filter(|l| !l.contains("keel.yml"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(dir.join("keel.toml"), format!("{without}\n")).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "a CRLF file of ours is ours (R-3):\n{out}");
+    assert!(
+        fs::read_to_string(&flow).unwrap().contains("\r\n"),
+        "the file keeps its own line endings (R-3):\n{out}"
+    );
+
+    // R-4: the second run says every artefact already stands.
+    let dir = project("stands");
+    keel(&["init", dir.to_str().unwrap()]);
+    let (again, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the second run is green:\n{again}");
+    // Each artefact's own row says it stands -- counted per row,
+    // because the frame speaks the same words about its own pieces.
+    let stands = |report: &str| -> usize {
+        report
+            .lines()
+            .filter(|line| {
+                line.contains("already stands")
+                    && ["AGENTS.md", "SKILL.md", "keel.yml"]
+                        .iter()
+                        .any(|name| line.contains(name))
+            })
+            .count()
+    };
+    assert_eq!(
+        stands(&again),
+        3,
+        "all three already stand, each in its own row (R-4):\n{again}"
+    );
+    let (byinit, _) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(
+        stands(&byinit),
+        3,
+        "init and update agree about what stands (R-4):\n{byinit}"
+    );
+
+    // R-5: the file is written before its digest is recorded. An
+    // artefact whose path cannot be written records nothing --
+    // while the others land.
+    let dir = project("orderly");
+    fs::create_dir_all(dir.join(".github/workflows/keel.yml")).unwrap();
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 1,
+        "an artefact that cannot be written reddens:\n{out}"
+    );
+    let config = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        !config.contains("keel.yml"),
+        "nothing is recorded for a file that was never written (R-5):\n{config}"
+    );
+    assert!(
+        config.contains("AGENTS.md") && config.contains("SKILL.md"),
+        "and the artefacts that did land are recorded (R-5):\n{config}"
+    );
+
+    // R-11: an empty AGENTS.md gains the block without a pile of
+    // blank lines before it.
+    let dir = project("emptyfile");
+    write(&dir, "AGENTS.md", "");
+    keel(&["init", dir.to_str().unwrap()]);
+    let text = fs::read_to_string(dir.join("AGENTS.md")).unwrap();
+    assert!(
+        text.starts_with("<!-- keel:begin -->"),
+        "an empty document gains no blank lines before the block (R-11): {text:?}"
     );
 }

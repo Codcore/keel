@@ -1,0 +1,25 @@
+# keel (generated -- do not edit; keel update rewrites this file)
+#
+# keel is called as a command and is NOT installed here: the
+# installing step arrives with the distribution rung of the
+# concept (~/.keel/versions/). Until then, put keel on PATH
+# in a step of your own above these.
+name: keel
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  keel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: the documents judged
+        run: keel check .
+      - name: the closure court
+        run: keel close .
+      - name: the battery
+        run: cargo test --no-fail-fast
