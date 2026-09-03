@@ -25,7 +25,7 @@ fn git(dir: &std::path::Path, args: &[&str]) {
         .unwrap();
 }
 
-/// proves: a-verdict-says-how-much-of-it-is-real@41b88e -- measured
+/// proves: a-verdict-says-how-much-of-it-is-real@806a29 -- measured
 /// before the wave: a full clone gave 208 lines carrying 141 old
 /// revisions verified against history, a shallow one gave 67 lines
 /// and zero -- and both ended with the identical "0 findings" line
@@ -50,23 +50,50 @@ fn a_verdict_says_how_much_of_it_is_real() {
         ],
     );
 
-    // A clone with no origin at all: the verdict must say that it
-    // could not tell whether anything here has been pushed.
+    // Two states, two different last lines -- that is the whole
+    // wave. First: a clone that has an origin and is level with it.
+    let origin = dir.join("origin.git");
+    Command::new("git")
+        .args(["init", "-q", "--bare"])
+        .arg(&origin)
+        .status()
+        .unwrap();
+    git(&dir, &["remote", "add", "origin", origin.to_str().unwrap()]);
+    git(&dir, &["push", "-q", "origin", "main"]);
+    git(&dir, &["fetch", "-q", "origin"]);
     let (out, err, _) = keel(&["check", dir.to_str().unwrap()]);
-    let said = format!("{out}{err}");
-    assert!(
-        said.contains("origin"),
-        "the verdict names the base it compared against, or says it has none:\n{said}"
-    );
-
-    // And the summary itself -- the line everyone reads -- carries
-    // the limits, not just some line in the middle of the sheet.
-    let summary = said
+    let level = format!("{out}{err}");
+    let level_summary = level
         .lines()
         .find(|line| line.contains("підсумок"))
-        .expect("there is a summary line");
+        .expect("there is a summary line")
+        .to_string();
     assert!(
-        summary.contains("межі") || said.contains("межі вироку"),
-        "the summary carries what the verdict could not judge:\n{summary}"
+        !level_summary.contains("меж"),
+        "a verdict that judged everything it claims says nothing about limits:\n{level_summary}"
+    );
+
+    // Then: the same tree on a branch that never reached origin. The
+    // wave measured this on the real repository -- a shallow clone
+    // gave 141 fewer checks and the SAME "0 findings" line.
+    git(&dir, &["checkout", "-q", "-b", "0001-not-pushed"]);
+    let (out, err, _) = keel(&["check", dir.to_str().unwrap()]);
+    let alone = format!("{out}{err}");
+    let alone_summary = alone
+        .lines()
+        .find(|line| line.contains("підсумок"))
+        .expect("there is a summary line")
+        .to_string();
+    assert!(
+        alone_summary.contains("меж"),
+        "and one that could not says so in the line everyone reads:\n{alone_summary}"
+    );
+    assert_ne!(
+        level_summary, alone_summary,
+        "the two verdicts no longer end with the same words"
+    );
+    assert!(
+        alone.contains("git push"),
+        "and every limit carries its instead -- how to get the full verdict:\n{alone}"
     );
 }

@@ -503,6 +503,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     if refs_no_history > 0 {
         writeln!(report, "{}", t("check-refs-no-history")).unwrap();
     }
+    let limits = verdict_limits(root, refs_unjudged);
+    for limit in &limits {
+        writeln!(report, "{limit}").unwrap();
+    }
     writeln!(
         report,
         "{}\n{}\n{}\n{}\n{}\n{}\n{}",
@@ -514,7 +518,11 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         t("check-borders"),
         ta(
             "check-summary",
-            targs!("docs" => documents as u64, "refusals" => findings as u64)
+            targs!(
+                "docs" => documents as u64,
+                "refusals" => findings as u64,
+                "limits" => limits.len() as u64
+            )
         )
     )
     .unwrap();
@@ -528,6 +536,74 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     writeln!(report, "{next}").unwrap();
 
     Ok(Outcome { report, findings })
+}
+
+/// What this verdict could NOT judge, in its own words.
+///
+/// Wave 0031, measured before the work: a full clone gave a 208-line
+/// verdict carrying 141 old revisions verified against file history;
+/// a shallow clone gave 67 lines and none of them -- and both ended
+/// with the same "0 findings". The line everyone reads said the same
+/// thing about two very different amounts of judging.
+///
+/// Nothing here asks the network. A limit that depends on reaching a
+/// server is a limit that changes with the weather, so the question
+/// asked is the honest one: what does THIS clone know?
+fn verdict_limits(root: &Path, refs_unjudged: u64) -> Vec<String> {
+    let mut limits = Vec::new();
+
+    if is_shallow(root) {
+        limits.push(ta("limit-shallow", targs!("skipped" => refs_unjudged)));
+    }
+
+    // The base the scope court compares a wave branch against.
+    match git_line(root, &["rev-parse", "--abbrev-ref", "origin/main"]) {
+        Some(_) => {
+            let behind = git_line(root, &["rev-list", "--count", "main..origin/main"])
+                .and_then(|n| n.parse::<u64>().ok())
+                .unwrap_or(0);
+            if behind > 0 {
+                limits.push(ta("limit-base-stale", targs!("behind" => behind)));
+            }
+        }
+        None => limits.push(t("limit-base-local-only")),
+    }
+
+    // Whether the branch being judged has reached origin, as far as
+    // this clone knows -- a wave closed only on this disk is not
+    // closed.
+    if let Some(branch) = git_line(root, &["rev-parse", "--abbrev-ref", "HEAD"])
+        .filter(|branch| branch != "HEAD" && branch != "main")
+    {
+        let remote = format!("origin/{branch}");
+        match git_line(root, &["rev-parse", "--verify", "--quiet", &remote]) {
+            None => limits.push(ta("limit-unpushed", targs!("branch" => branch.clone()))),
+            Some(there) => {
+                if git_line(root, &["rev-parse", "HEAD"]).as_deref() != Some(there.as_str()) {
+                    limits.push(ta("limit-ahead", targs!("branch" => branch.clone())));
+                }
+            }
+        }
+    }
+
+    limits
+}
+
+/// One line of git output, or nothing -- a question this clone
+/// cannot answer is not an error, it is a limit.
+///
+/// Through `scope::git_at`, the one hand: the battery caught this
+/// wave calling git raw, and it was right twice over. That hand is
+/// also deaf to what a git hook leaves in the environment, and
+/// without it a limit would change depending on whose repository
+/// fired the tool (review 0021 R-3).
+fn git_line(root: &Path, args: &[&str]) -> Option<String> {
+    let out = scope::git_at(root).args(args).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let line = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!line.is_empty()).then_some(line)
 }
 
 /// A refusal rendered as a report row, the school of every floor.
