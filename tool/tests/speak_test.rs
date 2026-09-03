@@ -32,7 +32,7 @@ fn checklist() -> String {
     std::fs::read_to_string(root.join("QUALITY.md")).expect("QUALITY.md stands in this repository")
 }
 
-/// proves: the-tool-says-what-it-judges-by@7a384b -- the
+/// proves: the-tool-says-what-it-judges-by@4af6c4 -- the
 /// operator's §8.6 decision: everything the thin block does not carry
 /// must live in the tool. A project where keel stands has neither the
 /// methodology nor the checklist -- they live in the tool's own
@@ -103,6 +103,35 @@ fn the_tool_says_what_it_judges_by() {
         format!("{refusal}").contains("correctness"),
         "and the refusal names the cut that went missing:\n{refusal}"
     );
+    // Drift is not only a question that went missing. A document
+    // whose questions were REORDERED, or one carrying a question no
+    // court judges, is the same defect -- measured by my own hand
+    // before the review, when both passed.
+    let swapped = document
+        .replace(
+            "- **completeness** — is everything that was asked for here\n- **correctness** — is the result right\n",
+            "- **correctness** — is the result right\n- **completeness** — is everything that was asked for here\n",
+        );
+    assert_ne!(swapped, document, "the reordered document really differs");
+    let refusal = keel::speak::cuts_from(&swapped)
+        .expect_err("a checklist that reordered the cuts is refused");
+    let said = format!("{refusal}");
+    assert!(
+        said.contains("functional.completeness") && said.contains("functional.correctness"),
+        "and the refusal names the place and both names:\n{said}"
+    );
+    let padded = document.replace(
+        "- **correctness** — is the result right\n",
+        "- **correctness** — is the result right\n- **timeliness** — does it arrive when it is needed\n",
+    );
+    assert_ne!(padded, document, "the padded document really differs");
+    let refusal = keel::speak::cuts_from(&padded)
+        .expect_err("a question no court judges is refused, not served");
+    assert!(
+        format!("{refusal}").contains("functional.timeliness"),
+        "and the refusal names it:\n{refusal}"
+    );
+
     // The healthy document passes the same hand.
     assert!(
         keel::speak::cuts_from(&document).is_ok(),

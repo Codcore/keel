@@ -92,6 +92,44 @@ pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
             instead: t("speak-cuts-drifted-instead"),
         });
     }
+
+    // Drift is not only a question that went missing. Measured by my
+    // own hand before the review: a document whose questions were
+    // REORDERED, and one carrying a forty-first question no court
+    // judges, both passed -- and both are the same defect. What is
+    // judged and what is read must be ONE list: same members, same
+    // order.
+    let stray: Vec<&str> = found
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .filter(|name| !crate::graph::cuts().contains(name))
+        .collect();
+    if !stray.is_empty() {
+        return Err(Refusal {
+            file: Path::new("QUALITY.md").to_path_buf(),
+            reason: ta(
+                "speak-cuts-stray",
+                targs!("cuts" => stray.join(", "), "count" => stray.len().to_string()),
+            ),
+            instead: t("speak-cuts-stray-instead"),
+        });
+    }
+    let read: Vec<&str> = found.iter().map(|(name, _)| name.as_str()).collect();
+    if let Some((at, (judged, was))) = crate::graph::cuts()
+        .iter()
+        .zip(read.iter())
+        .enumerate()
+        .find(|(_, (judged, was))| **judged != **was)
+    {
+        return Err(Refusal {
+            file: Path::new("QUALITY.md").to_path_buf(),
+            reason: ta(
+                "speak-cuts-order",
+                targs!("at" => (at + 1).to_string(), "judged" => (*judged).to_string(), "read" => (*was).to_string()),
+            ),
+            instead: t("speak-cuts-order-instead"),
+        });
+    }
     Ok(paired)
 }
 
