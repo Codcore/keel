@@ -516,7 +516,7 @@ main-new-unknown = відмова: keel new знає лише: contract
 main-new-unknown-reason = причина: інші види документів народжуються своїми командами (хвилі — keel plan)
 main-new-no-slug = відмова: new contract потребує імени контракту
 main-new-no-slug-reason = причина: скелет народжується під імʼям, що стане його файлом (§1.4)
-main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--no-ask] [тека] | keel trust [тека] | keel hook [тека] | keel version [тека] | keel update [тека]
+main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--no-ask] [тека] | keel trust [тека] | keel hook [тека] | keel cuts [тека] | keel method [§N.M | розділ] [тека] | keel version [тека] | keel update [тека]
 
 # The settings wizard (wave 0026)
 ask-lang = Which human language does this project speak? / Якою людською мовою говорить цей проєкт?
@@ -536,3 +536,23 @@ ask-interrupted = питання про «{ $field }» лишилось без �
 ask-interrupted-instead = відповідай, або дай відповіді прапорцями (--lang, --adapter, --mode, --agents, --hooks), або жени keel init --no-ask по типові значення
 init-config-answered = народжено з твоїх відповідей
 init-config-default = народжено зі словником у коментарях, за тебе не обрано нічого
+
+# The mouth of the tool (wave 0027)
+check-court-holds = суди і чеклист тримають один список: ті самі сорок, у тому самому порядку
+check-cuts-row = словник цього бінарника keel (сорок розрізів і їхні питання)
+speak-cuts-title = keel cuts — сорок розрізів якости, тими самими іменами, якими судять суди (§10.1)
+speak-cuts-source = питання подано англійською — так їх написано в чеклисті, і цей реліз їх не перекладає; кожне питання вище — це чеклист QUALITY.md, яким він був у мить ЗБІРКИ keel { $version }: знімок, зашитий у цей бінарник, а не файл із твоєї теки; новіший чеклист потребує новішого keel. Слаги — той самий словник, яким keel check судить повноту плану (§10.3)
+speak-cuts-drifted = розрізів, за якими судять суди, а питання в чеклисті нема: { $count } — { $cuts }
+speak-cuts-drifted-instead = список, за яким судять, і список, який читають, мусять бути одним: поверни кожному розрізу його питання в QUALITY.md — або приведи словник судів до нього
+speak-cuts-stray = чеклист несе питань, яких не судить жоден суд: { $count } — { $cuts }
+speak-cuts-stray-instead = питання, якого ніхто не судить, відповідають задарма: дай йому суд у словнику або прибери його з QUALITY.md
+speak-cuts-order = чеклист і суди тримають розрізи в різному порядку: на місці { $at } суди судять «{ $judged }», а документ читає «{ $read }»
+speak-cuts-order-instead = один список, один порядок — той, що в стандарті; поверни питання на місце або посунь суд
+speak-cuts-hollow = розрізів, що стоять у чеклисті зовсім без питання: { $count } — { $cuts }
+speak-cuts-hollow-instead = слаг із порожнім питанням подає тире і більш нічого — поверни йому питання в QUALITY.md
+speak-method-nowhere-instead = жоден розділ цієї методики так параграфів не нумерує; розділи такі: { $chapters } — спитай котрийсь на імʼя або жени keel method без аргументу
+speak-method-title = keel method — методика цього покоління, розділ за розділом (праворуч — скільки параграфів)
+speak-method-source = текст — методика, якою вона була в мить ЗБІРКИ keel { $version }: знімок, зашитий у цей бінарник, а не файл із твоєї теки. Вона українською, і цей реліз її не перекладає; один шматок: keel method §8.6
+speak-method-unknown = у методиці цього покоління нема параграфа «{ $asked }»
+speak-method-unknown-instead = той розділ тримає { $bounds }; без аргументу keel method показує всі розділи
+speak-method-none = жодного параграфа того розділу

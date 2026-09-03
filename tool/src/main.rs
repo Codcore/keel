@@ -5,8 +5,25 @@
 
 use keel::i18n::{t, ta};
 use keel::targs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+
+/// The single optional directory of a reading command, and whether
+/// anything else was typed beside it.
+fn one_path(args: &[String]) -> (PathBuf, bool) {
+    let mut root = PathBuf::from(".");
+    let mut seen = false;
+    let mut extra = false;
+    for word in args.iter().skip(1) {
+        if seen {
+            extra = true;
+            break;
+        }
+        seen = true;
+        root = PathBuf::from(word);
+    }
+    (root, extra)
+}
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -539,6 +556,79 @@ fn main() -> ExitCode {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::from(1)
+            }
+        }
+        Some("cuts") => {
+            // The mouth reads no document from disk: it serves what
+            // this release was built with, so a project that has
+            // neither file still hears both (wave 0027).
+            let (root, extra) = one_path(&args);
+            if extra {
+                eprintln!("{}", t("main-usage"));
+                return ExitCode::from(2);
+            }
+            let lang = keel::config::read_unpinned(&root)
+                .map(|config| config.lang)
+                .unwrap_or_default();
+            keel::i18n::init(&lang);
+            match keel::speak::cuts_report() {
+                Ok(said) => {
+                    print!("{said}");
+                    ExitCode::SUCCESS
+                }
+                Err(refusal) => {
+                    // The judged list and the read list drifted: that
+                    // is a finding, not a quiet difference.
+                    eprintln!("{refusal}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        Some("method") => {
+            // A paragraph number looks like one (§N.M or N.M); a
+            // chapter is asked for by name; anything else that is not
+            // an existing directory is a typo, and a typo is refused
+            // rather than swallowed into "show me the contents"
+            // (review 0027 R-8).
+            let looks_like_a_paragraph = |word: &str| {
+                if word.starts_with('§') {
+                    return true;
+                }
+                word.split_once('.').is_some_and(|(head, tail)| {
+                    !head.is_empty()
+                        && !tail.is_empty()
+                        && head.chars().all(|c| c.is_ascii_digit())
+                        && tail.chars().all(|c| c.is_ascii_digit())
+                })
+            };
+            let mut asked: Option<String> = None;
+            let mut root = PathBuf::from(".");
+            let mut named_root = false;
+            for word in args.iter().skip(1) {
+                if asked.is_none() && (looks_like_a_paragraph(word) || !Path::new(word).is_dir()) {
+                    asked = Some(word.clone());
+                    continue;
+                }
+                if named_root {
+                    eprintln!("{}", t("main-usage"));
+                    return ExitCode::from(2);
+                }
+                named_root = true;
+                root = PathBuf::from(word);
+            }
+            let lang = keel::config::read_unpinned(&root)
+                .map(|config| config.lang)
+                .unwrap_or_default();
+            keel::i18n::init(&lang);
+            match keel::speak::method(asked.as_deref()) {
+                Ok(said) => {
+                    print!("{said}");
+                    ExitCode::SUCCESS
+                }
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    ExitCode::from(2)
+                }
             }
         }
         Some("version") => {

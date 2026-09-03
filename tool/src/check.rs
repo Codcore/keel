@@ -31,6 +31,10 @@ pub struct Outcome {
 pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let scan = docs::scan(root)?;
 
+    // A row is a document unless it is a court of the binary itself
+    // (wave 0027): those two say different things when green, and
+    // "the header reads" over a vocabulary would be a small lie.
+    let mut courts: Vec<String> = Vec::new();
     let mut rows: Vec<(String, Option<String>)> = Vec::new();
     for wave in &scan.waves {
         rows.push((format!("keel/waves/{}.md", wave.slug), None));
@@ -50,6 +54,29 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             )),
         ));
     }
+    // The sameness of the vocabulary (wave 0027): the forty cuts the
+    // courts judge plan completeness by, and the forty questions the
+    // checklist offers a person, must be one list. Judged HERE, at
+    // the gate every project already runs -- review 0027 R-2 measured
+    // that a drift only reddened `keel cuts`, a command nothing names
+    // and nobody has to type, so "the drift is red" was true only if
+    // asked. The court is about this BINARY, not about the project,
+    // and its row says so.
+    courts.push(t("check-cuts-row"));
+    rows.push((
+        t("check-cuts-row"),
+        crate::speak::cuts_from(crate::speak::checklist())
+            .err()
+            .map(|refusal| {
+                format!(
+                    "{}\n           {}: {}",
+                    refusal.reason,
+                    t("word-instead"),
+                    refusal.instead
+                )
+            }),
+    ));
+
     // The second floor (§7.1/§7.3): every contract reference in a
     // wave header is followed to its file and its revision compared.
     // A mismatch is not yet a verdict: an old revision that truly
@@ -400,13 +427,12 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     for (path, verdict) in &rows {
         match verdict {
             None => {
-                writeln!(
-                    report,
-                    "  {:<8} {path} — {}",
-                    t("word-green"),
+                let word = if courts.contains(path) {
+                    t("check-court-holds")
+                } else {
                     t("check-header-reads")
-                )
-                .unwrap();
+                };
+                writeln!(report, "  {:<8} {path} — {word}", t("word-green")).unwrap();
             }
             Some(text) => {
                 writeln!(report, "  {:<8} {path} — {text}", t("word-red")).unwrap();

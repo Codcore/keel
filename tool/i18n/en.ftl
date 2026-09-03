@@ -513,7 +513,7 @@ main-new-unknown = refusal: keel new knows only: contract
 main-new-unknown-reason = reason: other document kinds are born by their own commands (waves by keel plan)
 main-new-no-slug = refusal: new contract needs the contract's name
 main-new-no-slug-reason = reason: the skeleton is born under the name that becomes its file (§1.4)
-main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [--lang <l>] [--adapter <a>] [--mode <m>] [--agents <a,b>] [--hooks|--no-hooks] [--no-ask] [dir] | keel trust [dir] | keel hook [dir] | keel version [dir] | keel update [dir]
+main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [--lang <l>] [--adapter <a>] [--mode <m>] [--agents <a,b>] [--hooks|--no-hooks] [--no-ask] [dir] | keel trust [dir] | keel hook [dir] | keel cuts [dir] | keel method [§N.M | chapter] [dir] | keel version [dir] | keel update [dir]
 
 # The settings wizard (wave 0026)
 ask-lang = Which human language does this project speak? / Якою людською мовою говорить цей проєкт?
@@ -533,3 +533,23 @@ ask-interrupted = the question about "{ $field }" was not answered: { $error }
 ask-interrupted-instead = answer it, or give the answers as flags (--lang, --adapter, --mode, --agents, --hooks), or run keel init --no-ask for the plain defaults
 init-config-answered = born from your answers
 init-config-default = born with the vocabulary commented, nothing chosen for you
+
+# The mouth of the tool (wave 0027)
+check-court-holds = the courts and the checklist hold one list: same forty, same order
+check-cuts-row = the vocabulary of this keel binary (the forty cuts and their questions)
+speak-cuts-title = keel cuts — the forty quality cuts, as the courts judge by them (§10.1)
+speak-cuts-source = the questions are served in English, as the checklist writes them, and this release does not translate them; every question above is the checklist QUALITY.md as it stood when keel { $version } was BUILT — a snapshot baked into this binary, not the file in your project; a newer checklist needs a newer keel. The slugs are the vocabulary keel check judges plan completeness by (§10.3)
+speak-cuts-drifted = { $count } cut(s) the courts judge by have no question in the checklist: { $cuts }
+speak-cuts-drifted-instead = the judged list and the read list must be one: give each cut its question back in QUALITY.md, or bring the vocabulary of the courts to match it
+speak-cuts-stray = the checklist carries { $count } question(s) no court judges: { $cuts }
+speak-cuts-stray-instead = a question nobody judges is answered for nothing: give it a court in the vocabulary, or take it out of QUALITY.md
+speak-cuts-order = the checklist and the courts hold the cuts in a different order: at place { $at } the courts judge "{ $judged }" while the document reads "{ $read }"
+speak-cuts-order-instead = one list, one order — the standard's own; move the question back, or move the court
+speak-cuts-hollow = { $count } cut(s) stand in the checklist with no question at all: { $cuts }
+speak-cuts-hollow-instead = a slug with an empty question serves a dash and nothing else — give it its question back in QUALITY.md
+speak-method-nowhere-instead = no chapter of this methodology numbers its paragraphs that way; the chapters are: { $chapters } — ask for one by name, or run keel method with no argument
+speak-method-title = keel method — the methodology of this generation, chapter by chapter (paragraph count on the right)
+speak-method-source = the text is the methodology as it stood when keel { $version } was BUILT — a snapshot baked into this binary, not a file in your project. It is Ukrainian and this release does not translate it; ask for one piece with: keel method §8.6
+speak-method-unknown = the methodology of this generation has no paragraph "{ $asked }"
+speak-method-unknown-instead = that chapter holds { $bounds }; without an argument keel method shows every chapter
+speak-method-none = no paragraph of that chapter

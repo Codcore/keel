@@ -135,6 +135,9 @@ The loop, one step at a time:
 - `keel check` -- the documents judged
 - `keel close` -- whether a wave may merge
 - `keel review` -- the package for a fresh reviewer (§9.9)
+- `keel cuts` -- the forty quality cuts, with the question each asks
+- `keel method` -- the methodology itself; `keel method §8.6` for one
+  piece of it
 
 What a wave promises is a person's decision, never the tool's and
 never an agent's alone: bring a card -- the problem, two to four
@@ -158,6 +161,8 @@ const BODY_UK: &str = r#"# keel (згенеровано — не правити 
 - `keel check` — суд над документами
 - `keel close` — чи можна зливати хвилю
 - `keel review` — пакет свіжому рецензентові (§9.9)
+- `keel cuts` — сорок розрізів якости, з питанням кожного
+- `keel method` — сама методика; `keel method §8.6` — один її шматок
 
 Що обіцяє хвиля — рішення людини, ніколи не інструмента і ніколи не
 агента самого: неси картку — проблема, два-чотири варіанти з
