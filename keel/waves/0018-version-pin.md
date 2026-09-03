@@ -20,6 +20,8 @@ transforms:
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/version_pin_test.rs
+      - tool/tests/config_test.rs
+      - tool/tests/rev_test.rs
       - keel.toml
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"

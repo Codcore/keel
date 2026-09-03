@@ -24,3 +24,4 @@ pub mod scope;
 pub mod status;
 pub mod tags;
 pub mod trust;
+pub mod version;

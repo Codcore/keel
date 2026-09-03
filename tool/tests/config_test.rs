@@ -24,25 +24,32 @@ fn write(dir: &Path, rel: &str, text: &str) -> PathBuf {
 /// malformed refuse, never skip.
 #[test]
 fn config_reads_strictly() {
-    // The full vocabulary reads into data.
+    // The full vocabulary reads into data. The version pins the
+    // running binary: the fixture carried the concept's example
+    // "2.0.3" until wave 0018 gave the pin its court -- a foreign
+    // pin through the judged read is now that scenario's refusal,
+    // not this one's data.
     let dir = sandbox("full");
     write(
         &dir,
         "keel.toml",
-        concat!(
-            "version = \"2.0.3\"\n",
-            "adapter = \"elixir\"\n",
-            "ci = \"mix ci\"\n",
-            "lang = \"uk\"\n",
-            "[trust]\n",
-            "\"mix ci\" = \"a3f1c07c40de\"\n",
-            "[generated]\n",
-            "\"skills/keel-plan.md\" = \"0b32af\"\n",
+        &format!(
+            concat!(
+                "version = \"{}\"\n",
+                "adapter = \"elixir\"\n",
+                "ci = \"mix ci\"\n",
+                "lang = \"uk\"\n",
+                "[trust]\n",
+                "\"mix ci\" = \"a3f1c07c40de\"\n",
+                "[generated]\n",
+                "\"skills/keel-plan.md\" = \"0b32af\"\n",
+            ),
+            env!("CARGO_PKG_VERSION")
         ),
     );
     let c = config::read(&dir).unwrap();
     assert!(c.present);
-    assert_eq!(c.version.as_deref(), Some("2.0.3"));
+    assert_eq!(c.version.as_deref(), Some(env!("CARGO_PKG_VERSION")));
     assert_eq!(c.adapter.as_deref(), Some("elixir"));
     assert_eq!(c.ci.as_deref(), Some("mix ci"));
     assert_eq!(c.lang, "uk");

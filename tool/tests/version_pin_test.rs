@@ -112,14 +112,20 @@ fn version_pin() {
     crate_files(&dir);
     let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
-    assert_eq!(code, 2, "a foreign pin is a refusal, never a silent run:\n{out}");
+    assert_eq!(
+        code, 2,
+        "a foreign pin is a refusal, never a silent run:\n{out}"
+    );
     assert!(
         out.contains("9.9.9") && out.contains(running),
         "the refusal carries both names -- the pinned and the running:\n{out}"
     );
     let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
-    assert_eq!(code, 2, "every config-reading court inherits the refusal:\n{out}");
+    assert_eq!(
+        code, 2,
+        "every config-reading court inherits the refusal:\n{out}"
+    );
     let (out, err, code) = keel(&["version", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert_eq!(
