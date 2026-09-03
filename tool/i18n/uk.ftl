@@ -318,7 +318,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 16 — version-пін (поле version у keel.toml при ділі)
+check-next-rung = наступний крок: щабель 17 — ci-біг проєкту крізь довіру §7.16 у close і батарея кількома бігами (§7.13)
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -451,6 +451,14 @@ newc-exists-instead = заповни наявний файл або вибери
 newc-skel-header = риштування контракту { $slug }: обіцянки ще нема — заповни §2.7 або §2.8 і прибери риштування
 newc-skel-body = чиїм словам цей контракт дає пережити хвилю — і чому (§2.6)
 
+## команда version (NEW-CONCEPT, таблиця команд; хвиля 0018)
+version-running = keel { $version } — бінарник, що відповідає
+version-pin-held = пін keel.toml: "{ $pin }" — тримається; суди судять саме цим бінарником
+version-pin-mismatch = пін keel.toml: "{ $pin }" — НЕ цей бінарник: суди відмовляють, поки пін і бінарник не зійдуться
+version-pin-none = поле version не задано — піна нема; концепт радить пін: version = "{ $version }"
+version-no-file = keel.toml нема — піна нема, біжить бінарник вище
+version-unread = keel.toml не прочитано ({ $reason }) — пін невідомий; відмову повністю скаже суд config
+
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
 main-unknown-command-reason = причина: такої команди keel не знає
@@ -464,4 +472,4 @@ main-new-unknown = відмова: keel new знає лише: contract
 main-new-unknown-reason = причина: інші види документів народжуються своїми командами (хвилі — keel plan)
 main-new-no-slug = відмова: new contract потребує імени контракту
 main-new-no-slug-reason = причина: скелет народжується під імʼям, що стане його файлом (§1.4)
-main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [тека] | keel trust [тека] | keel hook [тека]
+main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [тека] | keel trust [тека] | keel hook [тека] | keel version [тека]

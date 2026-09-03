@@ -383,6 +383,21 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Some("version") => {
+            let root = args
+                .get(1)
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            // The lamp looks with the unpinned eye (tool-version):
+            // it must answer exactly where the courts refuse, and a
+            // broken config never steers it silently -- its row
+            // carries the reason, the config court the full refusal.
+            let lang = keel::config::read_unpinned(&root)
+                .map(|config| config.lang)
+                .unwrap_or_default();
+            keel::i18n::init(&lang);
+            print!("{}", keel::version::report(&root));
+            ExitCode::SUCCESS
+        }
         Some(other) => {
             eprintln!(
                 "{}\n  {}\n  {}",

@@ -316,7 +316,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 16 -- the version pin (the keel.toml version field at work)
+check-next-rung = next step: rung 17 -- the project's ci run through the §7.16 trust gate in close, and the battery run several times (§7.13)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
@@ -448,6 +448,14 @@ newc-exists-instead = fill the existing file, or pick another name for a new con
 newc-skel-header = the scaffolding of contract { $slug }: no promise given yet — fill §2.7 or §2.8 and remove the scaffolding
 newc-skel-body = whose words this contract lets outlive the wave — and why (§2.6)
 
+## version command (NEW-CONCEPT, the commands table; wave 0018)
+version-running = keel { $version } -- the binary answering
+version-pin-held = pin keel.toml: "{ $pin }" -- held; the courts judge with this very binary
+version-pin-mismatch = pin keel.toml: "{ $pin }" -- NOT this binary: the courts refuse until the pin and the binary meet
+version-pin-none = the version field is not set -- no pin; the concept advises one: version = "{ $version }"
+version-no-file = keel.toml is absent -- no pin, the binary above runs
+version-unread = keel.toml not read ({ $reason }) -- the pin unknown; the config court says the refusal in full
+
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: this is not one of the commands keel knows
@@ -461,4 +469,4 @@ main-new-unknown = refusal: keel new knows only: contract
 main-new-unknown-reason = reason: other document kinds are born by their own commands (waves by keel plan)
 main-new-no-slug = refusal: new contract needs the contract's name
 main-new-no-slug-reason = reason: the skeleton is born under the name that becomes its file (§1.4)
-main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [dir] | keel trust [dir] | keel hook [dir]
+main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [dir] | keel trust [dir] | keel hook [dir] | keel version [dir]

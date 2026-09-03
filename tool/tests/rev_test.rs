@@ -41,9 +41,11 @@ fn revision_recipe_reproduced() {
         // the whole surface; 2b1bf3 until 0010's form court shortened
         // the Config export to §2.9's short form; cc126c until its review
         // said aloud the field surface is prose-held; 7dd1d7 until
-        // 0017 named the adapter by its language -- the pin follows
-        // the live text.
-        "840bd9"
+        // 0017 named the adapter by its language; 840bd9 until 0018
+        // gave the version pin its court; dac6af until its review put
+        // the pin court above mode in words -- the pin follows the
+        // live text.
+        "5555a7"
     );
 
     // Prefix comparison (§5.2): 4-6 characters, from the start.

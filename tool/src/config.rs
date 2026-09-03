@@ -70,6 +70,18 @@ impl Config {
     pub(crate) fn adapter_synonym(&self) -> bool {
         self.adapter.as_deref() == Some("cargo")
     }
+
+    /// The one home of the pin question (wave 0018; NEW-CONCEPT,
+    /// Distribution): the project pins the tool's exact version --
+    /// string equality, ranges are not of this generation. Some is
+    /// the pinned name to say aloud beside the running one; None
+    /// means the pin holds or none is set.
+    pub fn pin_mismatch(&self, running: &str) -> Option<&str> {
+        match self.version.as_deref() {
+            Some(pin) if pin != running => Some(pin),
+            _ => None,
+        }
+    }
 }
 
 /// The full keel.toml vocabulary from the concept. An unknown field
@@ -87,9 +99,33 @@ struct Raw {
     generated: Option<BTreeMap<String, String>>,
 }
 
-/// Reads `<root>/keel.toml` whole and strictly; an absent file is
-/// not an error but honest defaults (`present = false`).
+/// Reads and judges: the raw read plus the pin court (wave 0018) --
+/// a foreign pin is a refusal before any court runs, so the wrong
+/// binary never judges a project. The refusal is deliberately
+/// English: the binary refusing is not the one the project asked
+/// for, and it does not guess past what it read.
 pub fn read(root: &Path) -> Result<Config, Refusal> {
+    let config = read_unpinned(root)?;
+    let running = env!("CARGO_PKG_VERSION");
+    if let Some(pin) = config.pin_mismatch(running) {
+        return Err(Refusal {
+            file: root.join("keel.toml"),
+            reason: format!("keel.toml pins version \"{pin}\", but this binary is keel {running}"),
+            instead: "run the pinned version, or move the pin -- one line in a \
+                      diff, approved by merge; to move it forward, run the new binary \
+                      first: its own gate passes the new pin (NEW-CONCEPT, \
+                      Distribution)"
+                .to_string(),
+        });
+    }
+    Ok(config)
+}
+
+/// Reads `<root>/keel.toml` whole and strictly; an absent file is
+/// not an error but honest defaults (`present = false`). No pin
+/// court here -- this is the `keel version` lamp's eye
+/// (tool-version): it must answer exactly where the courts refuse.
+pub fn read_unpinned(root: &Path) -> Result<Config, Refusal> {
     let path = root.join("keel.toml");
     let text = match std::fs::read_to_string(&path) {
         Ok(text) => text,
