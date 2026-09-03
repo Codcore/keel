@@ -29,7 +29,7 @@ pub(crate) enum State {
 /// inform, they do not punish.
 pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     let config = config::read(root)?;
-    if config.adapter.as_deref() != Some("cargo") {
+    if !config.rust_adapter() {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("close-needs-adapter"),

@@ -22,7 +22,7 @@ use std::process::Command;
 /// document is the first step of its own -- mend it, by name.
 pub fn step(root: &Path) -> Result<String, Refusal> {
     let config = config::read(root)?;
-    if config.adapter.as_deref() != Some("cargo") {
+    if !config.rust_adapter() {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("next-needs-adapter"),

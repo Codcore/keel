@@ -49,6 +49,22 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
     };
     let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
 
+    // The one court that physically runs the toolchain asks the home
+    // first (review 0017 R-4): an adapter this release does not
+    // serve -- or none at all -- is a word aloud and a pass, never a
+    // blind cargo run over a foreign language.
+    if !config.rust_adapter() {
+        let name = config
+            .adapter
+            .clone()
+            .unwrap_or_else(|| t("gate-adapter-absent-name"));
+        let report = format!(
+            "{mode_line}\n{}\n",
+            ta("gate-adapter-unjudged", targs!("name" => name))
+        );
+        return Ok((report, 0));
+    }
+
     let verdict = judge(root, wave, &subject)?;
     let (words, guilty) = match verdict {
         Verdict::Pass(words) => (words, false),

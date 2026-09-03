@@ -26,10 +26,17 @@ pub fn draw(root: &Path) -> Result<String, Refusal> {
         // check names every broken file -- fix them first.
         return Err(refusal);
     }
-    let found: Option<Vec<TestTag>> = if config.adapter.as_deref() == Some("cargo") {
+    let found: Option<Vec<TestTag>> = if config.rust_adapter() {
         Some(tags::scan(&adapter::test_files(root)?)?)
     } else {
         None
+    };
+    // The honest unread word (review 0017 R-3): a named yet unknown
+    // adapter is not painted absent.
+    let unread = if config.adapter.is_some() {
+        t("map-proof-unknown")
+    } else {
+        t("map-proof-unread")
     };
 
     let mut report = t("map-title");
@@ -42,7 +49,7 @@ pub fn draw(root: &Path) -> Result<String, Refusal> {
         let wave_path = root.join("keel/waves").join(format!("{}.md", slug));
         let revs = rev::scenario_revs(&wave_path)?;
         for cut in graph::cuts() {
-            let answer = wave_answer(wave, cut, &revs, found.as_deref());
+            let answer = wave_answer(wave, cut, &revs, found.as_deref(), &unread);
             report.push_str(&format!("  {cut} — {answer}\n"));
         }
     } else {
@@ -62,7 +69,8 @@ pub fn draw(root: &Path) -> Result<String, Refusal> {
             // youngest wave's word speaks, the older are counted.
             let mut answers: Vec<String> = Vec::new();
             for (wave, revs) in &per_wave {
-                if let Some(answer) = wave_answer_if_any(wave, cut, revs, found.as_deref()) {
+                if let Some(answer) = wave_answer_if_any(wave, cut, revs, found.as_deref(), &unread)
+                {
                     answers.push(format!("{answer} ({})", wave.slug));
                 }
             }
@@ -93,8 +101,9 @@ fn wave_answer(
     cut: &str,
     revs: &[(String, String)],
     found: Option<&[TestTag]>,
+    unread: &str,
 ) -> String {
-    wave_answer_if_any(wave, cut, revs, found).unwrap_or_else(|| t("map-unanswered"))
+    wave_answer_if_any(wave, cut, revs, found, unread).unwrap_or_else(|| t("map-unanswered"))
 }
 
 fn wave_answer_if_any(
@@ -102,6 +111,7 @@ fn wave_answer_if_any(
     cut: &str,
     revs: &[(String, String)],
     found: Option<&[TestTag]>,
+    unread: &str,
 ) -> Option<String> {
     // A live cover speaks first; a dead cover does not count (§2.12),
     // so the decision -- the answer that remains -- speaks instead.
@@ -111,7 +121,7 @@ fn wave_answer_if_any(
         .find(|(_, sc)| sc.withdrawn.is_none() && sc.covers.iter().any(|c| c == cut));
     if let Some((name, _)) = live {
         let proof = match found {
-            None => t("map-proof-unread"),
+            None => unread.to_string(),
             Some(tags) => {
                 let current = revs
                     .iter()

@@ -106,8 +106,8 @@ rev-dup-transform = the body carries the "## transform: { $name }" section more 
 rev-dup-transform-instead = keep one section: the methodology will not guess which body carries the work's words (§2.10)
 
 rev-write-title = keel rev --write — the drifted records (NEW-CONCEPT)
-rev-write-needs-adapter = the rewriting hand needs the cargo adapter named in keel.toml: closedness is judged by tags
-rev-write-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
+rev-write-needs-adapter = the rewriting hand needs the rust adapter named in keel.toml (old spelling cargo accepted): closedness is judged by tags
+rev-write-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
 rev-write-rewritten = { "  " }{ $wave }: { $contract }@{ $old } → { $contract }@{ $new } — the record now holds the current revision
 rev-write-kept = { "  " }{ $wave }: closed — leaving its records to history's court (§5.6)
 rev-write-none = nothing has drifted in the open waves — every record they hold is current
@@ -187,6 +187,7 @@ holding-vanished-instead = bring the unit back, or change/withdraw the contract 
 check-holding-count = signatures checked: { $count }
 check-holding-uncompared = { $contract } — no one compared the form: { $why } (§7.6)
 holding-why-no-adapter = no adapter named in keel.toml
+holding-why-unknown-adapter = the named adapter is not of this release (it serves "rust")
 holding-why-deep = the module path is deeper than this generation compares
 holding-why-no-file = the module's file was not found in the crate
 check-holding-plan = a plan branch: the form court does not run (§8.3) — exports may grow ahead of the code (§4.9)
@@ -263,6 +264,8 @@ gate-case = "{ $head }" wears capitals -- red: and slugs are written lowercase (
 gate-work-vacuum = transform "{ $transform }": no live scenario left to judge -- the withdrawn are outside the judgement (§2.12), passing with this word
 gate-soft = mode: soft -- the same words, a warning only
 gate-hook-installed = the commit-msg hook now calls keel gate -- written to { $path }
+gate-adapter-unjudged = the adapter "{ $name }" is not of this release (it serves "rust") — the commit is not judged: the word stands aloud, the judgement waits for its adapter's wave
+gate-adapter-absent-name = not named
 gate-hook-already = the hook is already ours -- quietly the same file
 gate-hook-foreign = a commit-msg hook already exists here, and it is not ours
 gate-hook-foreign-instead = keel does not overwrite someone's hook (§9.7); read it and merge or remove it yourself, then re-run keel hook
@@ -287,7 +290,7 @@ check-trust-ci-none = ; ci is a refusal aloud: none
 check-trust-ci-absent = ; ci is not declared
 check-trust-skipped-broken = commands verify/ci not judged: a broken document may hide the very command -- fix the named files first
 check-tags-skipped-no-adapter = test tags not compared: no adapter named in keel.toml -- said aloud, not painted green
-check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not served on this rung (only cargo is) -- said aloud, not painted green
+check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not of this release — it serves "rust" (old spelling "cargo"); said aloud, not painted green
 check-tags-skipped-refused = test tags not compared: the adapter refused mid-way -- its refusal stands among the findings
 check-scope-compared = scope: branch "{ $branch }" is the wave -- compared against { $base }
 check-scope-base-main = the merge-base with main @ { $sha }
@@ -298,6 +301,7 @@ check-scope-skipped-refused = scope not compared: git refused mid-way -- its ref
 check-header-reads = header reads
 check-no-documents = no documents yet
 check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); trust of verify/ci commands against recorded fingerprints (§7.16, §2.8); the form of contracts held (§7.6, §2.9); header-vs-body both ways (§7.7); closure is judged by keel close (§6.5)
+check-adapter-synonym = adapter = "cargo" is an accepted synonym — the canonical name is the language's: adapter = "rust" (NEW-CONCEPT, Config; wave 0017)
 check-borders = the border of green (§7.8): a green test means it exists, matches and passes -- not that the promise is proven in essence; green form is not yet meaning. No mechanics closes that gap: the fresh reviewer holds it with the four questions (§9.9)
 check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
 check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the slug (§7.1)
@@ -312,7 +316,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 13 -- into the field (keel init and a foreign project)
+check-next-rung = next step: rung 16 -- the version pin (the keel.toml version field at work)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
@@ -328,8 +332,8 @@ close-lack-red = scenario "{ $scenario }": the test "{ $test }" is red -- not pr
 close-lack-notrun = scenario "{ $scenario }": the battery ran no test named "{ $test }"
 close-lack-ref = the reference { $contract }@{ $recorded } does not converge (§6.4)
 close-lack-review = the review file keel/reviews/<wave>.md is not next to the wave (§9.9)
-close-needs-adapter = the closure court needs the cargo adapter named in keel.toml
-close-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
+close-needs-adapter = the closure court needs the rust adapter named in keel.toml (old spelling cargo accepted)
+close-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
 close-blockers = blockers of this branch's wave { $wave }: { $count } -- a full wave does not merge unproven (§6.5, §9.9)
 close-no-blockers = no blockers: this branch is named as no unclosed wave -- the states above inform
 close-verify-count = verify commands judged: { $count }
@@ -348,6 +352,7 @@ map-covered = closed: "{ $scenario }" -- { $proof }
 map-proof-proven = proven (the tag matches, §6.3; the test's green is keel close's court)
 map-proof-unproven = not yet proven (no matching tag)
 map-proof-unread = proof not read (no adapter named in keel.toml)
+map-proof-unknown = proof not read (the named adapter is not of this release — it serves "rust")
 map-decided = decided: "{ $reason }"
 map-unanswered = no answer -- the silence court is keel check (§10.3)
 map-older = older answers: { $count }
@@ -369,13 +374,13 @@ status-awaiting = { "  " }awaits its start: the wave { $wave } — the branch "{
 status-counts = counted: closed { $closed }, in progress { $working }, plans { $plans }
 status-no-battery = the stage here is structural (tags, references, the review) — the battery was not run: green tests are judged by close and the hook (§9.2)
 status-next = onwards — keel next
-status-needs-adapter = the stage eye needs the cargo adapter named in keel.toml: tags are the memory of stages
-status-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
+status-needs-adapter = the stage eye needs the rust adapter named in keel.toml (old spelling cargo accepted): tags are the memory of stages
+status-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
 
 ## next command (§9.2, §9.10, §8.4)
 next-title = keel next -- one step (§9.2)
-next-needs-adapter = the step hand needs the cargo adapter named in keel.toml: without tags the stage would be a guess
-next-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
+next-needs-adapter = the step hand needs the rust adapter named in keel.toml (old spelling cargo accepted): without tags the stage would be a guess
+next-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
 next-step-fix = the step: mend the document { $file } — { $reason }; instead: { $instead }
 next-step-fix-more = { "  " }and { $count } more { $count ->
         [one] refusal

@@ -86,7 +86,15 @@ pub(crate) fn survey(root: &Path, config: &Config, contracts: &[Contract]) -> (u
                 checked += contract.exports.len() as u64;
                 continue;
             }
-            Comparability::NoAdapter => t("holding-why-no-adapter"),
+            Comparability::NoAdapter => {
+                // A named yet unknown adapter is not painted absent
+                // (review 0017 R-3): the words tell which it is.
+                if config.adapter.is_some() {
+                    t("holding-why-unknown-adapter")
+                } else {
+                    t("holding-why-no-adapter")
+                }
+            }
             Comparability::Deep => t("holding-why-deep"),
             Comparability::NoFile => t("holding-why-no-file"),
         };
@@ -190,7 +198,7 @@ fn judged(contract: &Contract) -> Option<(&str, String)> {
 /// the file (the bare crate itself is src/lib.rs); deeper paths are
 /// beyond this generation.
 fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
-    if config.adapter.as_deref() != Some("cargo") {
+    if !config.rust_adapter() {
         return Comparability::NoAdapter;
     }
     let segments: Vec<&str> = module.split("::").collect();

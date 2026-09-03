@@ -53,6 +53,25 @@ impl Default for Config {
     }
 }
 
+impl Config {
+    /// The one home of the adapter question (wave 0017, the
+    /// operator's decision of 2026-09-03): the adapter is named by
+    /// the project's language -- `rust` is canonical in this
+    /// release, executed by the cargo adapter; the old spelling
+    /// `cargo` stays an accepted synonym, said aloud by check. The
+    /// courts ask here instead of comparing strings themselves.
+    pub fn rust_adapter(&self) -> bool {
+        matches!(self.adapter.as_deref(), Some("rust") | Some("cargo"))
+    }
+
+    /// The second question of the same home (review 0017 R-1): is
+    /// the written spelling the accepted synonym? check asks here
+    /// for its aloud word -- no court compares the string itself.
+    pub(crate) fn adapter_synonym(&self) -> bool {
+        self.adapter.as_deref() == Some("cargo")
+    }
+}
+
 /// The full keel.toml vocabulary from the concept. An unknown field
 /// fails the parse (deny_unknown_fields) -- a typo never reads as
 /// "nothing".
