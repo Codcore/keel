@@ -184,9 +184,56 @@ fn main() -> ExitCode {
             }
         }
         Some("init") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            // The answers of the wizard, given as flags (wave 0026):
+            // the question-free road, and the road the probe drives,
+            // since the drawing of questions needs a pty.
+            let mut given: Vec<(String, String)> = Vec::new();
+            let mut root = PathBuf::from(".");
+            let mut named_root = false;
+            let mut no_ask = false;
+            let mut rest = args.iter().skip(1);
+            while let Some(word) = rest.next() {
+                let mut answer = |field: &str, value: Option<&String>| match value {
+                    Some(value) => {
+                        given.push((field.to_string(), value.clone()));
+                        true
+                    }
+                    None => false,
+                };
+                let ok = match word.as_str() {
+                    "--no-ask" => {
+                        no_ask = true;
+                        true
+                    }
+                    "--hooks" => answer("hooks", Some(&"yes".to_string())),
+                    "--no-hooks" => answer("hooks", Some(&"no".to_string())),
+                    "--lang" | "--adapter" | "--mode" | "--agents" => {
+                        answer(word.trim_start_matches("--"), rest.next())
+                    }
+                    other if other.starts_with("--") && other.contains('=') => {
+                        let (flag, value) = other.split_once('=').unwrap();
+                        answer(flag.trim_start_matches("--"), Some(&value.to_string()))
+                    }
+                    other if other.starts_with('-') => false,
+                    other => {
+                        // Two paths is a typo, not a choice: before
+                        // this wave the first won, and the new
+                        // parsing silently made it the last (review
+                        // 0026 R-12). Neither is worth guessing.
+                        if named_root {
+                            eprintln!("{}", t("main-usage"));
+                            return ExitCode::from(2);
+                        }
+                        named_root = true;
+                        root = PathBuf::from(other);
+                        true
+                    }
+                };
+                if !ok {
+                    eprintln!("{}", t("main-usage"));
+                    return ExitCode::from(2);
+                }
+            }
             // init runs before a config can be counted on -- but a
             // broken keel.toml never steers the call silently
             // (review 0014 R-1, §7.9): the refusal is said aloud
@@ -199,7 +246,42 @@ fn main() -> ExitCode {
                 }
             };
             keel::i18n::init(&lang);
-            match keel::init::run(&root) {
+            let mut answers = match keel::ask::from_flags(&given) {
+                Ok(answers) => answers,
+                Err(refusal) => {
+                    // Judged before a single byte is written.
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
+            // The silence, which is the wave's first law: questions
+            // only where BOTH ends are terminals. A tool that asks in
+            // CI, in a test sandbox or in a pipe simply hangs. An
+            // existing config is a fact (§7.9) and is never asked
+            // about, so the wizard runs only where the file is about
+            // to be born.
+            // The questions are drawn on STDERR by the library, and
+            // read from the terminal -- so the law watches stdin and
+            // stderr, not stdout (review 0026 R-2, measured: with
+            // 2>file the questions went into the file, the terminal
+            // saw nothing, and the config was born from answers
+            // nobody watched being asked). With stdout piped the
+            // questions still show and still work, so that road is
+            // no longer barred either.
+            let listening = std::io::IsTerminal::is_terminal(&std::io::stdin())
+                && std::io::IsTerminal::is_terminal(&std::io::stderr());
+            // Flags answer their own questions and silence no others
+            // (review 0026 R-4: one flag used to silence all five).
+            if !no_ask && listening && !root.join("keel.toml").is_file() {
+                match keel::ask::ask_unanswered(&keel::ask::questions(), &answers) {
+                    Ok(asked) => answers = asked,
+                    Err(refusal) => {
+                        eprintln!("{refusal}");
+                        return ExitCode::from(2);
+                    }
+                }
+            }
+            match keel::init::run(&root, &answers) {
                 Ok((report, failed)) => {
                     print!("{report}");
                     if failed == 0 {
