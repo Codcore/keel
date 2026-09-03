@@ -57,7 +57,7 @@ fn keel(args: &[&str]) -> (String, String, i32) {
 
 /// proves: init-births-the-frame@bb34f2 -- holds the NEW-CONCEPT
 /// frame row and §8.7: one move births the three keel/ directories
-/// (each with .gitkeep), keel.toml with the commented §2.9
+/// (each with .gitkeep), keel.toml with the commented config
 /// vocabulary enabling nothing, and the commit-msg hook by gate's
 /// hand; every piece is its own "born" line, the tail reminds of
 /// §8.7 and leads to keel plan, and check reads the born frame
@@ -207,7 +207,10 @@ fn init_never_tramples_second_birth() {
     write(&dir, "keel.toml", broken);
     let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
     let all = format!("{out}{err}");
-    assert_eq!(code, 0, "the frame still lands around the broken config:\n{all}");
+    assert_eq!(
+        code, 0,
+        "the frame still lands around the broken config:\n{all}"
+    );
     assert!(
         all.contains("keel.toml") && all.contains("refusal"),
         "the config refusal is said aloud, not swallowed (R-1):\n{all}"

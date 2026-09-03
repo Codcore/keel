@@ -174,12 +174,17 @@ fn main() -> ExitCode {
             let root = args
                 .get(1)
                 .map_or_else(|| PathBuf::from("."), PathBuf::from);
-            // init is the one command that runs before a config can
-            // be counted on: the language falls back to the config
-            // court's own reading of whatever stands.
-            let lang = keel::config::read(&root)
-                .map(|c| c.lang)
-                .unwrap_or_default();
+            // init runs before a config can be counted on -- but a
+            // broken keel.toml never steers the call silently
+            // (review 0014 R-1, §7.9): the refusal is said aloud
+            // and the frame still lands in the default language.
+            let lang = match keel::config::read(&root) {
+                Ok(config) => config.lang,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    String::new()
+                }
+            };
             keel::i18n::init(&lang);
             match keel::init::run(&root) {
                 Ok((report, failed)) => {

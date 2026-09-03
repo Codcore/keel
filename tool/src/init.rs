@@ -19,12 +19,30 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
     let mut failed = 0usize;
 
     // The three keel/ directories, each born with .gitkeep so an
-    // empty one outlives git. A standing directory is a fact -- it
-    // is not entered, not judged, not given anything.
+    // empty one outlives git. A standing directory is a fact and
+    // stays untouched -- except a missing .gitkeep, which is fed
+    // with its own word (review 0014 R-2): a new empty file
+    // tramples nothing, and "builds what is missing" stays true.
     for rel in ["keel/waves", "keel/contracts", "keel/reviews"] {
         let dir = root.join(rel);
         if dir.is_dir() {
-            report.push_str(&ta("init-stands", targs!("piece" => rel.to_string())));
+            let keep = dir.join(".gitkeep");
+            if keep.is_file() {
+                report.push_str(&ta("init-stands", targs!("piece" => rel.to_string())));
+            } else {
+                match std::fs::write(&keep, "") {
+                    Ok(()) => {
+                        report.push_str(&ta("init-fed", targs!("piece" => rel.to_string())));
+                    }
+                    Err(e) => {
+                        failed += 1;
+                        report.push_str(&ta(
+                            "init-failed",
+                            targs!("piece" => rel.to_string(), "error" => e.to_string()),
+                        ));
+                    }
+                }
+            }
             report.push('\n');
             continue;
         }
@@ -46,7 +64,8 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
         }
     }
 
-    // keel.toml with the commented §2.9 vocabulary, enabling
+    // keel.toml with the commented config vocabulary (NEW-CONCEPT,
+    // Config), enabling
     // nothing: the defaults stay with config's own words. An
     // existing file -- whoever's -- is a fact: not read, not
     // touched (its content is config's court, §7.9). The write
@@ -92,6 +111,13 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
         Err(refusal) => {
             failed += 1;
             let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
+            // Where the refusal points at the root itself the
+            // stripped name is empty -- the piece keeps its name.
+            let shown = if shown.as_os_str().is_empty() {
+                std::path::Path::new("commit-msg")
+            } else {
+                shown
+            };
             report.push_str(&format!(
                 "  {:<8} {} — {}\n           {}: {}\n",
                 t("word-red"),
