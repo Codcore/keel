@@ -64,18 +64,39 @@ fn project(name: &str, adapter: Option<&str>) -> PathBuf {
         config.push_str(&format!("adapter = \"{adapter}\"\n"));
     }
     write(&dir, "keel.toml", &config);
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    );
+    write(&dir, "src/lib.rs", "");
     git(&dir, &["init", "-q", "-b", "main"]);
     dir
 }
 
-/// proves: ignore-reminded@99f4d6 -- holds the third gift of the
-/// first field: the frame that lays the methodology says aloud
-/// what its own adapter will build into. No .gitignore -- start one
-/// with the build directory; a .gitignore without the rule -- add
-/// exactly this line; the rule standing -- said so; no adapter of
-/// this release -- no directory to name. In every state the file is
-/// neither created nor changed by a byte, and the advice never
-/// reddens the frame.
+/// The same, with the crate one level down -- keel's own shape, and
+/// the one where cargo writes a .gitignore of its own beside it.
+fn nested_project(name: &str) -> PathBuf {
+    let dir = sandbox(name);
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
+    write(
+        &dir,
+        "tool/Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    );
+    write(&dir, "tool/src/lib.rs", "");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    dir
+}
+
+/// proves: ignore-reminded@3d57a9 -- holds the third gift of the
+/// first field: the frame says aloud what its own adapter will
+/// build into, and git itself judges the rule -- so a nested
+/// .gitignore (the one cargo writes beside a crate) counts, and a
+/// rule living only in .git/info/exclude is named for what it is:
+/// present, but not travelling with the repository. Six states,
+/// six words; no ignore file is ever created or changed by a byte,
+/// and the advice never reddens the frame.
 #[test]
 fn ignore_reminded() {
     // No .gitignore at all: the row advises starting one, and the
@@ -111,8 +132,8 @@ fn ignore_reminded() {
         "the project's file is not touched by a byte (school 0014)"
     );
 
-    // The rule already standing -- with a slash and without it, as
-    // git reads both.
+    // The rule already standing in the root file -- with a slash and
+    // without it, as git reads both.
     for (name, rule) in [("slash", "target/"), ("bare", "target")] {
         let dir = project(name, Some("rust"));
         write(&dir, ".gitignore", &format!("# mine\n{rule}\n"));
@@ -124,6 +145,53 @@ fn ignore_reminded() {
             "the standing rule is said to stand (written \"{rule}\"):\n{out}"
         );
     }
+
+    // The rule in the crate's own .gitignore, one level down -- the
+    // file cargo writes itself. Reading only the root would raise a
+    // false alarm here; git knows better (caught by dogfooding keel
+    // on keel, whose crate lives in tool/).
+    let dir = nested_project("nested");
+    write(&dir, "tool/.gitignore", "/target\n");
+    let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the advice never reddens the frame:\n{out}");
+    assert!(
+        out.contains("ignore rules") && out.contains("stands"),
+        "a nested .gitignore counts -- git judges the rule, not a guess:\n{out}"
+    );
+    assert!(
+        out.contains("tool/.gitignore"),
+        "the row names whose file gave the rule:\n{out}"
+    );
+
+    // The rule living only in .git/info/exclude: present for this
+    // clone, gone for everyone else -- said aloud, with the advice
+    // repeated (the first field's R-4 school).
+    let dir = project("excluded", Some("rust"));
+    write(&dir, ".git/info/exclude", "target/\n");
+    let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the advice never reddens the frame:\n{out}");
+    assert!(
+        out.contains("does not travel") && out.contains("target/"),
+        "an exclude-only rule is named for what it is, advice and all:\n{out}"
+    );
+
+    // No git at all: the rule is not judged, and the frame lands on.
+    let dir = sandbox("gitless");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    );
+    write(&dir, "src/lib.rs", "");
+    let (out, err, _) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("ignore rules") && out.contains("not judged"),
+        "with git silent the rule is not judged, and the frame keeps landing:\n{out}"
+    );
 
     // No adapter of this release: there is no build directory to
     // name, and the row says that instead of advising a guess.
