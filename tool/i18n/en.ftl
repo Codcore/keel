@@ -342,6 +342,13 @@ close-verify-failed = verify "{ $command }" of { $contract } — FAILED ({ $word
 close-verify-untrusted = verify "{ $command }" of { $contract } — did not run: not trusted (§7.16); check holds that verdict
 close-verify-blockers = broken foreign promises: { $count } — the exit is red
 close-verify-no-words = the command left no words
+close-ci-passed = ci "{ $command }" — passed: the project's own gate is green
+close-ci-failed = ci "{ $command }" — FAILED ({ $words }) — the project's own gate is red, the wave does not merge (§7.16)
+close-ci-untrusted = ci "{ $command }" — did not run: not trusted (§7.16); check holds that verdict — record trust with keel trust
+close-ci-none = ci = "none" — a refusal aloud, lawful; nothing runs
+close-ci-undecided = ci = "" — undecided; nothing runs (check's finding)
+close-ci-absent = ci not declared — nothing runs
+close-ci-blocker = the project's own gate is red: ci FAILED — the exit is red
 close-plan-own = the wave of this branch is approved, not started -- a plan PR merges as a plan (§6.6); the work is issued after
 
 ## map command (§10.7)

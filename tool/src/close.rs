@@ -68,7 +68,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // trust court: only a matching fingerprint runs; a failing
     // command is a blocker -- a broken foreign promise does not
     // merge; distrust is check's verdict, said here by name only.
-    // ci is not run: the project's own gate proves no contract.
+    // The project's ci follows through the same gate (wave 0019).
     let mut verify_count: u64 = 0;
     let mut verify_blockers = 0usize;
     let mut verify_lines: Vec<String> = Vec::new();
@@ -87,39 +87,15 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             ));
             continue;
         }
-        let ran = std::process::Command::new("sh")
-            .arg("-c")
-            .arg(command)
-            .current_dir(root)
-            .output();
-        match ran {
-            Ok(out) if out.status.success() => verify_lines.push(ta(
+        match run_command(root, command) {
+            Ok(()) => verify_lines.push(ta(
                 "close-verify-passed",
                 targs!("command" => command.clone(), "contract" => contract.slug.clone()),
             )),
-            Ok(out) => {
-                // The last non-empty line of stderr, else stdout,
-                // else the keyed word (0010 review R-5): no raw
-                // English inside a localized verdict.
-                let stderr = String::from_utf8_lossy(&out.stderr);
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                let words = stderr
-                    .lines()
-                    .rev()
-                    .find(|l| !l.trim().is_empty())
-                    .or_else(|| stdout.lines().rev().find(|l| !l.trim().is_empty()))
-                    .map(str::to_string)
-                    .unwrap_or_else(|| t("close-verify-no-words"));
+            Err(words) => {
                 verify_lines.push(ta(
                     "close-verify-failed",
                     targs!("command" => command.clone(), "contract" => contract.slug.clone(), "words" => words),
-                ));
-                verify_blockers += 1;
-            }
-            Err(e) => {
-                verify_lines.push(ta(
-                    "close-verify-failed",
-                    targs!("command" => command.clone(), "contract" => contract.slug.clone(), "words" => e.to_string()),
                 ));
                 verify_blockers += 1;
             }
@@ -132,6 +108,35 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         report.push_str(line);
         report.push('\n');
     }
+
+    // The project's own ci (wave 0019, the first field's gift)
+    // through the same §7.16 gate as verify: a trusted command runs
+    // exactly once as the project's own merge gate -- never as a
+    // contract's proof; untrusted, none, undecided and absent are
+    // each a word, never a run. "Trusted" means "runs".
+    let mut ci_blocker = 0usize;
+    let ci_line = match config.ci.as_deref() {
+        None => t("close-ci-absent"),
+        Some("") => t("close-ci-undecided"),
+        Some("none") => t("close-ci-none"),
+        Some(command) if !crate::trust::trusted(&config, command) => ta(
+            "close-ci-untrusted",
+            targs!("command" => command.to_string()),
+        ),
+        Some(command) => match run_command(root, command) {
+            Ok(()) => ta("close-ci-passed", targs!("command" => command.to_string())),
+            Err(words) => {
+                ci_blocker = 1;
+                ta(
+                    "close-ci-failed",
+                    targs!("command" => command.to_string(), "words" => words),
+                )
+            }
+        },
+    };
+    report.push_str("  ");
+    report.push_str(&ci_line);
+    report.push('\n');
     report.push('\n');
 
     let mut blockers = 0usize;
@@ -188,6 +193,10 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         ));
         report.push('\n');
     }
+    if ci_blocker > 0 {
+        report.push_str(&t("close-ci-blocker"));
+        report.push('\n');
+    }
     if blockers > 0 {
         report.push_str(&ta(
             "close-blockers",
@@ -202,11 +211,38 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             targs!("wave" => branch.unwrap_or_default()),
         ));
         report.push('\n');
-    } else if verify_blockers == 0 {
+    } else if verify_blockers == 0 && ci_blocker == 0 {
         report.push_str(&t("close-no-blockers"));
         report.push('\n');
     }
-    Ok((report, blockers + verify_blockers))
+    Ok((report, blockers + verify_blockers + ci_blocker))
+}
+
+/// Runs one trusted command from the repository's files through
+/// `sh -c` at the root -- the verify of a contract, the project's
+/// ci: success is silence; failure carries the command's last
+/// non-empty line of stderr, else stdout, else the keyed word (0010
+/// review R-5) -- no raw English inside a localized verdict. A
+/// command that does not start fails with the system's words.
+fn run_command(root: &Path, command: &str) -> Result<(), String> {
+    let out = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .current_dir(root)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    Err(stderr
+        .lines()
+        .rev()
+        .find(|l| !l.trim().is_empty())
+        .or_else(|| stdout.lines().rev().find(|l| !l.trim().is_empty()))
+        .map(str::to_string)
+        .unwrap_or_else(|| t("close-verify-no-words")))
 }
 
 /// Structural closure -- without running the tests: every live

@@ -344,6 +344,13 @@ close-verify-failed = verify "{ $command }" контракту { $contract } —
 close-verify-untrusted = verify "{ $command }" контракту { $contract } — не бігала: недовірена (§7.16); той вирок тримає check
 close-verify-blockers = зламаних чужих обіцянок: { $count } — вихід червоний
 close-verify-no-words = команда не лишила слів
+close-ci-passed = ci "{ $command }" — пройшов: власний gate проєкту зелений
+close-ci-failed = ci "{ $command }" — ВПАВ ({ $words }) — власний gate проєкту червоний, хвиля не зливається (§7.16)
+close-ci-untrusted = ci "{ $command }" — не бігав: недовірений (§7.16); той вирок тримає check — запиши довіру рукою keel trust
+close-ci-none = ci = "none" — відмова вголос, законна; нічого не біжить
+close-ci-undecided = ci = "" — не вирішено; нічого не біжить (знахідка check-а)
+close-ci-absent = ci не оголошено — нічого не біжить
+close-ci-blocker = власний gate проєкту червоний: ci ВПАВ — вихід червоний
 close-plan-own = хвиля цієї гілки — затверджена, ще не почата: план-PR зливається планом (§6.6), робота видається після
 
 ## команда map (§10.7)
