@@ -15,7 +15,7 @@ use crate::config::{AGENTS, LANGUAGES, MODES};
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::targs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// One question of the wizard: the field it answers, the vocabulary
 /// it accepts, its default, and how it may be answered.
@@ -110,11 +110,23 @@ pub fn questions() -> Vec<Question> {
 pub fn from_flags(given: &[(String, String)]) -> Result<Answers, Refusal> {
     let asked = questions();
     let mut answers = Answers::default();
+    let mut answered: Vec<&str> = Vec::new();
     for (field, value) in given {
         let question = asked
             .iter()
             .find(|q| q.field == field.as_str())
             .ok_or_else(|| unknown_field(field))?;
+        // Twice is a typo, not a choice (review 0026 R-17: the last
+        // one used to win in silence).
+        if answered.contains(&question.field) {
+            return Err(twice(question));
+        }
+        answered.push(question.field);
+        // The skip a terminal offers has a spelling on the command
+        // line too, and it is the same one (R-11).
+        if question.skippable && value == "-" {
+            continue;
+        }
         let named: Vec<String> = if question.many {
             value
                 .split(',')
@@ -157,7 +169,11 @@ pub fn ask(questions: &[Question]) -> Result<Answers, Refusal> {
                 .with_validator(inquire::validator::MinLengthValidator::new(1))
                 .prompt()
                 .map_err(|e| interrupted(question, &e.to_string()))?;
-            answers.agents = Some(chosen.into_iter().map(str::to_string).collect());
+            let chosen: Vec<String> = chosen.into_iter().map(str::to_string).collect();
+            match question.field {
+                "agents" => answers.agents = Some(chosen),
+                other => return Err(unknown_field(other)),
+            }
             continue;
         }
         let mut choices = question.choices.clone();
@@ -171,14 +187,51 @@ pub fn ask(questions: &[Question]) -> Result<Answers, Refusal> {
             continue;
         }
         match question.field {
-            "lang" => answers.lang = Some(chosen.to_string()),
+            "lang" => {
+                answers.lang = Some(chosen.to_string());
+                // From here on the wizard speaks the language just
+                // chosen (review 0026 R-3: eight Ukrainian words of
+                // this hand could never be reached, because the
+                // wizard runs only where there is no config to name
+                // a language, so the process was nailed to English).
+                crate::i18n::init(chosen);
+            }
             "adapter" => answers.adapter = Some(chosen.to_string()),
             "mode" => answers.mode = Some(chosen.to_string()),
             "hooks" => answers.hooks = Some(chosen == "yes"),
-            _ => {}
+            other => return Err(unknown_field(other)),
         }
     }
     Ok(answers)
+}
+
+/// The questions a person has NOT already answered with a flag.
+/// A flag answers its own question and silences no others (review
+/// 0026 R-4: one flag used to silence all five).
+pub fn ask_unanswered(questions: &[Question], given: &Answers) -> Result<Answers, Refusal> {
+    let left: Vec<Question> = questions
+        .iter()
+        .filter(|question| match question.field {
+            "lang" => given.lang.is_none(),
+            "adapter" => given.adapter.is_none(),
+            "mode" => given.mode.is_none(),
+            "agents" => given.agents.is_none(),
+            "hooks" => given.hooks.is_none(),
+            _ => true,
+        })
+        .cloned()
+        .collect();
+    if left.is_empty() {
+        return Ok(given.clone());
+    }
+    let asked = ask(&left)?;
+    Ok(Answers {
+        lang: given.lang.clone().or(asked.lang),
+        adapter: given.adapter.clone().or(asked.adapter),
+        mode: given.mode.clone().or(asked.mode),
+        agents: given.agents.clone().or(asked.agents),
+        hooks: given.hooks.or(asked.hooks),
+    })
 }
 
 /// The text of keel.toml the answers make. An answered field stands
@@ -231,9 +284,24 @@ pub fn config_text(answers: &Answers) -> String {
     text
 }
 
+/// The file every word of this hand is about: the config that is
+/// being born (review 0026 R-14 -- "refusal: ." told nobody
+/// anything).
+fn about() -> PathBuf {
+    Path::new(".").join("keel.toml")
+}
+
+fn twice(question: &Question) -> Refusal {
+    Refusal {
+        file: about(),
+        reason: ta("ask-twice", targs!("field" => question.field.to_string())),
+        instead: t("ask-twice-instead"),
+    }
+}
+
 fn unknown_field(field: &str) -> Refusal {
     Refusal {
-        file: Path::new(".").to_path_buf(),
+        file: about(),
         reason: ta("ask-unknown-field", targs!("field" => field.to_string())),
         instead: ta(
             "ask-unknown-field-instead",
@@ -244,7 +312,7 @@ fn unknown_field(field: &str) -> Refusal {
 
 fn unknown_value(question: &Question, value: &str) -> Refusal {
     Refusal {
-        file: Path::new(".").to_path_buf(),
+        file: about(),
         reason: ta(
             "ask-unknown-value",
             targs!("field" => question.field.to_string(), "value" => value.to_string()),
@@ -258,7 +326,7 @@ fn unknown_value(question: &Question, value: &str) -> Refusal {
 
 fn nobody(question: &Question) -> Refusal {
     Refusal {
-        file: Path::new(".").to_path_buf(),
+        file: about(),
         reason: ta("ask-nobody", targs!("field" => question.field.to_string())),
         instead: ta(
             "ask-nobody-instead",
@@ -269,7 +337,7 @@ fn nobody(question: &Question) -> Refusal {
 
 fn interrupted(question: &Question, said: &str) -> Refusal {
     Refusal {
-        file: Path::new(".").to_path_buf(),
+        file: about(),
         reason: ta(
             "ask-interrupted",
             targs!("field" => question.field.to_string(), "error" => said.to_string()),

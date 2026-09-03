@@ -87,10 +87,12 @@ pub fn run(root: &Path, answers: &Answers) -> Result<(String, usize), Refusal> {
         match crate::plan::write_new(&config, &text).map_err(|refusal| refusal.reason) {
             Ok(()) => {
                 report.push_str(&ta("init-born", targs!("piece" => "keel.toml".to_string())));
-                if *answers != Answers::default() {
-                    report.push_str(" — ");
-                    report.push_str(&t("init-config-answered"));
-                }
+                report.push_str(" — ");
+                report.push_str(&t(if *answers == Answers::default() {
+                    "init-config-default"
+                } else {
+                    "init-config-answered"
+                }));
                 report.push('\n');
             }
             Err(e) => {

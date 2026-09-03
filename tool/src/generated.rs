@@ -103,9 +103,6 @@ fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
         ),
     ];
     rows.into_iter()
-        // A project that answered "no hooks" gets none: a question
-        // whose answer changes nothing is not a question (wave 0026).
-        .filter(|(_, kind, _, _)| config.hooks || !matches!(kind, Kind::Guest { .. }))
         .filter(|(_, _, owner, _)| match owner {
             Owner::Any => true,
             Owner::One(agent) => named.contains(agent),
@@ -370,6 +367,28 @@ pub fn write(root: &Path, config: &Config) -> (String, usize) {
     let mut report = String::new();
     let mut lacked = 0usize;
     for (path, kind, fresh) in artefacts(config) {
+        // A project that answered "no hooks" gets none written -- a
+        // question whose answer changes nothing is not a question
+        // (wave 0026). But silence belongs only where we never were:
+        // a hook config we DID write, whose digest still stands in
+        // [generated], keeps its row, because dropping it would take
+        // the file out from under the court that guarded it while
+        // leaving [generated] calling it ours (review 0026 R-5).
+        if !config.hooks && matches!(kind, Kind::Guest { .. }) {
+            let recorded = config.generated.iter().any(|(key, _)| key == path);
+            if !recorded {
+                continue;
+            }
+            if !report.is_empty() {
+                report.push('\n');
+                report.push_str("  ");
+            }
+            report.push_str(&ta(
+                "generated-hooks-off",
+                targs!("file" => path.to_string()),
+            ));
+            continue;
+        }
         // One artefact's failure stops none of the others: each has
         // its own row and answers for itself (wave 0023).
         let (word, lack) = one(root, config, path, &kind, &fresh);

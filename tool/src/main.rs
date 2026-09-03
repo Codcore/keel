@@ -189,6 +189,7 @@ fn main() -> ExitCode {
             // since the drawing of questions needs a pty.
             let mut given: Vec<(String, String)> = Vec::new();
             let mut root = PathBuf::from(".");
+            let mut named_root = false;
             let mut no_ask = false;
             let mut rest = args.iter().skip(1);
             while let Some(word) = rest.next() {
@@ -215,6 +216,15 @@ fn main() -> ExitCode {
                     }
                     other if other.starts_with('-') => false,
                     other => {
+                        // Two paths is a typo, not a choice: before
+                        // this wave the first won, and the new
+                        // parsing silently made it the last (review
+                        // 0026 R-12). Neither is worth guessing.
+                        if named_root {
+                            eprintln!("{}", t("main-usage"));
+                            return ExitCode::from(2);
+                        }
+                        named_root = true;
                         root = PathBuf::from(other);
                         true
                     }
@@ -250,10 +260,20 @@ fn main() -> ExitCode {
             // existing config is a fact (§7.9) and is never asked
             // about, so the wizard runs only where the file is about
             // to be born.
+            // The questions are drawn on STDERR by the library, and
+            // read from the terminal -- so the law watches stdin and
+            // stderr, not stdout (review 0026 R-2, measured: with
+            // 2>file the questions went into the file, the terminal
+            // saw nothing, and the config was born from answers
+            // nobody watched being asked). With stdout piped the
+            // questions still show and still work, so that road is
+            // no longer barred either.
             let listening = std::io::IsTerminal::is_terminal(&std::io::stdin())
-                && std::io::IsTerminal::is_terminal(&std::io::stdout());
-            if !no_ask && given.is_empty() && listening && !root.join("keel.toml").is_file() {
-                match keel::ask::ask(&keel::ask::questions()) {
+                && std::io::IsTerminal::is_terminal(&std::io::stderr());
+            // Flags answer their own questions and silence no others
+            // (review 0026 R-4: one flag used to silence all five).
+            if !no_ask && listening && !root.join("keel.toml").is_file() {
+                match keel::ask::ask_unanswered(&keel::ask::questions(), &answers) {
                     Ok(asked) => answers = asked,
                     Err(refusal) => {
                         eprintln!("{refusal}");

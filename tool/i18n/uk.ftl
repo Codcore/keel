@@ -483,6 +483,7 @@ generated-removed = { $file } — прибрано рукою: то рішенн
 { $snippet }
 next-unknown-agent = агент "{ $agent }" не з тих, що знає цей реліз: { $known }
 next-unknown-agent-instead = назви одного з { $known } — форма відповіді сесійного hook-а належить самому агентові, і в неназваного нема документованої форми, якою говорити
+generated-hooks-off = { $file } — більше не генерується: цей проєкт відповів hooks = false. Файл і його рядок у [generated] лишились, і тепер їх ніхто не судить — прибери обидва або постав hooks = true, щоб віддати файл keel-ові назад
 generated-guest-empty = { $file } — цей файл є і він порожній, а keel не пише поверх того, чого не писав. Прибери його і повтори keel update — або встав у нього цілий документ сам:
 { $snippet }
 generated-guest-taken = { $file } — цей файл ваш, і keel не написав у нього нічого: не зрушено жодного байта. Якщо hook лупа потрібен — додай ці записи ВСЕРЕДИНУ ключа "{ $key }" свого файлу, а якщо такого ключа ще нема — додай ключ саме з цим вмістом. Не встромляй їх поруч із зовнішніми дужками файлу: це не буде JSON, а злиття поверх твоїх власних записів їх втратить:
@@ -515,14 +516,16 @@ main-new-unknown = відмова: keel new знає лише: contract
 main-new-unknown-reason = причина: інші види документів народжуються своїми командами (хвилі — keel plan)
 main-new-no-slug = відмова: new contract потребує імени контракту
 main-new-no-slug-reason = причина: скелет народжується під імʼям, що стане його файлом (§1.4)
-main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [тека] | keel trust [тека] | keel hook [тека] | keel version [тека] | keel update [тека]
+main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--no-ask] [тека] | keel trust [тека] | keel hook [тека] | keel version [тека] | keel update [тека]
 
 # The settings wizard (wave 0026)
-ask-lang = Якою людською мовою говорить цей проєкт? (його проза і його відмови)
+ask-lang = Which human language does this project speak? / Якою людською мовою говорить цей проєкт?
 ask-adapter = Якою мовою написаний код? («-» лишає поле неназваним)
 ask-mode = Наскільки суворий суд commit-ів? (strict заслоняє, soft попереджає, manual вимкнено)
 ask-agents = Для яких агентів keel має генерувати інтеграції? (пробіл — відмітити, мінімум один)
 ask-hooks = Поставити сесійні hook-и, щоб агент знав наступний крок одразу на старті?
+ask-twice = налаштування «{ $field }» дано двічі
+ask-twice-instead = давай кожне налаштування один раз — дві відповіді на одне питання це одрук, а не вибір
 ask-unknown-field = «{ $field }» — не з тих налаштувань, про які питає цей реліз
 ask-unknown-field-instead = налаштування такі: { $known }
 ask-unknown-value = «{ $value }» — не з тих значень, які бере налаштування «{ $field }»
@@ -531,4 +534,5 @@ ask-nobody = «{ $field }» не називає нікого, а треба що
 ask-nobody-instead = назви щонайменше одного з { $known } — відмітити можна кількох, але мінімум одного
 ask-interrupted = питання про «{ $field }» лишилось без відповіді: { $error }
 ask-interrupted-instead = відповідай, або дай відповіді прапорцями (--lang, --adapter, --mode, --agents, --hooks), або жени keel init --no-ask по типові значення
-init-config-answered = keel.toml — народжено з твоїх відповідей
+init-config-answered = народжено з твоїх відповідей
+init-config-default = народжено зі словником у коментарях, за тебе не обрано нічого

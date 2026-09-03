@@ -480,6 +480,7 @@ generated-removed = { $file } — removed by hand: a decision, not a gap; nothin
 { $snippet }
 next-unknown-agent = agent "{ $agent }" is not one this release knows: { $known }
 next-unknown-agent-instead = name one of { $known } — the answer shape of a session hook is the agent's own, and an unnamed agent has no documented shape to speak in
+generated-hooks-off = { $file } — no longer generated: this project answered hooks = false. The file and its line in [generated] still stand, and nothing judges them now — remove both, or set hooks = true to hand the file back to keel
 generated-guest-empty = { $file } — this file exists and is empty, and keel writes over nothing it did not write. Delete it and run keel update, or paste this whole document into it yourself:
 { $snippet }
 generated-guest-taken = { $file } — this file is yours, and keel wrote nothing into it: not one byte moved. If you want the loop's hook, add these entries under the "{ $key }" key of your own file — and if there is no such key yet, add the key with exactly this content. Do not paste them beside your file's outer braces: that would not be JSON, and merging them over your own entries would lose them:
@@ -515,11 +516,13 @@ main-new-no-slug-reason = reason: the skeleton is born under the name that becom
 main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [--lang <l>] [--adapter <a>] [--mode <m>] [--agents <a,b>] [--hooks|--no-hooks] [--no-ask] [dir] | keel trust [dir] | keel hook [dir] | keel version [dir] | keel update [dir]
 
 # The settings wizard (wave 0026)
-ask-lang = Which human language does this project speak? (its prose, its refusals)
+ask-lang = Which human language does this project speak? / Якою людською мовою говорить цей проєкт?
 ask-adapter = Which language is the code in? ("-" leaves it unnamed for now)
 ask-mode = How strict is the commit court? (strict blocks, soft warns, manual is off)
 ask-agents = Which agents should keel generate integrations for? (space to tick, at least one)
 ask-hooks = Install the session hooks, so an agent knows the next step as it opens?
+ask-twice = the "{ $field }" setting was given twice
+ask-twice-instead = give each setting once — two answers to one question is a typo, not a choice
 ask-unknown-field = "{ $field }" is not one of the settings this release asks about
 ask-unknown-field-instead = the settings are: { $known }
 ask-unknown-value = "{ $value }" is not a value the "{ $field }" setting takes
@@ -528,4 +531,5 @@ ask-nobody = "{ $field }" names nobody, and at least one is required
 ask-nobody-instead = name at least one of { $known } — several may be ticked, at least one must be
 ask-interrupted = the question about "{ $field }" was not answered: { $error }
 ask-interrupted-instead = answer it, or give the answers as flags (--lang, --adapter, --mode, --agents, --hooks), or run keel init --no-ask for the plain defaults
-init-config-answered = keel.toml — born from your answers
+init-config-answered = born from your answers
+init-config-default = born with the vocabulary commented, nothing chosen for you
