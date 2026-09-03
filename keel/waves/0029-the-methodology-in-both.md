@@ -3,14 +3,14 @@ depends_on: [0028-both-tongues]
 
 scenarios:
   the-methodology-speaks-the-project-language:
-    proves: tool-speak@c9539f
+    proves: tool-speak@5c3ac6
     covers: [interaction.inclusivity, maintainability.analysability]
 
 transforms:
   the-methodology-in-english:
     implements:
       - the-methodology-speaks-the-project-language
-    contracts: [tool-speak@c9539f]
+    contracts: [tool-speak@5c3ac6]
     files:
       - docs/en/METHODOLOGY-V2.md
       - tool/src/speak.rs
@@ -19,6 +19,7 @@ transforms:
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/speak_test.rs
+      - docs/uk/METHODOLOGY-V2.md
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:
@@ -33,7 +34,6 @@ decisions:
   performance.resource-utilisation: "свідомо: ціна названа вище і зміряна буде в чеку роботи, а не вгадана"
   compatibility.co-existence: "не застосовується: рот нічого не пише на диск"
   compatibility.interoperability: "свідомо без тесту: вивід лишається текстом у stdout"
-  interaction.appropriateness-recognisability: "свідомо без нового тесту: команда та сама"
   interaction.learnability: "тримає the-methodology-speaks-the-project-language: англомовний читач нарешті може прочитати методику, за якою його судять, — а не лише її назву"
   interaction.operability: "свідомо без нового тесту: жодного нового прапорця; мову бере keel.toml"
   interaction.user-error-protection: "тримає the-methodology-speaks-the-project-language: параграф, що є в одній мові й відсутній в іншій, — відмова, а не тихо коротший текст"
@@ -53,6 +53,7 @@ decisions:
   maintainability.modularity: "свідомо без тесту: методики входять тим самим переліком, що й чеклисти; спільна рука судить кістяк обох"
   maintainability.reusability: "свідомо без тесту: третя мова — рядок у переліку"
   maintainability.modifiability: "свідомо без тесту: правити переклад — правити документ"
+  interaction.appropriateness-recognisability: "свідомо без нового тесту: команда та сама. Але названо вголос §4.6-ріст: проба хвилі 0027 асертувала УКРАЇНСЬКІ імена розділів, бо рот тоді подавав лише українську; тепер вона стоїть у теці без keel.toml, тобто англійською, і її асерти приведено до мови, у якій вона стоїть — з коментарем чому. Це зміна чужої проби, і вона названа, а не проведена мовчки"
   maintainability.testability: "тримає the-methodology-speaks-the-project-language: обидві мови жене проба, і зіпсований переклад теж"
   flexibility.adaptability: "не застосовується"
   flexibility.scalability: "не застосовується"

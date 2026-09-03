@@ -21,9 +21,11 @@ const CHECKLIST: &str = include_str!("../../QUALITY.md");
 /// Ukrainian).
 const CHECKLIST_UK: &str = include_str!("../../docs/uk/QUALITY.md");
 const METHOD: &str = include_str!("../../docs/uk/METHODOLOGY-V2.md");
-/// The methodology in the other tongue of this release (wave 0029).
-/// Skeleton only for now -- the red of this wave.
-const METHOD_EN: &str = include_str!("../../docs/uk/METHODOLOGY-V2.md");
+/// The methodology in the other tongue of this release (wave 0029:
+/// the second half of the operator's decision -- nothing Ukrainian
+/// where the settings say English). The Ukrainian text stays the
+/// source of truth, and the English one says so in its own opening.
+const METHOD_EN: &str = include_str!("../../docs/en/METHODOLOGY-V2.md");
 
 /// The checklist this release was built with -- handed out so a
 /// caller can judge it against the courts' own list without a second
@@ -268,12 +270,113 @@ pub fn method_for(lang: &str) -> &'static str {
 /// same chapters in the same order, the same paragraph numbers, none
 /// of them empty.
 pub fn methods_agree() -> Result<(), Refusal> {
+    let mut carried: Option<(&str, Vec<String>, Vec<String>)> = None;
+    for (lang, text) in methods() {
+        let chapters: Vec<String> = text
+            .lines()
+            .filter_map(|line| line.strip_prefix("## ").map(str::to_string))
+            .collect();
+        let numbers: Vec<String> = text
+            .lines()
+            .filter_map(|line| {
+                line.strip_prefix("**§")
+                    .and_then(|rest| rest.split_once(".**"))
+                    .map(|(number, _)| number.to_string())
+            })
+            .collect();
+        // A paragraph that lost its body is a translation that stopped
+        // halfway, and it must not pass as a shorter text.
+        if let Some(number) = hollow_paragraph(text) {
+            return Err(Refusal {
+                file: Path::new(named_method(lang)).to_path_buf(),
+                reason: ta(
+                    "speak-method-hollow",
+                    targs!("number" => number, "lang" => lang.to_string()),
+                ),
+                instead: t("speak-method-hollow-instead"),
+            });
+        }
+        match &carried {
+            None => carried = Some((lang, chapters, numbers)),
+            Some((first_lang, first_chapters, first_numbers)) => {
+                if first_chapters.len() != chapters.len() {
+                    return Err(Refusal {
+                        file: Path::new(named_method(lang)).to_path_buf(),
+                        reason: ta(
+                            "speak-method-chapters",
+                            targs!(
+                                "lang" => lang.to_string(),
+                                "read" => chapters.len().to_string(),
+                                "other" => first_lang.to_string(),
+                                "judged" => first_chapters.len().to_string()
+                            ),
+                        ),
+                        instead: t("speak-method-skeleton-instead"),
+                    });
+                }
+                if *first_numbers != numbers {
+                    let at = first_numbers
+                        .iter()
+                        .zip(numbers.iter())
+                        .find(|(a, b)| a != b)
+                        .map(|(a, b)| format!("§{a} / §{b}"))
+                        .unwrap_or_else(|| t("speak-method-none"));
+                    return Err(Refusal {
+                        file: Path::new(named_method(lang)).to_path_buf(),
+                        reason: ta(
+                            "speak-method-numbers",
+                            targs!(
+                                "lang" => lang.to_string(),
+                                "other" => first_lang.to_string(),
+                                "at" => at
+                            ),
+                        ),
+                        instead: t("speak-method-skeleton-instead"),
+                    });
+                }
+            }
+        }
+    }
     Ok(())
 }
 
+/// The number of the first paragraph whose body is empty, if any.
+fn hollow_paragraph(text: &str) -> Option<String> {
+    let mut standing: Option<(String, bool)> = None;
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("**§")
+            && let Some((number, opening)) = rest.split_once(".**")
+        {
+            if let Some((number, empty)) = standing.take()
+                && empty
+            {
+                return Some(number);
+            }
+            standing = Some((number.to_string(), opening.trim().is_empty()));
+            continue;
+        }
+        if let Some((_, empty)) = standing.as_mut()
+            && !line.trim().is_empty()
+            && !line.starts_with("## ")
+        {
+            *empty = false;
+        }
+    }
+    standing.and_then(|(number, empty)| empty.then_some(number))
+}
+
+/// The file a methodology lives in, for a refusal to name.
+fn named_method(lang: &str) -> &'static str {
+    match lang {
+        "uk" => "docs/uk/METHODOLOGY-V2.md",
+        _ => "docs/en/METHODOLOGY-V2.md",
+    }
+}
+
 /// The methodology: its contents, or one paragraph of it.
-pub fn method(asked: Option<&str>) -> Result<String, Refusal> {
-    let chapters = chapters();
+pub fn method(lang: &str, asked: Option<&str>) -> Result<String, Refusal> {
+    let text = method_for(lang);
+    let chapters = chapters_of(text);
     let Some(asked) = asked else {
         let mut report = t("speak-method-title");
         report.push('\n');
@@ -293,7 +396,7 @@ pub fn method(asked: Option<&str>) -> Result<String, Refusal> {
     // only way to reach the Constitution's eight rules and the three
     // appendices, a sixth of the methodology that no paragraph number
     // can reach (review 0027 R-6).
-    if let Some(said) = whole_chapter(wanted) {
+    if let Some(said) = whole_chapter(text, wanted) {
         return Ok(said);
     }
     for (name, paragraphs) in &chapters {
@@ -338,7 +441,7 @@ pub fn method(asked: Option<&str>) -> Result<String, Refusal> {
         ),
     };
     Err(Refusal {
-        file: Path::new("METHODOLOGY-V2.md").to_path_buf(),
+        file: Path::new(named_method(lang)).to_path_buf(),
         reason: ta("speak-method-unknown", targs!("asked" => asked.to_string())),
         instead,
     })
@@ -347,14 +450,14 @@ pub fn method(asked: Option<&str>) -> Result<String, Refusal> {
 /// A chapter served whole, when its name is asked for. The match is
 /// a case-insensitive prefix, so "Додаток Б" and "конституція" both
 /// find their chapter.
-fn whole_chapter(wanted: &str) -> Option<String> {
+fn whole_chapter(text: &'static str, wanted: &str) -> Option<String> {
     if wanted.chars().all(|c| c.is_ascii_digit() || c == '.') {
         return None;
     }
     let lowered = wanted.to_lowercase();
     let mut carried: Option<String> = None;
     let mut taking = false;
-    for line in METHOD.lines() {
+    for line in text.lines() {
         if let Some(title) = line.strip_prefix("## ") {
             if taking {
                 break;
@@ -385,10 +488,10 @@ fn numbered_rule(line: &str) -> Option<(String, String)> {
 }
 
 /// The methodology split into chapters, each with its paragraphs.
-fn chapters() -> Vec<(&'static str, Vec<(String, String)>)> {
+fn chapters_of(text: &'static str) -> Vec<(&'static str, Vec<(String, String)>)> {
     let mut chapters: Vec<(&'static str, Vec<(String, String)>)> = Vec::new();
     let mut carried: Option<(String, String)> = None;
-    for line in METHOD.lines() {
+    for line in text.lines() {
         if let Some(title) = line.strip_prefix("## ") {
             if let (Some((number, text)), Some(last)) = (carried.take(), chapters.last_mut()) {
                 last.1.push((number, text));

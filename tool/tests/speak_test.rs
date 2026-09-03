@@ -211,7 +211,11 @@ fn the_tool_says_what_it_judges_by() {
     // The methodology: without an argument, the table of contents.
     let (contents, code) = keel(&["method"]);
     assert_eq!(code, 0, "the tool says the methodology:\n{contents}");
-    for chapter in ["Конституція", "Глава 7", "Глава 10", "Додаток"] {
+    // The names are English here because the sandbox names no
+    // language and English is the default: since wave 0029 the mouth
+    // serves the methodology of the project's tongue, so a probe that
+    // asserts chapter names must say which tongue it is standing in.
+    for chapter in ["Constitution", "Chapter 7", "Chapter 10", "Appendix"] {
         assert!(
             contents.contains(chapter),
             "the contents name {chapter:?}:\n{contents}"
@@ -227,7 +231,7 @@ fn the_tool_says_what_it_judges_by() {
         "the paragraph asked for:\n{paragraph}"
     );
     assert!(
-        paragraph.contains("Глава 8"),
+        paragraph.contains("Chapter 8"),
         "with the chapter it lives in:\n{paragraph}"
     );
     let (plain, code) = keel(&["method", "8.6"]);
@@ -246,10 +250,10 @@ fn the_tool_says_what_it_judges_by() {
     // to reach the Constitution's eight rules and the three
     // appendices, a sixth of the methodology that no paragraph number
     // can reach (review 0027 R-6).
-    let (constitution, code) = keel(&["method", "Конституція"]);
+    let (constitution, code) = keel(&["method", "Constitution"]);
     assert_eq!(code, 0, "a chapter is served whole:\n{constitution}");
     assert!(
-        constitution.contains("Вісім правил") && constitution.contains("8."),
+        constitution.contains("Eight rules") && constitution.contains("8."),
         "with its eight rules in it:\n{constitution}"
     );
 
