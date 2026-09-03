@@ -12,6 +12,9 @@ toml = "1.1.4"
 unic-langid = "0.9.6"
 
 [dev-dependencies]
+# The foreign judge of the hook configs: their shape is judged by a
+# real JSON parser, never by string matching (wave 0025).
+serde_json = "1.0"
 # The foreign judge of shape: the front matter of every generated
 # skill is parsed by a real YAML parser in the scenario tests, never
 # by string matching (review 0023 R-1).
