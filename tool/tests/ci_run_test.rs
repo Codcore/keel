@@ -4,18 +4,14 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0019c-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    fs::create_dir_all(dir.join("keel/reviews")).unwrap();
-    dir
-}
+#[allow(unused_imports)]
+use common::{Sandbox, keel_sandbox};
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -67,8 +63,8 @@ fn all_decided() -> String {
 
 /// A crate with one always-green test, so the battery has something
 /// to run and the court reaches the ci row.
-fn project(name: &str) -> PathBuf {
-    let dir = sandbox(name);
+fn project(name: &str) -> Sandbox {
+    let dir = keel_sandbox(name);
     write(
         &dir,
         "Cargo.toml",
@@ -82,7 +78,7 @@ fn project(name: &str) -> PathBuf {
 /// The same crate under a real git branch, carrying a light wave so
 /// no lack of its own can colour the exit -- whatever the exit says
 /// is the ci's doing (review 0019 R-1).
-fn project_on(name: &str, branch: &str) -> PathBuf {
+fn project_on(name: &str, branch: &str) -> Sandbox {
     let dir = project(name);
     write(
         &dir,

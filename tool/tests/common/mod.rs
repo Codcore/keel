@@ -5,8 +5,30 @@
 //! run of the same name and never after itself. By wave 0029 that had
 //! left 11,511 directories holding 20 GB in /tmp, and the disk hit
 //! 100% in the middle of a wave.
+//!
+//! Every test binary compiles this module separately, so a hand one
+//! probe does not call is dead code there and nowhere else: the
+//! allow below says that once, instead of each file pretending to
+//! use what it does not.
+#![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
+
+/// A fresh sandbox for one case -- the shape every probe calls.
+pub fn sandbox(name: &str) -> Sandbox {
+    Sandbox::new(name)
+}
+
+/// The same, already carrying the methodology's own two directories.
+/// Twenty-one of the twenty-six probes built these inside their own
+/// copy of `sandbox()`, so the shape is kept rather than pushed into
+/// twenty-one call sites.
+pub fn keel_sandbox(name: &str) -> Sandbox {
+    let sandbox = Sandbox::new(name);
+    std::fs::create_dir_all(sandbox.join("keel/waves")).unwrap();
+    std::fs::create_dir_all(sandbox.join("keel/contracts")).unwrap();
+    sandbox
+}
 
 /// A sandbox that removes itself when its test ends.
 ///

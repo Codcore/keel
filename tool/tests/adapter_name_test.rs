@@ -4,17 +4,14 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0017a-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+#[allow(unused_imports)]
+use common::{Sandbox, keel_sandbox};
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -75,7 +72,7 @@ fn crate_files(dir: &Path) {
 #[test]
 fn adapter_named_by_language() {
     // rust is canonical: the courts run as they did with cargo.
-    let dir = sandbox("rustname");
+    let dir = keel_sandbox("rustname");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
     crate_files(&dir);
     let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
@@ -93,7 +90,7 @@ fn adapter_named_by_language() {
     );
 
     // cargo still works -- and check says the synonym aloud.
-    let dir = sandbox("synonym");
+    let dir = keel_sandbox("synonym");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
     crate_files(&dir);
     let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
@@ -110,7 +107,7 @@ fn adapter_named_by_language() {
     );
 
     // An unknown adapter refuses with the canonical name to reach for.
-    let dir = sandbox("unknown");
+    let dir = keel_sandbox("unknown");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"elixir\"\n");
     crate_files(&dir);
     let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
@@ -122,7 +119,7 @@ fn adapter_named_by_language() {
     );
 
     // The init scaffolding recommends the language name.
-    let dir = sandbox("initword");
+    let dir = keel_sandbox("initword");
     git(&dir, &["init", "-q", "-b", "main"]);
     let (_, _, code) = keel(&["init", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "the frame lands");
@@ -146,7 +143,7 @@ fn adapter_named_by_language_second_birth() {
     // R-2/R-3: the unknown yet NAMED adapter -- every word tells
     // the truth: check points at rust, the form court and the map
     // say "not of this release", never "not named".
-    let dir = sandbox("namedunknown");
+    let dir = keel_sandbox("namedunknown");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"elixir\"\n");
     crate_files(&dir);
     write(
@@ -167,7 +164,7 @@ fn adapter_named_by_language_second_birth() {
 
     // R-4: gate asks the home -- an unknown adapter passes with a
     // word, cargo is never run blindly for a foreign language.
-    let dir = sandbox("gatehome");
+    let dir = keel_sandbox("gatehome");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"elixir\"\n");
     crate_files(&dir);
     write(
@@ -191,7 +188,7 @@ fn adapter_named_by_language_second_birth() {
 
     // R-5: rust is pinned across the three courts the first birth
     // left to sandboxes -- close, rev --write and check.
-    let dir = sandbox("rustpinned");
+    let dir = keel_sandbox("rustpinned");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
     crate_files(&dir);
     let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);

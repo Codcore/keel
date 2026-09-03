@@ -7,17 +7,14 @@
 //! collapse whitespace runs, trim, sha256, first 12 hex), so the
 //! recipe is pinned from the outside, the §5.3 school.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0008t-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+#[allow(unused_imports)]
+use common::{Sandbox, keel_sandbox};
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -64,7 +61,7 @@ const CURL_FP: &str = "eb2d2a5d8061";
 #[test]
 fn untrusted_command_red() {
     // New commands, no [trust] at all: both named, red exit.
-    let dir = sandbox("untrusted");
+    let dir = keel_sandbox("untrusted");
     write(&dir, "keel.toml", "ci = \"cargo test\"\n");
     write(&dir, "keel/waves/0050-w.md", &quiet_wave());
     write(
@@ -89,7 +86,7 @@ fn untrusted_command_red() {
     );
 
     // ci written empty: undecided, said as its own finding.
-    let dir = sandbox("empty-ci");
+    let dir = keel_sandbox("empty-ci");
     write(&dir, "keel.toml", "ci = \"\"\n");
     write(&dir, "keel/waves/0050-w.md", &quiet_wave());
     let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
@@ -105,7 +102,7 @@ fn untrusted_command_red() {
     );
 
     // The same commands with matching fingerprints: silence.
-    let dir = sandbox("trusted");
+    let dir = keel_sandbox("trusted");
     write(
         &dir,
         "keel.toml",
@@ -136,7 +133,7 @@ fn untrusted_command_red() {
 /// aloud, not a finding.
 #[test]
 fn trust_line_stale_red() {
-    let dir = sandbox("stale");
+    let dir = keel_sandbox("stale");
     write(
         &dir,
         "keel.toml",
@@ -178,7 +175,7 @@ fn trust_line_stale_red() {
 
     // The withdrawal side of the door: a withdrawn contract's verify
     // is no live command (§2.12), so its trust line orphans too.
-    let dir = sandbox("withdrawn");
+    let dir = keel_sandbox("withdrawn");
     write(
         &dir,
         "keel.toml",
@@ -205,7 +202,7 @@ fn trust_line_stale_red() {
     // broken contract may hide the very command the record answers
     // to -- with unread documents the trust court does not judge,
     // and says so instead of inventing doors.
-    let dir = sandbox("rubble");
+    let dir = keel_sandbox("rubble");
     write(
         &dir,
         "keel.toml",
@@ -239,7 +236,7 @@ fn trust_line_stale_red() {
 /// command refuses aloud.
 #[test]
 fn trust_recorded() {
-    let dir = sandbox("record");
+    let dir = keel_sandbox("record");
     write(
         &dir,
         "keel.toml",
@@ -310,7 +307,7 @@ fn trust_recorded() {
     );
 
     // Without keel.toml: a refusal aloud, nothing invented.
-    let dir = sandbox("no-config");
+    let dir = keel_sandbox("no-config");
     write(&dir, "keel/waves/0050-w.md", &quiet_wave());
     let (out, err, code) = keel(&["trust", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
@@ -327,7 +324,7 @@ fn trust_recorded() {
     // command must stand as ONE canonical line, and the header
     // comment must live. Corruption with a success report is the
     // one forbidden outcome.
-    let dir = sandbox("hard-toml");
+    let dir = keel_sandbox("hard-toml");
     write(&dir, "keel/waves/0050-w.md", &quiet_wave());
     write(
         &dir,
@@ -363,7 +360,7 @@ fn trust_recorded() {
     // A control character inside a verify command (hostile or
     // accidental) must not become a dead config: the line is written
     // escaped, reads back, and the command stands trusted.
-    let dir = sandbox("bell");
+    let dir = keel_sandbox("bell");
     write(&dir, "keel.toml", "ci = \"none\"\n");
     write(&dir, "keel/waves/0050-w.md", &quiet_wave());
     write(
@@ -387,7 +384,7 @@ fn trust_recorded() {
 
     // CRLF endings survive the surgery: the promise is byte for
     // byte outside the [trust] block, on Windows files too.
-    let dir = sandbox("crlf");
+    let dir = keel_sandbox("crlf");
     write(&dir, "keel/waves/0050-w.md", &quiet_wave());
     write(&dir, "keel.toml", "# gate\r\nci = \"cargo test\"\r\n");
     let (out, err, code) = keel(&["trust", dir.to_str().unwrap()]);

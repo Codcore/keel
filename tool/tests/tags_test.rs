@@ -4,17 +4,14 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0005t-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+#[allow(unused_imports)]
+use common::{Sandbox, keel_sandbox};
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -50,7 +47,7 @@ fn all_decided_except(covered: &[&str]) -> String {
 /// counted aloud; tags of withdrawn scenarios are not judged (§2.12).
 #[test]
 fn stale_tag_found() {
-    let dir = sandbox("staletag");
+    let dir = keel_sandbox("staletag");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,
@@ -107,7 +104,7 @@ fn stale_tag_found() {
     // Second birth (review R-8): a revision written outside the §5.2
     // shape (4-6 hex) is a crooked record, and the refusal must say
     // that -- not dress it up as a stale comparison.
-    let dir = sandbox("badrev");
+    let dir = keel_sandbox("badrev");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,
@@ -136,7 +133,7 @@ fn stale_tag_found() {
 
     // A dangling tag -- no test function right after it -- refuses by
     // name, e2e (review R-6d holds the tool-tags promise by run).
-    let dir = sandbox("dangling");
+    let dir = keel_sandbox("dangling");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,
@@ -191,7 +188,7 @@ fn vanished_tag_is_red() {
             String::from_utf8_lossy(&out.stderr)
         );
     };
-    let dir = sandbox("vanish");
+    let dir = keel_sandbox("vanish");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,

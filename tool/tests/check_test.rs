@@ -4,17 +4,14 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, computed by hand (bootstrap).
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0001c-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+#[allow(unused_imports)]
+use common::{Sandbox, keel_sandbox, sandbox};
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -56,7 +53,7 @@ fn keel(args: &[&str]) -> (String, String, i32) {
 /// named aloud.
 #[test]
 fn check_reports_every_file() {
-    let dir = sandbox("report");
+    let dir = keel_sandbox("report");
     write(
         &dir,
         "keel/waves/0002-ok.md",
@@ -131,9 +128,9 @@ fn check_reports_every_file() {
 /// carries its reason and what to do instead.
 #[test]
 fn missing_keel_dir_refuses() {
-    let dir = std::env::temp_dir().join(format!("keel-0001c-{}-nokeel", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
+    // A bare directory with no keel/ in it -- through the one hand,
+    // so it does not outlive the test either (wave 0030).
+    let dir = sandbox("nokeel");
 
     let (_out, err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(
@@ -149,7 +146,7 @@ fn missing_keel_dir_refuses() {
 /// for a missing file nor for a missing field.
 #[test]
 fn missing_config_defaults() {
-    let dir = sandbox("nocfg");
+    let dir = keel_sandbox("nocfg");
     write(
         &dir,
         "keel/waves/0003-w.md",
@@ -168,7 +165,7 @@ fn missing_config_defaults() {
 
     // The file exists, the lang field does not: still said aloud,
     // never printed as if lang had been read (review finding Z-1).
-    let dir = sandbox("nolang-field");
+    let dir = keel_sandbox("nolang-field");
     write(&dir, "keel.toml", "# no lang here\n");
     write(
         &dir,
@@ -195,7 +192,7 @@ fn missing_config_defaults() {
 #[test]
 fn output_follows_lang() {
     // lang = "en" -- an English report.
-    let dir = sandbox("lang-en");
+    let dir = keel_sandbox("lang-en");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     write(
         &dir,
@@ -223,7 +220,7 @@ fn output_follows_lang() {
     assert!(out.contains("not closed"), "the refusal in English:\n{out}");
 
     // lang = "uk" -- a Ukrainian report, and the refusal in Ukrainian too.
-    let dir = sandbox("lang-uk");
+    let dir = keel_sandbox("lang-uk");
     write(&dir, "keel.toml", "lang = \"uk\"\n");
     write(
         &dir,
@@ -258,7 +255,7 @@ fn plural_forms_correct() {
         (2, "2 документи,"),
         (5, "5 документів,"),
     ] {
-        let dir = sandbox(&format!("plural-{n}"));
+        let dir = keel_sandbox(&format!("plural-{n}"));
         write(&dir, "keel.toml", "lang = \"uk\"\n");
         for i in 1..=n {
             write(
@@ -281,7 +278,7 @@ fn plural_forms_correct() {
 /// names both revisions and the §5.6 caveat.
 #[test]
 fn contract_refs_verified() {
-    let dir = sandbox("refs");
+    let dir = keel_sandbox("refs");
     write(
         &dir,
         "keel/contracts/anchor.md",
@@ -322,7 +319,7 @@ fn contract_refs_verified() {
     let git = |args: &[&str]| {
         let out = Command::new("git")
             .arg("-C")
-            .arg(&dir)
+            .arg(dir.as_ref() as &std::path::Path)
             .args([
                 "-c",
                 "user.email=keel@test",
@@ -381,7 +378,7 @@ fn contract_refs_verified() {
 /// into nowhere is a finding with names, not silence and not a crash.
 #[test]
 fn missing_contract_named() {
-    let dir = sandbox("ghost-ref");
+    let dir = keel_sandbox("ghost-ref");
     write(
         &dir,
         "keel/waves/0007-w.md",
@@ -403,7 +400,7 @@ fn missing_contract_named() {
 /// current revisions from the tool instead of computing by hand.
 #[test]
 fn rev_command_prints() {
-    let dir = sandbox("rev-cmd");
+    let dir = keel_sandbox("rev-cmd");
     write(&dir, "keel.toml", "lang = \"uk\"\n");
     write(
         &dir,
@@ -454,7 +451,7 @@ fn rev_command_prints() {
     );
 
     // Without keel.toml the defaults are said aloud here too (Z-3).
-    let dir = sandbox("rev-nocfg");
+    let dir = keel_sandbox("rev-nocfg");
     write(
         &dir,
         "keel/waves/0009-w.md",
@@ -475,7 +472,7 @@ fn rev_command_prints() {
 /// the embedded vocabulary is a finding, not a new answer.
 #[test]
 fn unknown_cut_refused() {
-    let dir = sandbox("badcut");
+    let dir = keel_sandbox("badcut");
     write(
         &dir,
         "keel/waves/0005-w.md",
@@ -493,7 +490,7 @@ fn unknown_cut_refused() {
         out.contains("keel/waves/0005-w.md"),
         "names the wave the alien slug sits in:\n{out}"
     );
-    let dir = sandbox("baddecision");
+    let dir = keel_sandbox("baddecision");
     write(
         &dir,
         "keel/waves/0005-w.md",
@@ -516,7 +513,7 @@ fn unknown_cut_refused() {
 fn silence_forbidden() {
     // All forty answered except two -- both missing cuts are listed
     // in the one finding (a list, not a sample; review R-9).
-    let dir = sandbox("silence");
+    let dir = keel_sandbox("silence");
     let mut decisions = String::new();
     for cut in keel::graph::cuts() {
         if *cut != "functional.correctness"
@@ -542,7 +539,7 @@ fn silence_forbidden() {
 
     // A withdrawn scenario's covers do not close a cut: the promise
     // died (§2.12), so the cut is silent again.
-    let dir = sandbox("dead-cover");
+    let dir = keel_sandbox("dead-cover");
     write(
         &dir,
         "keel/waves/0005-w.md",
@@ -562,7 +559,7 @@ fn silence_forbidden() {
 /// nowhere and dependency cycles are findings with names.
 #[test]
 fn broken_links_named() {
-    let dir = sandbox("links");
+    let dir = keel_sandbox("links");
     write(
         &dir,
         "keel/waves/0005-a.md",
@@ -635,7 +632,7 @@ fn old_revision_legal_when_historic() {
     // so the fixture is one: a matching tag, a review next to the
     // wave, the cargo adapter on (fixture adaptation, the scenario's
     // own words unchanged).
-    let dir = sandbox("historic");
+    let dir = keel_sandbox("historic");
     git(&dir, &["init", "-q", "-b", "main"]);
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
@@ -729,7 +726,7 @@ fn old_revision_legal_when_historic() {
     // Second birth (review R-2): the scenario says "where there is no
     // history OR it is truncated -- no verdict". A keel directory
     // without git must get the word too, not a strict finding.
-    let dir = sandbox("nogit-history");
+    let dir = keel_sandbox("nogit-history");
     write(
         &dir,
         "keel/contracts/anchor.md",
@@ -782,7 +779,7 @@ fn open_wave_stale_is_red_again() {
             String::from_utf8_lossy(&out.stderr)
         );
     };
-    let dir = sandbox("narrowing");
+    let dir = keel_sandbox("narrowing");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,
@@ -865,7 +862,7 @@ fn open_wave_stale_is_red_again() {
 #[test]
 fn double_answer_found() {
     // Two live covers of one cut.
-    let dir = sandbox("doublecover");
+    let dir = keel_sandbox("doublecover");
     write(
         &dir,
         "keel/waves/0030-w.md",
@@ -886,7 +883,7 @@ fn double_answer_found() {
     );
 
     // A live cover and a decision of the same cut at once.
-    let dir = sandbox("coveranddecided");
+    let dir = keel_sandbox("coveranddecided");
     write(
         &dir,
         "keel/waves/0031-w.md",
@@ -903,7 +900,7 @@ fn double_answer_found() {
     );
 
     // The lawful pair: a dead cover and the decision that remains.
-    let dir = sandbox("deadpair");
+    let dir = keel_sandbox("deadpair");
     write(
         &dir,
         "keel/waves/0032-w.md",

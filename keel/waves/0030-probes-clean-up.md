@@ -11,6 +11,7 @@ transforms:
       - a-sandbox-does-not-outlive-its-test
     files:
       - tool/tests/common/mod.rs
+      - tool/tests/sandbox_test.rs
       - tool/tests/adapter_name_test.rs
       - tool/tests/ask_test.rs
       - tool/tests/battery_runs_test.rs
@@ -69,7 +70,7 @@ decisions:
   security.authenticity: "не застосовується"
   security.resistance: "не застосовується"
   maintainability.modularity: "тримає a-sandbox-does-not-outlive-its-test: одна рука замість двадцяти шести копій"
-  maintainability.reusability: "свідомо без тесту: нова проба пише mod common; і бере ту саму руку"
+  maintainability.reusability: "свідомо без тесту: нова проба пише mod common; і бере ту саму руку. Рук дві, і друга названа вголос: двадцять одна проба з двадцяти шести робила в пісочниці ще й keel/waves і keel/contracts, тож keel_sandbox тримає цю форму — інакше та сама підготовка розповзлася б двадцятьма одним викликом"
   maintainability.analysability: "свідомо без тесту: імʼя теки далі несе pid і імʼя випадку, тож пісочниця, що лишилась, сама каже, чия вона"
   maintainability.modifiability: "тримає a-sandbox-does-not-outlive-its-test: правило прибирання живе в одному місці"
   flexibility.adaptability: "не застосовується"

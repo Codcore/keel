@@ -4,17 +4,14 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0011b-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+#[allow(unused_imports)]
+use common::{Sandbox, keel_sandbox};
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -51,7 +48,7 @@ fn all_decided_except(covered: &[&str]) -> String {
 /// has left the report -- §7.8's border stands in its place.
 #[test]
 fn body_matches_header() {
-    let dir = sandbox("mismatch");
+    let dir = keel_sandbox("mismatch");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     write(
         &dir,
@@ -79,7 +76,7 @@ fn body_matches_header() {
 
     // Matching sets: silence -- and the unchecked line is gone for
     // good, §7.8's border standing in its place.
-    let dir = sandbox("matched");
+    let dir = keel_sandbox("matched");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     write(
         &dir,
@@ -110,7 +107,7 @@ fn body_matches_header() {
 /// section is not guessed between.
 #[test]
 fn body_matches_header_second_birth() {
-    let dir = sandbox("adapterless");
+    let dir = keel_sandbox("adapterless");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     write(
         &dir,

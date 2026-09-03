@@ -65,7 +65,10 @@ fn a_sandbox_does_not_outlive_its_test() {
             continue;
         }
         let text = std::fs::read_to_string(&path).unwrap();
-        if text.contains("fn sandbox(") {
+        // The needle is built rather than written, so this file does
+        // not match itself: a check that flags its own source is a
+        // check nobody can keep green.
+        if text.contains(&format!("fn {}(", "sandbox")) {
             own.push(path.file_name().unwrap().to_string_lossy().to_string());
         }
     }

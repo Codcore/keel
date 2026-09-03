@@ -6,19 +6,14 @@
 //! characters. For now hands compute the revision (bootstrap); rung 2
 //! (`keel rev`) is bound to reproduce this recipe.
 
+mod common;
+
+#[allow(unused_imports)]
+use common::{Sandbox, keel_sandbox};
+
 use keel::docs;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-/// A directory per test: tests share no state and do not disturb
-/// each other (§7.13 runs them several times in a row).
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0001-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
 
 fn write(dir: &Path, rel: &str, text: &str) -> PathBuf {
     let p = dir.join(rel);
@@ -29,7 +24,7 @@ fn write(dir: &Path, rel: &str, text: &str) -> PathBuf {
 /// proves: broken-header-refuses@240948 -- holds §7.9.
 #[test]
 fn broken_header_refuses() {
-    let dir = sandbox("broken");
+    let dir = keel_sandbox("broken");
 
     // The header is not closed: no second `---`.
     let p = write(&dir, "keel/waves/0002-x.md", "---\nscenarios:\n");
@@ -57,7 +52,7 @@ fn broken_header_refuses() {
 /// proves: unknown-field-refuses@4fa15d -- holds §7.9.
 #[test]
 fn unknown_field_refuses() {
-    let dir = sandbox("unknown");
+    let dir = keel_sandbox("unknown");
 
     // A typo in a wave field: scenarois instead of scenarios.
     let p = write(
@@ -98,7 +93,7 @@ fn unknown_field_refuses() {
 /// no loss.
 #[test]
 fn valid_wave_parses() {
-    let dir = sandbox("valid-wave");
+    let dir = keel_sandbox("valid-wave");
     let p = write(
         &dir,
         "keel/waves/0006-full.md",
@@ -202,7 +197,7 @@ fn valid_wave_parses() {
 /// data; a contract with neither refuses as "promises nothing".
 #[test]
 fn valid_contract_parses() {
-    let dir = sandbox("valid-contract");
+    let dir = keel_sandbox("valid-contract");
 
     // Our contract: module + exports.
     let p = write(
@@ -266,7 +261,7 @@ fn valid_contract_parses() {
 /// without a trace.
 #[test]
 fn duplicate_name_refuses() {
-    let dir = sandbox("dup");
+    let dir = keel_sandbox("dup");
 
     // Two scenarios under one name.
     let p = write(
@@ -321,7 +316,7 @@ fn duplicate_name_refuses() {
 /// nothing vanishes from the report silently.
 #[test]
 fn dir_among_docs_refuses() {
-    let dir = sandbox("dirs");
+    let dir = keel_sandbox("dirs");
     fs::create_dir_all(dir.join("keel/waves/drafts")).unwrap();
     write(
         &dir,
@@ -342,7 +337,7 @@ fn dir_among_docs_refuses() {
     // A symlink to a directory -- the same disease.
     #[cfg(unix)]
     {
-        let dir = sandbox("dir-link");
+        let dir = keel_sandbox("dir-link");
         fs::create_dir_all(dir.join("elsewhere")).unwrap();
         std::os::unix::fs::symlink(dir.join("elsewhere"), dir.join("keel/waves/link")).unwrap();
         let scan = docs::scan(&dir).unwrap();
@@ -358,7 +353,7 @@ fn dir_among_docs_refuses() {
 /// with no footing at all is an error.
 #[test]
 fn bare_scenario_refuses() {
-    let dir = sandbox("bare");
+    let dir = keel_sandbox("bare");
     let p = write(
         &dir,
         "keel/waves/0010-bare.md",

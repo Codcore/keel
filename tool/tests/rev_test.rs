@@ -2,16 +2,14 @@
 //! proves tags -- revisions per §5.3-§5.4, computed by hand for the
 //! last time: this rung takes the counting over.
 
+mod common;
+
+#[allow(unused_imports)]
+use common::{Sandbox, keel_sandbox};
+
 use keel::rev;
 use std::fs;
-use std::path::{Path, PathBuf};
-
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0003-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    dir
-}
+use std::path::Path;
 
 /// proves: revision-recipe-reproduced@54c8f0 -- holds §5.2-§5.4 and
 /// the wave 0001 caveat: the tool reproduces the hand recipe on the
@@ -59,7 +57,7 @@ fn revision_recipe_reproduced() {
     assert!(!rev::matches("2ab9a9f", "2ab9a9"));
 
     // Scenario sections: hashed as their bodies, in declared order.
-    let dir = sandbox("sections");
+    let dir = keel_sandbox("sections");
     let wave = dir.join("keel/waves/0009-w.md");
     fs::write(
         &wave,

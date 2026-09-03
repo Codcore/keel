@@ -6,17 +6,14 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
+mod common;
+
+#[allow(unused_imports)]
+use common::{Sandbox, sandbox};
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0022b-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    MADE.with(|made| made.borrow_mut().push(dir.clone()));
-    dir
-}
 
 // The sandboxes THIS test made, swept when it ends. Review 0026
 // R-18 found ten thousand of them holding seventeen gigabytes:
@@ -73,7 +70,7 @@ fn keel(args: &[&str]) -> (String, i32) {
     )
 }
 
-fn project(name: &str) -> PathBuf {
+fn project(name: &str) -> Sandbox {
     let dir = sandbox(name);
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
     git(&dir, &["init", "-q", "-b", "main"]);
@@ -539,7 +536,7 @@ fn every_artefact_kept() {
 
 /// A project whose config names its agents (or does not name them at
 /// all, which is a case of its own).
-fn agents_project(name: &str, agents: Option<&str>) -> PathBuf {
+fn agents_project(name: &str, agents: Option<&str>) -> Sandbox {
     agents_project_in(name, agents, "en")
 }
 
@@ -547,7 +544,7 @@ fn agents_project(name: &str, agents: Option<&str>) -> PathBuf {
 /// bilingual release are judged: until review 0024 R-1 every sandbox
 /// wrote lang = "en", so the Ukrainian templates -- the ones this
 /// very repository generates -- were read by no parser at all.
-fn agents_project_in(name: &str, agents: Option<&str>, lang: &str) -> PathBuf {
+fn agents_project_in(name: &str, agents: Option<&str>, lang: &str) -> Sandbox {
     let dir = sandbox(name);
     let mut text = format!("lang = \"{lang}\"\nadapter = \"rust\"\n");
     if let Some(list) = agents {

@@ -4,18 +4,15 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
+mod common;
+
+#[allow(unused_imports)]
+use common::{Sandbox, sandbox};
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
-
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0026-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    MADE.with(|made| made.borrow_mut().push(dir.clone()));
-    dir
-}
 
 // The sandboxes THIS test made, swept when it ends. Review 0026
 // R-18 found ten thousand of them holding seventeen gigabytes:
@@ -104,7 +101,7 @@ fn keel(args: &[&str]) -> (String, i32) {
 
 /// A bare project directory: git, and nothing else. No keel.toml --
 /// this wave is about the birth of that file.
-fn bare(name: &str) -> PathBuf {
+fn bare(name: &str) -> Sandbox {
     let dir = sandbox(name);
     git(&dir, &["init", "-q", "-b", "main"]);
     dir

@@ -5,17 +5,14 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0009r-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+#[allow(unused_imports)]
+use common::{Sandbox, keel_sandbox};
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -74,7 +71,7 @@ fn all_decided_except(covered: &[&str]) -> String {
 /// and any other branch is a refusal aloud (§8.2).
 #[test]
 fn review_package_built() {
-    let dir = sandbox("package");
+    let dir = keel_sandbox("package");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     // A quiet wave on main keeps keel/waves/ tracked, so the main
     // checkout still scans and the refusal speaks about the branch.
@@ -141,7 +138,7 @@ fn review_package_built() {
     // turn the package into quiet lies -- the Why and the caveats
     // ride on Windows line endings too; and a transform with no
     // body section is named with a word, never dropped in silence.
-    let dir = sandbox("crlf");
+    let dir = keel_sandbox("crlf");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     let wave = format!(
         "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n  silent-t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## Why\n\ncarriage returns ride too\n\n## scenario: s\n\nbody of s\n\n## transform: t\n\nZasterezhennia: the crlf caveat rides.\n",
@@ -178,7 +175,7 @@ fn review_package_built() {
 /// posing as empty.
 #[test]
 fn review_lists_drawn() {
-    let dir = sandbox("lists");
+    let dir = keel_sandbox("lists");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     write(
         &dir,
@@ -330,7 +327,7 @@ fn review_lists_drawn() {
     // And a renamed wave (renamed_from) keeps its true anchor: the
     // first commit of the OLD name, so growth before the rename is
     // not blessed as planned.
-    let dir = sandbox("renamed");
+    let dir = keel_sandbox("renamed");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     write(
         &dir,
