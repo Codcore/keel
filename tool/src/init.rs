@@ -130,6 +130,27 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
         }
     }
 
+    // The generated integrations (wave 0022): the block agents and
+    // CI read lies in the repository, and the frame lays it -- but
+    // never over a hand's edit.
+    match crate::config::read_unpinned(root) {
+        Ok(config) => {
+            let (word, lacked) = crate::generated::write(root, &config);
+            failed += lacked;
+            report.push_str("  ");
+            report.push_str(&word);
+            report.push('\n');
+        }
+        Err(_) => {
+            // The config court says that fault aloud already (main
+            // prints its refusal, school 0014 R-1): the frame does
+            // not redden twice for one broken file.
+            report.push_str("  ");
+            report.push_str(&t("generated-unjudged-config"));
+            report.push('\n');
+        }
+    }
+
     // The ignore rules (wave 0020, the third gift of the first
     // field): the frame advises and writes nothing of the project's
     // own -- .gitignore is not the methodology's frame, and the

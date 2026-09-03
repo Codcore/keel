@@ -383,6 +383,27 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Some("update") => {
+            let root = args
+                .get(1)
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let config = match keel::config::read(&root) {
+                Ok(config) => config,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
+            keel::i18n::init(&config.lang);
+            let (word, lacked) = keel::generated::write(&root, &config);
+            println!("{}", t("update-title"));
+            println!("  {word}");
+            if lacked == 0 {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
         Some("version") => {
             let root = args
                 .get(1)

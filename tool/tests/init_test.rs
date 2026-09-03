@@ -80,12 +80,18 @@ fn init_births_the_frame() {
         config.contains("# lang") && config.contains("# adapter") && config.contains("# mode"),
         "the config carries the commented vocabulary, enabling nothing:\n{config}"
     );
+    // Nothing of the VOCABULARY is enabled -- the defaults stay with
+    // config's own words. The [generated] bookkeeping the frame
+    // keeps for itself (wave 0022) is not a setting: it enables
+    // nothing and changes no behaviour.
     assert!(
         !config.lines().any(|l| {
             let t = l.trim();
-            !t.is_empty() && !t.starts_with('#')
+            ["version", "lang", "adapter", "mode", "ci"]
+                .iter()
+                .any(|field| t.starts_with(field))
         }),
-        "nothing is enabled -- defaults stay with config's words:\n{config}"
+        "nothing of the vocabulary is enabled -- defaults stay with config's words:\n{config}"
     );
     let hook = fs::read_to_string(dir.join(".git/hooks/commit-msg")).unwrap();
     assert!(
@@ -134,10 +140,20 @@ fn init_never_tramples() {
         code, 1,
         "a piece that did not stand reddens the exit:\n{out}"
     );
+    // The foreign config keeps every byte of its own: the frame may
+    // add its bookkeeping line (wave 0022, as keel trust does for
+    // [trust]) and nothing else -- no setting, no comment, no order.
+    let after = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    let mine: String = after
+        .split("[generated]")
+        .next()
+        .unwrap()
+        .trim_end()
+        .to_string();
     assert_eq!(
-        fs::read_to_string(dir.join("keel.toml")).unwrap(),
-        foreign_config,
-        "the foreign keel.toml stays byte-identical:\n{out}"
+        mine,
+        foreign_config.trim_end(),
+        "the foreign keel.toml keeps its own bytes:\n{out}"
     );
     assert_eq!(
         fs::read_to_string(dir.join(".git/hooks/commit-msg")).unwrap(),

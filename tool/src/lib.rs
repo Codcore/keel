@@ -7,9 +7,11 @@
 pub mod adapter;
 pub mod check;
 pub mod close;
+pub mod confedit;
 pub mod config;
 pub mod docs;
 pub mod gate;
+pub mod generated;
 pub mod graph;
 pub mod holding;
 pub mod i18n;

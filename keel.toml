@@ -15,3 +15,6 @@ ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
 
 [trust]
 "cargo fmt --manifest-path tool/Cargo.toml --check" = "668c699a0a59"
+
+[generated]
+"AGENTS.md" = "dc5c000e9fa4"
