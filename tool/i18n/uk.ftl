@@ -453,8 +453,8 @@ newc-skel-body = чиїм словам цей контракт дає переж
 
 ## команда version (NEW-CONCEPT, таблиця команд; хвиля 0018)
 version-running = keel { $version } — бінарник, що відповідає
-version-pin-held = пін keel.toml: { $pin } — тримається; суди судять саме цим бінарником
-version-pin-mismatch = пін keel.toml: { $pin } — НЕ цей бінарник: суди відмовляють, поки пін і бінарник не зійдуться
+version-pin-held = пін keel.toml: "{ $pin }" — тримається; суди судять саме цим бінарником
+version-pin-mismatch = пін keel.toml: "{ $pin }" — НЕ цей бінарник: суди відмовляють, поки пін і бінарник не зійдуться
 version-pin-none = поле version не задано — піна нема; концепт радить пін: version = "{ $version }"
 version-no-file = keel.toml нема — піна нема, біжить бінарник вище
 version-unread = keel.toml не прочитано ({ $reason }) — пін невідомий; відмову повністю скаже суд config

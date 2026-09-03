@@ -450,8 +450,8 @@ newc-skel-body = whose words this contract lets outlive the wave — and why (§
 
 ## version command (NEW-CONCEPT, the commands table; wave 0018)
 version-running = keel { $version } -- the binary answering
-version-pin-held = pin keel.toml: { $pin } -- held; the courts judge with this very binary
-version-pin-mismatch = pin keel.toml: { $pin } -- NOT this binary: the courts refuse until the pin and the binary meet
+version-pin-held = pin keel.toml: "{ $pin }" -- held; the courts judge with this very binary
+version-pin-mismatch = pin keel.toml: "{ $pin }" -- NOT this binary: the courts refuse until the pin and the binary meet
 version-pin-none = the version field is not set -- no pin; the concept advises one: version = "{ $version }"
 version-no-file = keel.toml is absent -- no pin, the binary above runs
 version-unread = keel.toml not read ({ $reason }) -- the pin unknown; the config court says the refusal in full

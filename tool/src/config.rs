@@ -112,7 +112,9 @@ pub fn read(root: &Path) -> Result<Config, Refusal> {
             file: root.join("keel.toml"),
             reason: format!("keel.toml pins version \"{pin}\", but this binary is keel {running}"),
             instead: "run the pinned version, or move the pin -- one line in a \
-                      diff, approved by merge (NEW-CONCEPT, Distribution)"
+                      diff, approved by merge; to move it forward, run the new binary \
+                      first: its own gate passes the new pin (NEW-CONCEPT, \
+                      Distribution)"
                 .to_string(),
         });
     }
