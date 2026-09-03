@@ -26,14 +26,55 @@ enum Kind {
     Whole,
 }
 
-/// The artefacts this release generates: path, kind of boundary,
-/// and the text it writes. Adding a fourth is a row here.
+/// Whose artefact a row is (wave 0024). A document every agent
+/// reads belongs to none of them in particular; a skill belongs to
+/// the agent whose directory it lies in.
+enum Owner {
+    Any,
+    One(&'static str),
+}
+
+/// The artefacts this release generates: path, kind of boundary, and
+/// the text it writes. Only the rows whose owner the project named
+/// are written -- nothing of an agent it never named. Adding one
+/// more is a row here.
+///
+/// The same skill lives in two homes on purpose: Claude Code reads
+/// only `.claude/skills/`, while `.agents/skills/` is the
+/// vendor-neutral home of the Agent Skills standard, which is what
+/// Cursor reads (and Codex, whose option waits for its own wave --
+/// a fact about the directory, not a promise of this release).
 fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
-    vec![
-        ("AGENTS.md", Kind::Block, block(config)),
-        (".claude/skills/keel/SKILL.md", Kind::Whole, skill(config)),
-        (".github/workflows/keel.yml", Kind::Whole, workflow(config)),
-    ]
+    let named = config.agents();
+    let skill = skill(config);
+    let rows: Vec<(&'static str, Kind, Owner, String)> = vec![
+        ("AGENTS.md", Kind::Block, Owner::Any, block(config)),
+        (
+            ".claude/skills/keel/SKILL.md",
+            Kind::Whole,
+            Owner::One("claude"),
+            skill.clone(),
+        ),
+        (
+            ".agents/skills/keel/SKILL.md",
+            Kind::Whole,
+            Owner::One("cursor"),
+            skill,
+        ),
+        (
+            ".github/workflows/keel.yml",
+            Kind::Whole,
+            Owner::Any,
+            workflow(config),
+        ),
+    ];
+    rows.into_iter()
+        .filter(|(_, _, owner, _)| match owner {
+            Owner::Any => true,
+            Owner::One(agent) => named.contains(agent),
+        })
+        .map(|(path, kind, _, text)| (path, kind, text))
+        .collect()
 }
 
 /// The block as this release writes it, in the project's language:

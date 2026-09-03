@@ -544,10 +544,10 @@ fn front_matter(text: &str) -> Vec<(String, String)> {
         let (event, _) = item.unwrap_or_else(|e| panic!("front matter is not YAML: {e}\n{yaml}"));
         match event {
             saphyr_parser::Event::MappingStart(..) | saphyr_parser::Event::SequenceStart(..) => {
-                if depth == 1 {
-                    if let Some(key) = pending.take() {
-                        keys.push((key, "<collection>".to_string()));
-                    }
+                if depth == 1
+                    && let Some(key) = pending.take()
+                {
+                    keys.push((key, "<collection>".to_string()));
                 }
                 depth += 1;
             }
@@ -572,7 +572,10 @@ fn front_matter(text: &str) -> Vec<(String, String)> {
 fn advice(text: &str) -> Vec<String> {
     let mut words = Vec::new();
     for tail in text.split("keel ").skip(1) {
-        let word: String = tail.chars().take_while(|c| c.is_ascii_lowercase()).collect();
+        let word: String = tail
+            .chars()
+            .take_while(|c| c.is_ascii_lowercase())
+            .collect();
         if !word.is_empty() && !words.contains(&word) {
             words.push(word);
         }
@@ -655,7 +658,10 @@ fn every_agent_in_its_own_format() {
     let dir = agents_project("both", Some("[\"claude\", \"cursor\"]"));
     let (out, code) = keel(&["init", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "the frame lands:\n{out}");
-    assert!(dir.join("AGENTS.md").is_file(), "the shared document:\n{out}");
+    assert!(
+        dir.join("AGENTS.md").is_file(),
+        "the shared document:\n{out}"
+    );
     let claude = fs::read_to_string(dir.join(CLAUDE_SKILL)).unwrap();
     let shared = fs::read_to_string(dir.join(SHARED_SKILL)).unwrap();
     assert_eq!(claude, shared, "one template, two homes -- byte for byte");

@@ -223,13 +223,25 @@ fn init_never_tramples_second_birth() {
     write(&dir, "keel.toml", broken);
     let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
     let all = format!("{out}{err}");
+    // The frame still lands around the broken config -- that is
+    // what the rows below prove -- and the exit reddens, because a
+    // piece did not stand. This wave's own words, and 0014's: "the
+    // count of pieces that did not stand reddens the exit, and the
+    // rest of the frame is delivered regardless". Until wave 0024
+    // the generated integrations were not counted when the config
+    // refused, so a project with a broken keel.toml got a green
+    // frame: a refusal aloud with a green exit is a half-truth.
     assert_eq!(
-        code, 0,
-        "the frame still lands around the broken config:\n{all}"
+        code, 1,
+        "the exit reddens for the piece that did not stand:\n{all}"
     );
     assert!(
         all.contains("keel.toml") && all.contains("refusal"),
         "the config refusal is said aloud, not swallowed (R-1):\n{all}"
+    );
+    assert!(
+        all.contains("not judged") || all.contains("не судяться"),
+        "and the frame says which piece it could not judge:\n{all}"
     );
     assert!(
         dir.join("keel/waves/.gitkeep").is_file(),
