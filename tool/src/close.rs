@@ -38,6 +38,63 @@ pub(crate) enum State {
 /// per wave; the second number counts the blockers -- the lacks of
 /// the wave the current branch is named after (§8.2). Other waves
 /// inform, they do not punish.
+/// What the closing court wants free before it starts.
+///
+/// MEASURED, not guessed (review 0031 R-5): one full `keel close` on
+/// this repository leaves 1.26 GiB in the target directory -- the
+/// three battery runs (§7.13) share one target, they do not each
+/// build their own. The first version of this constant said 4 GiB
+/// from the ceiling and refused with 3.5 GiB free, where the work
+/// would have finished with 2.2 GiB to spare. Two gigabytes is the
+/// measured price plus room for a project larger than this one.
+const NEEDED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
+/// Free bytes on the filesystem holding this project, or nothing
+/// when the question cannot be asked -- a court that cannot see the
+/// disk still runs, it just cannot warn.
+fn free_bytes(root: &Path) -> Option<u64> {
+    let out = std::process::Command::new("df")
+        .args(["-B1", "--output=avail"])
+        .arg(root)
+        .output()
+        .ok()?;
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .nth(1)?
+        .trim()
+        .parse()
+        .ok()
+}
+
+/// Bytes as whole gigabytes, the unit a person reasons in here.
+fn gigabytes(bytes: u64) -> u64 {
+    bytes / (1024 * 1024 * 1024)
+}
+
+/// Gigabytes to one decimal place, rendered as a string: a target of
+/// 1.26 GiB reported as "1" would hide the very number this wave
+/// exists to name.
+fn tenths_of_gigabyte(bytes: u64) -> String {
+    let tenths = bytes / (1024 * 1024 * 102);
+    format!("{}.{}", tenths / 10, tenths % 10)
+}
+
+/// What a directory weighs, walked once. A price nobody can see is
+/// the reason two reviewers refused to run this court at all.
+fn directory_bytes(path: &Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|entry| match entry.metadata() {
+            Ok(meta) if meta.is_dir() => directory_bytes(&entry.path()),
+            Ok(meta) => meta.len(),
+            Err(_) => 0,
+        })
+        .sum()
+}
+
 pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     let config = config::read(root)?;
     if !config.rust_adapter() {
@@ -53,6 +110,46 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         // check names every broken file -- fix them first.
         return Err(refusal);
     }
+    // The price, said before it is paid (wave 0031). This court
+    // builds the judged project into ITS OWN target directory on
+    // purpose -- an inherited shared cache shifts verdicts (§6.7,
+    // the heal of 0005 per review 0008 R-8) -- so the fix is not to
+    // stop paying, it is to say what it costs. Measured when this
+    // wave was planned: tool/target stood at 3.3 GB, and the
+    // reviewers of waves 0028 and 0029 BOTH skipped running this
+    // court because the disk was too tight.
+    // The directory this court actually builds into -- review 0031
+    // R-4 found both the price and the refusal naming "tool/target"
+    // for every project, while the adapter builds into the crate
+    // root's own target: on a project whose Cargo.toml is at the
+    // root, the refusal named a directory that does not exist and
+    // the instead swept nothing.
+    let target = adapter::crate_root(root)?.join("target");
+    let needed = NEEDED_BYTES;
+    if let Some(free) = free_bytes(root).filter(|free| *free < needed) {
+        return Err(Refusal {
+            file: target,
+            reason: ta(
+                "close-no-room",
+                targs!("free" => gigabytes(free), "needed" => gigabytes(needed)),
+            ),
+            instead: t("close-no-room-instead"),
+        });
+    }
+    // Said BEFORE the work, and said where a person can see it now:
+    // review 0031 R-1 measured the whole report, price line included,
+    // appearing 101 seconds in -- after the target was already built.
+    // A warning that arrives with the bill is not a warning.
+    eprintln!(
+        "{}",
+        ta(
+            "close-price",
+            targs!(
+                "target" => target.display().to_string(),
+                "needed" => gigabytes(NEEDED_BYTES)
+            )
+        )
+    );
     let found = tags::scan(&adapter::test_files(root)?)?;
     // The battery runs several times before green is believed
     // (§7.13): the adapter keeps its word -- one battery, one cargo
@@ -234,6 +331,17 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         report.push_str(&t("close-no-blockers"));
         report.push('\n');
     }
+    // And what the price actually came to (review 0031 R-6: the
+    // scenario promised this sentence and the first cut of the work
+    // simply did not carry it).
+    report.push_str(&ta(
+        "close-price-paid",
+        targs!(
+            "target" => target.display().to_string(),
+            "size" => tenths_of_gigabyte(directory_bytes(&target))
+        ),
+    ));
+    report.push('\n');
     Ok((report, blockers + verify_blockers + ci_blocker))
 }
 

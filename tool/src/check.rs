@@ -503,6 +503,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     if refs_no_history > 0 {
         writeln!(report, "{}", t("check-refs-no-history")).unwrap();
     }
+    let limits = verdict_limits(root, refs_unjudged);
+    for limit in &limits {
+        writeln!(report, "{limit}").unwrap();
+    }
     writeln!(
         report,
         "{}\n{}\n{}\n{}\n{}\n{}\n{}",
@@ -514,7 +518,11 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         t("check-borders"),
         ta(
             "check-summary",
-            targs!("docs" => documents as u64, "refusals" => findings as u64)
+            targs!(
+                "docs" => documents as u64,
+                "refusals" => findings as u64,
+                "limits" => limits.len() as u64
+            )
         )
     )
     .unwrap();
@@ -528,6 +536,150 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     writeln!(report, "{next}").unwrap();
 
     Ok(Outcome { report, findings })
+}
+
+/// What this verdict could NOT judge, in its own words.
+///
+/// Wave 0031, measured before the work: a full clone gave a 208-line
+/// verdict carrying 141 old revisions verified against file history;
+/// a shallow clone gave 67 lines and none of them -- and both ended
+/// with the same "0 findings". The line everyone reads said the same
+/// thing about two very different amounts of judging.
+///
+/// Nothing here asks the network. A limit that depends on reaching a
+/// server is a limit that changes with the weather, so the question
+/// asked is the honest one: what does THIS clone know?
+fn verdict_limits(root: &Path, refs_unjudged: u64) -> Vec<String> {
+    let mut limits = Vec::new();
+
+    // No git, no questions to ask. Review 0031 R-8: a directory with
+    // no repository at all was told its clone "knows no origin/main",
+    // which is true of a shoebox as well.
+    if !has_git(root) {
+        return limits;
+    }
+    // A repository with no commits yet has no base and no branch to
+    // speak of either (R-8).
+    if git_line(root, &["rev-parse", "--verify", "--quiet", "HEAD"]).is_none() {
+        return limits;
+    }
+
+    if is_shallow(root) {
+        limits.push(ta("limit-shallow", targs!("skipped" => refs_unjudged)));
+    }
+
+    // The base the scope court compares a wave branch against, under
+    // the trunk's own name and the remote's own name -- review 0031
+    // R-8 found both hard-coded, so a project on `master` was told to
+    // push its trunk and a project whose remote is `upstream` was
+    // told its work does not exist.
+    let remote = remote_name(root);
+    let trunk = trunk_name(root, remote.as_deref());
+    let base = remote
+        .as_ref()
+        .map(|remote| format!("{remote}/{trunk}"))
+        .filter(|base| git_line(root, &["rev-parse", "--verify", "--quiet", base]).is_some());
+    match &base {
+        Some(base) => {
+            let behind = git_line(root, &["rev-list", "--count", &format!("{trunk}..{base}")])
+                .and_then(|n| n.parse::<u64>().ok())
+                .unwrap_or(0);
+            if behind > 0 {
+                limits.push(ta(
+                    "limit-base-stale",
+                    targs!("behind" => behind, "trunk" => trunk.clone(), "base" => base.clone()),
+                ));
+            }
+        }
+        None => limits.push(ta(
+            "limit-base-local-only",
+            targs!("trunk" => trunk.clone()),
+        )),
+    }
+
+    // Whether the branch being judged has reached origin, as far as
+    // this clone knows -- a wave closed only on this disk is not
+    // closed.
+    // Through scope::current_branch, which knows that the top of the
+    // git tree may not be the root of the project: review 0031 R-7
+    // caught this asking git directly and naming the PARENT
+    // repository's branch for a project living in a subdirectory.
+    if let (Some(remote), Some(branch)) = (&remote, scope::current_branch(root))
+        && branch != trunk
+    {
+        let there = format!("{remote}/{branch}");
+        match git_line(root, &["rev-parse", "--verify", "--quiet", &there]) {
+            None => limits.push(ta(
+                "limit-unpushed",
+                targs!("branch" => branch.clone(), "remote" => remote.clone()),
+            )),
+            Some(head) => {
+                if git_line(root, &["rev-parse", "HEAD"]).as_deref() != Some(head.as_str()) {
+                    limits.push(ta(
+                        "limit-ahead",
+                        targs!("branch" => branch.clone(), "remote" => remote.clone()),
+                    ));
+                }
+            }
+        }
+    }
+
+    limits
+}
+
+/// The remote this clone actually has: `origin` when it is there,
+/// otherwise the only one, and nothing at all when there are none or
+/// several (review 0031 R-8: `origin` was assumed and a project
+/// pushed to `upstream` was told its work did not exist).
+fn remote_name(root: &Path) -> Option<String> {
+    let all = git_line(root, &["remote"])?;
+    let mut names = all.lines().map(str::trim).filter(|name| !name.is_empty());
+    let first = names.next()?;
+    if all.lines().any(|name| name.trim() == "origin") {
+        return Some("origin".to_string());
+    }
+    names.next().is_none().then(|| first.to_string())
+}
+
+/// What this repository calls its trunk: what the remote's HEAD
+/// points at, else `main` if it exists, else `master` (R-8).
+fn trunk_name(root: &Path, remote: Option<&str>) -> String {
+    let head = remote.and_then(|remote| {
+        git_line(
+            root,
+            &[
+                "symbolic-ref",
+                "--short",
+                &format!("refs/remotes/{remote}/HEAD"),
+            ],
+        )
+    });
+    if let Some(name) = head.as_deref().and_then(|head| head.rsplit_once('/')) {
+        return name.1.to_string();
+    }
+    for name in ["main", "master"] {
+        if git_line(root, &["rev-parse", "--verify", "--quiet", name]).is_some() {
+            return name.to_string();
+        }
+    }
+    "main".to_string()
+}
+
+/// One line of git output, or nothing -- a question this clone
+/// cannot answer is not an error, it is a limit.
+///
+/// Through `scope::git_at`, the one hand: the battery caught this
+/// wave calling git raw, and it was right twice over. That hand is
+/// also deaf to what a git hook leaves in the environment, and
+/// without it a limit would change depending on whose repository
+/// fired the tool (review 0021 R-3).
+fn git_line(root: &Path, args: &[&str]) -> Option<String> {
+    let out = scope::git_at(root).args(args).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let line = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!line.is_empty()).then_some(line)
 }
 
 /// A refusal rendered as a report row, the school of every floor.

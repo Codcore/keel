@@ -230,7 +230,7 @@ pub fn findings(root: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refus
 
 /// One git call, one trimmed answer; a non-zero exit is a refusal
 /// that carries git's own words.
-fn git_line(root: &Path, args: &[&str]) -> Result<String, Refusal> {
+pub(crate) fn git_line(root: &Path, args: &[&str]) -> Result<String, Refusal> {
     let refuse = |error: String| Refusal {
         file: root.to_path_buf(),
         reason: ta("scope-git-failed", targs!("error" => error)),
