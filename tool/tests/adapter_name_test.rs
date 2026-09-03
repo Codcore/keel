@@ -132,3 +132,83 @@ fn adapter_named_by_language() {
         "the scaffolding recommends rust, the concept's letter:\n{config}"
     );
 }
+
+/// proves: adapter-named-by-language@139959 -- the second birth out
+/// of review 0017 (R-1..R-5): the synonym question lives in the
+/// config home too; the unknown-adapter word of check names rust;
+/// a named-yet-unknown adapter is never called "not named" by the
+/// form court or the map; gate -- the one court that physically
+/// runs the toolchain -- asks the home and passes with a word
+/// instead of running cargo blindly; and rust is pinned across
+/// close, rev --write and check, not a corner.
+#[test]
+fn adapter_named_by_language_second_birth() {
+    // R-2/R-3: the unknown yet NAMED adapter -- every word tells
+    // the truth: check points at rust, the form court and the map
+    // say "not of this release", never "not named".
+    let dir = sandbox("namedunknown");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"elixir\"\n");
+    crate_files(&dir);
+    write(
+        &dir,
+        "keel/contracts/c.md",
+        "---\nmodule: toy\nexports:\n  - \"pub fn one()\"\n---\n\na promise\n",
+    );
+    let (out, err, _) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("\"rust\""),
+        "the unknown-adapter word of check names the canonical rust (R-2):\n{out}"
+    );
+    assert!(
+        !out.contains("not named") && out.contains("not of this release"),
+        "named-yet-unknown is not painted as absent (R-3):\n{out}"
+    );
+
+    // R-4: gate asks the home -- an unknown adapter passes with a
+    // word, cargo is never run blindly for a foreign language.
+    let dir = sandbox("gatehome");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"elixir\"\n");
+    crate_files(&dir);
+    write(
+        &dir,
+        "keel/waves/0600-w.md",
+        "---\nscenarios:\n  s: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n\n## transform: t\n\nthe work of t\n",
+    );
+    git(&dir, &["init", "-q", "-b", "0600-w"]);
+    write(&dir, ".git/COMMIT_MSG_PROBE", "red: s\n");
+    let msg = dir.join(".git/COMMIT_MSG_PROBE");
+    let (out, err, code) = keel(&["gate", msg.to_str().unwrap(), dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 0,
+        "gate passes with a word instead of judging blind (R-4):\n{out}"
+    );
+    assert!(
+        out.contains("not judged") && out.contains("\"elixir\""),
+        "the unjudged verdict is a word aloud with the adapter's name (R-4, §9.7):\n{out}"
+    );
+
+    // R-5: rust is pinned across the three courts the first birth
+    // left to sandboxes -- close, rev --write and check.
+    let dir = sandbox("rustpinned");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
+    crate_files(&dir);
+    let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the closure court runs under rust (R-5):\n{out}");
+    assert!(
+        out.contains("battery:"),
+        "the battery line proves close truly ran:\n{out}"
+    );
+    let (out, err, code) = keel(&["rev", "--write", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the rewriting hand runs under rust (R-5):\n{out}");
+    let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "check runs under rust (R-5):\n{out}");
+    assert!(
+        !out.contains("synonym"),
+        "the canonical name earns no synonym word (R-1):\n{out}"
+    );
+}

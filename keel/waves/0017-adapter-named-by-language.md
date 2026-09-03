@@ -10,9 +10,10 @@ transforms:
   language-name:
     implements:
       - adapter-named-by-language
-    contracts: [tool-config@840bd9, tool-plan@89aa74, tool-adapter-cargo@348769, tool-close@1b6b8e, tool-rev@2ef198, tool-next@ec56ff, tool-docs@2ab9a9]
+    contracts: [tool-config@840bd9, tool-plan@89aa74, tool-adapter-cargo@348769, tool-close@1b6b8e, tool-rev@2ef198, tool-next@ec56ff, tool-docs@2ab9a9, tool-status@e1285f, tool-holding@d7e45c, tool-map@11ce38, tool-init@c77997, tool-gate@ef42fc]
     files:
       - tool/src/config.rs
+      - tool/src/gate.rs
       - tool/src/check.rs
       - tool/src/close.rs
       - tool/src/status.rs
@@ -34,7 +35,7 @@ transforms:
 
 decisions:
   functional.correctness: "свідомо без окремого тесту: rust_adapter — один matches! над двома рядками; його вживання судять наявні тести всіх поверхів"
-  functional.completeness: "свідомо без нового тесту: всі девʼять місць порівняння зведені в один дім — grep за Some(\"cargo\") у src лишає нуль"
+  functional.completeness: "свідомо без нового тесту: обидва питання адаптера — чи знаний і чи синонімне написання — живуть домами в config; grep за Some(\"cargo\") поза config.rs лишає нуль (виправлено за R-1 рецензії)"
   performance.time-behaviour: "не застосовується: одне порівняння рядка"
   performance.capacity: "не застосовується"
   performance.resource-utilisation: "не застосовується"
