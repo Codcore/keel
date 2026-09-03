@@ -194,7 +194,7 @@ fn ignore_row(root: &Path) -> String {
     // whose rule lives in tool/.gitignore (wave 0020, dogfood).
     // Asked through the frame's own git hand, deaf to the
     // repository a hook may have left in the environment (§gate).
-    let out = gate::git_at(root)
+    let out = crate::scope::git_at(root)
         .args(["check-ignore", "-v", "--"])
         .arg(&shown)
         .output();
@@ -214,7 +214,7 @@ fn ignore_row(root: &Path) -> String {
     // the working tree gave it, and that file is not the one
     // core.excludesFile names -- a config file, global or local,
     // reaches no other clone.
-    let named_by_config = gate::git_at(root)
+    let named_by_config = crate::scope::git_at(root)
         .args(["config", "--get", "core.excludesFile"])
         .output()
         .ok()

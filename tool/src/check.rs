@@ -17,7 +17,6 @@ use crate::targs;
 use crate::trust;
 use std::fmt::Write as _;
 use std::path::Path;
-use std::process::Command;
 
 pub struct Outcome {
     pub report: String,
@@ -638,9 +637,7 @@ fn vanished_rows(
 /// One quiet git call for the delta floor: success gives stdout,
 /// anything else gives nothing -- the callers say their own words.
 fn git_out(root: &Path, args: &[&str]) -> Option<String> {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let out = crate::scope::git_at(root)
         .args(["-c", "core.quotePath=false"])
         .args(args)
         .output()
@@ -661,9 +658,7 @@ pub(crate) fn history_testifies(root: &Path) -> bool {
 /// the contract file (§5.6). Any git trouble reads as "not found":
 /// the strict verdict stands where history cannot testify.
 pub(crate) fn revision_in_history(root: &Path, relative: &str, recorded: &str) -> bool {
-    let log = Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let log = crate::scope::git_at(root)
         .args(["log", "--format=%H", "--", relative])
         .output();
     let Ok(log) = log else { return false };
@@ -671,9 +666,7 @@ pub(crate) fn revision_in_history(root: &Path, relative: &str, recorded: &str) -
         return false;
     }
     for sha in String::from_utf8_lossy(&log.stdout).lines() {
-        let show = Command::new("git")
-            .arg("-C")
-            .arg(root)
+        let show = crate::scope::git_at(root)
             .args(["show", &format!("{}:{relative}", sha.trim())])
             .output();
         let Ok(show) = show else { continue };
@@ -692,9 +685,7 @@ pub(crate) fn revision_in_history(root: &Path, relative: &str, recorded: &str) -
 /// history to testify, and no verdict is passed on old revisions
 /// (§5.6).
 fn has_git(root: &Path) -> bool {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let out = crate::scope::git_at(root)
         .args(["rev-parse", "--git-dir"])
         .output();
     matches!(out, Ok(o) if o.status.success())
@@ -704,9 +695,7 @@ fn has_git(root: &Path) -> bool {
 /// verified there, and the absence of history is not the wave's
 /// fault.
 pub(crate) fn is_shallow(root: &Path) -> bool {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let out = crate::scope::git_at(root)
         .args(["rev-parse", "--is-shallow-repository"])
         .output();
     matches!(out, Ok(o) if o.status.success()

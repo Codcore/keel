@@ -14,7 +14,6 @@ use crate::scope;
 use crate::targs;
 use std::fmt::Write as _;
 use std::path::Path;
-use std::process::Command;
 
 /// Assembles the §9.9 package for the branch's wave (§8.2); any
 /// other branch is a refusal aloud -- which wave the package is for
@@ -358,9 +357,7 @@ fn git_show(root: &Path, commit: &str, rel: &str) -> Option<String> {
 }
 
 fn git_out(root: &Path, args: &[&str]) -> Option<String> {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let out = crate::scope::git_at(root)
         .args(["-c", "core.quotePath=false"])
         .args(args)
         .output()

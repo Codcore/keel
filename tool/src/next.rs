@@ -16,7 +16,6 @@ use crate::tags;
 use crate::targs;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
-use std::process::Command;
 
 /// The `keel next` package: one step out of the state. A broken
 /// document is the first step of its own -- mend it, by name.
@@ -376,9 +375,7 @@ fn git_names(root: &Path, args: &[&str]) -> Result<BTreeSet<String>, Refusal> {
         reason: ta("scope-git-failed", targs!("error" => error)),
         instead: t("scope-git-failed-instead"),
     };
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let out = crate::scope::git_at(root)
         .args(["-c", "core.quotePath=false"])
         .args(args)
         .output()

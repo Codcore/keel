@@ -11,6 +11,48 @@ use std::collections::BTreeSet;
 use std::path::Path;
 use std::process::Command;
 
+/// The one hand by which this tool calls git (wave 0021): a plain
+/// `git -C <root>`, deaf to the repository the environment names.
+/// A git hook hands its children GIT_DIR, GIT_WORK_TREE and their
+/// kin -- and those outrank `-C`, so a court that inherited them
+/// judged the repository that spawned it instead of the project it
+/// was given. The 0020 review measured the price: check reported a
+/// stranger's findings, review refused, gate lost its subject, and
+/// close GREENED on an unproven wave. `git -c` travels the same way
+/// (GIT_CONFIG_PARAMETERS), so it goes too. What stays is what a
+/// person or a CI chose on purpose: GIT_CONFIG_GLOBAL,
+/// GIT_CONFIG_SYSTEM, GIT_AUTHOR_* and the rest.
+pub fn git_at(root: &Path) -> Command {
+    let mut command = Command::new("git");
+    command.arg("-C").arg(root);
+    forget_the_hook(&mut command);
+    command
+}
+
+/// What a git hook leaves in the environment for its children: the
+/// repository it runs for, and the `-c` settings of the git command
+/// that fired it. Anyone who spawns a child that may itself talk to
+/// git strips these -- the courts through `git_at`, and the battery
+/// through the adapter (review 0021 R-3: without it `keel close`
+/// handed the whole test suite a stranger's repository, and a byte
+/// of a sandbox reached that stranger).
+pub fn forget_the_hook(command: &mut Command) {
+    for name in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_PREFIX",
+        "GIT_CEILING_DIRECTORIES",
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT",
+    ] {
+        command.env_remove(name);
+    }
+}
+
 /// The current branch by git's word. None wherever git serves no
 /// name for this root: no repository, no git at all, a detached
 /// head, or a git tree whose top is not the root itself -- a parent
@@ -18,9 +60,7 @@ use std::process::Command;
 /// declared names, so it does not get to judge (review R-4). The
 /// caller says aloud that scope was not compared.
 pub fn current_branch(root: &Path) -> Option<String> {
-    let top = Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let top = git_at(root)
         .args(["rev-parse", "--show-toplevel"])
         .output()
         .ok()?;
@@ -31,9 +71,7 @@ pub fn current_branch(root: &Path) -> Option<String> {
     if top != std::fs::canonicalize(root).ok()? {
         return None;
     }
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let out = git_at(root)
         .args(["branch", "--show-current"])
         .output()
         .ok()?;
@@ -200,9 +238,7 @@ fn git_line(root: &Path, args: &[&str]) -> Result<String, Refusal> {
     };
     // quotePath off: a Ukrainian filename compares as itself, not as
     // git's octal-escaped quotation of it.
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(root)
+    let out = git_at(root)
         .args(["-c", "core.quotePath=false"])
         .args(args)
         .output()
