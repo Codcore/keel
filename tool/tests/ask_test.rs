@@ -65,7 +65,7 @@ fn config_of(dir: &Path) -> Written {
         .unwrap_or_else(|e| panic!("the config the wizard wrote is TOML: {e}\n{text}"))
 }
 
-/// proves: init-asks-only-when-it-can-hear@8296ed -- the operator's
+/// proves: init-asks-only-when-it-can-hear@b2aea2 -- the operator's
 /// §8.6 decision made mechanical, and its first clause is the silence:
 /// no terminal, no question and no hang. The answers have a
 /// question-free road, every one of them is judged by the vocabulary
@@ -239,6 +239,49 @@ fn init_asks_only_when_it_can_hear() {
         !of("lang").many && !of("mode").many,
         "and the single answers stay single"
     );
+    // And the interactive road itself, played by a machine on a real
+    // pty. The wave first claimed this could not be played without
+    // one and left it to the dogfood; a pty is a few lines of any
+    // standard library, I played it by hand, and so the claim was
+    // too weak. Now the machine plays it.
+    let dir = bare("terminal");
+    let spoken = format!("{} init {}", env!("CARGO_BIN_EXE_keel"), dir.display());
+    let mut session = rexpect::spawn(&spoken, Some(20_000)).expect("a pty of our own");
+    for (asked, answer) in [
+        ("human language", "\r"),
+        ("language is the code", "\r"),
+        ("commit court", "\r"),
+        // The agents are a MultiSelect: space ticks, enter takes.
+        ("agents", " \r"),
+        ("session hooks", "\r"),
+    ] {
+        session
+            .exp_string(asked)
+            .unwrap_or_else(|e| panic!("the wizard asks about {asked:?}: {e}"));
+        session.send(answer).expect("the answer is typed");
+        session.flush().expect("and reaches the wizard");
+    }
+    session
+        .exp_eof()
+        .expect("and the wizard finishes, never hangs");
+    let config = config_of(&dir);
+    assert_eq!(
+        config.lang.as_deref(),
+        Some("en"),
+        "the default taken by pressing enter is written as a choice"
+    );
+    assert_eq!(config.mode.as_deref(), Some("strict"));
+    assert_eq!(
+        config.agents,
+        Some(vec!["claude".to_string()]),
+        "the ticked agent, and only it"
+    );
+    assert_eq!(config.hooks, Some(true));
+    assert!(
+        dir.join(".claude/settings.json").is_file(),
+        "and the answers are acted on, not just written"
+    );
+
     assert!(
         of("adapter").skippable,
         "the code's language may be left unnamed -- a project of another tongue \
