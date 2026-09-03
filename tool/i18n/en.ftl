@@ -396,6 +396,7 @@ next-contract-missing = the file of contract "{ $contract }" is missing — keel
 next-run-label = { "  " }the run of its scenarios' tests:
 next-run-none = { "  " }tests of its scenarios do not exist yet — the run appears with the tags (a withdrawn scenario never gets one)
 next-step-review = the step: the wave is assembled — time for the review (§9.9): gather the package with `keel review` for a fresh agent; the report lands at keel/reviews/{ $wave }.md
+next-step-pr-light = the step: time for the PR — the light wave rides to its one PR (§6.8), merged by the merge-commit button (§8.7); the merge is its approval and its closure in one (§6.6, §6.5)
 next-step-pr = the step: the review lies next to the wave — time for the PR, merged by the merge-commit button (§8.7); the last word on lacks belongs to keel close
 next-plan-branch = the step: this is the plan branch of wave { $wave } (§8.3) — prove the plan's fullness (keel check, the map), merge the plan PR; the work will ride the branch "{ $wave }"
 next-ready = { "  " }start the branch "{ $wave }" — the wave is approved and not started, its dependencies closed (§6.5, §8.2)

@@ -316,7 +316,14 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
         return Ok(out);
     }
 
-    out.push_str(&t("next-step-pr"));
+    // The PR words go by weight (§6.8; the debt named by the 0015
+    // dogfood): a light wave hears its own -- no painted word about
+    // a review it never needed.
+    if close::light(wave) {
+        out.push_str(&t("next-step-pr-light"));
+    } else {
+        out.push_str(&t("next-step-pr"));
+    }
     out.push('\n');
     Ok(out)
 }
