@@ -318,11 +318,11 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 17 — ci-біг проєкту крізь довіру §7.16 у close і батарея кількома бігами (§7.13)
+check-next-rung = наступний крок: щабель 18 — init нагадує про .gitignore адаптера (легка хвиля)
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
-close-battery = батарея: { $count } тестів суджено одним бігом
+close-battery = батарея: { $count } тестів × { $runs } біги (§7.13) — зелений лише зелений у кожному бігу
 close-closed = { $wave }: закрита — кожен живий сценарій доведений, посилання сходяться, звіт рецензії поруч
 close-closed-unjudged = { $wave }: закрита — кожен живий сценарій доведений, звіт рецензії поруч; посилань не звірено: { $count } — історія тут не свідчить (§5.6)
 close-closed-light = { $wave }: закрита (легка) — самі chore, закрита фактом merge
@@ -332,6 +332,7 @@ close-lack-untagged = сценарій "{ $scenario }": тега proves у те�
 close-lack-stale = сценарій "{ $scenario }": тег тримає { $recorded }, а текст дає { $actual } (§7.5)
 close-lack-red = сценарій "{ $scenario }": тест "{ $test }" червоний — не доведено (§6.3)
 close-lack-notrun = сценарій "{ $scenario }": батарея не виконала тесту "{ $test }"
+close-lack-flaky = сценарій "{ $scenario }": тест "{ $test }" зелений у { $green } з { $runs } бігів — не зелений (§7.13)
 close-lack-ref = посилання { $contract }@{ $recorded } не сходиться (§6.4)
 close-lack-review = звіту рецензії keel/reviews/<хвиля>.md поруч із хвилею нема (§9.9)
 close-needs-adapter = судові закриття потрібен адаптер cargo, названий у keel.toml
@@ -344,6 +345,13 @@ close-verify-failed = verify "{ $command }" контракту { $contract } —
 close-verify-untrusted = verify "{ $command }" контракту { $contract } — не бігала: недовірена (§7.16); той вирок тримає check
 close-verify-blockers = зламаних чужих обіцянок: { $count } — вихід червоний
 close-verify-no-words = команда не лишила слів
+close-ci-passed = ci "{ $command }" — пройшов: власний gate проєкту зелений
+close-ci-failed = ci "{ $command }" — ВПАВ ({ $words }) — власний gate проєкту червоний, хвиля не зливається (§7.16); повтори команду сам, щоб побачити її слово повністю
+close-ci-untrusted = ci "{ $command }" — не бігав: недовірений (§7.16); той вирок тримає check — запиши довіру рукою keel trust
+close-ci-none = ci = "none" — відмова вголос, законна; нічого не біжить
+close-ci-undecided = ci = "" — не вирішено; нічого не біжить (знахідка check-а)
+close-ci-absent = ci не оголошено — нічого не біжить
+close-ci-blocker = власний gate проєкту червоний: ci ВПАВ — вихід червоний
 close-plan-own = хвиля цієї гілки — затверджена, ще не почата: план-PR зливається планом (§6.6), робота видається після
 
 ## команда map (§10.7)

@@ -9,3 +9,9 @@ adapter = "cargo"
 # зміна піна — рядок diff-а, затверджений merge-ом (NEW-CONCEPT,
 # «Дистрибуція»).
 version = "0.1.0"
+# Власний gate проєкту (щабель 17, хвиля 0019): close жене його крізь
+# довіру §7.16 — fmt над крейтом інструмента.
+ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
+
+[trust]
+"cargo fmt --manifest-path tool/Cargo.toml --check" = "668c699a0a59"

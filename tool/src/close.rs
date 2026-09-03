@@ -14,6 +14,16 @@ use crate::targs;
 use std::collections::BTreeMap;
 use std::path::Path;
 
+/// How many times the closure battery runs (§7.13, wave 0019): one
+/// run hides whatever depends on order, time, or a process that
+/// outlived its test. Three is the tool's own discipline -- a
+/// constant, not a knob.
+pub(crate) const BATTERY_RUNS: usize = 3;
+
+/// The verdicts of the closure battery, one per run, keyed like the
+/// adapter's map: (test file stem, function name).
+pub(crate) type Battery = BTreeMap<(String, String), Vec<bool>>;
+
 /// The structural stages of a wave -- close's own verdicts, opened
 /// pub(crate) so the stage eye (rung 11) asks instead of duplicating.
 pub(crate) enum State {
@@ -23,7 +33,8 @@ pub(crate) enum State {
     Progress(Vec<String>),
 }
 
-/// The `keel close` command: one battery, then one of three states
+/// The `keel close` command: the battery run three times (§7.13),
+/// then one of three states
 /// per wave; the second number counts the blockers -- the lacks of
 /// the wave the current branch is named after (§8.2). Other waves
 /// inform, they do not punish.
@@ -43,7 +54,15 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         return Err(refusal);
     }
     let found = tags::scan(&adapter::test_files(root)?)?;
-    let battery = adapter::run_all(root)?;
+    // The battery runs several times before green is believed
+    // (§7.13): the adapter keeps its word -- one battery, one cargo
+    // run -- and the court folds the runs.
+    let mut battery: Battery = BTreeMap::new();
+    for _ in 0..BATTERY_RUNS {
+        for (key, green) in adapter::run_all(root)? {
+            battery.entry(key).or_default().push(green);
+        }
+    }
     let branch = scope::branch_wave(root, &scan.waves);
     // A scenario namesake may live in several waves: every wave's own
     // revision is legal for the slug, and a tag holding a foreign
@@ -60,7 +79,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     report.push('\n');
     report.push_str(&ta(
         "close-battery",
-        targs!("count" => battery.len() as u64),
+        targs!("count" => battery.len() as u64, "runs" => BATTERY_RUNS as u64),
     ));
     report.push('\n');
 
@@ -68,7 +87,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // trust court: only a matching fingerprint runs; a failing
     // command is a blocker -- a broken foreign promise does not
     // merge; distrust is check's verdict, said here by name only.
-    // ci is not run: the project's own gate proves no contract.
+    // The project's ci follows through the same gate (wave 0019).
     let mut verify_count: u64 = 0;
     let mut verify_blockers = 0usize;
     let mut verify_lines: Vec<String> = Vec::new();
@@ -87,39 +106,15 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             ));
             continue;
         }
-        let ran = std::process::Command::new("sh")
-            .arg("-c")
-            .arg(command)
-            .current_dir(root)
-            .output();
-        match ran {
-            Ok(out) if out.status.success() => verify_lines.push(ta(
+        match run_command(root, command) {
+            Ok(()) => verify_lines.push(ta(
                 "close-verify-passed",
                 targs!("command" => command.clone(), "contract" => contract.slug.clone()),
             )),
-            Ok(out) => {
-                // The last non-empty line of stderr, else stdout,
-                // else the keyed word (0010 review R-5): no raw
-                // English inside a localized verdict.
-                let stderr = String::from_utf8_lossy(&out.stderr);
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                let words = stderr
-                    .lines()
-                    .rev()
-                    .find(|l| !l.trim().is_empty())
-                    .or_else(|| stdout.lines().rev().find(|l| !l.trim().is_empty()))
-                    .map(str::to_string)
-                    .unwrap_or_else(|| t("close-verify-no-words"));
+            Err(words) => {
                 verify_lines.push(ta(
                     "close-verify-failed",
                     targs!("command" => command.clone(), "contract" => contract.slug.clone(), "words" => words),
-                ));
-                verify_blockers += 1;
-            }
-            Err(e) => {
-                verify_lines.push(ta(
-                    "close-verify-failed",
-                    targs!("command" => command.clone(), "contract" => contract.slug.clone(), "words" => e.to_string()),
                 ));
                 verify_blockers += 1;
             }
@@ -132,6 +127,35 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         report.push_str(line);
         report.push('\n');
     }
+
+    // The project's own ci (wave 0019, the first field's gift)
+    // through the same §7.16 gate as verify: a trusted command runs
+    // exactly once as the project's own merge gate -- never as a
+    // contract's proof; untrusted, none, undecided and absent are
+    // each a word, never a run. "Trusted" means "runs".
+    let mut ci_blocker = 0usize;
+    let ci_line = match config.ci.as_deref() {
+        None => t("close-ci-absent"),
+        Some("") => t("close-ci-undecided"),
+        Some("none") => t("close-ci-none"),
+        Some(command) if !crate::trust::trusted(&config, command) => ta(
+            "close-ci-untrusted",
+            targs!("command" => command.to_string()),
+        ),
+        Some(command) => match run_command(root, command) {
+            Ok(()) => ta("close-ci-passed", targs!("command" => command.to_string())),
+            Err(words) => {
+                ci_blocker = 1;
+                ta(
+                    "close-ci-failed",
+                    targs!("command" => command.to_string(), "words" => words),
+                )
+            }
+        },
+    };
+    report.push_str("  ");
+    report.push_str(&ci_line);
+    report.push('\n');
     report.push('\n');
 
     let mut blockers = 0usize;
@@ -188,6 +212,10 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         ));
         report.push('\n');
     }
+    if ci_blocker > 0 {
+        report.push_str(&t("close-ci-blocker"));
+        report.push('\n');
+    }
     if blockers > 0 {
         report.push_str(&ta(
             "close-blockers",
@@ -202,11 +230,74 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             targs!("wave" => branch.unwrap_or_default()),
         ));
         report.push('\n');
-    } else if verify_blockers == 0 {
+    } else if verify_blockers == 0 && ci_blocker == 0 {
         report.push_str(&t("close-no-blockers"));
         report.push('\n');
     }
-    Ok((report, blockers + verify_blockers))
+    Ok((report, blockers + verify_blockers + ci_blocker))
+}
+
+/// Runs one trusted command from the repository's files through
+/// `sh -c` at the root -- the verify of a contract, the project's
+/// ci: success is silence; failure carries the command's last
+/// non-empty line of stderr, else stdout, else the keyed word (0010
+/// review R-5) -- no raw English inside a localized verdict. A
+/// command that does not start fails with the system's words.
+fn run_command(root: &Path, command: &str) -> Result<(), String> {
+    let out = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .current_dir(root)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    Err(stderr
+        .lines()
+        .rev()
+        .map(visible)
+        .find(|l| !l.is_empty())
+        .or_else(|| stdout.lines().rev().map(visible).find(|l| !l.is_empty()))
+        .unwrap_or_else(|| t("close-verify-no-words")))
+}
+
+/// The visible text of a line: the colours a command paints are not
+/// words. `cargo fmt --check` ends its diff with a bare reset
+/// sequence, and a verdict quoting that escape says nothing at all
+/// -- found in the field on slugline, wave 0019; the same school as
+/// 0010 review R-5, where a verdict must carry words, not noise.
+fn visible(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            if chars.peek() == Some(&'[') {
+                // A CSI sequence: the opener is not its final byte
+                // (the first cut of this fix broke right here), so
+                // it is eaten before the hunt for one in @..~.
+                chars.next();
+                for c in chars.by_ref() {
+                    if ('@'..='~').contains(&c) {
+                        break;
+                    }
+                }
+            } else {
+                // Two-character escapes such as ESC ( B.
+                chars.next();
+            }
+            continue;
+        }
+        if c.is_control() {
+            // Bare control bytes are not words either: rustfmt
+            // paints a shift-in after every reset.
+            continue;
+        }
+        out.push(c);
+    }
+    out.trim().to_string()
 }
 
 /// Structural closure -- without running the tests: every live
@@ -246,7 +337,7 @@ pub(crate) fn wave_state(
     wave: &docs::Wave,
     found: &[TestTag],
     legal: &BTreeMap<String, Vec<String>>,
-    battery: Option<&BTreeMap<(String, String), bool>>,
+    battery: Option<&Battery>,
 ) -> Result<State, Refusal> {
     if light(wave) {
         return Ok(State::ClosedLight);
@@ -328,9 +419,16 @@ pub(crate) fn wave_state(
                     .file_stem()
                     .map(|s| s.to_string_lossy().into_owned())
                     .unwrap_or_default();
+                // Green only when green in every run (§7.13): green
+                // in some runs is a lack with its count, never a
+                // blessing by the one green run; red in all stays red.
                 match battery.get(&(stem, tag.test.clone())) {
-                    Some(true) => {}
-                    Some(false) => lacks.push(ta(
+                    Some(runs) if runs.len() == BATTERY_RUNS && runs.iter().all(|g| *g) => {}
+                    Some(runs) if runs.iter().any(|g| *g) => lacks.push(ta(
+                        "close-lack-flaky",
+                        targs!("scenario" => (*name).clone(), "test" => tag.test.clone(), "green" => runs.iter().filter(|g| **g).count() as u64, "runs" => BATTERY_RUNS as u64),
+                    )),
+                    Some(_) => lacks.push(ta(
                         "close-lack-red",
                         targs!("scenario" => (*name).clone(), "test" => tag.test.clone()),
                     )),
