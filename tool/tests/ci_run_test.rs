@@ -119,7 +119,7 @@ fn trusted_ci_runs() {
     // The command's own text carries no escape -- only its output
     // does, exactly like a coloured cargo fmt diff. The toml holds
     // it in a literal string so the backslashes reach printf.
-    let painted = r#"printf "Diff in src/lib.rs\n\033[m\n"; exit 1"#;
+    let painted = r#"printf "Diff in src/lib.rs\n\033[32m+ bad\033[m\017\n\033[m\017 \n"; exit 1"#;
     write(
         &dir,
         "keel.toml",
@@ -135,11 +135,11 @@ fn trusted_ci_runs() {
         "a painted red ci is a blocker all the same:\n{out}"
     );
     assert!(
-        !out.contains('\u{1b}'),
-        "no escape sequence is quoted as a verdict's words:\n{out:?}"
+        !out.contains('\u{1b}') && !out.contains('\u{f}'),
+        "no escape or control byte is quoted as a verdict's words:\n{out:?}"
     );
     assert!(
-        out.contains("Diff in src/lib.rs"),
+        out.contains("+ bad"),
         "the row carries the visible words the command left:\n{out}"
     );
 
