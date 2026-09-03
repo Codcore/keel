@@ -10,12 +10,11 @@ transforms:
   agents-own-their-rows:
     implements:
       - every-agent-in-its-own-format
-    contracts: [tool-generated@d43c1d, tool-config@2fbe20]
+    contracts: [tool-generated@d43c1d, tool-config@0e4d22]
     files:
       - tool/src/generated.rs
       - tool/src/config.rs
-      - tool/i18n/en.ftl
-      - tool/i18n/uk.ftl
+      - tool/src/init.rs
       - tool/tests/generated_test.rs
       - tool/tests/rev_test.rs
       - keel.toml
@@ -192,7 +191,11 @@ Codex теж прочитає. Це властивість стандарту, �
 (`~/.codex/skills`, `~/.agents/skills`) keel не пише ніколи —
 інструмент, що пише в дім людини, гірший за відсутній файл.
 
-Названо вголос за §4.6, бо список files виріс під час роботи:
+Список files правлено ще до коду, а не тихцем під час роботи:
+рядки `tool/i18n/*.ftl` зняті — нових слів хвиля не додає (шаблони
+скіла і блока живуть у `generated.rs`, а слова рами вже є), зате
+стоїть `tool/src/init.rs`: саме там рахується шмат, що не став, і
+без нього битий конфіг далі давав би зелений вихід. Названо вголос за §4.6, бо список files виріс під час роботи:
 `tool/Cargo.toml` дістає `saphyr-parser` у `[dev-dependencies]` —
 шапки згенерованих скілів судить справжній YAML-парсер, а не
 порівняння рядків, і без цього рядка проба не могла б цього робити.
