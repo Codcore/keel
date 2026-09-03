@@ -5,7 +5,7 @@ exports:
   - "pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal>"
   - "pub fn checklist() -> &'static str"
   - "pub fn method(asked: Option<&str>) -> Result<String, Refusal>"
-  - "pub fn cuts_report() -> String"
+  - "pub fn cuts_report() -> Result<String, Refusal>"
 ---
 
 Рот інструмента (рішення оператора §8.6, 2026-09-03: «усе інше — має

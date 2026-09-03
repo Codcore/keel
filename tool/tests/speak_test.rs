@@ -138,6 +138,45 @@ fn the_tool_says_what_it_judges_by() {
         "while the document as it stands is served"
     );
 
+    // A question emptied by an accidental edit is drift too (review
+    // 0027 R-1: it used to be served as a slug, a dash and nothing).
+    let hollowed = document.replace(
+        "- **correctness** — is the result right",
+        "- **correctness** — ",
+    );
+    assert_ne!(hollowed, document, "the hollowed document really differs");
+    let refusal =
+        keel::speak::cuts_from(&hollowed).expect_err("a cut with no question at all is refused");
+    assert!(
+        format!("{refusal}").contains("functional.correctness"),
+        "and the refusal names it:\n{refusal}"
+    );
+
+    // The court stands at the gate every project already runs, not
+    // only in a command nobody has to type (review 0027 R-2).
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    // (The verdict of the whole check is not this scenario's
+    // business -- a working tree mid-wave is red by design. The row
+    // is.)
+    let (judged, _) = keel(&["check", root.to_str().unwrap()]);
+    assert!(
+        judged.contains("сорок розрізів") || judged.contains("forty cuts"),
+        "keel check judges the sameness of the vocabulary at the gate:\n{judged}"
+    );
+
+    // Every family is NAMED, not merely implied by a slug prefix
+    // (review 0027 R-14).
+    let (report, _) = keel(&["cuts"]);
+    for family in ["[functional]", "[safety]", "[security]"] {
+        assert!(
+            report.contains(family),
+            "the family heading {family} stands in the report:\n{report}"
+        );
+    }
+
     // The methodology: without an argument, the table of contents.
     let (contents, code) = keel(&["method"]);
     assert_eq!(code, 0, "the tool says the methodology:\n{contents}");
@@ -171,6 +210,42 @@ fn the_tool_says_what_it_judges_by() {
         missing.contains("8.1") || missing.contains("8."),
         "and the word names the bounds of that chapter:\n{missing}"
     );
+
+    // A chapter is served whole when asked by name -- the only way
+    // to reach the Constitution's eight rules and the three
+    // appendices, a sixth of the methodology that no paragraph number
+    // can reach (review 0027 R-6).
+    let (constitution, code) = keel(&["method", "Конституція"]);
+    assert_eq!(code, 0, "a chapter is served whole:\n{constitution}");
+    assert!(
+        constitution.contains("Вісім правил") && constitution.contains("8."),
+        "with its eight rules in it:\n{constitution}"
+    );
+
+    // A piece is the piece, not its neighbour's fence: the last
+    // paragraph of a chapter used to carry the document's own rule
+    // (review 0027 R-11).
+    let (last, code) = keel(&["method", "§10.7"]);
+    assert_eq!(
+        code, 0,
+        "the last paragraph of a chapter is served:\n{last}"
+    );
+    assert!(
+        !last.trim_end().ends_with("---"),
+        "and carries no separator of the document with it:\n{last}"
+    );
+
+    // A typo is refused, not swallowed into "here are the contents"
+    // (review 0027 R-8).
+    for typo in ["абракадабра", "1.2.3", "8.6."] {
+        let (out, code) = keel(&["method", typo]);
+        assert_ne!(
+            code, 0,
+            "{typo:?} is refused, not answered with contents:\n{out}"
+        );
+    }
+    let (extra, code) = keel(&["cuts", ".", "and-another"]);
+    assert_ne!(code, 0, "a second argument is refused:\n{extra}");
 
     // Neither mouth reads the disk: served from a directory that has
     // no documents at all, they still speak in full.

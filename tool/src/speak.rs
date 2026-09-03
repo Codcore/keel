@@ -42,6 +42,7 @@ pub fn cuts() -> Vec<(&'static str, &'static str, &'static str)> {
 pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
     let mut family = String::new();
     let mut found: Vec<(String, &str)> = Vec::new();
+    let mut hollow: Vec<String> = Vec::new();
     for line in checklist.lines() {
         if let Some(title) = line.strip_prefix("### ") {
             // "1. Functional suitability" -> the first word, lowered,
@@ -65,10 +66,25 @@ pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
         if family.is_empty() {
             continue;
         }
-        found.push((
-            format!("{family}.{}", name.replace(' ', "-")),
-            question.trim(),
-        ));
+        let slug = format!("{family}.{}", name.replace(' ', "-"));
+        // A question emptied by an accidental edit is drift as much
+        // as one renamed: the slug would be served with a dash and
+        // nothing after it (review 0027 R-1, its sixth breakage).
+        if question.trim().is_empty() {
+            hollow.push(slug.clone());
+        }
+        found.push((slug, question.trim()));
+    }
+
+    if !hollow.is_empty() {
+        return Err(Refusal {
+            file: Path::new("QUALITY.md").to_path_buf(),
+            reason: ta(
+                "speak-cuts-hollow",
+                targs!("cuts" => hollow.join(", "), "count" => hollow.len().to_string()),
+            ),
+            instead: t("speak-cuts-hollow-instead"),
+        });
     }
 
     let mut paired = Vec::with_capacity(crate::graph::cuts().len());
@@ -135,13 +151,20 @@ pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
 
 /// The cuts as a report: nine families, forty questions, each under
 /// the slug the courts judge by.
-pub fn cuts_report() -> String {
+pub fn cuts_report() -> Result<String, Refusal> {
+    // The court lives in cuts_from, not at the call site: a second
+    // buyer of this contract used to get an empty list and a title
+    // saying "forty" above it (review 0027 R-5).
+    let paired = cuts_from(CHECKLIST)?;
     let mut report = t("speak-cuts-title");
     report.push('\n');
     let mut standing = "";
-    for (slug, family, question) in cuts() {
+    for (slug, family, question) in paired {
         if family != standing {
+            // The nine families are NAMED, not merely implied by the
+            // prefix of a slug (review 0027 R-14).
             report.push('\n');
+            report.push_str(&format!("  [{family}]\n"));
             standing = family;
         }
         report.push_str(&format!("  {slug} — {question}\n"));
@@ -152,7 +175,7 @@ pub fn cuts_report() -> String {
         targs!("version" => env!("CARGO_PKG_VERSION").to_string()),
     ));
     report.push('\n');
-    report
+    Ok(report)
 }
 
 /// The methodology: its contents, or one paragraph of it.
@@ -172,9 +195,25 @@ pub fn method(asked: Option<&str>) -> Result<String, Refusal> {
         report.push('\n');
         return Ok(report);
     };
-    let wanted = asked.trim_start_matches('§');
+    let wanted = asked.trim_start_matches('§').trim();
+    // A chapter asked for by name is served whole -- which is the
+    // only way to reach the Constitution's eight rules and the three
+    // appendices, a sixth of the methodology that no paragraph number
+    // can reach (review 0027 R-6).
+    if let Some(said) = whole_chapter(wanted) {
+        return Ok(said);
+    }
     for (name, paragraphs) in &chapters {
         if let Some((_, text)) = paragraphs.iter().find(|(number, _)| number == wanted) {
+            // Ten paragraphs -- the last of every chapter -- used to
+            // carry the document's own "---" rule with them (review
+            // 0027 R-11). A piece served is the piece, not its
+            // neighbour's fence.
+            let text = text
+                .trim_end()
+                .trim_end_matches("---")
+                .trim_end()
+                .to_string();
             return Ok(format!("{name}\n\n{text}\n"));
         }
     }
@@ -187,15 +226,58 @@ pub fn method(asked: Option<&str>) -> Result<String, Refusal> {
         .map(|(number, _)| number.as_str())
         .filter(|number| number.split('.').next() == Some(head))
         .collect();
-    let bounds = match (neighbours.first(), neighbours.last()) {
-        (Some(first), Some(last)) => format!("§{first} … §{last}"),
-        _ => t("speak-method-none"),
+    // Two states, two words. A chapter that exists gets its bounds;
+    // a number belonging to no chapter gets the list of chapters,
+    // because "that chapter holds no paragraph of that chapter" is a
+    // broken sentence, not help (review 0027 R-7).
+    let instead = match (neighbours.first(), neighbours.last()) {
+        (Some(first), Some(last)) => ta(
+            "speak-method-unknown-instead",
+            targs!("bounds" => format!("§{first} … §{last}")),
+        ),
+        _ => ta(
+            "speak-method-nowhere-instead",
+            targs!("chapters" => chapters
+                .iter()
+                .map(|(name, _)| (*name).to_string())
+                .collect::<Vec<_>>()
+                .join(" | ")),
+        ),
     };
     Err(Refusal {
         file: Path::new("METHODOLOGY-V2.md").to_path_buf(),
         reason: ta("speak-method-unknown", targs!("asked" => asked.to_string())),
-        instead: ta("speak-method-unknown-instead", targs!("bounds" => bounds)),
+        instead,
     })
+}
+
+/// A chapter served whole, when its name is asked for. The match is
+/// a case-insensitive prefix, so "Додаток Б" and "конституція" both
+/// find their chapter.
+fn whole_chapter(wanted: &str) -> Option<String> {
+    if wanted.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return None;
+    }
+    let lowered = wanted.to_lowercase();
+    let mut carried: Option<String> = None;
+    let mut taking = false;
+    for line in METHOD.lines() {
+        if let Some(title) = line.strip_prefix("## ") {
+            if taking {
+                break;
+            }
+            taking = title.to_lowercase().starts_with(&lowered);
+            if taking {
+                carried = Some(format!("## {title}\n"));
+            }
+            continue;
+        }
+        if taking && let Some(text) = carried.as_mut() {
+            text.push_str(line);
+            text.push('\n');
+        }
+    }
+    carried.map(|text| format!("{}\n", text.trim_end().trim_end_matches("---").trim_end()))
 }
 
 /// A rule written as "N. **Text**" -- the shape the Constitution

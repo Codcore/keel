@@ -3,14 +3,14 @@ depends_on: [0026-init-asks]
 
 scenarios:
   the-tool-says-what-it-judges-by:
-    proves: tool-speak@aefb0f
+    proves: tool-speak@7fa5d8
     covers: [functional.completeness, maintainability.analysability]
 
 transforms:
   a-mouth-of-its-own:
     implements:
       - the-tool-says-what-it-judges-by
-    contracts: [tool-speak@aefb0f, tool-graph@3ebf21]
+    contracts: [tool-speak@7fa5d8, tool-graph@3ebf21]
     files:
       - tool/src/speak.rs
       - tool/src/lib.rs
@@ -18,6 +18,12 @@ transforms:
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/speak_test.rs
+      - tool/src/check.rs
+      - tool/src/generated.rs
+      - AGENTS.md
+      - .claude/skills/keel/SKILL.md
+      - .agents/skills/keel/SKILL.md
+      - keel.toml
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:
@@ -26,19 +32,19 @@ transforms:
 decisions:
   functional.appropriateness: "свідомо без окремого тесту: доречність судить рішення оператора §8.6 — блок тонкий, бо решту віддає сам інструмент; без рота той закон тримався б на обіцянці"
   functional.correctness: "тримає the-tool-says-what-it-judges-by: питання, які подає рот, — ті самі, за якими судить keel check; не схожі, а ті самі, сорок разів і в тому самому порядку"
-  performance.time-behaviour: "не застосовується: тексти зашиті, читання диска нема зовсім"
-  performance.capacity: "свідомо без тесту: 56 КБ методики і 8 КБ чеклиста в бінарнику — назване число, не здогад"
-  performance.resource-utilisation: "свідомо: бінарник більшає рівно на розмір текстів, і це ціна того, щоб проєкт не мусив тягнути документи інструмента до себе"
+  performance.time-behaviour: "виправлено за R-10 рецензії: «читання диска нема зовсім» — неправда. Тексти справді не читаються з диска, але обидві команди читають keel.toml, щоб знати мову рами. Точно: жодного з ПОДАНИХ документів із диска не читається"
+  performance.capacity: "виправлено за R-10 рецензії: 55 940 байтів методики і 6 891 чеклиста (не «8 КБ»), а сам бінарник у debug виріс не «рівно на розмір текстів», а на 269 440 байтів — у 4,3 раза більше, бо зашитий рядок тягне за собою і код, що його розбирає. Число зміряне рецензентом і не заперечується: моє було здогадом, подане як міра"
+  performance.resource-utilisation: "свідомо, і ціна зміряна, а не вгадана: +269 440 байтів у debug-бінарнику (release не міряно — рецензент свідомо не їв спільного диска). Це ціна того, щоб проєкт не мусив тягнути документи інструмента до себе"
   compatibility.co-existence: "не застосовується: рот нічого не пише на диск"
   compatibility.interoperability: "свідомо без тесту: вивід — звичайний текст у stdout, як у решти команд-читачів"
   interaction.appropriateness-recognisability: "свідомо без нового тесту: обидві команди звуться тим, що подають — cuts і method"
   interaction.learnability: "тримає the-tool-says-what-it-judges-by: без аргументу method подає зміст, тож знайти потрібний параграф можна, не знаючи його номера наперед"
-  interaction.operability: "свідомо без окремого тесту: дві команди без прапорців; main-usage їх називає"
+  interaction.operability: "виправлено за R-4 і R-8 рецензії: main-usage називав нові команди лише англійською — українська лишалась старою; тепер обома, і з [тека]. І аргументи більше не ковтаються мовчки: друкарська помилка в номері параграфа — відмова, а не мовчазний зміст, і другий зайвий аргумент — теж"
   interaction.user-error-protection: "тримає the-tool-says-what-it-judges-by: невідомий номер параграфа — відмова, що називає межі розділу, а не порожній вивід"
   interaction.user-engagement: "не застосовується"
   interaction.inclusivity: "**названо як межа**: методика цього покоління написана українською, чеклист — англійською, і рот їх НЕ перекладає. Він каже вголос, якою мовою говорить; вдавати двомовність, якої нема, було б гіршим за чесну однобічність. Слова самої рами — ключами через i18n, як завжди"
   interaction.self-descriptiveness: "свідомо без нового тесту: кожен вивід називає джерело — документ, із якого його зашито, — і номер релізу, у мить збірки якого цей знімок узято. Друге додано після питання оператора: сказати «зашито» і не сказати «коли» — це та сама тиша, проти якої вся методика"
-  interaction.user-assistance: "тримає the-tool-says-what-it-judges-by: відмова про невідомий параграф називає перший і останній параграф розділу — те, чим можна скористатись одразу"
+  interaction.user-assistance: "тримає the-tool-says-what-it-judges-by, і виправлено за R-7 рецензії: слово було зіпсоване — «той розділ тримає жодного параграфа того розділу» — бо одна фраза підставлялась усередину іншої. Тепер два стани, два слова: розділ, що існує, дістає свої межі; номер, що не належить жодному розділу, дістає перелік розділів"
   reliability.faultlessness: "свідомо без окремого тесту: розбір параграфів — один прохід по зашитому тексту, без стану"
   reliability.fault-tolerance: "не застосовується: нема чого читати з диска, тож нема чому впасти"
   reliability.availability: "не застосовується: локальний бінарник"
