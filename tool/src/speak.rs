@@ -15,6 +15,9 @@ use std::path::Path;
 /// The checklist a person reads (QUALITY.md) and the methodology of
 /// this generation, both as this release was built with them.
 const CHECKLIST: &str = include_str!("../../QUALITY.md");
+/// The same checklist in the other tongue of this release (wave
+/// 0028). Skeleton only for now -- the red of this wave.
+const CHECKLIST_UK: &str = include_str!("../../QUALITY.md");
 const METHOD: &str = include_str!("../../docs/uk/METHODOLOGY-V2.md");
 
 /// The checklist this release was built with -- handed out so a
@@ -22,6 +25,17 @@ const METHOD: &str = include_str!("../../docs/uk/METHODOLOGY-V2.md");
 /// copy living anywhere.
 pub fn checklist() -> &'static str {
     CHECKLIST
+}
+
+/// The checklist in the language a project speaks.
+pub fn checklist_for(_lang: &str) -> &'static str {
+    CHECKLIST
+}
+
+/// Every checklist this release carries, by language -- so a court
+/// can judge them all rather than the one that happens to be served.
+pub fn checklists() -> Vec<(&'static str, &'static str)> {
+    vec![("en", CHECKLIST), ("uk", CHECKLIST_UK)]
 }
 
 /// The forty cuts with the family and the question each asks, taken
