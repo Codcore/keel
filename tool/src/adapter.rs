@@ -102,7 +102,8 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let out = Command::new("cargo")
+    let mut command = Command::new("cargo");
+    command
         .arg("test")
         .arg("--manifest-path")
         .arg(crate_dir.join("Cargo.toml"))
@@ -113,13 +114,16 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
         // cargo alias walks it back in through the side door
         // (review 0009 R-2).
         .env_remove("CARGO_TARGET_DIR")
-        .env_remove("CARGO_BUILD_TARGET_DIR")
-        .output()
-        .map_err(|e| Refusal {
-            file: crate_dir.clone(),
-            reason: ta("adapter-cargo-failed", targs!("error" => e.to_string())),
-            instead: t("adapter-cargo-failed-instead"),
-        })?;
+        .env_remove("CARGO_BUILD_TARGET_DIR");
+    // And it runs in the project's own world: a hook's repository,
+    // left in the environment, would otherwise reach the project's
+    // own tests through cargo (review 0021 R-3).
+    crate::scope::forget_the_hook(&mut command);
+    let out = command.output().map_err(|e| Refusal {
+        file: crate_dir.clone(),
+        reason: ta("adapter-cargo-failed", targs!("error" => e.to_string())),
+        instead: t("adapter-cargo-failed-instead"),
+    })?;
     let stderr = String::from_utf8_lossy(&out.stderr);
     if stderr.contains("could not compile") || stderr.contains("error[E") {
         let words = stderr
@@ -158,20 +162,22 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
 /// compiler's words: without a build there is no verdict for anyone.
 pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
     let crate_dir = crate_root(root)?;
-    let out = Command::new("cargo")
+    let mut command = Command::new("cargo");
+    command
         .arg("test")
         .arg("--manifest-path")
         .arg(crate_dir.join("Cargo.toml"))
         .arg("--no-fail-fast")
-        // Same isolation as run_test: the shared cache lies.
+        // Same isolation as run_test: the shared cache lies, and the
+        // hook's repository must not reach the project's tests.
         .env_remove("CARGO_TARGET_DIR")
-        .env_remove("CARGO_BUILD_TARGET_DIR")
-        .output()
-        .map_err(|e| Refusal {
-            file: crate_dir.clone(),
-            reason: ta("adapter-cargo-failed", targs!("error" => e.to_string())),
-            instead: t("adapter-cargo-failed-instead"),
-        })?;
+        .env_remove("CARGO_BUILD_TARGET_DIR");
+    crate::scope::forget_the_hook(&mut command);
+    let out = command.output().map_err(|e| Refusal {
+        file: crate_dir.clone(),
+        reason: ta("adapter-cargo-failed", targs!("error" => e.to_string())),
+        instead: t("adapter-cargo-failed-instead"),
+    })?;
     let stderr = String::from_utf8_lossy(&out.stderr);
     if stderr.contains("could not compile") || stderr.contains("error[E") {
         let words = stderr

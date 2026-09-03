@@ -25,6 +25,18 @@ use std::process::Command;
 pub fn git_at(root: &Path) -> Command {
     let mut command = Command::new("git");
     command.arg("-C").arg(root);
+    forget_the_hook(&mut command);
+    command
+}
+
+/// What a git hook leaves in the environment for its children: the
+/// repository it runs for, and the `-c` settings of the git command
+/// that fired it. Anyone who spawns a child that may itself talk to
+/// git strips these -- the courts through `git_at`, and the battery
+/// through the adapter (review 0021 R-3: without it `keel close`
+/// handed the whole test suite a stranger's repository, and a byte
+/// of a sandbox reached that stranger).
+pub fn forget_the_hook(command: &mut Command) {
     for name in [
         "GIT_DIR",
         "GIT_WORK_TREE",
@@ -39,7 +51,6 @@ pub fn git_at(root: &Path) -> Command {
     ] {
         command.env_remove(name);
     }
-    command
 }
 
 /// The current branch by git's word. None wherever git serves no
