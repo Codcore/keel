@@ -43,6 +43,22 @@ fn git(dir: &Path, args: &[&str]) {
     );
 }
 
+/// The frame run with a foreign repository in the environment --
+/// exactly what a git hook hands its children (GIT_DIR and friends).
+fn keel_under_hook_env(args: &[&str], git_dir: &Path, work_tree: &Path) -> String {
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(args)
+        .env("GIT_DIR", git_dir)
+        .env("GIT_WORK_TREE", work_tree)
+        .output()
+        .unwrap();
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    )
+}
+
 fn keel(args: &[&str]) -> (String, String, i32) {
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
         .args(args)
@@ -106,8 +122,8 @@ fn ignore_reminded() {
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "the advice never reddens the frame:\n{out}");
     assert!(
-        out.contains("ignore rules") && out.contains("no .gitignore") && out.contains("target/"),
-        "the row advises starting a .gitignore with the build directory:\n{out}"
+        out.contains("ignore rules") && out.contains("add exactly") && out.contains("target/"),
+        "with nothing ignoring it, the row names the exact line to add:\n{out}"
     );
     assert!(
         !dir.join(".gitignore").exists(),
@@ -209,4 +225,23 @@ fn ignore_reminded() {
             "no build directory is guessed for a language this release does not serve:\n{out}"
         );
     }
+
+    // Run from inside a git hook, where git hands its children
+    // GIT_DIR and GIT_WORK_TREE of ITS repository: the row must
+    // still judge the project it was pointed at, never the
+    // repository that happened to spawn it (the same school as the
+    // adapter's isolation from an inherited CARGO_TARGET_DIR).
+    let foreign = sandbox("foreign-repo");
+    git(&foreign, &["init", "-q", "-b", "main"]);
+    write(&foreign, ".gitignore", "target/\n");
+    let dir = project("hookenv", Some("rust"));
+    let out = keel_under_hook_env(
+        &["init", dir.to_str().unwrap()],
+        &foreign.join(".git"),
+        &foreign,
+    );
+    assert!(
+        out.contains("add exactly"),
+        "the row judges the project it was given, not the repository in the environment:\n{out}"
+    );
 }

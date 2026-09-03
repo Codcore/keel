@@ -318,7 +318,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 18 — init нагадує про .gitignore адаптера (легка хвиля)
+check-next-rung = наступний крок: щабель 19 — згенеровані інтеграції (скіли, hook-конфіги, блок AGENTS.md) і їхні digest-и в [generated]
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -426,11 +426,12 @@ init-stands = { "  " }вже стоїть: { $piece } — жоден байт н
 init-fed = { "  " }догодовано: { $piece } — .gitkeep, щоб наявна порожня тека пережила git
 init-failed = { "  " }не стало: { $piece } — { $error }; натомість: прибери заваду і повтори keel init
 init-config-header = keel.toml — словник §2.9; розкоментуй, щоб увімкнути; типові значення лишаються словам keel
-init-ignore-no-file = правила ignore: .gitignore нема — заведи його з текою збірки адаптера: { $rule } (рама радить; файлів самого проєкту вона не пише)
-init-ignore-missing = правила ignore: .gitignore не ігнорує теки збірки адаптера — допиши рівно цей рядок: { $rule }
-init-ignore-stands = правила ignore: { $rule } стоїть у .gitignore — тека збірки поза git
+init-ignore-missing = правила ignore: git не ігнорує теки збірки адаптера ({ $path }) — допиши в .gitignore рівно цей рядок: { $rule } (рама радить; файлів самого проєкту вона не пише)
+init-ignore-stands = правила ignore: тека збірки ({ $path }) ігнорується — правило дає { $source }, і воно їде з репозиторієм
+init-ignore-exclude-only = правила ignore: { $path } ігнорує лише { $source }, а він з репозиторієм не їде — допиши в .gitignore рівно цей рядок: { $rule }
+init-ignore-no-crate = правила ignore: адаптер не знайшов крейта, щоб назвати теку збірки ({ $error })
 init-ignore-no-adapter = правила ignore: адаптера цього релізу в keel.toml не названо, тож і теки збірки нема кому назвати
-init-ignore-unread = правила ignore: .gitignore не прочитано ({ $error }) — правило не судиться
+init-ignore-unjudged = правила ignore: git тут нічого не сказав ({ $error }) — правило не суджено
 init-eight-seven = §8.7: вимкни squash і rebase у налаштуваннях репозиторію — правило тримає вимкнена кнопка, не памʼять
 init-next = далі — keel plan <перша хвиля>
 

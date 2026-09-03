@@ -162,26 +162,69 @@ fn ignore_row(root: &Path) -> String {
     }
     let dir = crate::adapter::BUILD_DIR;
     let rule = format!("{dir}/");
-    let text = match std::fs::read_to_string(root.join(".gitignore")) {
-        Ok(text) => text,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return ta("init-ignore-no-file", targs!("rule" => rule));
-        }
-        Err(e) => {
-            return ta("init-ignore-unread", targs!("error" => e.to_string()));
+    // Which directory to ask about is the adapter's answer: the
+    // crate may live one level down (keel's own shape), and a root
+    // the adapter cannot name is said aloud, never guessed.
+    let build = match crate::adapter::crate_root(root) {
+        Ok(crate_dir) => crate_dir
+            .strip_prefix(root)
+            .unwrap_or(Path::new(""))
+            .join(dir),
+        Err(refusal) => {
+            return ta("init-ignore-no-crate", targs!("error" => refusal.reason));
         }
     };
-    // The rule is read as git reads a line of its own: trimmed, with
-    // the slash or without it. Anything cleverer (negations, globs)
-    // the frame reads literally and stays with its advice -- it does
-    // not guess (the wave's caveat).
-    if text
+    // Asked with the trailing slash git wants: a directory-only
+    // rule (target/) matches a path only when the path is named as
+    // a directory -- and before the first build there is no
+    // directory on disk to speak for itself.
+    let shown = format!("{}/", build.display());
+    // git judges its own rules -- the root file, the nested ones
+    // cargo writes beside a crate, the local exclude. Reading a
+    // single file instead raised a false alarm on keel itself,
+    // whose rule lives in tool/.gitignore (wave 0020, dogfood).
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["check-ignore", "-v", "--"])
+        .arg(&shown)
+        .output();
+    let out = match out {
+        Ok(out) => out,
+        Err(e) => return ta("init-ignore-unjudged", targs!("error" => e.to_string())),
+    };
+    let words = String::from_utf8_lossy(&out.stdout);
+    let source = words
         .lines()
-        .map(str::trim)
-        .any(|line| line == dir || line == rule)
-    {
-        ta("init-ignore-stands", targs!("rule" => rule))
-    } else {
-        ta("init-ignore-missing", targs!("rule" => rule))
+        .next()
+        .and_then(|line| line.split(':').next())
+        .unwrap_or("")
+        .to_string();
+    match out.status.code() {
+        // Ignored, and the rule comes from a file of the repository
+        // -- it travels with every clone.
+        Some(0)
+            if !source.is_empty() && !source.starts_with('/') && !source.contains(".git/info/") =>
+        {
+            ta(
+                "init-ignore-stands",
+                targs!("path" => shown, "source" => source),
+            )
+        }
+        // Ignored only here: an exclude of this clone, or the
+        // person's global file -- neither travels (the first
+        // field's R-4 school), so the advice stands.
+        Some(0) => ta(
+            "init-ignore-exclude-only",
+            targs!("path" => shown, "source" => source, "rule" => rule),
+        ),
+        Some(1) => ta(
+            "init-ignore-missing",
+            targs!("path" => shown, "rule" => rule),
+        ),
+        _ => ta(
+            "init-ignore-unjudged",
+            targs!("error" => String::from_utf8_lossy(&out.stderr).trim().to_string()),
+        ),
     }
 }
