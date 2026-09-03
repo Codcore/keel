@@ -37,6 +37,11 @@ pub struct Config {
     /// time: an empty list and an unknown name are refusals, so what
     /// stands here is either empty (the key was absent) or known.
     pub agents: Vec<String>,
+    /// Whether the hook configs are generated at all (wave 0026, the
+    /// operator's question in the wizard). Absent acts as true: a
+    /// question whose answer changes nothing is not a question, so
+    /// "no" really means no hook artefacts.
+    pub hooks: bool,
     /// The file really existed -- defaults do not pass themselves
     /// off as something read.
     pub present: bool,
@@ -62,6 +67,7 @@ impl Default for Config {
             trust: Vec::new(),
             generated: Vec::new(),
             agents: Vec::new(),
+            hooks: true,
             present: false,
             lang_set: false,
             mode_set: false,
@@ -132,6 +138,7 @@ struct Raw {
     trust: Option<BTreeMap<String, String>>,
     generated: Option<BTreeMap<String, String>>,
     agents: Option<Vec<String>>,
+    hooks: Option<bool>,
 }
 
 /// Reads and judges: the raw read plus the pin court (wave 0018) --
@@ -180,7 +187,7 @@ pub fn read_unpinned(root: &Path) -> Result<Config, Refusal> {
         file: path.clone(),
         reason: format!("keel.toml does not parse: {e}"),
         instead: "fix the named field; the vocabulary is: version, adapter, ci, \
-                  lang, mode, agents, [trust], [generated] (NEW-CONCEPT, Config)"
+                  lang, mode, agents, hooks, [trust], [generated] (NEW-CONCEPT, Config)"
             .to_string(),
     })?;
 
@@ -260,6 +267,7 @@ pub fn read_unpinned(root: &Path) -> Result<Config, Refusal> {
         trust: raw.trust.unwrap_or_default().into_iter().collect(),
         generated: raw.generated.unwrap_or_default().into_iter().collect(),
         agents,
+        hooks: raw.hooks.unwrap_or(true),
         present: true,
         lang_set,
         mode_set,
