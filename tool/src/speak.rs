@@ -16,8 +16,10 @@ use std::path::Path;
 /// this generation, both as this release was built with them.
 const CHECKLIST: &str = include_str!("../../QUALITY.md");
 /// The same checklist in the other tongue of this release (wave
-/// 0028). Skeleton only for now -- the red of this wave.
-const CHECKLIST_UK: &str = include_str!("../../QUALITY.md");
+/// 0028, the operator's decision: nothing Ukrainian where the
+/// settings say English, and nothing English where they say
+/// Ukrainian).
+const CHECKLIST_UK: &str = include_str!("../../docs/uk/QUALITY.md");
 const METHOD: &str = include_str!("../../docs/uk/METHODOLOGY-V2.md");
 
 /// The checklist this release was built with -- handed out so a
@@ -28,8 +30,11 @@ pub fn checklist() -> &'static str {
 }
 
 /// The checklist in the language a project speaks.
-pub fn checklist_for(_lang: &str) -> &'static str {
-    CHECKLIST
+pub fn checklist_for(lang: &str) -> &'static str {
+    match lang {
+        "uk" => CHECKLIST_UK,
+        _ => CHECKLIST,
+    }
 }
 
 /// Every checklist this release carries, by language -- so a court
@@ -46,6 +51,11 @@ pub fn checklists() -> Vec<(&'static str, &'static str)> {
 /// question for each slug the judge already holds.
 pub fn cuts() -> Vec<(&'static str, &'static str, &'static str)> {
     cuts_from(CHECKLIST).unwrap_or_default()
+}
+
+/// The forty cuts in the language a project speaks.
+pub fn cuts_for(lang: &str) -> Vec<(&'static str, &'static str, &'static str)> {
+    cuts_from(checklist_for(lang)).unwrap_or_default()
 }
 
 /// The same, from a checklist handed in -- so the court between the
@@ -77,10 +87,18 @@ pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
         let Some((name, question)) = rest.split_once("** — ") else {
             continue;
         };
-        if family.is_empty() {
-            continue;
-        }
-        let slug = format!("{family}.{}", name.replace(' ', "-"));
+        // A name that carries a dot IS the slug. That is how a
+        // TRANSLATED checklist keeps the machine names a person types
+        // into decisions: while translating its headings and its
+        // questions around them (wave 0028).
+        let slug = if name.contains('.') {
+            name.trim().to_string()
+        } else {
+            if family.is_empty() {
+                continue;
+            }
+            format!("{family}.{}", name.replace(' ', "-"))
+        };
         // A question emptied by an accidental edit is drift as much
         // as one renamed: the slug would be served with a dash and
         // nothing after it (review 0027 R-1, its sixth breakage).
@@ -165,11 +183,11 @@ pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
 
 /// The cuts as a report: nine families, forty questions, each under
 /// the slug the courts judge by.
-pub fn cuts_report() -> Result<String, Refusal> {
+pub fn cuts_report(lang: &str) -> Result<String, Refusal> {
     // The court lives in cuts_from, not at the call site: a second
     // buyer of this contract used to get an empty list and a title
     // saying "forty" above it (review 0027 R-5).
-    let paired = cuts_from(CHECKLIST)?;
+    let paired = cuts_from(checklist_for(lang))?;
     let mut report = t("speak-cuts-title");
     report.push('\n');
     let mut standing = "";

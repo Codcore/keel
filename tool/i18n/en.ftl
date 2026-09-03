@@ -536,9 +536,9 @@ init-config-default = born with the vocabulary commented, nothing chosen for you
 
 # The mouth of the tool (wave 0027)
 check-court-holds = the courts and the checklist hold one list: same forty, same order
-check-cuts-row = the vocabulary of this keel binary (the forty cuts and their questions)
+check-cuts-row = the vocabulary of this keel binary, in { $lang } (the forty cuts and their questions)
 speak-cuts-title = keel cuts — the forty quality cuts, as the courts judge by them (§10.1)
-speak-cuts-source = the questions are served in English, as the checklist writes them, and this release does not translate them; every question above is the checklist QUALITY.md as it stood when keel { $version } was BUILT — a snapshot baked into this binary, not the file in your project; a newer checklist needs a newer keel. The slugs are the vocabulary keel check judges plan completeness by (§10.3)
+speak-cuts-source = every question above is the checklist QUALITY.md as it stood when keel { $version } was BUILT — a snapshot baked into this binary, not the file in your project; a newer checklist needs a newer keel. The slugs are the vocabulary keel check judges plan completeness by (§10.3)
 speak-cuts-drifted = { $count } cut(s) the courts judge by have no question in the checklist: { $cuts }
 speak-cuts-drifted-instead = the judged list and the read list must be one: give each cut its question back in QUALITY.md, or bring the vocabulary of the courts to match it
 speak-cuts-stray = the checklist carries { $count } question(s) no court judges: { $cuts }

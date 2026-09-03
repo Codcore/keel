@@ -571,7 +571,7 @@ fn main() -> ExitCode {
                 .map(|config| config.lang)
                 .unwrap_or_default();
             keel::i18n::init(&lang);
-            match keel::speak::cuts_report() {
+            match keel::speak::cuts_report(&lang) {
                 Ok(said) => {
                     print!("{said}");
                     ExitCode::SUCCESS

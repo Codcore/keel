@@ -3,14 +3,14 @@ depends_on: [0027-the-tool-speaks]
 
 scenarios:
   the-checklist-speaks-the-project-language:
-    proves: tool-speak@7fa5d8
+    proves: tool-speak@7c01e7
     covers: [interaction.inclusivity, functional.correctness]
 
 transforms:
   a-second-tongue-for-the-checklist:
     implements:
       - the-checklist-speaks-the-project-language
-    contracts: [tool-speak@7fa5d8, tool-graph@3ebf21]
+    contracts: [tool-speak@7c01e7, tool-graph@3ebf21]
     files:
       - docs/uk/QUALITY.md
       - tool/src/speak.rs
