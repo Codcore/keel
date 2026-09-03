@@ -63,6 +63,13 @@ impl Config {
     pub fn rust_adapter(&self) -> bool {
         matches!(self.adapter.as_deref(), Some("rust") | Some("cargo"))
     }
+
+    /// The second question of the same home (review 0017 R-1): is
+    /// the written spelling the accepted synonym? check asks here
+    /// for its aloud word -- no court compares the string itself.
+    pub(crate) fn adapter_synonym(&self) -> bool {
+        self.adapter.as_deref() == Some("cargo")
+    }
 }
 
 /// The full keel.toml vocabulary from the concept. An unknown field

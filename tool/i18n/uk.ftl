@@ -106,7 +106,7 @@ rev-dup-transform = секція "## transform: { $name }" стоїть у ті�
 rev-dup-transform-instead = лиши одну секцію: методика не вгадує, котре тіло несе слова роботи (§2.10)
 
 rev-write-title = keel rev --write — розійшлі записи (NEW-CONCEPT)
-rev-write-needs-adapter = рука перепису потребує адаптера cargo, названого в keel.toml: закритість судиться тегами
+rev-write-needs-adapter = рука перепису потребує адаптера rust, названого в keel.toml (старе написання cargo приймається): закритість судиться тегами
 rev-write-needs-adapter-instead = постав adapter = "rust" — імʼям мови; "cargo" — прийнятий синонім (NEW-CONCEPT, Config); інші мови приїдуть своїми хвилями
 rev-write-rewritten = { "  " }{ $wave }: { $contract }@{ $old } → { $contract }@{ $new } — запис тепер тримає чинну редакцію
 rev-write-kept = { "  " }{ $wave }: закрита — лишаю її записи судові історії (§5.6)
@@ -187,6 +187,7 @@ holding-vanished-instead = поверни одиницю або зміни/зн�
 check-holding-count = сигнатур звірено: { $count }
 check-holding-uncompared = { $contract } — форму ніхто не порівнював: { $why } (§7.6)
 holding-why-no-adapter = адаптер у keel.toml не названий
+holding-why-unknown-adapter = названий адаптер не цього релізу (реліз обслуговує "rust")
 holding-why-deep = шлях module глибший, ніж порівнює це покоління
 holding-why-no-file = файл модуля в crate не знайдено
 check-holding-plan = план-гілка: суд форми не біжить (§8.3) — exports ростуть наперед коду (§4.9)
@@ -263,6 +264,8 @@ gate-case = "{ $head }" носить великі літери — red: і сл�
 gate-work-vacuum = трансформа "{ $transform }": живих сценаріїв судити не лишилось — зняті поза судом (§2.12), пропуск із цим словом
 gate-soft = mode: soft — ті самі слова, лише попередженням
 gate-hook-installed = commit-msg hook тепер кличе keel gate — записано в { $path }
+gate-adapter-unjudged = адаптер "{ $name }" не цього релізу (реліз обслуговує "rust") — комміт не суджений: слово стоїть уголос, суд чекає хвилі свого адаптера
+gate-adapter-absent-name = не названий
 gate-hook-already = hook уже наш — тихо той самий файл
 gate-hook-foreign = commit-msg hook тут уже є, і він не наш
 gate-hook-foreign-instead = keel не затирає чужий hook (§9.7); прочитай його і злий або прибери сам, тоді повтори keel hook
@@ -287,7 +290,7 @@ check-trust-ci-none = ; ci — відмова вголос: none
 check-trust-ci-absent = ; ci не оголошений
 check-trust-skipped-broken = команди verify/ci не суджено: битий документ може ховати саму команду — спершу полагодь названі файли
 check-tags-skipped-no-adapter = теги тестів не звірялись: adapter у keel.toml не названий — названо вголос, зеленим не замальовано
-check-tags-skipped-adapter = теги тестів не звірялись: адаптер "{ $name }" цим щаблем не обслуговується (лише cargo) — названо вголос, зеленим не замальовано
+check-tags-skipped-adapter = теги тестів не звірялись: адаптер "{ $name }" не цього релізу — реліз обслуговує "rust" (старе написання "cargo"); названо вголос, зеленим не замальовано
 check-tags-skipped-refused = теги тестів не звірялись: адаптер відмовив посеред роботи — його відмова стоїть серед знахідок
 check-scope-compared = scope: гілка "{ $branch }" і є хвиля — порівняно з { $base }
 check-scope-base-main = merge-base з main @ { $sha }
@@ -315,7 +318,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 13 — у поле (keel init і чужий проєкт)
+check-next-rung = наступний крок: щабель 16 — version-пін (поле version у keel.toml при ділі)
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -351,6 +354,7 @@ map-covered = закрито: "{ $scenario }" — { $proof }
 map-proof-proven = доведений (тег збіжний, §6.3; зелень тесту — суд keel close)
 map-proof-unproven = ще не доведений (збіжного тега нема)
 map-proof-unread = доведеність не читалась (адаптер у keel.toml не названий)
+map-proof-unknown = доведеність не читалась (названий адаптер не цього релізу — реліз обслуговує "rust")
 map-decided = вирішено: "{ $reason }"
 map-unanswered = без відповіді — суд тиші в keel check (§10.3)
 map-older = давніших відповідей: { $count }
@@ -372,12 +376,12 @@ status-awaiting = { "  " }чекає старту: хвиля { $wave } — гі
 status-counts = пораховано: закритих { $closed }, у роботі { $working }, планів { $plans }
 status-no-battery = стадія тут — структурна (теги, посилання, звіт) — батарея не бігла: зелень тестів судять close і hook (§9.2)
 status-next = далі — keel next
-status-needs-adapter = око стадій потребує адаптера cargo, названого в keel.toml: теги — памʼять стадій
+status-needs-adapter = око стадій потребує адаптера rust, названого в keel.toml (старе написання cargo приймається): теги — памʼять стадій
 status-needs-adapter-instead = постав adapter = "rust" — імʼям мови; "cargo" — прийнятий синонім (NEW-CONCEPT, Config); інші мови приїдуть своїми хвилями
 
 ## команда next (§9.2, §9.10, §8.4)
 next-title = keel next — один крок (§9.2)
-next-needs-adapter = рука кроку потребує адаптера cargo, названого в keel.toml: без тегів стадія була б здогадом
+next-needs-adapter = рука кроку потребує адаптера rust, названого в keel.toml (старе написання cargo приймається): без тегів стадія була б здогадом
 next-needs-adapter-instead = постав adapter = "rust" — імʼям мови; "cargo" — прийнятий синонім (NEW-CONCEPT, Config); інші мови приїдуть своїми хвилями
 next-step-fix = крок: полагодь документ { $file } — { $reason }; натомість: { $instead }
 next-step-fix-more = { "  " }і ще { $count ->

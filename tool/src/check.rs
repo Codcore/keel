@@ -393,7 +393,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     writeln!(report, "{config_line}").unwrap();
     // The old spelling is a synonym said aloud, never a silent
     // acceptance (wave 0017): the canonical name is the language's.
-    if config.adapter.as_deref() == Some("cargo") {
+    if config.adapter_synonym() {
         writeln!(report, "{}", t("check-adapter-synonym")).unwrap();
     }
     writeln!(report).unwrap();
