@@ -126,3 +126,72 @@ fn stale_refs_rewritten() {
         "the rewritten header reads through the strict parser:\n{out}"
     );
 }
+
+/// proves: stale-refs-rewritten@d9b9cd -- the second birth out of
+/// review 0016 (R-1/R-2): the surgery honours token borders. A
+/// four-character record does not eat the start of a six-character
+/// one (the prefix mix), a slug does not strike inside a longer
+/// neighbour (rev@X inside tool-rev@X) -- each record lands its OWN
+/// contract's current revision in one run; and the count speaks of
+/// records, matching the diff a reader will check.
+#[test]
+fn stale_refs_rewritten_second_birth() {
+    let dir = sandbox("collisions");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    );
+    write(&dir, "src/lib.rs", "");
+    // Two contracts whose OLD revisions are identical (identical
+    // texts), one slug the suffix of the other -- the reviewer's
+    // slug-suffix trap.
+    let old_text = "---\nmodule: toy\nexports:\n  - \"pub fn one()\"\n---\n\nthe same first promise\n";
+    write(&dir, "keel/contracts/rev.md", old_text);
+    write(&dir, "keel/contracts/tool-rev.md", old_text);
+    let old = keel::rev::text_rev(old_text);
+    // The open wave holds a four-character prefix of the same
+    // revision in proves and the full six in contracts -- the
+    // reviewer's prefix-mix trap -- plus the suffix-slug pair.
+    let short = &old[..4];
+    write(
+        &dir,
+        "keel/waves/0500-open.md",
+        &format!(
+            "---\nscenarios:\n  s: {{proves: rev@{short}, covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    contracts: [rev@{old}, tool-rev@{old}]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n\n## transform: t\n\nthe work of t\n"
+        ),
+    );
+    // Both contracts grow, differently.
+    let rev_new_text = format!("{old_text}\ngrown one way\n");
+    let tool_new_text = format!("{old_text}\ngrown another way\n");
+    write(&dir, "keel/contracts/rev.md", &rev_new_text);
+    write(&dir, "keel/contracts/tool-rev.md", &tool_new_text);
+    let rev_new = keel::rev::text_rev(&rev_new_text);
+    let tool_new = keel::rev::text_rev(&tool_new_text);
+
+    let (out, err, code) = keel(&["rev", "--write", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 0,
+        "the collisions are lawful input, never a false accusation (R-1):\n{out}"
+    );
+    let text = fs::read_to_string(dir.join("keel/waves/0500-open.md")).unwrap();
+    assert!(
+        text.contains(&format!("tool-rev@{tool_new}")),
+        "the longer slug lands its OWN revision, unstruck from inside (R-1):\n{text}"
+    );
+    assert!(
+        text.contains(&format!("proves: rev@{rev_new}"))
+            && text.contains(&format!("rev@{rev_new}, tool-rev@")),
+        "the short slug's records land its own revision, prefix and full alike (R-1):\n{text}"
+    );
+    assert!(
+        !text.contains(&old) || false,
+        "no old revision survives in the header:\n{text}"
+    );
+    assert!(
+        out.contains("records rewritten: 3"),
+        "the count speaks of records, matching the diff (R-2):\n{out}"
+    );
+}
