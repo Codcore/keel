@@ -10,13 +10,15 @@ transforms:
   three-artefacts:
     implements:
       - every-artefact-kept
-    contracts: [tool-generated@3f3c05, tool-init@1b5bea, tool-config@544f7a]
+    contracts: [tool-generated@3f3c05, tool-config@544f7a]
     files:
       - tool/src/generated.rs
-      - tool/src/init.rs
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/generated_test.rs
+      - keel.toml
+      - .claude/skills/keel/SKILL.md
+      - .github/workflows/keel.yml
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:

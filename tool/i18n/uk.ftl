@@ -475,20 +475,20 @@ version-no-file = keel.toml нема — піна нема, біжить бін�
 version-unread = keel.toml не прочитано ({ $reason }) — пін невідомий; відмову повністю скаже суд config
 
 update-title = keel update — згенеровані інтеграції оновлено (NEW-CONCEPT, «Дистрибуція»)
-generated-born = AGENTS.md — народжено з блоком keel між маркерами
-generated-appended = AGENTS.md — блок keel дописано; текст над ним не чіпано
-generated-refreshed = AGENTS.md — блок keel оновлено цим релізом
-generated-stands = AGENTS.md — блок keel уже стоїть таким, яким його пише цей реліз
-generated-removed = AGENTS.md — блок keel прибрано рукою: то рішення, а не прогалина; нічого не дописується. Щоб мати його знову, прибери його рядок у [generated] keel.toml і повтори keel update
+generated-born = { $file } — народжено цим релізом
+generated-appended = { $file } — блок keel дописано; текст над ним не чіпано
+generated-refreshed = { $file } — оновлено цим релізом
+generated-stands = { $file } — уже стоїть таким, яким його пише цей реліз
+generated-removed = { $file } — прибрано рукою: то рішення, а не прогалина; нічого не дописується. Щоб мати його знову, прибери його рядок у [generated] keel.toml і повтори keel update
 generated-changed = { $file } — блок keel не є ні тим, що пише цей реліз, ні тим, що записано (записано { $recorded }, знайдено { $actual }): НЕ перезаписано (§9.7). Лиши як є або прибери блок І його рядок у [generated] keel.toml, тоді повтори keel update
-generated-no-config = AGENTS.md — keel.toml тут нема: це не keel-проєкт, і нічого не вигадується. Зроби його ним командою keel init
-generated-many-blocks = AGENTS.md — тут стоїть більше ніж один блок keel: котрий наш, не вгадується. Лиши одну пару маркерів і повтори keel update
+generated-no-config = keel.toml тут нема: це не keel-проєкт, і нічого не вигадується. Зроби його ним командою keel init
+generated-many-blocks = { $file } — тут стоїть більше ніж один блок keel: котрий наш, не вгадується. Лиши одну пару маркерів і повтори keel update
 generated-none = нічого
-generated-half-marked = AGENTS.md — один маркер keel без другого: де кінчається блок, не вгадується; полагодь маркери або прибери обидва
-generated-unjudged-config = AGENTS.md — блок keel не суджено: keel.toml не читається (причину каже суд config)
-generated-unread = AGENTS.md не прочитано ({ $error }) — блок не суджено
-generated-write-failed = AGENTS.md не записано ({ $error })
-generated-config-failed = digest не записано в keel.toml ({ $error }) — і блок теж не записано
+generated-half-marked = { $file } — один маркер keel без другого: де кінчається блок, не вгадується; полагодь маркери або прибери обидва
+generated-unjudged-config = згенеровані інтеграції не суджено: keel.toml не читається (причину каже суд config)
+generated-unread = { $file } не прочитано ({ $error }) — не суджено
+generated-write-failed = { $file } не записано ({ $error })
+generated-config-failed = digest файлу { $file } не записано в keel.toml ({ $error })
 generated-config-failed-instead = полагодь keel.toml, щоб він парсився, і повтори keel update
 
 ## рамка CLI

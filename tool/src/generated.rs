@@ -14,10 +14,26 @@ use crate::targs;
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-/// The document the block lives in, and its key in `[generated]`.
-const DOCUMENT: &str = "AGENTS.md";
 const BEGIN: &str = "<!-- keel:begin -->";
 const END: &str = "<!-- keel:end -->";
+
+/// How much of a file is ours (wave 0023). A document belongs to
+/// the person and holds our block between markers; a file that is
+/// wholly ours is judged whole.
+enum Kind {
+    Block,
+    Whole,
+}
+
+/// The artefacts this release generates: path, kind of boundary,
+/// and the text it writes. Adding a fourth is a row here.
+fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
+    vec![
+        ("AGENTS.md", Kind::Block, block(config)),
+        (".claude/skills/keel/SKILL.md", Kind::Whole, skill(config)),
+        (".github/workflows/keel.yml", Kind::Whole, workflow(config)),
+    ]
+}
 
 /// The block as this release writes it, in the project's language:
 /// what the project is, what the loop is, and which commands say
@@ -27,7 +43,7 @@ const END: &str = "<!-- keel:end -->";
 /// generated DOCUMENT, not a word of the tool's own -- so it lives
 /// here as a template, while i18n keeps the rows that report what
 /// happened to it.
-const BODY_EN: &str = r#"# keel (generated -- do not edit; keel update rewrites this block)
+const BODY_EN: &str = r#"# keel (generated -- do not edit; keel update rewrites this {what})
 
 This project follows the Keel v2 methodology. What lives here:
 `keel/waves/` (what was promised and proven), `keel/contracts/`
@@ -44,7 +60,7 @@ The loop, one step at a time:
 - `keel close` -- whether a wave may merge
 - `keel review` -- the package for a fresh reviewer (§9.9)"#;
 
-const BODY_UK: &str = r#"# keel (згенеровано — не правити руками; keel update перепише цей блок)
+const BODY_UK: &str = r#"# keel (згенеровано — не правити руками; keel update перепише цей {what})
 
 Цей проєкт живе за методикою Keel v2. Що тут лежить:
 `keel/waves/` (що обіцяно і доведено), `keel/contracts/`
@@ -74,20 +90,85 @@ const RULE_SOFT_UK: &str = r#"Два правила стоять тут попе
 
 const RULE_MANUAL_UK: &str = r#"Суд commit-ів у цьому проєкті вимкнено (`mode = "manual"`): обидва правила — народження червоним і робота лише поверх зелених тестів — тримають тут самі люди. `keel close` перед злиттям судить далі. Питай `keel next`, а не вгадуй порядок."#;
 
-pub fn block(config: &Config) -> String {
+/// The loop skill an agent reads (wave 0023): the same words as the
+/// block, shaped as a skill file, because that is what Claude Code
+/// loads. Wholly ours -- a hand's edit is refused, never overwritten.
+fn skill(config: &Config) -> String {
     let uk = config.lang == "uk";
-    let body = if uk { BODY_UK } else { BODY_EN };
-    // What the machine really holds depends on the project's mode
-    // (review 0022 R-10): under soft it warns, under manual it does
-    // not judge at all, and the block must not promise otherwise.
-    let rule = match (config.mode.as_str(), uk) {
+    let (name, description) = if uk {
+        (
+            "keel",
+            "Луп методики Keel v2: що робити далі і що судить машина",
+        )
+    } else {
+        (
+            "keel",
+            "The Keel v2 loop: what to do next, and what the machine judges",
+        )
+    };
+    let what = if uk { "файл" } else { "file" };
+    let body = if uk { BODY_UK } else { BODY_EN }.replace("{what}", what);
+    let rule = rule_for(config);
+    format!("---\nname: {name}\ndescription: {description}\n---\n\n{body}\n\n{rule}\n")
+}
+
+/// The CI workflow (wave 0023): the three courts a merge needs.
+/// It calls keel as a command and does NOT install it -- the
+/// installing step arrives with the distribution rung, and the file
+/// says so itself.
+fn workflow(config: &Config) -> String {
+    let courts = if config.rust_adapter() {
+        "      - name: the battery\n        run: cargo test --no-fail-fast\n"
+    } else {
+        ""
+    };
+    format!(
+        "# keel (generated -- do not edit; keel update rewrites this file)\n\
+         #\n\
+         # keel is called as a command and is NOT installed here: the\n\
+         # installing step arrives with the distribution rung of the\n\
+         # concept (~/.keel/versions/). Until then, put keel on PATH\n\
+         # in a step of your own above these.\n\
+         name: keel\n\
+         \n\
+         on:\n\
+         \u{20}\u{20}push:\n\
+         \u{20}\u{20}pull_request:\n\
+         \n\
+         jobs:\n\
+         \u{20}\u{20}keel:\n\
+         \u{20}\u{20}\u{20}\u{20}runs-on: ubuntu-latest\n\
+         \u{20}\u{20}\u{20}\u{20}steps:\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- uses: actions/checkout@v4\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}fetch-depth: 0\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the documents judged\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: keel check .\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the closure court\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: keel close .\n\
+         {courts}"
+    )
+}
+
+/// The rule paragraph for this project's mode -- shared by the
+/// block and the skill, so the two never disagree.
+fn rule_for(config: &Config) -> &'static str {
+    let uk = config.lang == "uk";
+    match (config.mode.as_str(), uk) {
         ("manual", true) => RULE_MANUAL_UK,
         ("manual", false) => RULE_MANUAL_EN,
         ("soft", true) => RULE_SOFT_UK,
         ("soft", false) => RULE_SOFT_EN,
         (_, true) => RULE_STRICT_UK,
         (_, false) => RULE_STRICT_EN,
-    };
+    }
+}
+
+pub fn block(config: &Config) -> String {
+    let uk = config.lang == "uk";
+    let what = if uk { "блок" } else { "block" };
+    let body = if uk { BODY_UK } else { BODY_EN }.replace("{what}", what);
+    let rule = rule_for(config);
     format!("{BEGIN}\n{body}\n\n{rule}\n{END}")
 }
 
@@ -115,50 +196,127 @@ pub fn write(root: &Path, config: &Config) -> (String, usize) {
         // same guard trust has kept since 0010).
         return (t("generated-no-config"), 1);
     }
-    let fresh = block(config);
-    let path = root.join(DOCUMENT);
+    let mut report = String::new();
+    let mut lacked = 0usize;
+    for (path, kind, fresh) in artefacts(config) {
+        // One artefact's failure stops none of the others: each has
+        // its own row and answers for itself (wave 0023).
+        let (word, lack) = one(root, config, path, &kind, &fresh);
+        if !report.is_empty() {
+            report.push('\n');
+            report.push_str("  ");
+        }
+        report.push_str(&word);
+        lacked += lack;
+    }
+    (report, lacked)
+}
+
+/// One artefact of the table: eight outcomes, each with its word.
+fn one(root: &Path, config: &Config, name: &str, kind: &Kind, fresh: &str) -> (String, usize) {
+    let path = root.join(name);
     let recorded = config
         .generated
         .iter()
-        .find(|(key, _)| key == DOCUMENT)
+        .find(|(key, _)| key == name)
         .map(|(_, value)| value.clone());
 
     let text = match std::fs::read_to_string(&path) {
         Ok(text) => Some(text),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => {
-            return (ta("generated-unread", targs!("error" => e.to_string())), 1);
+            return (
+                ta(
+                    "generated-unread",
+                    targs!("file" => name.to_string(), "error" => e.to_string()),
+                ),
+                1,
+            );
         }
     };
 
-    let (whole, word) = match text {
-        // No document at all: born with the block alone.
-        None => (format!("{fresh}\n"), t("generated-born")),
-        Some(text) => {
-            // More than one pair of markers: which block is ours is
-            // not guessed (review 0022 R-11).
-            if text.matches(BEGIN).count() > 1 || text.matches(END).count() > 1 {
-                return (t("generated-many-blocks"), 1);
+    let (whole, mine, word) = match (&text, kind) {
+        // Nothing on disk: born, unless a person deleted it while
+        // its digest stood -- that is a decision, not a gap.
+        (None, _) => {
+            if recorded.is_some() {
+                return (
+                    ta("generated-removed", targs!("file" => name.to_string())),
+                    0,
+                );
             }
-            // The document keeps its own line endings (R-7).
+            let whole = match kind {
+                Kind::Block => format!("{fresh}\n"),
+                Kind::Whole => fresh.to_string(),
+            };
+            let mine = fresh.to_string();
+            (
+                whole,
+                mine,
+                ta("generated-born", targs!("file" => name.to_string())),
+            )
+        }
+        // A file wholly ours: the whole text is judged.
+        (Some(text), Kind::Whole) => {
+            if text == fresh {
+                if recorded.as_deref() != Some(digest(fresh).as_str())
+                    && let Err(refusal) = record(root, name, &digest(fresh))
+                {
+                    return (
+                        ta(
+                            "generated-config-failed",
+                            targs!("file" => name.to_string(), "error" => refusal.reason),
+                        ),
+                        1,
+                    );
+                }
+                return (
+                    ta("generated-stands", targs!("file" => name.to_string())),
+                    0,
+                );
+            }
+            if recorded.as_deref() != Some(digest(text).as_str()) {
+                return (
+                    ta(
+                        "generated-changed",
+                        targs!("file" => name.to_string(), "recorded" => recorded.unwrap_or_else(|| t("generated-none")), "actual" => digest(text)),
+                    ),
+                    1,
+                );
+            }
+            (
+                fresh.to_string(),
+                fresh.to_string(),
+                ta("generated-refreshed", targs!("file" => name.to_string())),
+            )
+        }
+        // A document of the person's, holding our block.
+        (Some(text), Kind::Block) => {
+            if text.matches(BEGIN).count() > 1 || text.matches(END).count() > 1 {
+                return (
+                    ta("generated-many-blocks", targs!("file" => name.to_string())),
+                    1,
+                );
+            }
             let crlf = text.contains("\r\n");
             let fresh = if crlf {
                 fresh.replace('\n', "\r\n")
             } else {
-                fresh.clone()
+                fresh.to_string()
             };
-            match span(&text) {
+            match span(text) {
                 None => {
                     if text.contains(BEGIN) || text.contains(END) {
-                        // One marker without the other is not a block
-                        // -- guessing where it ends would trample.
-                        return (t("generated-half-marked"), 1);
+                        return (
+                            ta("generated-half-marked", targs!("file" => name.to_string())),
+                            1,
+                        );
                     }
                     if recorded.is_some() {
-                        // The block was there and the person removed
-                        // it: a decision, not a gap to fill -- and
-                        // the word says how to have it back (R-2).
-                        return (t("generated-removed"), 0);
+                        return (
+                            ta("generated-removed", targs!("file" => name.to_string())),
+                            0,
+                        );
                     }
                     let mut whole = text.clone();
                     if !whole.ends_with('\n') {
@@ -167,33 +325,36 @@ pub fn write(root: &Path, config: &Config) -> (String, usize) {
                     whole.push('\n');
                     whole.push_str(&fresh);
                     whole.push('\n');
-                    (whole, t("generated-appended"))
+                    (
+                        whole,
+                        fresh,
+                        ta("generated-appended", targs!("file" => name.to_string())),
+                    )
                 }
                 Some((from, to)) => {
                     let standing = &text[from..to];
                     if standing == fresh {
-                        // Byte for byte what this release writes: it
-                        // is ours by self-evidence, whatever the
-                        // record says -- the state a failed write
-                        // leaves must heal, not accuse (R-1).
                         if recorded.as_deref() != Some(digest(&fresh).as_str())
-                            && let Err(refusal) = record(root, &digest(&fresh))
+                            && let Err(refusal) = record(root, name, &digest(&fresh))
                         {
                             return (
-                                ta("generated-config-failed", targs!("error" => refusal.reason)),
+                                ta(
+                                    "generated-config-failed",
+                                    targs!("file" => name.to_string(), "error" => refusal.reason),
+                                ),
                                 1,
                             );
                         }
-                        return (t("generated-stands"), 0);
+                        return (
+                            ta("generated-stands", targs!("file" => name.to_string())),
+                            0,
+                        );
                     }
                     if recorded.as_deref() != Some(digest(standing).as_str()) {
-                        // Not what this release wrote and not what
-                        // was recorded: never trampled (R-8 names the
-                        // fact, not a guess about who did it).
                         return (
                             ta(
                                 "generated-changed",
-                                targs!("file" => DOCUMENT.to_string(), "recorded" => recorded.unwrap_or_else(|| t("generated-none")), "actual" => digest(standing)),
+                                targs!("file" => name.to_string(), "recorded" => recorded.unwrap_or_else(|| t("generated-none")), "actual" => digest(standing)),
                             ),
                             1,
                         );
@@ -202,26 +363,45 @@ pub fn write(root: &Path, config: &Config) -> (String, usize) {
                     whole.push_str(&text[..from]);
                     whole.push_str(&fresh);
                     whole.push_str(&text[to..]);
-                    (whole, t("generated-refreshed"))
+                    (
+                        whole,
+                        fresh,
+                        ta("generated-refreshed", targs!("file" => name.to_string())),
+                    )
                 }
             }
         }
     };
 
-    // The document first, the record after it (review 0022 R-1): a
-    // digest recorded for a document that was never written is the
-    // one state nothing can heal.
-    if let Err(e) = std::fs::write(&path, &whole) {
+    // The file first, its record after it (review 0022 R-1): a
+    // digest recorded for a file that was never written is the one
+    // state nothing can heal.
+    if let Some(parent) = path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
         return (
-            ta("generated-write-failed", targs!("error" => e.to_string())),
+            ta(
+                "generated-write-failed",
+                targs!("file" => name.to_string(), "error" => e.to_string()),
+            ),
             1,
         );
     }
-    let written =
-        span(&whole).map_or_else(|| fresh.clone(), |(from, to)| whole[from..to].to_string());
-    if let Err(refusal) = record(root, &digest(&written)) {
+    if let Err(e) = std::fs::write(&path, &whole) {
         return (
-            ta("generated-config-failed", targs!("error" => refusal.reason)),
+            ta(
+                "generated-write-failed",
+                targs!("file" => name.to_string(), "error" => e.to_string()),
+            ),
+            1,
+        );
+    }
+    if let Err(refusal) = record(root, name, &digest(&mine)) {
+        return (
+            ta(
+                "generated-config-failed",
+                targs!("file" => name.to_string(), "error" => refusal.reason),
+            ),
             1,
         );
     }
@@ -241,13 +421,13 @@ fn span(text: &str) -> Option<(usize, usize)> {
 /// The digest into `[generated]`, by the one hand that edits the
 /// config -- and never a config that would not parse afterwards
 /// (the 0010 school).
-fn record(root: &Path, digest: &str) -> Result<(), Refusal> {
+fn record(root: &Path, name: &str, digest: &str) -> Result<(), Refusal> {
     let path = root.join("keel.toml");
     let text = std::fs::read_to_string(&path).unwrap_or_default();
     let written = crate::confedit::upsert(
         &text,
         "generated",
-        &[(DOCUMENT.to_string(), digest.to_string())],
+        &[(name.to_string(), digest.to_string())],
     );
     if let Err(e) = toml::from_str::<toml::Value>(&written) {
         return Err(Refusal {

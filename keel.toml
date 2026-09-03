@@ -18,3 +18,5 @@ ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
 
 [generated]
 "AGENTS.md" = "dc5c000e9fa4"
+".claude/skills/keel/SKILL.md" = "7c7d2738681b"
+".github/workflows/keel.yml" = "c3e27515228c"
