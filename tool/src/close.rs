@@ -14,6 +14,16 @@ use crate::targs;
 use std::collections::BTreeMap;
 use std::path::Path;
 
+/// How many times the closure battery runs (§7.13, wave 0019): one
+/// run hides whatever depends on order, time, or a process that
+/// outlived its test. Three is the tool's own discipline -- a
+/// constant, not a knob.
+pub(crate) const BATTERY_RUNS: usize = 3;
+
+/// The verdicts of the closure battery, one per run, keyed like the
+/// adapter's map: (test file stem, function name).
+pub(crate) type Battery = BTreeMap<(String, String), Vec<bool>>;
+
 /// The structural stages of a wave -- close's own verdicts, opened
 /// pub(crate) so the stage eye (rung 11) asks instead of duplicating.
 pub(crate) enum State {
@@ -23,7 +33,8 @@ pub(crate) enum State {
     Progress(Vec<String>),
 }
 
-/// The `keel close` command: one battery, then one of three states
+/// The `keel close` command: the battery run three times (§7.13),
+/// then one of three states
 /// per wave; the second number counts the blockers -- the lacks of
 /// the wave the current branch is named after (§8.2). Other waves
 /// inform, they do not punish.
@@ -43,7 +54,15 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         return Err(refusal);
     }
     let found = tags::scan(&adapter::test_files(root)?)?;
-    let battery = adapter::run_all(root)?;
+    // The battery runs several times before green is believed
+    // (§7.13): the adapter keeps its word -- one battery, one cargo
+    // run -- and the court folds the runs.
+    let mut battery: Battery = BTreeMap::new();
+    for _ in 0..BATTERY_RUNS {
+        for (key, green) in adapter::run_all(root)? {
+            battery.entry(key).or_default().push(green);
+        }
+    }
     let branch = scope::branch_wave(root, &scan.waves);
     // A scenario namesake may live in several waves: every wave's own
     // revision is legal for the slug, and a tag holding a foreign
@@ -60,7 +79,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     report.push('\n');
     report.push_str(&ta(
         "close-battery",
-        targs!("count" => battery.len() as u64),
+        targs!("count" => battery.len() as u64, "runs" => BATTERY_RUNS as u64),
     ));
     report.push('\n');
 
@@ -282,7 +301,7 @@ pub(crate) fn wave_state(
     wave: &docs::Wave,
     found: &[TestTag],
     legal: &BTreeMap<String, Vec<String>>,
-    battery: Option<&BTreeMap<(String, String), bool>>,
+    battery: Option<&Battery>,
 ) -> Result<State, Refusal> {
     if light(wave) {
         return Ok(State::ClosedLight);
@@ -364,9 +383,16 @@ pub(crate) fn wave_state(
                     .file_stem()
                     .map(|s| s.to_string_lossy().into_owned())
                     .unwrap_or_default();
+                // Green only when green in every run (§7.13): green
+                // in some runs is a lack with its count, never a
+                // blessing by the one green run; red in all stays red.
                 match battery.get(&(stem, tag.test.clone())) {
-                    Some(true) => {}
-                    Some(false) => lacks.push(ta(
+                    Some(runs) if runs.len() == BATTERY_RUNS && runs.iter().all(|g| *g) => {}
+                    Some(runs) if runs.iter().any(|g| *g) => lacks.push(ta(
+                        "close-lack-flaky",
+                        targs!("scenario" => (*name).clone(), "test" => tag.test.clone(), "green" => runs.iter().filter(|g| **g).count() as u64, "runs" => BATTERY_RUNS as u64),
+                    )),
+                    Some(_) => lacks.push(ta(
                         "close-lack-red",
                         targs!("scenario" => (*name).clone(), "test" => tag.test.clone()),
                     )),

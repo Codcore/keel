@@ -316,11 +316,11 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 17 -- the project's ci run through the §7.16 trust gate in close, and the battery run several times (§7.13)
+check-next-rung = next step: rung 18 -- init reminds about the adapter's .gitignore (a light wave)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
-close-battery = battery: { $count } tests judged in one run
+close-battery = battery: { $count } tests × { $runs } runs (§7.13) — green only when green in every run
 close-closed = { $wave }: closed -- every live scenario proven, references converge, the review lies next to it
 close-closed-unjudged = { $wave }: closed -- every live scenario proven, the review lies next to it; { $count } references not judged: history cannot testify here (§5.6)
 close-closed-light = { $wave }: closed (light) -- chores only, closed by the fact of merge
@@ -330,6 +330,7 @@ close-lack-untagged = scenario "{ $scenario }": no proves tag in the tests (§5.
 close-lack-stale = scenario "{ $scenario }": the tag holds { $recorded }, the text gives { $actual } (§7.5)
 close-lack-red = scenario "{ $scenario }": the test "{ $test }" is red -- not proven (§6.3)
 close-lack-notrun = scenario "{ $scenario }": the battery ran no test named "{ $test }"
+close-lack-flaky = scenario "{ $scenario }": the test "{ $test }" is green in { $green } of { $runs } runs — not green (§7.13)
 close-lack-ref = the reference { $contract }@{ $recorded } does not converge (§6.4)
 close-lack-review = the review file keel/reviews/<wave>.md is not next to the wave (§9.9)
 close-needs-adapter = the closure court needs the rust adapter named in keel.toml (old spelling cargo accepted)
