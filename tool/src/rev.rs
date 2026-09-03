@@ -264,3 +264,177 @@ pub fn body_court(path: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Ref
     }
     Ok(out)
 }
+
+/// The `keel rev --write` hand (NEW-CONCEPT): the drifted records
+/// of OPEN waves -- proves and transform contracts alike -- are
+/// rewritten onto the current contract revisions, by name with old
+/// and new; the closed are left to history's court (§5.6). Header
+/// surgery only: full slug@revision tokens in the header slice,
+/// never a section body -- and the rewritten header re-reads
+/// through the strict parser before landing by plan::write_new's
+/// dot-temp and rename, or nothing lands. A record pointing at a
+/// missing contract is not rewritten -- check names it (§7.1).
+pub fn write(root: &Path) -> Result<(String, usize), Refusal> {
+    let config = crate::config::read(root)?;
+    if config.adapter.as_deref() != Some("cargo") {
+        return Err(Refusal {
+            file: root.join("keel.toml"),
+            reason: t("rev-write-needs-adapter"),
+            instead: t("rev-write-needs-adapter-instead"),
+        });
+    }
+    let scan = docs::scan(root)?;
+    if let Some(refusal) = scan.refusals.into_iter().next() {
+        // Surgery over a broken set of documents would cut blind.
+        return Err(refusal);
+    }
+    let found = crate::tags::scan(&crate::adapter::test_files(root)?)?;
+
+    let mut report = t("rev-write-title");
+    report.push('\n');
+    let mut rewritten: usize = 0;
+    for wave in &scan.waves {
+        let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
+        let mut refs: Vec<&docs::ContractRef> = wave
+            .scenarios
+            .iter()
+            .filter(|(_, sc)| sc.withdrawn.is_none())
+            .filter_map(|(_, sc)| sc.proves.as_ref())
+            .collect();
+        for (_, transform) in &wave.transforms {
+            refs.extend(transform.contracts.iter());
+        }
+        let mut stale: Vec<(String, String, String)> = Vec::new();
+        for reference in refs {
+            let contract_path = root
+                .join("keel/contracts")
+                .join(format!("{}.md", reference.slug));
+            if !contract_path.is_file() {
+                continue;
+            }
+            let current = contract_rev(&contract_path)?;
+            if !matches(&reference.rev, &current)
+                && !stale
+                    .iter()
+                    .any(|(s, r, _)| s == &reference.slug && r == &reference.rev)
+            {
+                stale.push((reference.slug.clone(), reference.rev.clone(), current));
+            }
+        }
+        if stale.is_empty() {
+            continue;
+        }
+        if crate::close::structural(root, wave, &found)? {
+            report.push_str(&ta("rev-write-kept", targs!("wave" => wave.slug.clone())));
+            report.push('\n');
+            continue;
+        }
+        // The surgery and its landing, caught per wave: a refusal
+        // here becomes a red row and stops the pass -- the report of
+        // what already landed is never eaten with it (review 0016
+        // R-3).
+        let surgery = (|| -> Result<Vec<(String, String, String, usize)>, Refusal> {
+            let text = read(&path)?;
+            let Some(split_at) = header_span(&text) else {
+                return Ok(Vec::new());
+            };
+            let (head, body) = text.split_at(split_at);
+            let mut new_head = head.to_string();
+            let mut landed: Vec<(String, String, String, usize)> = Vec::new();
+            for (slug, recorded, current) in &stale {
+                let (replaced, count) = replace_token(&new_head, slug, recorded, current);
+                new_head = replaced;
+                landed.push((slug.clone(), recorded.clone(), current.clone(), count));
+            }
+            let new_text = format!("{new_head}{body}");
+            docs::read_wave_text(&wave.slug, &new_text, &path)?;
+            crate::plan::write_new(&path, &new_text)?;
+            Ok(landed)
+        })();
+        match surgery {
+            Ok(landed) => {
+                for (slug, recorded, current, count) in landed {
+                    rewritten += count;
+                    report.push_str(&ta(
+                        "rev-write-rewritten",
+                        targs!("wave" => wave.slug.clone(), "contract" => slug, "old" => recorded, "new" => current),
+                    ));
+                    report.push('\n');
+                }
+            }
+            Err(refusal) => {
+                let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
+                report.push_str(&format!(
+                    "  {:<8} {} — {}\n           {}: {}\n",
+                    t("word-red"),
+                    shown.display(),
+                    refusal.reason,
+                    t("word-instead"),
+                    refusal.instead
+                ));
+                break;
+            }
+        }
+    }
+    // The none-word speaks of the open waves: the closed keep their
+    // legally drifted records (§5.6) and their leaving lines above.
+    if rewritten == 0 {
+        report.push_str(&t("rev-write-none"));
+    } else {
+        report.push_str(&ta("rev-write-count", targs!("count" => rewritten as u64)));
+    }
+    report.push('\n');
+    Ok((report, rewritten))
+}
+
+/// One full-token replacement pass (review 0016 R-1): the needle
+/// `slug@old` counts only where the character before is no slug
+/// character (so `rev@x` never strikes inside `tool-rev@x`) and the
+/// character after is no hex digit (so a four-character record never
+/// eats the start of a six-character one). Returns the new text and
+/// how many records were replaced.
+fn replace_token(text: &str, slug: &str, old: &str, new: &str) -> (String, usize) {
+    let needle = format!("{slug}@{old}");
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    let mut count = 0usize;
+    let slug_char = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-';
+    let hex_char = |c: char| c.is_ascii_hexdigit() && !c.is_ascii_uppercase();
+    while let Some(at) = rest.find(&needle) {
+        let prev = rest[..at]
+            .chars()
+            .next_back()
+            .or_else(|| out.chars().next_back());
+        let next = rest[at + needle.len()..].chars().next();
+        if prev.is_none_or(|c| !slug_char(c)) && next.is_none_or(|c| !hex_char(c)) {
+            out.push_str(&rest[..at]);
+            out.push_str(slug);
+            out.push('@');
+            out.push_str(new);
+            count += 1;
+        } else {
+            out.push_str(&rest[..at + needle.len()]);
+        }
+        rest = &rest[at + needle.len()..];
+    }
+    out.push_str(rest);
+    (out, count)
+}
+
+/// The byte length of the header: through the second `---` line
+/// inclusive. None only for a shape the strict scan already
+/// refused -- defensive, never a guess.
+fn header_span(text: &str) -> Option<usize> {
+    let mut pos = 0usize;
+    let mut dashes = 0usize;
+    for raw in text.split_inclusive('\n') {
+        pos += raw.len();
+        if raw.trim_end_matches(['\n', '\r']) == "---" {
+            dashes += 1;
+            if dashes == 2 {
+                return Some(pos);
+            }
+        }
+    }
+    None
+}

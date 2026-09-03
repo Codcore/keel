@@ -105,6 +105,14 @@ rev-nearmiss-instead = write "## scenario: <name>" / "## transform: <name>" with
 rev-dup-transform = the body carries the "## transform: { $name }" section more than once — "{ $name }" is not guessed between (§7.7)
 rev-dup-transform-instead = keep one section: the methodology will not guess which body carries the work's words (§2.10)
 
+rev-write-title = keel rev --write — the drifted records (NEW-CONCEPT)
+rev-write-needs-adapter = the rewriting hand needs the cargo adapter named in keel.toml: closedness is judged by tags
+rev-write-needs-adapter-instead = set adapter = "cargo" (NEW-CONCEPT, Config); other adapters come with their own waves
+rev-write-rewritten = { "  " }{ $wave }: { $contract }@{ $old } → { $contract }@{ $new } — the record now holds the current revision
+rev-write-kept = { "  " }{ $wave }: closed — leaving its records to history's court (§5.6)
+rev-write-none = nothing has drifted in the open waves — every record they hold is current
+rev-write-count = records rewritten: { $count }
+
 ## graph module
 graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
 graph-unknown-cut-instead = the forty cuts ship with the release (§3.4); pick one of them or fix the typo
@@ -388,6 +396,7 @@ next-contract-missing = the file of contract "{ $contract }" is missing — keel
 next-run-label = { "  " }the run of its scenarios' tests:
 next-run-none = { "  " }tests of its scenarios do not exist yet — the run appears with the tags (a withdrawn scenario never gets one)
 next-step-review = the step: the wave is assembled — time for the review (§9.9): gather the package with `keel review` for a fresh agent; the report lands at keel/reviews/{ $wave }.md
+next-step-pr-light = the step: time for the PR — the light wave rides to its one PR (§6.8), merged by the merge-commit button (§8.7); the merge is its approval and its closure in one (§6.6, §6.5)
 next-step-pr = the step: the review lies next to the wave — time for the PR, merged by the merge-commit button (§8.7); the last word on lacks belongs to keel close
 next-plan-branch = the step: this is the plan branch of wave { $wave } (§8.3) — prove the plan's fullness (keel check, the map), merge the plan PR; the work will ride the branch "{ $wave }"
 next-ready = { "  " }start the branch "{ $wave }" — the wave is approved and not started, its dependencies closed (§6.5, §8.2)
@@ -447,4 +456,4 @@ main-new-unknown = refusal: keel new knows only: contract
 main-new-unknown-reason = reason: other document kinds are born by their own commands (waves by keel plan)
 main-new-no-slug = refusal: new contract needs the contract's name
 main-new-no-slug-reason = reason: the skeleton is born under the name that becomes its file (§1.4)
-main-usage = instead: keel check [dir] | keel rev [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [dir] | keel trust [dir] | keel hook [dir]
+main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [dir] | keel trust [dir] | keel hook [dir]

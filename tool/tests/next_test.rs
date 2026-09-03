@@ -150,8 +150,8 @@ fn next_hands_one_step() {
     let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
-        out.contains("time for the PR"),
-        "the reviewed wave heads to its merge (§8.7):\n{out}"
+        out.contains("time for the PR") && out.contains("the review lies next to the wave"),
+        "the reviewed FULL wave hears its own words exactly, not a shared substring (0016 R-4):\n{out}"
     );
 
     // Off the wave branch with everything closed: the honest word is
@@ -345,5 +345,33 @@ fn next_hands_one_step_second_birth() {
     assert!(
         !out.contains("time for the review"),
         "the wave is not called assembled over a red scope (R-8):\n{out}"
+    );
+}
+
+/// proves: light-pr-words-honest@6fa167 -- holds §6.8/§9.9 and the
+/// debt named by the 0015 dogfood: a light wave's PR step speaks its
+/// own words -- one PR, closed by the fact of merge -- and says
+/// nothing of a review it never needed; a full wave with its report
+/// keeps hearing the old words.
+#[test]
+fn light_pr_words_honest() {
+    let dir = project("lightpr", "0800-l");
+    write(
+        &dir,
+        "keel/waves/0800-l.md",
+        "---\ntransforms:\n  tidy:\n    chore: \"a tidy-up without a promise\"\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n",
+    );
+    commit_all(&dir);
+    write(&dir, "src/lib.rs", "pub fn grown() {}\n");
+    commit_all(&dir);
+    let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("time for the PR") && out.contains("one PR"),
+        "the light wave hears its own PR words (§6.8):\n{out}"
+    );
+    assert!(
+        !out.contains("the review lies next to the wave"),
+        "no painted word about a review the light wave never needed:\n{out}"
     );
 }
