@@ -74,6 +74,20 @@ fn keel_under_hook_env(args: &[&str], git_dir: &Path, work_tree: &Path) -> Strin
     )
 }
 
+fn keel_with_env(args: &[&str], envs: &[(&str, &str)]) -> String {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_keel"));
+    command.args(args);
+    for (name, value) in envs {
+        command.env(name, value);
+    }
+    let out = command.output().unwrap();
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    )
+}
+
 fn keel(args: &[&str]) -> (String, String, i32) {
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
         .args(args)
@@ -120,7 +134,7 @@ fn nested_project(name: &str) -> PathBuf {
     dir
 }
 
-/// proves: ignore-reminded@99d979 -- holds the third gift of the
+/// proves: ignore-reminded@8e811e -- holds the third gift of the
 /// first field: the frame says aloud what its own adapter will
 /// build into, and git itself judges the rule -- so a nested
 /// .gitignore (the one cargo writes beside a crate) counts, and a
@@ -268,5 +282,91 @@ fn ignore_reminded() {
     assert!(
         !foreign.join(".git/hooks/commit-msg").exists(),
         "no byte is written into the repository of the environment:\n{out}"
+    );
+
+    // A broken keel.toml is not "no adapter": the rule is simply
+    // not judged, and the reason is said (review 0020 R-2).
+    let dir = project("brokenconfig", Some("rust"));
+    write(&dir, ".gitignore", "target/\n");
+    write(
+        &dir,
+        "keel.toml",
+        "lang = \"en\"\nadapter = \"rust\"\nbroken = = =\n",
+    );
+    let (out, err, _) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("ignore rules") && out.contains("not judged"),
+        "a broken config leaves the rule unjudged, with its reason (R-2):\n{out}"
+    );
+    assert!(
+        !out.contains("no adapter"),
+        "a broken config is never read as an unnamed adapter (R-2):\n{out}"
+    );
+
+    // A rule that git obeys only because a config points at the
+    // file -- global or local -- travels with nobody (R-5): the
+    // path may be relative and look like a file of the tree.
+    let dir = project("localexcludes", Some("rust"));
+    write(&dir, "extra-rules", "target/\n");
+    git(&dir, &["config", "core.excludesFile", "extra-rules"]);
+    let (out, err, _) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("does not travel") && out.contains("target/"),
+        "a rule named by core.excludesFile does not travel, whatever its path (R-5):\n{out}"
+    );
+
+    // The same for a global config of the person's machine.
+    let home = sandbox("globalhome");
+    write(&home, "ignore-rules", "target/\n");
+    write(
+        &home,
+        "gitconfig",
+        &format!(
+            "[core]\n\texcludesFile = {}\n",
+            home.join("ignore-rules").display()
+        ),
+    );
+    let dir = project("globalexcludes", Some("rust"));
+    let out = keel_with_env(
+        &["init", dir.to_str().unwrap()],
+        &[(
+            "GIT_CONFIG_GLOBAL",
+            home.join("gitconfig").to_str().unwrap(),
+        )],
+    );
+    assert!(
+        out.contains("does not travel"),
+        "a rule from the person's global config travels with nobody (R-5, R-6):\n{out}"
+    );
+
+    // No crate to name a build directory by -- several at the first
+    // level: said aloud, never guessed (R-6).
+    let dir = sandbox("manycrates");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
+    for name in ["one", "two"] {
+        write(
+            &dir,
+            &format!("{name}/Cargo.toml"),
+            "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+    }
+    git(&dir, &["init", "-q", "-b", "main"]);
+    let (out, err, _) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("ignore rules") && out.contains("no crate"),
+        "with no single crate the frame says so instead of guessing (R-6):\n{out}"
+    );
+
+    // A named adapter this release does not serve is called by its
+    // name -- never "not named" (R-8, the 0017 R-3 school).
+    let dir = project("namedforeign", Some("elixir"));
+    let (out, err, _) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("\"elixir\"") && !out.contains("no adapter"),
+        "a named adapter is named, not called absent (R-8):\n{out}"
     );
 }
