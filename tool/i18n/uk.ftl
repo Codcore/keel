@@ -426,6 +426,11 @@ init-stands = { "  " }вже стоїть: { $piece } — жоден байт н
 init-fed = { "  " }догодовано: { $piece } — .gitkeep, щоб наявна порожня тека пережила git
 init-failed = { "  " }не стало: { $piece } — { $error }; натомість: прибери заваду і повтори keel init
 init-config-header = keel.toml — словник §2.9; розкоментуй, щоб увімкнути; типові значення лишаються словам keel
+init-ignore-no-file = правила ignore: .gitignore нема — заведи його з текою збірки адаптера: { $rule } (рама радить; файлів самого проєкту вона не пише)
+init-ignore-missing = правила ignore: .gitignore не ігнорує теки збірки адаптера — допиши рівно цей рядок: { $rule }
+init-ignore-stands = правила ignore: { $rule } стоїть у .gitignore — тека збірки поза git
+init-ignore-no-adapter = правила ignore: адаптера цього релізу в keel.toml не названо, тож і теки збірки нема кому назвати
+init-ignore-unread = правила ignore: .gitignore не прочитано ({ $error }) — правило не судиться
 init-eight-seven = §8.7: вимкни squash і rebase у налаштуваннях репозиторію — правило тримає вимкнена кнопка, не памʼять
 init-next = далі — keel plan <перша хвиля>
 

@@ -130,10 +130,58 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
         }
     }
 
+    // The ignore rules (wave 0020, the third gift of the first
+    // field): the frame advises and writes nothing of the project's
+    // own -- .gitignore is not the methodology's frame, and the
+    // frame tramples no byte (school 0014). The advice never
+    // reddens the exit: it is no piece that failed to stand.
+    report.push_str("  ");
+    report.push_str(&ignore_row(root));
+    report.push('\n');
+
     report.push('\n');
     report.push_str(&t("init-eight-seven"));
     report.push('\n');
     report.push_str(&t("init-next"));
     report.push('\n');
     Ok((report, failed))
+}
+
+/// What the frame has to say about the ignore rules: four truths
+/// and an honest fifth for a file it cannot read -- never a guess
+/// and never a write. The adapter is asked through the config's own
+/// home (school 0015/0017); the config is read unpinned, so a pin
+/// this binary does not answer to still leaves the frame landing
+/// (wave 0018's caveat).
+fn ignore_row(root: &Path) -> String {
+    let known = crate::config::read_unpinned(root)
+        .map(|config| config.rust_adapter())
+        .unwrap_or(false);
+    if !known {
+        return t("init-ignore-no-adapter");
+    }
+    let dir = crate::adapter::BUILD_DIR;
+    let rule = format!("{dir}/");
+    let text = match std::fs::read_to_string(root.join(".gitignore")) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return ta("init-ignore-no-file", targs!("rule" => rule));
+        }
+        Err(e) => {
+            return ta("init-ignore-unread", targs!("error" => e.to_string()));
+        }
+    };
+    // The rule is read as git reads a line of its own: trimmed, with
+    // the slash or without it. Anything cleverer (negations, globs)
+    // the frame reads literally and stays with its advice -- it does
+    // not guess (the wave's caveat).
+    if text
+        .lines()
+        .map(str::trim)
+        .any(|line| line == dir || line == rule)
+    {
+        ta("init-ignore-stands", targs!("rule" => rule))
+    } else {
+        ta("init-ignore-missing", targs!("rule" => rule))
+    }
 }

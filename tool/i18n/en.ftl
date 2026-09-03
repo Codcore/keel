@@ -423,6 +423,11 @@ init-stands = { "  " }already stands: { $piece } — not a byte is touched
 init-fed = { "  " }fed: { $piece } — .gitkeep, so the standing empty directory outlives git
 init-failed = { "  " }did not stand: { $piece } — { $error }; instead: clear the obstruction and re-run keel init
 init-config-header = keel.toml — the §2.9 vocabulary; uncomment to enable, the defaults stay with keel's own words
+init-ignore-no-file = ignore rules: there is no .gitignore — start one with the adapter's build directory: { $rule } (the frame advises; it writes no file of the project's own)
+init-ignore-missing = ignore rules: .gitignore does not ignore the adapter's build directory — add exactly this line: { $rule }
+init-ignore-stands = ignore rules: { $rule } stands in .gitignore — the build directory is out of git
+init-ignore-no-adapter = ignore rules: no adapter of this release is named in keel.toml, so there is no build directory to name
+init-ignore-unread = ignore rules: .gitignore could not be read ({ $error }) — the rule is not judged
 init-eight-seven = §8.7: turn squash and rebase merging off in the repository settings — the rule is held by the disabled button, not by memory
 init-next = onwards — keel plan <the first wave>
 
