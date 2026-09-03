@@ -55,7 +55,7 @@ fn keel(args: &[&str]) -> (String, String, i32) {
     )
 }
 
-/// proves: init-births-the-frame@4e449f -- holds the NEW-CONCEPT
+/// proves: init-births-the-frame@bb34f2 -- holds the NEW-CONCEPT
 /// frame row and §8.7: one move births the three keel/ directories
 /// (each with .gitkeep), keel.toml with the commented §2.9
 /// vocabulary enabling nothing, and the commit-msg hook by gate's
@@ -109,7 +109,7 @@ fn init_births_the_frame() {
     assert_eq!(code, 0, "the born frame reads without refusals:\n{out}");
 }
 
-/// proves: init-never-tramples@32c33b -- holds §9.7 and the trample
+/// proves: init-never-tramples@b645d7 -- holds §9.7 and the trample
 /// law: a standing piece is "already stands" by name and stays
 /// byte-identical (a foreign keel.toml is a fact, not a content
 /// judgement); a foreign commit-msg hook is a refusal aloud, never
@@ -189,5 +189,54 @@ fn init_never_tramples() {
     assert!(
         !out.contains("born:"),
         "nothing is claimed born where everything stood:\n{out}"
+    );
+}
+
+/// proves: init-never-tramples@b645d7 -- the second birth out of
+/// review 0014 (R-1/R-2): a broken keel.toml does not steer the
+/// call silently -- the config refusal is said aloud and the frame
+/// still lands in the default language; and a standing directory
+/// missing its .gitkeep is fed the file with its own word --
+/// "builds what is missing" is true there too.
+#[test]
+fn init_never_tramples_second_birth() {
+    // R-1: the broken config is a word, never a silent default.
+    let dir = sandbox("brokenconfig");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    let broken = "lang = [not a string\n";
+    write(&dir, "keel.toml", broken);
+    let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
+    let all = format!("{out}{err}");
+    assert_eq!(code, 0, "the frame still lands around the broken config:\n{all}");
+    assert!(
+        all.contains("keel.toml") && all.contains("refusal"),
+        "the config refusal is said aloud, not swallowed (R-1):\n{all}"
+    );
+    assert!(
+        dir.join("keel/waves/.gitkeep").is_file(),
+        "the frame landed in the default language:\n{all}"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.join("keel.toml")).unwrap(),
+        broken,
+        "the broken config itself is not touched:\n{all}"
+    );
+
+    // R-2: a standing directory without .gitkeep is fed the file --
+    // a new empty file tramples nothing, and the empty directory
+    // now outlives git.
+    let dir = sandbox("feedkeep");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    fs::create_dir_all(dir.join("keel/waves")).unwrap();
+    let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
+    let all = format!("{out}{err}");
+    assert_eq!(code, 0, "feeding is green:\n{all}");
+    assert!(
+        dir.join("keel/waves/.gitkeep").is_file(),
+        "the standing directory is fed its .gitkeep (R-2):\n{all}"
+    );
+    assert!(
+        all.contains("fed"),
+        "the feeding is its own word, not a painted 'already stands':\n{all}"
     );
 }
