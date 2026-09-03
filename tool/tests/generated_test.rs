@@ -394,4 +394,104 @@ fn every_artefact_kept() {
         "# mine\n",
         "a neighbour's skill is untouched"
     );
+
+    // ---- the second birth, out of review 0023 ----
+
+    // R-1: the skill's front matter must be valid YAML. A plain
+    // scalar carrying ": " opens a mapping and breaks every parser
+    // that reads it -- and the file exists to be read by one.
+    let dir = project("frontmatter");
+    keel(&["init", dir.to_str().unwrap()]);
+    let skill = fs::read_to_string(dir.join(".claude/skills/keel/SKILL.md")).unwrap();
+    let description = skill
+        .lines()
+        .find(|l| l.starts_with("description:"))
+        .expect("the skill carries a description")
+        .to_string();
+    let value = description.trim_start_matches("description:").trim();
+    assert!(
+        value.starts_with('"') && value.ends_with('"'),
+        "the description is quoted, so a colon in it is text, not a mapping (R-1): {description}"
+    );
+
+    // R-2: the word about a WHOLE file speaks of a file, not a
+    // block, and its advice names what can really be removed.
+    let dir = project("wholeword");
+    keel(&["init", dir.to_str().unwrap()]);
+    fs::write(dir.join(".github/workflows/keel.yml"), "name: mine\n").unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a hand-edited whole file is refused:\n{out}");
+    assert!(
+        !out.contains("block") && !out.contains("блок"),
+        "a whole file is never called a block (R-2):\n{out}"
+    );
+
+    // R-3: a whole file with CRLF keeps its line endings, and is
+    // ours by self-evidence even with nothing recorded.
+    let dir = project("crlfwhole");
+    keel(&["init", dir.to_str().unwrap()]);
+    let flow = dir.join(".github/workflows/keel.yml");
+    let text = fs::read_to_string(&flow).unwrap();
+    fs::write(&flow, text.replace('\n', "\r\n")).unwrap();
+    let config = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    let without: String = config
+        .lines()
+        .filter(|l| !l.contains("keel.yml"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(dir.join("keel.toml"), format!("{without}\n")).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "a CRLF file of ours is ours (R-3):\n{out}");
+    assert!(
+        fs::read_to_string(&flow).unwrap().contains("\r\n"),
+        "the file keeps its own line endings (R-3):\n{out}"
+    );
+
+    // R-4: the second run says every artefact already stands.
+    let dir = project("stands");
+    keel(&["init", dir.to_str().unwrap()]);
+    let (again, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the second run is green:\n{again}");
+    assert_eq!(
+        again.matches("already stands").count(),
+        3,
+        "all three already stand, each in its own row (R-4):\n{again}"
+    );
+    let (byinit, _) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(
+        byinit.matches("already stands").count(),
+        3,
+        "init and update agree about what stands (R-4):\n{byinit}"
+    );
+
+    // R-5: the file is written before its digest is recorded. An
+    // artefact whose path cannot be written records nothing --
+    // while the others land.
+    let dir = project("orderly");
+    fs::create_dir_all(dir.join(".github/workflows/keel.yml")).unwrap();
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 1,
+        "an artefact that cannot be written reddens:\n{out}"
+    );
+    let config = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        !config.contains("keel.yml"),
+        "nothing is recorded for a file that was never written (R-5):\n{config}"
+    );
+    assert!(
+        config.contains("AGENTS.md") && config.contains("SKILL.md"),
+        "and the artefacts that did land are recorded (R-5):\n{config}"
+    );
+
+    // R-11: an empty AGENTS.md gains the block without a pile of
+    // blank lines before it.
+    let dir = project("emptyfile");
+    write(&dir, "AGENTS.md", "");
+    keel(&["init", dir.to_str().unwrap()]);
+    let text = fs::read_to_string(dir.join("AGENTS.md")).unwrap();
+    assert!(
+        text.starts_with("<!-- keel:begin -->"),
+        "an empty document gains no blank lines before the block (R-11): {text:?}"
+    );
 }
