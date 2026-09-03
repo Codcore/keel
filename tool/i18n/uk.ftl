@@ -536,3 +536,14 @@ ask-interrupted = питання про «{ $field }» лишилось без �
 ask-interrupted-instead = відповідай, або дай відповіді прапорцями (--lang, --adapter, --mode, --agents, --hooks), або жени keel init --no-ask по типові значення
 init-config-answered = народжено з твоїх відповідей
 init-config-default = народжено зі словником у коментарях, за тебе не обрано нічого
+
+# The mouth of the tool (wave 0027)
+speak-cuts-title = keel cuts — сорок розрізів якости, тими самими іменами, якими судять суди (§10.1)
+speak-cuts-source = кожне питання вище — це чеклист QUALITY.md, зашитий у цей реліз; слаги — той самий словник, яким keel check судить повноту плану (§10.3)
+speak-cuts-drifted = розрізів, за якими судять суди, а питання в чеклисті нема: { $count } — { $cuts }
+speak-cuts-drifted-instead = список, за яким судять, і список, який читають, мусять бути одним: поверни кожному розрізу його питання в QUALITY.md — або приведи словник судів до нього
+speak-method-title = keel method — методика цього покоління, розділ за розділом (праворуч — скільки параграфів)
+speak-method-source = текст українською і подається як написаний — цей реліз його не перекладає; один параграф: keel method §8.6
+speak-method-unknown = у методиці цього покоління нема параграфа «{ $asked }»
+speak-method-unknown-instead = той розділ тримає { $bounds }; без аргументу keel method показує всі розділи
+speak-method-none = жодного параграфа того розділу

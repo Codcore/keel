@@ -541,6 +541,67 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         }
+        Some("cuts") => {
+            // The mouth reads no disk: it serves what this release
+            // was built with, so a project that has neither document
+            // still hears both (wave 0027).
+            let root = args
+                .get(1)
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let lang = keel::config::read_unpinned(&root)
+                .map(|config| config.lang)
+                .unwrap_or_default();
+            keel::i18n::init(&lang);
+            match keel::speak::cuts_from(keel::speak::checklist()) {
+                Ok(_) => {
+                    print!("{}", keel::speak::cuts_report());
+                    ExitCode::SUCCESS
+                }
+                Err(refusal) => {
+                    // The judged list and the read list drifted: that
+                    // is a finding, not a quiet difference.
+                    eprintln!("{refusal}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        Some("method") => {
+            // A paragraph number looks like one: §N.M or N.M, and
+            // nothing else. Found by dogfood before the probe: "."
+            // contains a dot, so `keel method .` read the directory
+            // as a paragraph and refused with a word about ".".
+            let looks_like_a_paragraph = |word: &str| {
+                if word.starts_with('§') {
+                    return true;
+                }
+                word.split_once('.').is_some_and(|(head, tail)| {
+                    !head.is_empty()
+                        && !tail.is_empty()
+                        && head.chars().all(|c| c.is_ascii_digit())
+                        && tail.chars().all(|c| c.is_ascii_digit())
+                })
+            };
+            let asked = args
+                .get(1)
+                .filter(|word| looks_like_a_paragraph(word.as_str()));
+            let root = args
+                .get(if asked.is_some() { 2 } else { 1 })
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let lang = keel::config::read_unpinned(&root)
+                .map(|config| config.lang)
+                .unwrap_or_default();
+            keel::i18n::init(&lang);
+            match keel::speak::method(asked.map(String::as_str)) {
+                Ok(said) => {
+                    print!("{said}");
+                    ExitCode::SUCCESS
+                }
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    ExitCode::from(2)
+                }
+            }
+        }
         Some("version") => {
             let root = args
                 .get(1)

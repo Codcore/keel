@@ -2,26 +2,186 @@
 //! decision): everything the thin generated block does not carry must
 //! live in the binary itself -- the methodology and the forty cuts
 //! included, because a project where keel stands has neither.
+//!
+//! The texts are EMBEDDED, so there is one source and it cannot drift
+//! from the binary by construction: a release that changed a document
+//! changed its own mouth.
 
+use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
+use crate::targs;
+use std::path::Path;
 
-/// The forty cuts with the question each asks.
+/// The checklist a person reads (QUALITY.md) and the methodology of
+/// this generation, both as this release was built with them.
+const CHECKLIST: &str = include_str!("../../QUALITY.md");
+const METHOD: &str = include_str!("../../docs/uk/METHODOLOGY-V2.md");
+
+/// The checklist this release was built with -- handed out so a
+/// caller can judge it against the courts' own list without a second
+/// copy living anywhere.
+pub fn checklist() -> &'static str {
+    CHECKLIST
+}
+
+/// The forty cuts with the family and the question each asks, taken
+/// from the checklist and held against the judge's own list.
+///
+/// The judge is `graph::cuts()` and stays the one home of the
+/// vocabulary: this hand never keeps a second copy, it only finds the
+/// question for each slug the judge already holds.
 pub fn cuts() -> Vec<(&'static str, &'static str, &'static str)> {
-    Vec::new()
+    cuts_from(CHECKLIST).unwrap_or_default()
 }
 
 /// The same, from a checklist handed in -- so the court between the
-/// judge's list and the document a person reads can be played.
-pub fn cuts_from(_checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
-    Ok(Vec::new())
+/// judge's list and the document a person reads can be PLAYED, not
+/// merely promised. A cut whose question the document no longer
+/// carries is a refusal: what is judged and what is read must be one
+/// list, or the difference must be said aloud.
+pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal> {
+    let mut family = String::new();
+    let mut found: Vec<(String, &str)> = Vec::new();
+    for line in checklist.lines() {
+        if let Some(title) = line.strip_prefix("### ") {
+            // "1. Functional suitability" -> the first word, lowered,
+            // is the family the slugs are built from.
+            family = title
+                .split_once(". ")
+                .map(|(_, name)| name)
+                .unwrap_or(title)
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .to_lowercase();
+            continue;
+        }
+        let Some(rest) = line.strip_prefix("- **") else {
+            continue;
+        };
+        let Some((name, question)) = rest.split_once("** — ") else {
+            continue;
+        };
+        if family.is_empty() {
+            continue;
+        }
+        found.push((
+            format!("{family}.{}", name.replace(' ', "-")),
+            question.trim(),
+        ));
+    }
+
+    let mut paired = Vec::with_capacity(crate::graph::cuts().len());
+    let mut lost: Vec<&str> = Vec::new();
+    for slug in crate::graph::cuts() {
+        match found.iter().find(|(name, _)| name == slug) {
+            Some((_, question)) => {
+                let (family, _) = slug.split_once('.').unwrap_or((slug, slug));
+                paired.push((*slug, family, *question));
+            }
+            None => lost.push(slug),
+        }
+    }
+    if !lost.is_empty() {
+        return Err(Refusal {
+            file: Path::new("QUALITY.md").to_path_buf(),
+            reason: ta(
+                "speak-cuts-drifted",
+                targs!("cuts" => lost.join(", "), "count" => lost.len().to_string()),
+            ),
+            instead: t("speak-cuts-drifted-instead"),
+        });
+    }
+    Ok(paired)
 }
 
-/// The cuts as a report.
+/// The cuts as a report: nine families, forty questions, each under
+/// the slug the courts judge by.
 pub fn cuts_report() -> String {
-    String::new()
+    let mut report = t("speak-cuts-title");
+    report.push('\n');
+    let mut standing = "";
+    for (slug, family, question) in cuts() {
+        if family != standing {
+            report.push('\n');
+            standing = family;
+        }
+        report.push_str(&format!("  {slug} — {question}\n"));
+    }
+    report.push('\n');
+    report.push_str(&t("speak-cuts-source"));
+    report.push('\n');
+    report
 }
 
 /// The methodology: its contents, or one paragraph of it.
-pub fn method(_asked: Option<&str>) -> Result<String, Refusal> {
-    Ok(String::new())
+pub fn method(asked: Option<&str>) -> Result<String, Refusal> {
+    let chapters = chapters();
+    let Some(asked) = asked else {
+        let mut report = t("speak-method-title");
+        report.push('\n');
+        for (name, paragraphs) in &chapters {
+            report.push_str(&format!("  {name} — {}\n", paragraphs.len()));
+        }
+        report.push('\n');
+        report.push_str(&t("speak-method-source"));
+        report.push('\n');
+        return Ok(report);
+    };
+    let wanted = asked.trim_start_matches('§');
+    for (name, paragraphs) in &chapters {
+        if let Some((_, text)) = paragraphs.iter().find(|(number, _)| number == wanted) {
+            return Ok(format!("{name}\n\n{text}\n"));
+        }
+    }
+    // The bounds of the chapter this number would live in, so the
+    // word is useful and not merely correct.
+    let head = wanted.split('.').next().unwrap_or("");
+    let neighbours: Vec<&str> = chapters
+        .iter()
+        .flat_map(|(_, paragraphs)| paragraphs.iter())
+        .map(|(number, _)| number.as_str())
+        .filter(|number| number.split('.').next() == Some(head))
+        .collect();
+    let bounds = match (neighbours.first(), neighbours.last()) {
+        (Some(first), Some(last)) => format!("§{first} … §{last}"),
+        _ => t("speak-method-none"),
+    };
+    Err(Refusal {
+        file: Path::new("METHODOLOGY-V2.md").to_path_buf(),
+        reason: ta("speak-method-unknown", targs!("asked" => asked.to_string())),
+        instead: ta("speak-method-unknown-instead", targs!("bounds" => bounds)),
+    })
+}
+
+/// The methodology split into chapters, each with its paragraphs.
+fn chapters() -> Vec<(&'static str, Vec<(String, String)>)> {
+    let mut chapters: Vec<(&'static str, Vec<(String, String)>)> = Vec::new();
+    let mut carried: Option<(String, String)> = None;
+    for line in METHOD.lines() {
+        if let Some(title) = line.strip_prefix("## ") {
+            if let (Some((number, text)), Some(last)) = (carried.take(), chapters.last_mut()) {
+                last.1.push((number, text));
+            }
+            chapters.push((title, Vec::new()));
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("**§")
+            && let Some((number, opening)) = rest.split_once(".**")
+        {
+            if let (Some((number, text)), Some(last)) = (carried.take(), chapters.last_mut()) {
+                last.1.push((number, text));
+            }
+            carried = Some((number.to_string(), format!("**§{number}.**{opening}")));
+            continue;
+        }
+        if let Some((_, text)) = carried.as_mut() {
+            text.push('\n');
+            text.push_str(line);
+        }
+    }
+    if let (Some((number, text)), Some(last)) = (carried.take(), chapters.last_mut()) {
+        last.1.push((number, text));
+    }
+    chapters
 }

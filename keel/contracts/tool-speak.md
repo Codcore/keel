@@ -2,6 +2,8 @@
 module: keel::speak
 exports:
   - "pub fn cuts() -> Vec<(&'static str, &'static str, &'static str)>"
+  - "pub fn cuts_from(checklist: &str) -> Result<Vec<(&str, &str, &str)>, Refusal>"
+  - "pub fn checklist() -> &'static str"
   - "pub fn method(asked: Option<&str>) -> Result<String, Refusal>"
   - "pub fn cuts_report() -> String"
 ---
@@ -23,6 +25,11 @@ exports:
   чеклиста. Не другий список, а той самий: слаг судової таблиці
   (tool-graph) і питання чеклиста — одне й те саме сорок разів, у
   тому самому порядку.
+- **Суд дрейфу можна ЗІГРАТИ, а не лише пообіцяти.** `cuts_from`
+  бере чеклист аргументом, тож проба годує йому зіпсований документ і
+  вимагає відмови з іменем розрізу, що втратив питання; `checklist`
+  віддає той текст, із яким зібрано цей реліз. Суд, якого ніхто не
+  може викликати, — обіцянка, а не суд.
 - **Дрейф між суддею і документом — знахідка.** Сьогодні
   `keel check` судить повноту плану за списком у `graph`, а людина
   читає питання в `QUALITY.md`; ніщо не тримає їх разом. Тут

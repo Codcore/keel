@@ -3,14 +3,14 @@ depends_on: [0026-init-asks]
 
 scenarios:
   the-tool-says-what-it-judges-by:
-    proves: tool-speak@3aa798
+    proves: tool-speak@6f892c
     covers: [functional.completeness, maintainability.analysability]
 
 transforms:
   a-mouth-of-its-own:
     implements:
       - the-tool-says-what-it-judges-by
-    contracts: [tool-speak@3aa798, tool-graph@3ebf21]
+    contracts: [tool-speak@6f892c, tool-graph@3ebf21]
     files:
       - tool/src/speak.rs
       - tool/src/lib.rs
