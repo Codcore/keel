@@ -315,9 +315,26 @@ fn main() -> ExitCode {
             }
         }
         Some("next") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            // --for <agent> asks for the step in that agent's own
+            // answer shape (wave 0025): the session hooks of the two
+            // tools take context differently, and the hook must not
+            // guess. Without it, the plain step, exactly as before.
+            let mut agent: Option<String> = None;
+            let mut where_from: Option<String> = None;
+            let mut rest = args.iter().skip(1);
+            while let Some(word) = rest.next() {
+                match word.as_str() {
+                    "--for" => match rest.next() {
+                        Some(named) => agent = Some(named.clone()),
+                        None => {
+                            eprintln!("{}", t("main-usage"));
+                            return ExitCode::from(2);
+                        }
+                    },
+                    other => where_from = Some(other.to_string()),
+                }
+            }
+            let root = where_from.map_or_else(|| PathBuf::from("."), PathBuf::from);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
@@ -326,7 +343,11 @@ fn main() -> ExitCode {
                 }
             };
             keel::i18n::init(&config.lang);
-            match keel::next::step(&root) {
+            let said = match &agent {
+                Some(named) => keel::next::step_for(&root, named),
+                None => keel::next::step(&root),
+            };
+            match said {
                 Ok(report) => {
                     print!("{report}");
                     ExitCode::SUCCESS

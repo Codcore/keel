@@ -934,7 +934,15 @@ fn hook_speaks_the_next_step() {
     }
 
     // The step in each tool's answer shape: Cursor takes context only
-    // as JSON, and the field is additional_context.
+    // as JSON, and the field is additional_context. `next` reads the
+    // project's state through its adapter, so the sandbox gets a
+    // crate of its own -- a real project, the school of 0005-0024.
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"sandbox\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(&dir, "src/lib.rs", "");
     let (wrapped, code) = keel(&["next", "--for", "cursor", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "the step is said for cursor:\n{wrapped}");
     let envelope: serde_json::Value = serde_json::from_str(wrapped.trim())

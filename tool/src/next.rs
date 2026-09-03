@@ -19,6 +19,54 @@ use std::path::Path;
 
 /// The `keel next` package: one step out of the state. A broken
 /// document is the first step of its own -- mend it, by name.
+/// The same step in the ANSWER SHAPE a named agent's session hook
+/// expects (wave 0025). Claude Code injects a hook's plain stdout
+/// into the agent's context, so its shape is the plain step. Cursor
+/// takes context only as JSON, and the field is `additional_context`
+/// (its own docs) -- so for Cursor the step rides wrapped. The names
+/// come from the one home of the agent question (config::AGENTS); an
+/// unknown one is refused with the names that are known, because a
+/// hook that silently says nothing is worse than a hook that refuses.
+///
+/// The shape lives here because the home of the step is one -- not in
+/// generated, which knows files, not words.
+pub fn step_for(root: &Path, agent: &str) -> Result<String, Refusal> {
+    if !crate::config::AGENTS.contains(&agent) {
+        return Err(Refusal {
+            file: root.to_path_buf(),
+            reason: format!(
+                "agent \"{agent}\" is not one this release knows: {}",
+                crate::config::AGENTS.join(", ")
+            ),
+            instead: format!(
+                "name one of {} -- the answer shape of a session hook is the agent's own, \
+                 and an unnamed agent has no documented shape to speak in",
+                crate::config::AGENTS.join(", ")
+            ),
+        });
+    }
+    let said = step(root)?;
+    if agent != "cursor" {
+        return Ok(said);
+    }
+    // JSON by hand, and only because the payload is one string: the
+    // escaping below is the whole of the JSON string grammar we need,
+    // and the scenario parses the result with a real parser.
+    let mut escaped = String::with_capacity(said.len() + 16);
+    for ch in said.chars() {
+        match ch {
+            '"' => escaped.push_str("\\\""),
+            '\\' => escaped.push_str("\\\\"),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            c if (c as u32) < 0x20 => escaped.push_str(&format!("\\u{:04x}", c as u32)),
+            c => escaped.push(c),
+        }
+    }
+    Ok(format!("{{\"additional_context\": \"{escaped}\"}}\n"))
+}
+
 pub fn step(root: &Path) -> Result<String, Refusal> {
     let config = config::read(root)?;
     if !config.rust_adapter() {

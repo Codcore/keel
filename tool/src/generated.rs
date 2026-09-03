@@ -24,6 +24,14 @@ const END: &str = "<!-- keel:end -->";
 enum Kind {
     Block,
     Whole,
+    /// A guest in someone else's file (wave 0025): keel gives birth
+    /// to it when it is absent, and then judges it whole like any
+    /// file of ours -- but it never writes over a file it did not
+    /// write. `.claude/settings.json` holds a person's SETTINGS, and
+    /// "delete the file" would be harm there, not advice: instead
+    /// the word carries the very snippet that would have been
+    /// written, and the person pastes it if they want it.
+    Guest,
 }
 
 /// Whose artefact a row is (wave 0024). A document every agent
@@ -60,6 +68,18 @@ fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
             Kind::Whole,
             Owner::One("cursor"),
             skill,
+        ),
+        (
+            ".claude/settings.json",
+            Kind::Guest,
+            Owner::One("claude"),
+            claude_hooks(),
+        ),
+        (
+            ".cursor/hooks.json",
+            Kind::Guest,
+            Owner::One("cursor"),
+            cursor_hooks(),
         ),
         (
             ".github/workflows/keel.yml",
@@ -166,6 +186,68 @@ fn skill(config: &Config) -> String {
     // ": " in it opens a mapping: quoted, it is text (review 0023
     // R-1 -- the file exists to be read by a parser).
     format!("---\nname: \"{name}\"\ndescription: \"{description}\"\n---\n\n{body}\n\n{rule}\n")
+}
+
+/// The session hook of Claude Code (wave 0025), in the shape its own
+/// documentation gives: `.claude/settings.json`, the `hooks` key, the
+/// event name, a matcher group, and a handler of type "command". A
+/// hook's plain stdout on exit 0 goes into the agent's context, so
+/// printing the step is the whole of it. The matcher names all five
+/// documented sources of a session start, so the step is there after
+/// a resume and after a compact too -- exactly when an agent has
+/// forgotten it.
+///
+/// `${CLAUDE_PROJECT_DIR}` is their documented variable; it is quoted
+/// because a space in a real path would otherwise split the command
+/// (the school of v1, which learned it the hard way).
+///
+/// No line inside says "generated": JSON has no comment, and
+/// inventing a key in someone else's schema is the very thing this
+/// wave forbids. The tool says it instead -- in the report row and in
+/// `[generated]` of keel.toml.
+fn claude_hooks() -> String {
+    "{\n\
+     \u{20}\u{20}\"hooks\": {\n\
+     \u{20}\u{20}\u{20}\u{20}\"SessionStart\": [\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}{\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"matcher\": \"startup|resume|clear|compact|fork\",\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"hooks\": [\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}{\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"type\": \"command\",\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"command\": \"keel next \\\"${CLAUDE_PROJECT_DIR}\\\"\",\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"timeout\": 30\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}}\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}]\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}}\n\
+     \u{20}\u{20}\u{20}\u{20}]\n\
+     \u{20}\u{20}}\n\
+     }\n"
+        .to_string()
+}
+
+/// The session hook of Cursor (wave 0025), in the shape its own
+/// documentation gives: `.cursor/hooks.json`, `version` 1, the event
+/// `sessionStart`, and an entry whose only field is `command` --
+/// nothing invented beside it. Cursor takes context at session start
+/// ONLY as JSON, in `additional_context`, so the command asks for the
+/// step in that shape: `keel next --for cursor`.
+///
+/// Their `sessionStart` is fire-and-forget by their own docs, and
+/// their forum carries reports that the context does not always reach
+/// the agent. We write the documented shape; the delivery is their
+/// side of the boundary, and the wave says so aloud.
+fn cursor_hooks() -> String {
+    "{\n\
+     \u{20}\u{20}\"version\": 1,\n\
+     \u{20}\u{20}\"hooks\": {\n\
+     \u{20}\u{20}\u{20}\u{20}\"sessionStart\": [\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}{\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"command\": \"keel next --for cursor\"\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}}\n\
+     \u{20}\u{20}\u{20}\u{20}]\n\
+     \u{20}\u{20}}\n\
+     }\n"
+    .to_string()
 }
 
 /// The CI workflow (wave 0023): the three courts a merge needs.
@@ -305,7 +387,7 @@ fn one(root: &Path, config: &Config, name: &str, kind: &Kind, fresh: &str) -> (S
             }
             let whole = match kind {
                 Kind::Block => format!("{fresh}\n"),
-                Kind::Whole => fresh.to_string(),
+                Kind::Whole | Kind::Guest => fresh.to_string(),
             };
             let mine = fresh.to_string();
             (
@@ -315,7 +397,11 @@ fn one(root: &Path, config: &Config, name: &str, kind: &Kind, fresh: &str) -> (S
             )
         }
         // A file wholly ours: the whole text is judged.
-        (Some(text), Kind::Whole) => {
+        // A guest walks the same road as a file wholly ours -- born,
+        // already standing, refreshed -- and parts from it at one
+        // fork only: what it says when the file is not ours (wave
+        // 0025).
+        (Some(text), Kind::Whole | Kind::Guest) => {
             // The file keeps its own line endings, and "ours by
             // self-evidence" is measured the way the record is --
             // by digest, not by bytes (review 0023 R-3).
@@ -350,6 +436,21 @@ fn one(root: &Path, config: &Config, name: &str, kind: &Kind, fresh: &str) -> (S
                 // not send anybody looking for one. With .agents/
                 // skills/ being a shared namespace, a stranger's file
                 // on our path is a normal state now.
+                // A guest never advises deleting the file it is a
+                // guest in: those are someone's settings (wave
+                // 0025). The word carries the snippet instead, and
+                // the snippet is the very text that would have been
+                // written -- advice that differs from the deed is a
+                // lie.
+                if matches!(kind, Kind::Guest) {
+                    return (
+                        ta(
+                            "generated-guest-taken",
+                            targs!("file" => name.to_string(), "snippet" => fresh.to_string()),
+                        ),
+                        1,
+                    );
+                }
                 let key = if recorded.is_none() {
                     "generated-foreign-file"
                 } else {
