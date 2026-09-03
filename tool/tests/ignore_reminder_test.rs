@@ -21,7 +21,11 @@ fn write(dir: &Path, rel: &str, text: &str) {
     fs::write(path, text).unwrap();
 }
 
-const GIT_ENV: [&str; 8] = [
+/// What a git hook hands its children -- the probe's own sandboxes
+/// must be as deaf to it as the frame is, or a run from inside the
+/// gate judges someone else's repository (and an empty
+/// GIT_CONFIG_PARAMETERS makes git itself complain).
+const GIT_ENV: [&str; 10] = [
     "GIT_DIR",
     "GIT_WORK_TREE",
     "GIT_COMMON_DIR",
@@ -30,6 +34,8 @@ const GIT_ENV: [&str; 8] = [
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_PREFIX",
     "GIT_CEILING_DIRECTORIES",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
 ];
 
 fn git(dir: &Path, args: &[&str]) {
