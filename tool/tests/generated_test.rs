@@ -1,6 +1,8 @@
-//! Scenario tests of wave 0022-generated-block, transform
-//! block-and-digest: the generated block lives between its markers,
-//! and a block a person edited is never trampled.
+//! Scenario tests of waves 0022-generated-block (the block and its
+//! boundary) and 0023-generated-many (the table of artefacts, and
+//! files wholly ours): what is generated is refreshed, what a hand
+//! has touched is refused, and what a person removed stays
+//! removed.
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
@@ -452,14 +454,27 @@ fn every_artefact_kept() {
     keel(&["init", dir.to_str().unwrap()]);
     let (again, code) = keel(&["update", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "the second run is green:\n{again}");
+    // Each artefact's own row says it stands -- counted per row,
+    // because the frame speaks the same words about its own pieces.
+    let stands = |report: &str| -> usize {
+        report
+            .lines()
+            .filter(|line| {
+                line.contains("already stands")
+                    && ["AGENTS.md", "SKILL.md", "keel.yml"]
+                        .iter()
+                        .any(|name| line.contains(name))
+            })
+            .count()
+    };
     assert_eq!(
-        again.matches("already stands").count(),
+        stands(&again),
         3,
         "all three already stand, each in its own row (R-4):\n{again}"
     );
     let (byinit, _) = keel(&["init", dir.to_str().unwrap()]);
     assert_eq!(
-        byinit.matches("already stands").count(),
+        stands(&byinit),
         3,
         "init and update agree about what stands (R-4):\n{byinit}"
     );

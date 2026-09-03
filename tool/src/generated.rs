@@ -1,10 +1,11 @@
 //! The generated integrations (contract tool-generated; NEW-CONCEPT,
 //! "Distribution"): what agents and CI read must lie in the
-//! repository, though it is no source of the tool. This wave gives
-//! the mechanism and the first artefact -- a block in AGENTS.md.
+//! repository, though it is no source of the tool. The artefacts
+//! are a table -- a block inside a person's document (AGENTS.md),
+//! and files wholly ours (the loop skill, the CI workflow).
 //!
-//! The heart is the boundary: outside the markers not one byte
-//! changes, and a block a person edited by hand is refused aloud,
+//! The heart is the boundary: what is the person's does not change
+//! by a byte, and an artefact a hand has touched is refused aloud,
 //! never overwritten.
 
 use crate::config::Config;
@@ -58,7 +59,13 @@ The loop, one step at a time:
   person fills; the tool never writes the content of a plan
 - `keel check` -- the documents judged
 - `keel close` -- whether a wave may merge
-- `keel review` -- the package for a fresh reviewer (§9.9)"#;
+- `keel review` -- the package for a fresh reviewer (§9.9)
+
+What a wave promises is a person's decision, never the tool's and
+never an agent's alone: bring a card -- the problem, two to four
+options with their consequences, a recommendation and why -- and
+write the plan after their word (§8.6). `keel plan` lays the
+skeleton and never the content."#;
 
 const BODY_UK: &str = r#"# keel (згенеровано — не правити руками; keel update перепише цей {what})
 
@@ -75,7 +82,12 @@ const BODY_UK: &str = r#"# keel (згенеровано — не правити 
   заповнює людина; змісту плану інструмент не пише ніколи
 - `keel check` — суд над документами
 - `keel close` — чи можна зливати хвилю
-- `keel review` — пакет свіжому рецензентові (§9.9)"#;
+- `keel review` — пакет свіжому рецензентові (§9.9)
+
+Що обіцяє хвиля — рішення людини, ніколи не інструмента і ніколи не
+агента самого: неси картку — проблема, два-чотири варіанти з
+наслідками, рекомендація і чому — і пиши план після її слова
+(§8.6). `keel plan` кладе риштування і ніколи не зміст."#;
 
 /// What the machine really holds, per mode (review 0022 R-10).
 const RULE_STRICT_EN: &str = r#"Two rules a machine holds here, so no memory has to: a scenario is born red -- the commit `red: <scenario>` passes the commit-msg hook only when its test really fails -- and the work commit `<transform>: <words>` passes only when that scenario's tests are green. Ask `keel next` instead of guessing the order."#;
@@ -109,7 +121,10 @@ fn skill(config: &Config) -> String {
     let what = if uk { "файл" } else { "file" };
     let body = if uk { BODY_UK } else { BODY_EN }.replace("{what}", what);
     let rule = rule_for(config);
-    format!("---\nname: {name}\ndescription: {description}\n---\n\n{body}\n\n{rule}\n")
+    // The description carries a colon, and a plain YAML scalar with
+    // ": " in it opens a mapping: quoted, it is text (review 0023
+    // R-1 -- the file exists to be read by a parser).
+    format!("---\nname: \"{name}\"\ndescription: \"{description}\"\n---\n\n{body}\n\n{rule}\n")
 }
 
 /// The CI workflow (wave 0023): the three courts a merge needs.
@@ -172,9 +187,10 @@ pub fn block(config: &Config) -> String {
     format!("{BEGIN}\n{body}\n\n{rule}\n{END}")
 }
 
-/// The digest of a block: sha256 over its whitespace-collapsed text,
-/// the first 12 hex -- the length of a trust fingerprint, because
-/// this too is a judgement and not a document's revision.
+/// The digest of an artefact: sha256 over its text, the first 12
+/// hex -- the length of a trust fingerprint, because this too is a
+/// judgement and not a document's revision. Byte-exact but for line
+/// endings (review 0022 R-6, R-7).
 pub fn digest(text: &str) -> String {
     // Byte-exact but for line endings (review 0022 R-6, R-7): an
     // edit of whitespace alone is an edit and must be seen, while a
@@ -258,7 +274,16 @@ fn one(root: &Path, config: &Config, name: &str, kind: &Kind, fresh: &str) -> (S
         }
         // A file wholly ours: the whole text is judged.
         (Some(text), Kind::Whole) => {
-            if text == fresh {
+            // The file keeps its own line endings, and "ours by
+            // self-evidence" is measured the way the record is --
+            // by digest, not by bytes (review 0023 R-3).
+            let fresh = if text.contains("\r\n") {
+                fresh.replace('\n', "\r\n")
+            } else {
+                fresh.to_string()
+            };
+            let fresh = fresh.as_str();
+            if digest(text) == digest(fresh) {
                 if recorded.as_deref() != Some(digest(fresh).as_str())
                     && let Err(refusal) = record(root, name, &digest(fresh))
                 {
@@ -278,7 +303,7 @@ fn one(root: &Path, config: &Config, name: &str, kind: &Kind, fresh: &str) -> (S
             if recorded.as_deref() != Some(digest(text).as_str()) {
                 return (
                     ta(
-                        "generated-changed",
+                        "generated-changed-file",
                         targs!("file" => name.to_string(), "recorded" => recorded.unwrap_or_else(|| t("generated-none")), "actual" => digest(text)),
                     ),
                     1,
@@ -319,10 +344,16 @@ fn one(root: &Path, config: &Config, name: &str, kind: &Kind, fresh: &str) -> (S
                         );
                     }
                     let mut whole = text.clone();
-                    if !whole.ends_with('\n') {
+                    // A document with nothing in it gains no blank
+                    // lines before the block (review 0023 R-11).
+                    if !whole.trim().is_empty() {
+                        if !whole.ends_with('\n') {
+                            whole.push('\n');
+                        }
                         whole.push('\n');
+                    } else {
+                        whole.clear();
                     }
-                    whole.push('\n');
                     whole.push_str(&fresh);
                     whole.push('\n');
                     (

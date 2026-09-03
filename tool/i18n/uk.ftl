@@ -480,6 +480,7 @@ generated-appended = { $file } — блок keel дописано; текст н
 generated-refreshed = { $file } — оновлено цим релізом
 generated-stands = { $file } — уже стоїть таким, яким його пише цей реліз
 generated-removed = { $file } — прибрано рукою: то рішення, а не прогалина; нічого не дописується. Щоб мати його знову, прибери його рядок у [generated] keel.toml і повтори keel update
+generated-changed-file = { $file } — цей файл генерує keel, і те, що тут стоїть, не є ні тим, що пише цей реліз, ні тим, що записано (записано { $recorded }, знайдено { $actual }): НЕ перезаписано (§9.7). Лиши як є або прибери ФАЙЛ І його рядок у [generated] keel.toml, тоді повтори keel update
 generated-changed = { $file } — блок keel не є ні тим, що пише цей реліз, ні тим, що записано (записано { $recorded }, знайдено { $actual }): НЕ перезаписано (§9.7). Лиши як є або прибери блок І його рядок у [generated] keel.toml, тоді повтори keel update
 generated-no-config = keel.toml тут нема: це не keel-проєкт, і нічого не вигадується. Зроби його ним командою keel init
 generated-many-blocks = { $file } — тут стоїть більше ніж один блок keel: котрий наш, не вгадується. Лиши одну пару маркерів і повтори keel update

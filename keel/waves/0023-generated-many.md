@@ -3,14 +3,14 @@ depends_on: [0022-generated-block]
 
 scenarios:
   every-artefact-kept:
-    proves: tool-generated@3f3c05
+    proves: tool-generated@d74a98
     covers: [functional.completeness, safety.fail-safe]
 
 transforms:
   three-artefacts:
     implements:
       - every-artefact-kept
-    contracts: [tool-generated@3f3c05, tool-config@544f7a]
+    contracts: [tool-generated@d74a98, tool-config@544f7a]
     files:
       - tool/src/generated.rs
       - tool/i18n/en.ftl
@@ -79,6 +79,11 @@ CI-workflow для машини.
 судиться одним digest-ом, а змінений рукою не перезаписується
 ніколи, як і блок.
 
+Звуження, назване вголос (школа §4.6 в інший бік): `tool/src/init.rs`
+і тримка `tool-init` зняті зі списків посеред роботи — рама
+викликає ту саму руку, і жодного її байта хвиля не змінила; прозу
+самого `tool-init` при цьому оновлено, бо артефактів стало три.
+
 Відступи bootstrap, названі вголос: хвиля їде робочою гілкою сесії;
 план їде план-гілкою §8.3; журнал їде chore-трансформою; хвіст
 `keel check` переводиться на щабель 21 тією ж хвилею.
@@ -105,7 +110,8 @@ CI-workflow для машини.
 перший — **блок у документі** (`AGENTS.md`, як у 0022, з
 маркерами). Вид другий — **цілий файл**: `.claude/skills/keel/
 SKILL.md` (скіл лупа: що читати, які команди, які два правила
-тримає машина) і `.github/workflows/keel.yml` (три суди: `keel
+тримає машина — і, за питанням оператора під час цієї хвилі, чиє
+рішення зміст плану: людське, з карткою і словом, §8.6) і `.github/workflows/keel.yml` (три суди: `keel
 check`, `keel close`, батарея адаптера). Обидва види ходять одним
 кодом: читання, digest, порівняння із записаним, слово, запис
 файлу і лише потім запис рядка в `[generated]` (порядок з R-1
