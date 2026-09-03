@@ -143,8 +143,14 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
         }
         Err(_) => {
             // The config court says that fault aloud already (main
-            // prints its refusal, school 0014 R-1): the frame does
-            // not redden twice for one broken file.
+            // prints its refusal, school 0014 R-1), so the frame
+            // does not repeat the reason -- but it does count the
+            // piece that did not stand (wave 0024). A keel.toml that
+            // exists and does not read used to leave a GREEN frame:
+            // the row said why and the exit code said all was well.
+            // An empty agent list is exactly that case, and a
+            // refusal aloud with a green exit is a half-truth.
+            failed += 1;
             report.push_str("  ");
             report.push_str(&t("generated-unjudged-config"));
             report.push('\n');

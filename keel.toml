@@ -5,6 +5,7 @@ lang = "uk"
 # Адаптер тестів: крейт інструмента живе в tool/ — рівно одна тека
 # першого рівня з Cargo.toml, тож адаптер знаходить його сам.
 adapter = "cargo"
+agents = ["claude", "cursor"]
 # Пін інструмента (щабель 16, хвиля 0018): точна версія бінарника;
 # зміна піна — рядок diff-а, затверджений merge-ом (NEW-CONCEPT,
 # «Дистрибуція»).
@@ -19,4 +20,5 @@ ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
 [generated]
 "AGENTS.md" = "b4f741c8c994"
 ".claude/skills/keel/SKILL.md" = "412a87e67ea4"
-".github/workflows/keel.yml" = "c3e27515228c"
+".github/workflows/keel.yml" = "c37d9eaaf3b3"
+".agents/skills/keel/SKILL.md" = "412a87e67ea4"
