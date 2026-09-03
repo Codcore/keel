@@ -839,3 +839,299 @@ fn every_agent_in_its_own_format() {
         "the skill is born again by the two steps the word names:\n{out}"
     );
 }
+
+/// The hook configs of wave 0025, each in its own tool's home.
+const CLAUDE_HOOKS: &str = ".claude/settings.json";
+const CURSOR_HOOKS: &str = ".cursor/hooks.json";
+
+/// Read a generated file and parse it with a REAL JSON parser: a file
+/// that exists to be read by a parser must be read by one (review
+/// 0023 R-1, now for JSON).
+fn json_of(dir: &Path, rel: &str) -> serde_json::Value {
+    let text = fs::read_to_string(dir.join(rel)).unwrap_or_else(|e| panic!("{rel} stands: {e}"));
+    serde_json::from_str(&text).unwrap_or_else(|e| panic!("{rel} is not JSON: {e}\n{text}"))
+}
+
+/// proves: hook-speaks-the-next-step@08213d -- the second half of the
+/// operator's §8.6 decision: the tool speaks BEFORE the work, through
+/// each agent's own session hook, in the answer shape that agent
+/// documents; a file of someone else's settings is never written over
+/// -- the word carries the snippet instead; and the command a hook
+/// calls is one the binary really takes.
+#[test]
+fn hook_speaks_the_next_step() {
+    // Claude alone: its own settings file is born, and it is JSON
+    // with exactly the branch Claude Code documents.
+    let dir = agents_project("hook-claude", Some("[\"claude\"]"));
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the frame lands:\n{out}");
+    let settings = json_of(&dir, CLAUDE_HOOKS);
+    let group = &settings["hooks"]["SessionStart"][0];
+    assert!(
+        group["matcher"]
+            .as_str()
+            .is_some_and(|m| m.contains("startup")),
+        "the matcher names the sources of a session start: {group}"
+    );
+    let handler = &group["hooks"][0];
+    assert_eq!(
+        handler["type"].as_str(),
+        Some("command"),
+        "the documented handler type: {handler}"
+    );
+    let command = handler["command"].as_str().unwrap_or_default();
+    assert!(
+        command.contains("keel next"),
+        "the hook asks the tool for the one step: {handler}"
+    );
+    assert!(
+        command.contains("\"${CLAUDE_PROJECT_DIR}\""),
+        "and the project variable is QUOTED -- a space in a real path would \
+         otherwise split the command, which is the school of v1: {handler}"
+    );
+    assert!(
+        handler["timeout"].as_u64().is_some(),
+        "and it carries a ceiling: {handler}"
+    );
+    assert!(
+        !dir.join(CURSOR_HOOKS).exists(),
+        "nothing of an agent this project never named:\n{out}"
+    );
+
+    // Cursor alone: its own hooks file, its own shape -- version 1
+    // and a sessionStart entry whose only field is command.
+    let dir = agents_project("hook-cursor", Some("[\"cursor\"]"));
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the frame lands:\n{out}");
+    let hooks = json_of(&dir, CURSOR_HOOKS);
+    assert_eq!(hooks["version"].as_u64(), Some(1), "their version: {hooks}");
+    let entry = &hooks["hooks"]["sessionStart"][0];
+    let command = entry["command"].as_str().unwrap_or_default();
+    assert!(
+        command.contains("keel next") && command.contains("--for cursor"),
+        "the hook asks for the step in Cursor's own answer shape: {entry}"
+    );
+    assert!(
+        entry.as_object().is_some_and(|o| o.len() == 1),
+        "a hook entry of theirs carries command and nothing invented: {entry}"
+    );
+    assert!(
+        !dir.join(CLAUDE_HOOKS).exists(),
+        "nothing of an agent this project never named:\n{out}"
+    );
+
+    // Every `keel <word>` the hook configs name is a command the
+    // binary really takes (the law of advice, wave 0024).
+    let dir = agents_project("hook-advice", Some("[\"claude\", \"cursor\"]"));
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the frame lands:\n{out}");
+    for rel in [CLAUDE_HOOKS, CURSOR_HOOKS] {
+        let text = fs::read_to_string(dir.join(rel)).unwrap();
+        let named = advice(&text);
+        assert!(!named.is_empty(), "{rel} names a command: {text}");
+        for word in &named {
+            let (answer, _) = keel(&[word, "/keel-no-such-directory"]);
+            assert!(
+                !answer.contains("unknown command"),
+                "{rel} names {word:?}, and the binary does not know it:\n{answer}"
+            );
+        }
+    }
+
+    // The step in each tool's answer shape: Cursor takes context only
+    // as JSON, and the field is additional_context. `next` reads the
+    // project's state through its adapter, so the sandbox gets a
+    // crate of its own -- a real project, the school of 0005-0024.
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"sandbox\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(&dir, "src/lib.rs", "");
+    let (wrapped, code) = keel(&["next", "--for", "cursor", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the step is said for cursor:\n{wrapped}");
+    let envelope: serde_json::Value = serde_json::from_str(wrapped.trim())
+        .unwrap_or_else(|e| panic!("the answer for cursor is JSON: {e}\n{wrapped}"));
+    let context = envelope["additional_context"].as_str().unwrap_or_default();
+    assert!(
+        !context.is_empty(),
+        "and it carries the step where Cursor reads it: {envelope}"
+    );
+    let (plain, code) = keel(&["next", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "and plainly for claude:\n{plain}");
+    let (for_claude, code) = keel(&["next", "--for", "claude", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "named or not, the same step:\n{for_claude}");
+    assert_eq!(
+        for_claude, plain,
+        "Claude Code takes plain stdout, so the shape is the plain step"
+    );
+    assert_eq!(
+        context, plain,
+        "and both tongues say the SAME step, not a piece of it"
+    );
+    // A hook that speaks, speaks always. Right after `keel init`
+    // there is no wave yet and the step refuses; a broken keel.toml
+    // refuses even earlier, in the config court. In both states the
+    // answer must still be VALID JSON for Cursor and the exit must
+    // stay green -- an exit code of 2 means "block the action" there.
+    for (name, config) in [
+        ("hook-fresh", "lang = \"en\"\nadapter = \"rust\"\n"),
+        ("hook-broken", "lang = \"en\"\nadapter = [broken\n"),
+    ] {
+        let bare = sandbox(name);
+        write(&bare, "keel.toml", config);
+        git(&bare, &["init", "-q", "-b", "main"]);
+        let (said, code) = keel(&["next", "--for", "cursor", bare.to_str().unwrap()]);
+        assert_eq!(code, 0, "{name}: a refusing hook does not block:\n{said}");
+        let envelope: serde_json::Value = serde_json::from_str(said.trim())
+            .unwrap_or_else(|e| panic!("{name}: the answer is still JSON: {e}\n{said}"));
+        assert!(
+            envelope["additional_context"]
+                .as_str()
+                .is_some_and(|c| c.contains("keel")),
+            "{name}: and it carries the refusal as the word the agent needs: {envelope}"
+        );
+        // The plain step keeps its own behaviour, untouched.
+        let (_, plain_code) = keel(&["next", bare.to_str().unwrap()]);
+        assert!(
+            plain_code == 0 || plain_code == 2,
+            "{name}: plain next answers as it always did, not as a hook"
+        );
+    }
+
+    let (refusal, code) = keel(&["next", "--for", "clod", dir.to_str().unwrap()]);
+    assert_ne!(code, 0, "an unknown agent is refused:\n{refusal}");
+    assert!(
+        refusal.contains("claude") && refusal.contains("cursor"),
+        "and the word names the agents it knows:\n{refusal}"
+    );
+
+    // A file of someone else's SETTINGS: not one byte is written,
+    // and the word must carry advice that WORKS. Review 0025 R-1
+    // measured the old advice taken literally: a whole document
+    // handed to a person who already has a file gives invalid JSON
+    // two ways out of three, and the third silently eats their own
+    // hooks. So the word names the key and hands the entries, and
+    // this is where that is judged -- by performing the advice.
+    let dir = agents_project("hook-guest", Some("[\"cursor\"]"));
+    let mine = "{\n  \"version\": 1,\n  \"hooks\": {\n    \"beforeShellExecution\": [\n      { \"command\": \"./guard.sh\" }\n    ],\n    \"sessionStart\": [\n      { \"command\": \"./mine.sh\" }\n    ]\n  }\n}\n";
+    write(&dir, CURSOR_HOOKS, mine);
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_ne!(code, 0, "a stranger's hooks are not written over:\n{out}");
+    assert_eq!(
+        fs::read_to_string(dir.join(CURSOR_HOOKS)).unwrap(),
+        mine,
+        "and not one byte of them moves"
+    );
+    assert!(
+        !out.contains("delete the file"),
+        "the word does not advise deleting a person's own file:\n{out}"
+    );
+    assert!(
+        out.contains("\"hooks\""),
+        "the word names the KEY the entries belong under:\n{out}"
+    );
+
+    // The entries in the word, taken out of it and merged under the
+    // key it names -- the advice, performed.
+    let snippet = {
+        let first = out.find('{').expect("the word carries entries");
+        let last = out.rfind('}').expect("the word carries entries");
+        &out[first..=last]
+    };
+    let entries: serde_json::Value = serde_json::from_str(snippet)
+        .unwrap_or_else(|e| panic!("the entries are JSON of their own: {e}\n{snippet}"));
+    let mut theirs: serde_json::Value = serde_json::from_str(mine).unwrap();
+    for (event, ours) in entries.as_object().expect("entries are an object") {
+        let home = theirs["hooks"].as_object_mut().expect("their hooks object");
+        match home.get_mut(event) {
+            Some(standing) => standing
+                .as_array_mut()
+                .expect("their event is an array")
+                .extend(ours.as_array().expect("ours is an array").iter().cloned()),
+            None => {
+                home.insert(event.clone(), ours.clone());
+            }
+        }
+    }
+    let merged = serde_json::to_string_pretty(&theirs).unwrap();
+    let judged: serde_json::Value = serde_json::from_str(&merged)
+        .unwrap_or_else(|e| panic!("the advice performed gives JSON: {e}\n{merged}"));
+    assert_eq!(
+        judged["version"].as_u64(),
+        Some(1),
+        "their own version survives the advice: {merged}"
+    );
+    assert!(
+        merged.contains("./guard.sh"),
+        "their own guard survives the advice -- this is the harm R-1 measured: {merged}"
+    );
+    assert!(
+        merged.contains("./mine.sh"),
+        "and their own session hook survives it too: {merged}"
+    );
+    assert!(
+        merged.contains("keel next --for cursor"),
+        "and ours is there beside theirs: {merged}"
+    );
+
+    // The entries are, byte for byte, a part of what would have been
+    // written -- not a reworded cousin of it (review 0025 R-11).
+    let twin = agents_project("hook-twin", Some("[\"cursor\"]"));
+    let (twin_out, twin_code) = keel(&["init", twin.to_str().unwrap()]);
+    assert_eq!(twin_code, 0, "the twin lands:\n{twin_out}");
+    let born = fs::read_to_string(twin.join(CURSOR_HOOKS)).unwrap();
+    assert!(
+        born.contains(snippet),
+        "the entries in the word stand byte for byte inside the born file:\nword: {snippet}\nborn: {born}"
+    );
+
+    // Our own hook config, edited by hand: refused, untouched.
+    let dir = agents_project("hook-edited", Some("[\"cursor\"]"));
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the frame lands:\n{out}");
+    let path = dir.join(CURSOR_HOOKS);
+    let edited = fs::read_to_string(&path)
+        .unwrap()
+        .replace("sessionStart", "stop");
+    fs::write(&path, &edited).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_ne!(
+        code, 0,
+        "a hand-edited hook config is refused aloud:\n{out}"
+    );
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        edited,
+        "and not one byte of the person's edit is touched"
+    );
+
+    // The tool's own validator, where it is at hand: a soft judge,
+    // named as one (the operator's word: use their testing library).
+    let dir = agents_project("hook-validate", Some("[\"claude\"]"));
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the frame lands:\n{out}");
+    match Command::new("claude")
+        .args(["plugin", "validate", ".claude/skills"])
+        .current_dir(&dir)
+        .output()
+    {
+        Ok(judged) => {
+            let said = format!(
+                "{}{}",
+                String::from_utf8_lossy(&judged.stdout),
+                String::from_utf8_lossy(&judged.stderr)
+            );
+            assert!(
+                judged.status.success(),
+                "the tool's own validator judges the generated skill:\n{said}"
+            );
+        }
+        Err(e) => {
+            // No binary at hand: said aloud, never painted green.
+            eprintln!(
+                "claude plugin validate not run ({e}) -- a soft judge, and this is its honest silence"
+            );
+        }
+    }
+}

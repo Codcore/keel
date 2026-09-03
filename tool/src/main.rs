@@ -315,18 +315,73 @@ fn main() -> ExitCode {
             }
         }
         Some("next") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            // --for <agent> asks for the step in that agent's own
+            // answer shape (wave 0025): the session hooks of the two
+            // tools take context differently, and the hook must not
+            // guess. Without it, the plain step, exactly as before.
+            let mut agent: Option<String> = None;
+            let mut where_from: Option<String> = None;
+            let mut rest = args.iter().skip(1);
+            while let Some(word) = rest.next() {
+                match word.as_str() {
+                    "--for" => match rest.next() {
+                        Some(named) => agent = Some(named.clone()),
+                        None => {
+                            eprintln!("{}", t("main-usage"));
+                            return ExitCode::from(2);
+                        }
+                    },
+                    // --for=<agent> is the other half of the same
+                    // spelling, and an unknown flag is a refusal, not
+                    // a directory: swallowing it made "--forx" a path
+                    // with a puzzling word (review 0025 R-12).
+                    other if other.starts_with("--for=") => {
+                        agent = Some(other["--for=".len()..].to_string());
+                    }
+                    other if other.starts_with('-') => {
+                        eprintln!("{}", t("main-usage"));
+                        return ExitCode::from(2);
+                    }
+                    other => where_from = Some(other.to_string()),
+                }
+            }
+            let root = where_from.map_or_else(|| PathBuf::from("."), PathBuf::from);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
+                    // Asked for by a hook, the config's own refusal is
+                    // still the word the agent needs, and it rides in
+                    // the agent's shape with a green exit -- the same
+                    // law as in next::step_for, and for the same
+                    // measured reason: in Cursor an exit code of 2
+                    // means "block the action". Asked for by a
+                    // person, nothing changes.
+                    if let Some(named) = &agent {
+                        // The words of the shaping hand live in i18n
+                        // too, and this road runs before the config
+                        // could name a language: the default one.
+                        keel::i18n::init("");
+                        match keel::next::say_for(named, &format!("{refusal}")) {
+                            Ok(said) => {
+                                print!("{said}");
+                                return ExitCode::SUCCESS;
+                            }
+                            Err(refusal) => {
+                                eprintln!("{refusal}");
+                                return ExitCode::from(2);
+                            }
+                        }
+                    }
                     eprintln!("{refusal}");
                     return ExitCode::from(2);
                 }
             };
             keel::i18n::init(&config.lang);
-            match keel::next::step(&root) {
+            let said = match &agent {
+                Some(named) => keel::next::step_for(&root, named),
+                None => keel::next::step(&root),
+            };
+            match said {
                 Ok(report) => {
                     print!("{report}");
                     ExitCode::SUCCESS
