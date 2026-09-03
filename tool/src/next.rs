@@ -81,17 +81,18 @@ pub fn say_for(agent: &str, said: &str) -> Result<String, Refusal> {
 
 /// The one word for an agent this release does not know.
 fn unknown_agent(root: &Path, agent: &str) -> Refusal {
+    // Through i18n like every other word of the tool (review 0025
+    // R-6: these two were the only refusals in the file speaking
+    // English into a Ukrainian frame). i18n is already initialised by
+    // the time a hook or a person can reach here.
+    let known = crate::config::AGENTS.join(", ");
     Refusal {
         file: root.to_path_buf(),
-        reason: format!(
-            "agent \"{agent}\" is not one this release knows: {}",
-            crate::config::AGENTS.join(", ")
+        reason: ta(
+            "next-unknown-agent",
+            targs!("agent" => agent.to_string(), "known" => known.clone()),
         ),
-        instead: format!(
-            "name one of {} -- the answer shape of a session hook is the agent's own, \
-             and an unnamed agent has no documented shape to speak in",
-            crate::config::AGENTS.join(", ")
-        ),
+        instead: ta("next-unknown-agent-instead", targs!("known" => known)),
     }
 }
 

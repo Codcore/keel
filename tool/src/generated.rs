@@ -28,10 +28,18 @@ enum Kind {
     /// to it when it is absent, and then judges it whole like any
     /// file of ours -- but it never writes over a file it did not
     /// write. `.claude/settings.json` holds a person's SETTINGS, and
-    /// "delete the file" would be harm there, not advice: instead
-    /// the word carries the very snippet that would have been
-    /// written, and the person pastes it if they want it.
-    Guest,
+    /// "delete the file" would be harm there, not advice.
+    ///
+    /// A guest carries what it would add and WHERE, because a whole
+    /// document is not something one can paste into a document that
+    /// already exists: review 0025 R-1 measured that advice taken
+    /// literally -- two of the three readings give invalid JSON, and
+    /// the third silently eats the person's own hooks. So the word
+    /// names the key and hands the entries that go under it.
+    Guest {
+        key: &'static str,
+        entries: String,
+    },
 }
 
 /// Whose artefact a row is (wave 0024). A document every agent
@@ -71,13 +79,19 @@ fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
         ),
         (
             ".claude/settings.json",
-            Kind::Guest,
+            Kind::Guest {
+                key: "hooks",
+                entries: claude_entries(),
+            },
             Owner::One("claude"),
             claude_hooks(),
         ),
         (
             ".cursor/hooks.json",
-            Kind::Guest,
+            Kind::Guest {
+                key: "hooks",
+                entries: cursor_entries(),
+            },
             Owner::One("cursor"),
             cursor_hooks(),
         ),
@@ -205,9 +219,8 @@ fn skill(config: &Config) -> String {
 /// inventing a key in someone else's schema is the very thing this
 /// wave forbids. The tool says it instead -- in the report row and in
 /// `[generated]` of keel.toml.
-fn claude_hooks() -> String {
+fn claude_entries() -> String {
     "{\n\
-     \u{20}\u{20}\"hooks\": {\n\
      \u{20}\u{20}\u{20}\u{20}\"SessionStart\": [\n\
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}{\n\
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"matcher\": \"startup|resume|clear|compact|fork\",\n\
@@ -220,9 +233,14 @@ fn claude_hooks() -> String {
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}]\n\
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}}\n\
      \u{20}\u{20}\u{20}\u{20}]\n\
-     \u{20}\u{20}}\n\
-     }\n"
+     \u{20}\u{20}}"
         .to_string()
+}
+
+/// The whole document, when the file is ours to give birth to: the
+/// same entries under the key they belong to, and nothing else.
+fn claude_hooks() -> String {
+    format!("{{\n\u{20}\u{20}\"hooks\": {}\n}}\n", claude_entries())
 }
 
 /// The session hook of Cursor (wave 0025), in the shape its own
@@ -230,24 +248,34 @@ fn claude_hooks() -> String {
 /// `sessionStart`, and an entry whose only field is `command` --
 /// nothing invented beside it. Cursor takes context at session start
 /// ONLY as JSON, in `additional_context`, so the command asks for the
-/// step in that shape: `keel next --for cursor`.
+/// step in that shape: `keel next --for cursor`. The working
+/// directory of a project hook is the project root (their docs), so
+/// no path argument is needed.
 ///
 /// Their `sessionStart` is fire-and-forget by their own docs, and
 /// their forum carries reports that the context does not always reach
 /// the agent. We write the documented shape; the delivery is their
 /// side of the boundary, and the wave says so aloud.
-fn cursor_hooks() -> String {
+fn cursor_entries() -> String {
     "{\n\
-     \u{20}\u{20}\"version\": 1,\n\
-     \u{20}\u{20}\"hooks\": {\n\
      \u{20}\u{20}\u{20}\u{20}\"sessionStart\": [\n\
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}{\n\
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"command\": \"keel next --for cursor\"\n\
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}}\n\
      \u{20}\u{20}\u{20}\u{20}]\n\
-     \u{20}\u{20}}\n\
-     }\n"
-    .to_string()
+     \u{20}\u{20}}"
+        .to_string()
+}
+
+/// The whole document for Cursor: their `version` is required beside
+/// the hooks, so the birth carries it; the entries handed to a person
+/// who already has a file of their own do not, because their file has
+/// its own version line already.
+fn cursor_hooks() -> String {
+    format!(
+        "{{\n\u{20}\u{20}\"version\": 1,\n\u{20}\u{20}\"hooks\": {}\n}}\n",
+        cursor_entries()
+    )
 }
 
 /// The CI workflow (wave 0023): the three courts a merge needs.
@@ -387,7 +415,7 @@ fn one(root: &Path, config: &Config, name: &str, kind: &Kind, fresh: &str) -> (S
             }
             let whole = match kind {
                 Kind::Block => format!("{fresh}\n"),
-                Kind::Whole | Kind::Guest => fresh.to_string(),
+                Kind::Whole | Kind::Guest { .. } => fresh.to_string(),
             };
             let mine = fresh.to_string();
             (
@@ -401,7 +429,7 @@ fn one(root: &Path, config: &Config, name: &str, kind: &Kind, fresh: &str) -> (S
         // already standing, refreshed -- and parts from it at one
         // fork only: what it says when the file is not ours (wave
         // 0025).
-        (Some(text), Kind::Whole | Kind::Guest) => {
+        (Some(text), Kind::Whole | Kind::Guest { .. }) => {
             // The file keeps its own line endings, and "ours by
             // self-evidence" is measured the way the record is --
             // by digest, not by bytes (review 0023 R-3).
@@ -442,14 +470,29 @@ fn one(root: &Path, config: &Config, name: &str, kind: &Kind, fresh: &str) -> (S
                 // the snippet is the very text that would have been
                 // written -- advice that differs from the deed is a
                 // lie.
-                if matches!(kind, Kind::Guest) {
-                    return (
+                if let Kind::Guest { key, entries } = kind {
+                    // Three states, three words (review 0025 R-3: one
+                    // word for two states told a lie in one of them,
+                    // and named no way back). An empty file is not a
+                    // person's settings -- it is an empty file, and
+                    // pasting entries into it would not make JSON.
+                    let word = if text.trim().is_empty() {
+                        ta(
+                            "generated-guest-empty",
+                            targs!("file" => name.to_string(), "snippet" => fresh.to_string()),
+                        )
+                    } else if recorded.is_none() {
                         ta(
                             "generated-guest-taken",
-                            targs!("file" => name.to_string(), "snippet" => fresh.to_string()),
-                        ),
-                        1,
-                    );
+                            targs!("file" => name.to_string(), "key" => (*key).to_string(), "snippet" => entries.clone()),
+                        )
+                    } else {
+                        ta(
+                            "generated-guest-edited",
+                            targs!("file" => name.to_string(), "key" => (*key).to_string(), "snippet" => entries.clone()),
+                        )
+                    };
+                    return (word, 1);
                 }
                 let key = if recorded.is_none() {
                     "generated-foreign-file"

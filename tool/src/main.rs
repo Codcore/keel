@@ -331,6 +331,17 @@ fn main() -> ExitCode {
                             return ExitCode::from(2);
                         }
                     },
+                    // --for=<agent> is the other half of the same
+                    // spelling, and an unknown flag is a refusal, not
+                    // a directory: swallowing it made "--forx" a path
+                    // with a puzzling word (review 0025 R-12).
+                    other if other.starts_with("--for=") => {
+                        agent = Some(other["--for=".len()..].to_string());
+                    }
+                    other if other.starts_with('-') => {
+                        eprintln!("{}", t("main-usage"));
+                        return ExitCode::from(2);
+                    }
                     other => where_from = Some(other.to_string()),
                 }
             }
@@ -346,6 +357,10 @@ fn main() -> ExitCode {
                     // means "block the action". Asked for by a
                     // person, nothing changes.
                     if let Some(named) = &agent {
+                        // The words of the shaping hand live in i18n
+                        // too, and this road runs before the config
+                        // could name a language: the default one.
+                        keel::i18n::init("");
                         match keel::next::say_for(named, &format!("{refusal}")) {
                             Ok(said) => {
                                 print!("{said}");

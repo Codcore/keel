@@ -852,7 +852,7 @@ fn json_of(dir: &Path, rel: &str) -> serde_json::Value {
     serde_json::from_str(&text).unwrap_or_else(|e| panic!("{rel} is not JSON: {e}\n{text}"))
 }
 
-/// proves: hook-speaks-the-next-step@d2a5fe -- the second half of the
+/// proves: hook-speaks-the-next-step@08213d -- the second half of the
 /// operator's §8.6 decision: the tool speaks BEFORE the work, through
 /// each agent's own session hook, in the answer shape that agent
 /// documents; a file of someone else's settings is never written over
@@ -883,6 +883,11 @@ fn hook_speaks_the_next_step() {
     assert!(
         command.contains("keel next"),
         "the hook asks the tool for the one step: {handler}"
+    );
+    assert!(
+        command.contains("\"${CLAUDE_PROJECT_DIR}\""),
+        "and the project variable is QUOTED -- a space in a real path would \
+         otherwise split the command, which is the school of v1: {handler}"
     );
     assert!(
         handler["timeout"].as_u64().is_some(),
@@ -960,9 +965,9 @@ fn hook_speaks_the_next_step() {
         for_claude, plain,
         "Claude Code takes plain stdout, so the shape is the plain step"
     );
-    assert!(
-        context.contains(plain.trim()) || plain.contains(context.trim()),
-        "and both tongues say the SAME step:\nplain: {plain}\njson: {context}"
+    assert_eq!(
+        context, plain,
+        "and both tongues say the SAME step, not a piece of it"
     );
     // A hook that speaks, speaks always. Right after `keel init`
     // there is no wave yet and the step refuses; a broken keel.toml
@@ -1001,42 +1006,84 @@ fn hook_speaks_the_next_step() {
         "and the word names the agents it knows:\n{refusal}"
     );
 
-    // A file of someone else's SETTINGS: not one byte is written, and
-    // the word carries the snippet to paste -- because "delete the
-    // file" would be harm here, not advice.
-    let dir = agents_project("hook-guest", Some("[\"claude\"]"));
-    let mine = "{\n  \"permissions\": {\n    \"allow\": [\"Bash(ls:*)\"]\n  }\n}\n";
-    write(&dir, CLAUDE_HOOKS, mine);
+    // A file of someone else's SETTINGS: not one byte is written,
+    // and the word must carry advice that WORKS. Review 0025 R-1
+    // measured the old advice taken literally: a whole document
+    // handed to a person who already has a file gives invalid JSON
+    // two ways out of three, and the third silently eats their own
+    // hooks. So the word names the key and hands the entries, and
+    // this is where that is judged -- by performing the advice.
+    let dir = agents_project("hook-guest", Some("[\"cursor\"]"));
+    let mine = "{\n  \"version\": 1,\n  \"hooks\": {\n    \"beforeShellExecution\": [\n      { \"command\": \"./guard.sh\" }\n    ],\n    \"sessionStart\": [\n      { \"command\": \"./mine.sh\" }\n    ]\n  }\n}\n";
+    write(&dir, CURSOR_HOOKS, mine);
     let (out, code) = keel(&["init", dir.to_str().unwrap()]);
-    assert_ne!(
-        code, 0,
-        "a stranger's settings are not written over:\n{out}"
-    );
+    assert_ne!(code, 0, "a stranger's hooks are not written over:\n{out}");
     assert_eq!(
-        fs::read_to_string(dir.join(CLAUDE_HOOKS)).unwrap(),
+        fs::read_to_string(dir.join(CURSOR_HOOKS)).unwrap(),
         mine,
         "and not one byte of them moves"
     );
     assert!(
-        !out.contains("delete the file") && !out.contains("прибери ФАЙЛ"),
-        "the word does not advise deleting a person's settings:\n{out}"
+        !out.contains("delete the file"),
+        "the word does not advise deleting a person's own file:\n{out}"
     );
-    // The snippet in the word is the very text that would have been
-    // written -- advice that differs from the deed is a lie.
-    let twin = agents_project("hook-twin", Some("[\"claude\"]"));
+    assert!(
+        out.contains("\"hooks\""),
+        "the word names the KEY the entries belong under:\n{out}"
+    );
+
+    // The entries in the word, taken out of it and merged under the
+    // key it names -- the advice, performed.
+    let snippet = {
+        let first = out.find('{').expect("the word carries entries");
+        let last = out.rfind('}').expect("the word carries entries");
+        &out[first..=last]
+    };
+    let entries: serde_json::Value = serde_json::from_str(snippet)
+        .unwrap_or_else(|e| panic!("the entries are JSON of their own: {e}\n{snippet}"));
+    let mut theirs: serde_json::Value = serde_json::from_str(mine).unwrap();
+    for (event, ours) in entries.as_object().expect("entries are an object") {
+        let home = theirs["hooks"].as_object_mut().expect("their hooks object");
+        match home.get_mut(event) {
+            Some(standing) => standing
+                .as_array_mut()
+                .expect("their event is an array")
+                .extend(ours.as_array().expect("ours is an array").iter().cloned()),
+            None => {
+                home.insert(event.clone(), ours.clone());
+            }
+        }
+    }
+    let merged = serde_json::to_string_pretty(&theirs).unwrap();
+    let judged: serde_json::Value = serde_json::from_str(&merged)
+        .unwrap_or_else(|e| panic!("the advice performed gives JSON: {e}\n{merged}"));
+    assert_eq!(
+        judged["version"].as_u64(),
+        Some(1),
+        "their own version survives the advice: {merged}"
+    );
+    assert!(
+        merged.contains("./guard.sh"),
+        "their own guard survives the advice -- this is the harm R-1 measured: {merged}"
+    );
+    assert!(
+        merged.contains("./mine.sh"),
+        "and their own session hook survives it too: {merged}"
+    );
+    assert!(
+        merged.contains("keel next --for cursor"),
+        "and ours is there beside theirs: {merged}"
+    );
+
+    // The entries are, byte for byte, a part of what would have been
+    // written -- not a reworded cousin of it (review 0025 R-11).
+    let twin = agents_project("hook-twin", Some("[\"cursor\"]"));
     let (twin_out, twin_code) = keel(&["init", twin.to_str().unwrap()]);
     assert_eq!(twin_code, 0, "the twin lands:\n{twin_out}");
-    let born = fs::read_to_string(twin.join(CLAUDE_HOOKS)).unwrap();
-    let inner = born
-        .split_once('{')
-        .map(|(_, rest)| rest)
-        .and_then(|rest| rest.rsplit_once('}'))
-        .map(|(inner, _)| inner.trim())
-        .unwrap();
-    let flat = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let born = fs::read_to_string(twin.join(CURSOR_HOOKS)).unwrap();
     assert!(
-        flat(&out).contains(&flat(inner)),
-        "the snippet in the word is what would have been written:\nword: {out}\nborn: {born}"
+        born.contains(snippet),
+        "the entries in the word stand byte for byte inside the born file:\nword: {snippet}\nborn: {born}"
     );
 
     // Our own hook config, edited by hand: refused, untouched.
