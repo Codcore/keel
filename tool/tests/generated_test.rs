@@ -309,3 +309,89 @@ fn generated_block_never_trampled() {
         "the config keeps its comment, its order and its other sections (R-5):\n{config}"
     );
 }
+
+/// proves: every-artefact-kept@ae746d -- holds wave 0023: the
+/// mechanism of 0022 made many. Three artefacts, two kinds of
+/// boundary -- a block inside a person's document, and files that
+/// are wholly ours -- each with its own row, its own line in
+/// [generated] and its own fate: born, standing, refused by name
+/// when a hand changed it, and never resurrected when a person
+/// deleted it. A neighbour's files in the same directories are none
+/// of our business.
+#[test]
+fn every_artefact_kept() {
+    // All three are born, each with its own row and its own line in
+    // [generated] (wave 0023).
+    let dir = project("three");
+    let (out, code) = keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the frame lands:\n{out}");
+    for artefact in [
+        "AGENTS.md",
+        ".claude/skills/keel/SKILL.md",
+        ".github/workflows/keel.yml",
+    ] {
+        assert!(
+            dir.join(artefact).is_file(),
+            "{artefact} is born by the frame:\n{out}"
+        );
+        let config = fs::read_to_string(dir.join("keel.toml")).unwrap();
+        assert!(
+            config.contains(artefact),
+            "{artefact} has its own line in [generated]:\n{config}"
+        );
+    }
+
+    // A whole-file artefact edited by hand: refused by name, and not
+    // one byte of it is rewritten -- while the others still stand.
+    let skill = dir.join(".claude/skills/keel/SKILL.md");
+    let mine = format!(
+        "{}\n\nA line I added myself.\n",
+        fs::read_to_string(&skill).unwrap()
+    );
+    fs::write(&skill, &mine).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a hand-edited artefact reddens the run:\n{out}");
+    assert!(
+        out.contains("SKILL.md"),
+        "the refusal names the artefact it means:\n{out}"
+    );
+    assert_eq!(
+        fs::read_to_string(&skill).unwrap(),
+        mine,
+        "the person's work is not trampled"
+    );
+    assert!(
+        out.contains("AGENTS.md") && out.contains("keel.yml"),
+        "the other artefacts still get their own words -- one failure stops nothing:\n{out}"
+    );
+
+    // A whole-file artefact deleted while its digest stands: a
+    // decision, not a gap -- it is not resurrected in silence.
+    let dir = project("deleted");
+    keel(&["init", dir.to_str().unwrap()]);
+    let flow = dir.join(".github/workflows/keel.yml");
+    fs::remove_file(&flow).unwrap();
+    let (out, code) = keel(&["update", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "a deleted artefact is not an error:\n{out}");
+    assert!(
+        !flow.exists(),
+        "what a person deleted stays deleted:\n{out}"
+    );
+
+    // Foreign files in the same directories are none of our
+    // business.
+    let dir = project("neighbours");
+    write(&dir, ".github/workflows/mine.yml", "name: mine\n");
+    write(&dir, ".claude/skills/mine/SKILL.md", "# mine\n");
+    keel(&["init", dir.to_str().unwrap()]);
+    assert_eq!(
+        fs::read_to_string(dir.join(".github/workflows/mine.yml")).unwrap(),
+        "name: mine\n",
+        "a neighbour's workflow is untouched"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.join(".claude/skills/mine/SKILL.md")).unwrap(),
+        "# mine\n",
+        "a neighbour's skill is untouched"
+    );
+}
