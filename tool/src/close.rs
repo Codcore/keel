@@ -258,10 +258,33 @@ fn run_command(root: &Path, command: &str) -> Result<(), String> {
     Err(stderr
         .lines()
         .rev()
-        .find(|l| !l.trim().is_empty())
-        .or_else(|| stdout.lines().rev().find(|l| !l.trim().is_empty()))
-        .map(str::to_string)
+        .map(visible)
+        .find(|l| !l.is_empty())
+        .or_else(|| stdout.lines().rev().map(visible).find(|l| !l.is_empty()))
         .unwrap_or_else(|| t("close-verify-no-words")))
+}
+
+/// The visible text of a line: the colours a command paints are not
+/// words. `cargo fmt --check` ends its diff with a bare reset
+/// sequence, and a verdict quoting that escape says nothing at all
+/// -- found in the field on slugline, wave 0019; the same school as
+/// 0010 review R-5, where a verdict must carry words, not noise.
+fn visible(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            // A CSI sequence runs to its final byte in @..~.
+            for c in chars.by_ref() {
+                if ('@'..='~').contains(&c) {
+                    break;
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out.trim().to_string()
 }
 
 /// Structural closure -- without running the tests: every live
