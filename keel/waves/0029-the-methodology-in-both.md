@@ -3,14 +3,14 @@ depends_on: [0028-both-tongues]
 
 scenarios:
   the-methodology-speaks-the-project-language:
-    proves: tool-speak@7fa5d8
+    proves: tool-speak@c9539f
     covers: [interaction.inclusivity, maintainability.analysability]
 
 transforms:
   the-methodology-in-english:
     implements:
       - the-methodology-speaks-the-project-language
-    contracts: [tool-speak@7fa5d8]
+    contracts: [tool-speak@c9539f]
     files:
       - docs/en/METHODOLOGY-V2.md
       - tool/src/speak.rs
