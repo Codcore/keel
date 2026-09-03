@@ -329,26 +329,51 @@ pub fn write(root: &Path) -> Result<(String, usize), Refusal> {
             report.push('\n');
             continue;
         }
-        let text = read(&path)?;
-        let Some(split_at) = header_span(&text) else {
-            continue;
-        };
-        let (head, body) = text.split_at(split_at);
-        let mut new_head = head.to_string();
-        for (slug, recorded, current) in &stale {
-            new_head =
-                new_head.replace(&format!("{slug}@{recorded}"), &format!("{slug}@{current}"));
-        }
-        let new_text = format!("{new_head}{body}");
-        docs::read_wave_text(&wave.slug, &new_text, &path)?;
-        crate::plan::write_new(&path, &new_text)?;
-        for (slug, recorded, current) in &stale {
-            rewritten += 1;
-            report.push_str(&ta(
-                "rev-write-rewritten",
-                targs!("wave" => wave.slug.clone(), "contract" => slug.clone(), "old" => recorded.clone(), "new" => current.clone()),
-            ));
-            report.push('\n');
+        // The surgery and its landing, caught per wave: a refusal
+        // here becomes a red row and stops the pass -- the report of
+        // what already landed is never eaten with it (review 0016
+        // R-3).
+        let surgery = (|| -> Result<Vec<(String, String, String, usize)>, Refusal> {
+            let text = read(&path)?;
+            let Some(split_at) = header_span(&text) else {
+                return Ok(Vec::new());
+            };
+            let (head, body) = text.split_at(split_at);
+            let mut new_head = head.to_string();
+            let mut landed: Vec<(String, String, String, usize)> = Vec::new();
+            for (slug, recorded, current) in &stale {
+                let (replaced, count) = replace_token(&new_head, slug, recorded, current);
+                new_head = replaced;
+                landed.push((slug.clone(), recorded.clone(), current.clone(), count));
+            }
+            let new_text = format!("{new_head}{body}");
+            docs::read_wave_text(&wave.slug, &new_text, &path)?;
+            crate::plan::write_new(&path, &new_text)?;
+            Ok(landed)
+        })();
+        match surgery {
+            Ok(landed) => {
+                for (slug, recorded, current, count) in landed {
+                    rewritten += count;
+                    report.push_str(&ta(
+                        "rev-write-rewritten",
+                        targs!("wave" => wave.slug.clone(), "contract" => slug, "old" => recorded, "new" => current),
+                    ));
+                    report.push('\n');
+                }
+            }
+            Err(refusal) => {
+                let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
+                report.push_str(&format!(
+                    "  {:<8} {} — {}\n           {}: {}\n",
+                    t("word-red"),
+                    shown.display(),
+                    refusal.reason,
+                    t("word-instead"),
+                    refusal.instead
+                ));
+                break;
+            }
         }
     }
     // The none-word speaks of the open waves: the closed keep their
@@ -360,6 +385,40 @@ pub fn write(root: &Path) -> Result<(String, usize), Refusal> {
     }
     report.push('\n');
     Ok((report, rewritten))
+}
+
+/// One full-token replacement pass (review 0016 R-1): the needle
+/// `slug@old` counts only where the character before is no slug
+/// character (so `rev@x` never strikes inside `tool-rev@x`) and the
+/// character after is no hex digit (so a four-character record never
+/// eats the start of a six-character one). Returns the new text and
+/// how many records were replaced.
+fn replace_token(text: &str, slug: &str, old: &str, new: &str) -> (String, usize) {
+    let needle = format!("{slug}@{old}");
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    let mut count = 0usize;
+    let slug_char = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-';
+    let hex_char = |c: char| c.is_ascii_hexdigit() && !c.is_ascii_uppercase();
+    while let Some(at) = rest.find(&needle) {
+        let prev = rest[..at]
+            .chars()
+            .next_back()
+            .or_else(|| out.chars().next_back());
+        let next = rest[at + needle.len()..].chars().next();
+        if prev.is_none_or(|c| !slug_char(c)) && next.is_none_or(|c| !hex_char(c)) {
+            out.push_str(&rest[..at]);
+            out.push_str(slug);
+            out.push('@');
+            out.push_str(new);
+            count += 1;
+        } else {
+            out.push_str(&rest[..at + needle.len()]);
+        }
+        rest = &rest[at + needle.len()..];
+    }
+    out.push_str(rest);
+    (out, count)
 }
 
 /// The byte length of the header: through the second `---` line

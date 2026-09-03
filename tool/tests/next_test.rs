@@ -150,8 +150,8 @@ fn next_hands_one_step() {
     let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
-        out.contains("time for the PR"),
-        "the reviewed wave heads to its merge (§8.7):\n{out}"
+        out.contains("time for the PR") && out.contains("the review lies next to the wave"),
+        "the reviewed FULL wave hears its own words exactly, not a shared substring (0016 R-4):\n{out}"
     );
 
     // Off the wave branch with everything closed: the honest word is

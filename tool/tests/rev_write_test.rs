@@ -147,7 +147,8 @@ fn stale_refs_rewritten_second_birth() {
     // Two contracts whose OLD revisions are identical (identical
     // texts), one slug the suffix of the other -- the reviewer's
     // slug-suffix trap.
-    let old_text = "---\nmodule: toy\nexports:\n  - \"pub fn one()\"\n---\n\nthe same first promise\n";
+    let old_text =
+        "---\nmodule: toy\nexports:\n  - \"pub fn one()\"\n---\n\nthe same first promise\n";
     write(&dir, "keel/contracts/rev.md", old_text);
     write(&dir, "keel/contracts/tool-rev.md", old_text);
     let old = keel::rev::text_rev(old_text);
@@ -187,7 +188,7 @@ fn stale_refs_rewritten_second_birth() {
         "the short slug's records land its own revision, prefix and full alike (R-1):\n{text}"
     );
     assert!(
-        !text.contains(&old) || false,
+        !text.contains(&format!("@{old}")),
         "no old revision survives in the header:\n{text}"
     );
     assert!(

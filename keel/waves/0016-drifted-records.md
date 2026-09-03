@@ -40,7 +40,7 @@ decisions:
   performance.capacity: "не застосовується: шапок — десятки"
   performance.resource-utilisation: "свідомо не міряємо: те саме"
   compatibility.co-existence: "свідомо без окремого тесту: хірургія лише в шапці, тіла секцій не торкаються — редакції сценаріїв стоять; тримає stale-refs-rewritten"
-  compatibility.interoperability: "свідомо без окремого тесту: git не кличеться — закритість судиться структурно тегами (школа close)"
+  compatibility.interoperability: "свідомо без окремого тесту: закритість питається в close::structural, який для розійшлих посилань закритих хвиль свідчить історією git (школа §5.6); без git посилання незвірені — консервативно закрита, наслідок той самий (виправлено за R-6 рецензії)"
   interaction.appropriateness-recognisability: "свідомо без нового тесту: імʼя прапорця — з таблиці NEW-CONCEPT (rev --write), usage називає"
   interaction.learnability: "свідомо без нового тесту: кожен перепис — рядок поіменно зі старою і новою редакціями"
   interaction.operability: "свідомо без тесту: один прапорець --write, корінь і все"
