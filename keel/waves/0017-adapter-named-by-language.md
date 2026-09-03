@@ -27,9 +27,10 @@ transforms:
       - tool/tests/adapter_name_test.rs
       - tool/tests/rev_test.rs
   journal:
-    chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
+    chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS), and the first field report lands (FIELD-0001)"
     files:
       - docs/uk/V2-PROCESS.md
+      - docs/uk/FIELD-0001.md
 
 decisions:
   functional.correctness: "свідомо без окремого тесту: rust_adapter — один matches! над двома рядками; його вживання судять наявні тести всіх поверхів"
