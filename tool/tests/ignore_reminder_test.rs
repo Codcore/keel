@@ -238,22 +238,22 @@ fn ignore_reminded() {
         "with git silent the rule is not judged, and the frame keeps landing:\n{out}"
     );
 
-    // No adapter of this release: there is no build directory to
-    // name, and the row says that instead of advising a guess.
-    for (name, adapter) in [("noadapter", None), ("foreign", Some("elixir"))] {
-        let dir = project(name, adapter);
-        let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
-        let out = format!("{out}{err}");
-        assert_eq!(code, 0, "the advice never reddens the frame:\n{out}");
-        assert!(
-            out.contains("ignore rules") && out.contains("no adapter"),
-            "with no adapter of this release there is no directory to name:\n{out}"
-        );
-        assert!(
-            !out.contains("target"),
-            "no build directory is guessed for a language this release does not serve:\n{out}"
-        );
-    }
+    // No adapter named at all: there is no build directory to name,
+    // and the row says that instead of advising a guess. (A NAMED
+    // adapter this release does not serve gets its own word -- see
+    // the R-8 case below.)
+    let dir = project("noadapter", None);
+    let (out, err, code) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the advice never reddens the frame:\n{out}");
+    assert!(
+        out.contains("ignore rules") && out.contains("no adapter"),
+        "with no adapter named there is no directory to name:\n{out}"
+    );
+    assert!(
+        !out.contains("target"),
+        "no build directory is guessed where no adapter is named:\n{out}"
+    );
 
     // Run from inside a git hook, where git hands its children
     // GIT_DIR and GIT_WORK_TREE of ITS repository: the row must
@@ -282,6 +282,25 @@ fn ignore_reminded() {
     assert!(
         !foreign.join(".git/hooks/commit-msg").exists(),
         "no byte is written into the repository of the environment:\n{out}"
+    );
+
+    // `git -c` travels to children through GIT_CONFIG_PARAMETERS,
+    // and a hook's own -c must not rewrite our answer either
+    // (review 0020 R-10): with a config forced through it, the row
+    // still judges the project's own files.
+    let forced = sandbox("forced-rules");
+    write(&forced, "rules", "target/\n");
+    let dir = project("configparams", Some("rust"));
+    let out = keel_with_env(
+        &["init", dir.to_str().unwrap()],
+        &[(
+            "GIT_CONFIG_PARAMETERS",
+            &format!("'core.excludesFile={}'", forced.join("rules").display()),
+        )],
+    );
+    assert!(
+        out.contains("add exactly"),
+        "a config forced through the environment does not rewrite the verdict (R-10):\n{out}"
     );
 
     // A broken keel.toml is not "no adapter": the rule is simply
@@ -315,6 +334,21 @@ fn ignore_reminded() {
     assert!(
         out.contains("does not travel") && out.contains("target/"),
         "a rule named by core.excludesFile does not travel, whatever its path (R-5):\n{out}"
+    );
+
+    // The sharpest corner of the same truth: a file that IS named
+    // .gitignore and does lie in the tree, but which git obeys only
+    // because core.excludesFile points at it. The file travels; the
+    // config that gives it force does not -- so a fresh clone would
+    // ignore nothing.
+    let dir = project("configgitignore", Some("rust"));
+    write(&dir, "extra/.gitignore", "target/\n");
+    git(&dir, &["config", "core.excludesFile", "extra/.gitignore"]);
+    let (out, err, _) = keel(&["init", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("does not travel"),
+        "a .gitignore obeyed only through core.excludesFile does not travel (R-5):\n{out}"
     );
 
     // The same for a global config of the person's machine.

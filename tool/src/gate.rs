@@ -272,6 +272,10 @@ pub(crate) fn git_at(root: &Path) -> std::process::Command {
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
         "GIT_PREFIX",
         "GIT_CEILING_DIRECTORIES",
+        // `git -c` travels to children this way, and a hook's own
+        // -c would rewrite our answer (review 0020 R-10).
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT",
     ] {
         command.env_remove(name);
     }

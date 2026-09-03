@@ -154,11 +154,20 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
 /// this binary does not answer to still leaves the frame landing
 /// (wave 0018's caveat).
 fn ignore_row(root: &Path) -> String {
-    let known = crate::config::read_unpinned(root)
-        .map(|config| config.rust_adapter())
-        .unwrap_or(false);
-    if !known {
-        return t("init-ignore-no-adapter");
+    // A config that cannot be read is not an unnamed adapter: the
+    // rule is simply not judged, and the reason is said (review
+    // 0020 R-2).
+    let config = match crate::config::read_unpinned(root) {
+        Ok(config) => config,
+        Err(refusal) => return ta("init-ignore-unjudged", targs!("error" => refusal.reason)),
+    };
+    if !config.rust_adapter() {
+        // A named adapter is called by its name; "not named" belongs
+        // to the absent one (review 0020 R-8; the 0017 R-3 school).
+        return match config.adapter {
+            Some(name) => ta("init-ignore-unknown-adapter", targs!("name" => name)),
+            None => t("init-ignore-no-adapter"),
+        };
     }
     let dir = crate::adapter::BUILD_DIR;
     let rule = format!("{dir}/");
@@ -200,17 +209,32 @@ fn ignore_row(root: &Path) -> String {
         .and_then(|line| line.split(':').next())
         .unwrap_or("")
         .to_string();
+    // Whether a rule TRAVELS is not a guess from the shape of the
+    // path (review 0020 R-5): it travels only when a .gitignore of
+    // the working tree gave it, and that file is not the one
+    // core.excludesFile names -- a config file, global or local,
+    // reaches no other clone.
+    let named_by_config = gate::git_at(root)
+        .args(["config", "--get", "core.excludesFile"])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .unwrap_or_default();
+    let travels = !source.is_empty()
+        && !source.starts_with('/')
+        && !source.contains(".git/")
+        && Path::new(&source)
+            .file_name()
+            .is_some_and(|name| name == ".gitignore")
+        && (named_by_config.is_empty() || source != named_by_config);
     match out.status.code() {
         // Ignored, and the rule comes from a file of the repository
         // -- it travels with every clone.
-        Some(0)
-            if !source.is_empty() && !source.starts_with('/') && !source.contains(".git/info/") =>
-        {
-            ta(
-                "init-ignore-stands",
-                targs!("path" => shown, "source" => source),
-            )
-        }
+        Some(0) if travels => ta(
+            "init-ignore-stands",
+            targs!("path" => shown, "source" => source),
+        ),
         // Ignored only here: an exclude of this clone, or the
         // person's global file -- neither travels (the first
         // field's R-4 school), so the advice stands.

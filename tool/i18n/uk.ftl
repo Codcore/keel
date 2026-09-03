@@ -431,6 +431,7 @@ init-ignore-stands = правила ignore: тека збірки ({ $path }) і
 init-ignore-exclude-only = правила ignore: { $path } ігнорує лише { $source }, а він з репозиторієм не їде — допиши в .gitignore рівно цей рядок: { $rule }
 init-ignore-no-crate = правила ignore: адаптер не знайшов крейта, щоб назвати теку збірки ({ $error })
 init-ignore-no-adapter = правила ignore: адаптера цього релізу в keel.toml не названо, тож і теки збірки нема кому назвати
+init-ignore-unknown-adapter = правила ignore: адаптер названий — "{ $name }", — і цей реліз його не веде: свою теку збірки він принесе своєю хвилею
 init-ignore-unjudged = правила ignore: git тут нічого не сказав ({ $error }) — правило не суджено
 init-eight-seven = §8.7: вимкни squash і rebase у налаштуваннях репозиторію — правило тримає вимкнена кнопка, не памʼять
 init-next = далі — keel plan <перша хвиля>

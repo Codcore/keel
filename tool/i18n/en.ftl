@@ -428,6 +428,7 @@ init-ignore-stands = ignore rules: the build directory ({ $path }) stands ignore
 init-ignore-exclude-only = ignore rules: { $path } is ignored only by { $source }, which does not travel with the repository — add exactly this line to .gitignore: { $rule }
 init-ignore-no-crate = ignore rules: the adapter found no crate to name a build directory by ({ $error })
 init-ignore-no-adapter = ignore rules: no adapter of this release is named in keel.toml, so there is no build directory to name
+init-ignore-unknown-adapter = ignore rules: the adapter is named "{ $name }", and this release does not serve it — its own wave will bring its build directory
 init-ignore-unjudged = ignore rules: git said nothing here ({ $error }) — the rule is not judged
 init-eight-seven = §8.7: turn squash and rebase merging off in the repository settings — the rule is held by the disabled button, not by memory
 init-next = onwards — keel plan <the first wave>
