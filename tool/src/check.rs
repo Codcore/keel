@@ -62,12 +62,18 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // and nobody has to type, so "the drift is red" was true only if
     // asked. The court is about this BINARY, not about the project,
     // and its row says so.
-    courts.push(t("check-cuts-row"));
-    rows.push((
-        t("check-cuts-row"),
-        crate::speak::cuts_from(crate::speak::checklist())
-            .err()
-            .map(|refusal| {
+    // Every tongue this release carries, not only the one it serves:
+    // a translation drifts as easily as an original (wave 0028).
+    for (lang, document) in crate::speak::checklists() {
+        // A person reads a language, not a code (review 0028 R-10).
+        let row = ta(
+            "check-cuts-row",
+            targs!("lang" => t(&format!("word-lang-{lang}"))),
+        );
+        courts.push(row.clone());
+        rows.push((
+            row,
+            crate::speak::cuts_from(document).err().map(|refusal| {
                 format!(
                     "{}\n           {}: {}",
                     refusal.reason,
@@ -75,7 +81,8 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                     refusal.instead
                 )
             }),
-    ));
+        ));
+    }
 
     // The second floor (§7.1/§7.3): every contract reference in a
     // wave header is followed to its file and its revision compared.
