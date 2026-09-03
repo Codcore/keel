@@ -5,10 +5,24 @@ exports:
   - "pub fn findings(root: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refusal>"
   - "pub fn current_branch(root: &Path) -> Option<String>"
   - "pub fn compare_base(root: &Path) -> Result<(String, bool), Refusal>"
+  - "pub fn git_at(root: &Path) -> Command"
 ---
 
 Scope (глава 4): файли, названі до роботи, звіряються з гілкою — в
-обидва боки.
+обидва боки. Тут-таки живе єдина рука, якою інструмент кличе git.
+
+- `git_at` (з хвилі 0021) — `git -C <корінь>`, глухий до
+  успадкованого середовища: git-hook віддає своїм дітям репозиторій,
+  для якого біжить (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`,
+  `GIT_INDEX_FILE`, `GIT_OBJECT_DIRECTORY`,
+  `GIT_ALTERNATE_OBJECT_DIRECTORIES`, `GIT_PREFIX`,
+  `GIT_CEILING_DIRECTORIES`), і ці змінні **старші за `-C`**; туди ж
+  механізм `-c` (`GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`). Без
+  чистки суд мовчки судив би репозиторій, що його запустив: рецензія
+  0020 виміряла ціну — `close` зеленів на недоведеній хвилі. Свідомі
+  вибори людини (`GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`,
+  `GIT_AUTHOR_*`) лишаються. Усі модулі, що кличуть git, питають цю
+  руку; сирих `Command::new("git")` поза цим домом нема.
 
 - `current_branch` питає git про поточну гілку — і відповідає лише за
   корінь, що є верхом власного git-дерева: гілка батьківського
