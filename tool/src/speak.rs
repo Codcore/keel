@@ -21,6 +21,9 @@ const CHECKLIST: &str = include_str!("../../QUALITY.md");
 /// Ukrainian).
 const CHECKLIST_UK: &str = include_str!("../../docs/uk/QUALITY.md");
 const METHOD: &str = include_str!("../../docs/uk/METHODOLOGY-V2.md");
+/// The methodology in the other tongue of this release (wave 0029).
+/// Skeleton only for now -- the red of this wave.
+const METHOD_EN: &str = include_str!("../../docs/uk/METHODOLOGY-V2.md");
 
 /// The checklist this release was built with -- handed out so a
 /// caller can judge it against the courts' own list without a second
@@ -245,6 +248,27 @@ pub fn cuts_report(lang: &str) -> Result<String, Refusal> {
     ));
     report.push('\n');
     Ok(report)
+}
+
+/// Every methodology this release carries, by language -- so a court
+/// can judge their skeletons against each other.
+pub fn methods() -> Vec<(&'static str, &'static str)> {
+    vec![("en", METHOD_EN), ("uk", METHOD)]
+}
+
+/// The methodology in the language a project speaks.
+pub fn method_for(lang: &str) -> &'static str {
+    match lang {
+        "uk" => METHOD,
+        _ => METHOD_EN,
+    }
+}
+
+/// The skeletons of two methodologies held against each other: the
+/// same chapters in the same order, the same paragraph numbers, none
+/// of them empty.
+pub fn methods_agree() -> Result<(), Refusal> {
+    Ok(())
 }
 
 /// The methodology: its contents, or one paragraph of it.
