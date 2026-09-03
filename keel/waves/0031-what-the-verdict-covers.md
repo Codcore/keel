@@ -13,7 +13,6 @@ transforms:
       - a-verdict-says-how-much-of-it-is-real
     files:
       - tool/src/check.rs
-      - tool/src/scope.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/verdict_limits_test.rs
@@ -22,7 +21,6 @@ transforms:
       - the-closing-court-names-its-price
     files:
       - tool/src/close.rs
-      - tool/src/adapter.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/closing_price_test.rs
@@ -130,13 +128,21 @@ left on device». Після роботи він каже, скільки той
 ## transform: the-verdict-carries-its-own-limits
 
 `check.rs` збирає межі вироку однією рукою і друкує їх **у
-підсумку**; `scope.rs` віддає базу порівняння і її вік.
+підсумку**.
+
+Два файли, оголошені в плані, **знято зі списку під час роботи**, і
+це звуження названо тут, а не сховано. `scope.rs` мав віддавати базу
+порівняння і її вік — виявилось, що йому нічого додавати: питання
+ставляться його ж рукою `git_at`, а відповіді складає `check.rs`.
+`adapter.rs` мав… нічого: хвиля **підтверджує** його рішення про
+власний `target` (успадкований кеш зсуває вироки — §6.7), а
+підтвердження не є правкою. Оголосити файл і не чіпати його — рівно
+той дрейф, який ловить §4.6.
 
 ## transform: the-price-said-before-it-is-paid
 
-`close.rs` питає диск перед роботою і називає ціну; `adapter.rs`
-лишається як є — рішення про власний `target` хвиля підтверджує, а не
-скасовує.
+`close.rs` питає диск перед роботою, називає ціну і відмовляється на
+вході, коли місця нема.
 
 ## transform: journal
 
