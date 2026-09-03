@@ -134,18 +134,13 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
     // CI read lies in the repository, and the frame lays it -- but
     // never over a hand's edit.
     match crate::config::read_unpinned(root) {
-        Ok(config) => match crate::generated::write(root, &config) {
-            Ok((word, lacked)) => {
-                failed += lacked;
-                report.push_str("  ");
-                report.push_str(&word);
-                report.push('\n');
-            }
-            Err(refusal) => {
-                failed += 1;
-                report.push_str(&format!("  {}\n", refusal.reason));
-            }
-        },
+        Ok(config) => {
+            let (word, lacked) = crate::generated::write(root, &config);
+            failed += lacked;
+            report.push_str("  ");
+            report.push_str(&word);
+            report.push('\n');
+        }
         Err(_) => {
             // The config court says that fault aloud already (main
             // prints its refusal, school 0014 R-1): the frame does

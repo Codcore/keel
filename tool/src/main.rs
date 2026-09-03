@@ -395,20 +395,13 @@ fn main() -> ExitCode {
                 }
             };
             keel::i18n::init(&config.lang);
-            match keel::generated::write(&root, &config) {
-                Ok((word, lacked)) => {
-                    println!("{}", t("update-title"));
-                    println!("  {word}");
-                    if lacked == 0 {
-                        ExitCode::SUCCESS
-                    } else {
-                        ExitCode::from(1)
-                    }
-                }
-                Err(refusal) => {
-                    eprintln!("{refusal}");
-                    ExitCode::from(2)
-                }
+            let (word, lacked) = keel::generated::write(&root, &config);
+            println!("{}", t("update-title"));
+            println!("  {word}");
+            if lacked == 0 {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
             }
         }
         Some("version") => {

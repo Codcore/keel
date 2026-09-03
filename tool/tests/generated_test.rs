@@ -214,7 +214,8 @@ fn generated_block_never_trampled() {
     // ours by self-evidence -- even with no digest recorded at all,
     // which is exactly the state a failed write leaves behind.
     let dir = project("selfevident");
-    let fresh = keel::generated::block("en");
+    let config = keel::config::read(&dir).unwrap();
+    let fresh = keel::generated::block(&config);
     write(&dir, "AGENTS.md", &format!("# Mine\n\n{fresh}\n"));
     let (out, code) = keel(&["update", dir.to_str().unwrap()]);
     assert_eq!(
@@ -273,7 +274,7 @@ fn generated_block_never_trampled() {
     // R-5: a REAL refresh -- a block of another release, recorded --
     // and the rest of the config kept byte for byte.
     let dir = sandbox("refresh");
-    let older = format!("<!-- keel:begin -->\nan older release wrote this\n<!-- keel:end -->");
+    let older = "<!-- keel:begin -->\nan older release wrote this\n<!-- keel:end -->";
     write(
         &dir,
         "AGENTS.md",
@@ -284,7 +285,7 @@ fn generated_block_never_trampled() {
         "keel.toml",
         &format!(
             "# my comment\nlang = \"en\"\nadapter = \"rust\"\n\n[trust]\n\"echo hi\" = \"aaaaaaaaaaaa\"\n\n[generated]\n\"AGENTS.md\" = \"{}\"\n",
-            keel::generated::digest(&older)
+            keel::generated::digest(older)
         ),
     );
     git(&dir, &["init", "-q", "-b", "main"]);

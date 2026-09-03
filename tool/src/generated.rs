@@ -42,13 +42,7 @@ The loop, one step at a time:
   person fills; the tool never writes the content of a plan
 - `keel check` -- the documents judged
 - `keel close` -- whether a wave may merge
-- `keel review` -- the package for a fresh reviewer (§9.9)
-
-Two rules a machine holds, so no memory has to: a scenario is born
-red -- the commit `red: <scenario>` passes the commit-msg hook only
-when its test really fails -- and the work commit
-`<transform>: <words>` passes only when that scenario's tests are
-green. Ask `keel next` instead of guessing the order."#;
+- `keel review` -- the package for a fresh reviewer (§9.9)"#;
 
 const BODY_UK: &str = r#"# keel (згенеровано — не правити руками; keel update перепише цей блок)
 
@@ -65,24 +59,47 @@ const BODY_UK: &str = r#"# keel (згенеровано — не правити 
   заповнює людина; змісту плану інструмент не пише ніколи
 - `keel check` — суд над документами
 - `keel close` — чи можна зливати хвилю
-- `keel review` — пакет свіжому рецензентові (§9.9)
+- `keel review` — пакет свіжому рецензентові (§9.9)"#;
 
-Два правила тримає машина, і памʼять їх тримати не мусить: сценарій
-народжується червоним — commit `red: <сценарій>` проходить крізь
-commit-msg hook лише тоді, коли його тест справді падає, — а робочий
-commit `<трансформа>: <слова>` проходить лише зеленими тестами того
-сценарію. Питай `keel next`, а не вгадуй порядок."#;
+/// What the machine really holds, per mode (review 0022 R-10).
+const RULE_STRICT_EN: &str = r#"Two rules a machine holds here, so no memory has to: a scenario is born red -- the commit `red: <scenario>` passes the commit-msg hook only when its test really fails -- and the work commit `<transform>: <words>` passes only when that scenario's tests are green. Ask `keel next` instead of guessing the order."#;
 
-pub fn block(lang: &str) -> String {
-    let body = if lang == "uk" { BODY_UK } else { BODY_EN };
-    format!("{BEGIN}\n{body}\n{END}")
+const RULE_SOFT_EN: &str = r#"Two rules stand here as warnings (`mode = "soft"`): a scenario is born red -- the commit `red: <scenario>` is judged, and a commit that has not earned it is told so aloud without being blocked -- and the same for the work commit `<transform>: <words>`. The words are the machine's; holding to them is yours. Ask `keel next` instead of guessing the order."#;
+
+const RULE_MANUAL_EN: &str = r#"The commit judgement is off in this project (`mode = "manual"`): the two rules -- a scenario born red, and work committed only over green tests -- are held by people alone here. `keel close` still judges before a merge. Ask `keel next` instead of guessing the order."#;
+
+const RULE_STRICT_UK: &str = r#"Два правила тримає тут машина, і памʼять їх тримати не мусить: сценарій народжується червоним — commit `red: <сценарій>` проходить крізь commit-msg hook лише тоді, коли його тест справді падає, — а робочий commit `<трансформа>: <слова>` проходить лише зеленими тестами того сценарію. Питай `keel next`, а не вгадуй порядок."#;
+
+const RULE_SOFT_UK: &str = r#"Два правила стоять тут попередженням (`mode = "soft"`): сценарій народжується червоним — commit `red: <сценарій>` судиться, і незароблене кажеться вголос, але не заслоняє commit, — те саме для робочого commit-а `<трансформа>: <слова>`. Слова — машинні, тримати їх — твоє. Питай `keel next`, а не вгадуй порядок."#;
+
+const RULE_MANUAL_UK: &str = r#"Суд commit-ів у цьому проєкті вимкнено (`mode = "manual"`): обидва правила — народження червоним і робота лише поверх зелених тестів — тримають тут самі люди. `keel close` перед злиттям судить далі. Питай `keel next`, а не вгадуй порядок."#;
+
+pub fn block(config: &Config) -> String {
+    let uk = config.lang == "uk";
+    let body = if uk { BODY_UK } else { BODY_EN };
+    // What the machine really holds depends on the project's mode
+    // (review 0022 R-10): under soft it warns, under manual it does
+    // not judge at all, and the block must not promise otherwise.
+    let rule = match (config.mode.as_str(), uk) {
+        ("manual", true) => RULE_MANUAL_UK,
+        ("manual", false) => RULE_MANUAL_EN,
+        ("soft", true) => RULE_SOFT_UK,
+        ("soft", false) => RULE_SOFT_EN,
+        (_, true) => RULE_STRICT_UK,
+        (_, false) => RULE_STRICT_EN,
+    };
+    format!("{BEGIN}\n{body}\n\n{rule}\n{END}")
 }
 
 /// The digest of a block: sha256 over its whitespace-collapsed text,
 /// the first 12 hex -- the length of a trust fingerprint, because
 /// this too is a judgement and not a document's revision.
 pub fn digest(text: &str) -> String {
-    let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    // Byte-exact but for line endings (review 0022 R-6, R-7): an
+    // edit of whitespace alone is an edit and must be seen, while a
+    // checkout that turned LF into CRLF is not the person's doing
+    // and must not be called one.
+    let flat = text.replace("\r\n", "\n");
     let sum = Sha256::digest(flat.as_bytes());
     sum.iter().map(|b| format!("{b:02x}")).collect::<String>()[..12].to_string()
 }
@@ -91,8 +108,14 @@ pub fn digest(text: &str) -> String {
 /// `keel init` and `keel update`. The second number counts what did
 /// not stand -- zero is green, anything else honest red while the
 /// rest of the frame still lands.
-pub fn write(root: &Path, config: &Config) -> Result<(String, usize), Refusal> {
-    let fresh = block(&config.lang);
+pub fn write(root: &Path, config: &Config) -> (String, usize) {
+    if !config.present {
+        // No keel.toml -- no project of ours, and nothing of a
+        // stranger's directory is invented (review 0022 R-3; the
+        // same guard trust has kept since 0010).
+        return (t("generated-no-config"), 1);
+    }
+    let fresh = block(config);
     let path = root.join(DOCUMENT);
     let recorded = config
         .generated
@@ -104,78 +127,111 @@ pub fn write(root: &Path, config: &Config) -> Result<(String, usize), Refusal> {
         Ok(text) => Some(text),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => {
-            return Ok((ta("generated-unread", targs!("error" => e.to_string())), 1));
+            return (ta("generated-unread", targs!("error" => e.to_string())), 1);
         }
     };
 
     let (whole, word) = match text {
         // No document at all: born with the block alone.
         None => (format!("{fresh}\n"), t("generated-born")),
-        Some(text) => match span(&text) {
-            // A document of the person's own, with no block of ours:
-            // the block goes after it, their text untouched.
-            None => {
-                if text.contains(BEGIN) || text.contains(END) {
-                    // One marker without the other is not a block --
-                    // guessing where it ends would trample.
-                    return Ok((t("generated-half-marked"), 1));
-                }
-                if recorded.is_some() {
-                    // The block was there and the person removed it:
-                    // that is a decision, not a gap to fill.
-                    return Ok((t("generated-removed"), 0));
-                }
-                let mut whole = text.clone();
-                if !whole.ends_with('\n') {
+        Some(text) => {
+            // More than one pair of markers: which block is ours is
+            // not guessed (review 0022 R-11).
+            if text.matches(BEGIN).count() > 1 || text.matches(END).count() > 1 {
+                return (t("generated-many-blocks"), 1);
+            }
+            // The document keeps its own line endings (R-7).
+            let crlf = text.contains("\r\n");
+            let fresh = if crlf {
+                fresh.replace('\n', "\r\n")
+            } else {
+                fresh.clone()
+            };
+            match span(&text) {
+                None => {
+                    if text.contains(BEGIN) || text.contains(END) {
+                        // One marker without the other is not a block
+                        // -- guessing where it ends would trample.
+                        return (t("generated-half-marked"), 1);
+                    }
+                    if recorded.is_some() {
+                        // The block was there and the person removed
+                        // it: a decision, not a gap to fill -- and
+                        // the word says how to have it back (R-2).
+                        return (t("generated-removed"), 0);
+                    }
+                    let mut whole = text.clone();
+                    if !whole.ends_with('\n') {
+                        whole.push('\n');
+                    }
                     whole.push('\n');
+                    whole.push_str(&fresh);
+                    whole.push('\n');
+                    (whole, t("generated-appended"))
                 }
-                whole.push('\n');
-                whole.push_str(&fresh);
-                whole.push('\n');
-                (whole, t("generated-appended"))
+                Some((from, to)) => {
+                    let standing = &text[from..to];
+                    if standing == fresh {
+                        // Byte for byte what this release writes: it
+                        // is ours by self-evidence, whatever the
+                        // record says -- the state a failed write
+                        // leaves must heal, not accuse (R-1).
+                        if recorded.as_deref() != Some(digest(&fresh).as_str())
+                            && let Err(refusal) = record(root, &digest(&fresh))
+                        {
+                            return (
+                                ta("generated-config-failed", targs!("error" => refusal.reason)),
+                                1,
+                            );
+                        }
+                        return (t("generated-stands"), 0);
+                    }
+                    if recorded.as_deref() != Some(digest(standing).as_str()) {
+                        // Not what this release wrote and not what
+                        // was recorded: never trampled (R-8 names the
+                        // fact, not a guess about who did it).
+                        return (
+                            ta(
+                                "generated-changed",
+                                targs!("file" => DOCUMENT.to_string(), "recorded" => recorded.unwrap_or_else(|| t("generated-none")), "actual" => digest(standing)),
+                            ),
+                            1,
+                        );
+                    }
+                    let mut whole = String::with_capacity(text.len());
+                    whole.push_str(&text[..from]);
+                    whole.push_str(&fresh);
+                    whole.push_str(&text[to..]);
+                    (whole, t("generated-refreshed"))
+                }
             }
-            Some((from, to)) => {
-                let standing = &text[from..to];
-                let mine = recorded.as_deref() == Some(digest(standing).as_str());
-                if !mine {
-                    // A hand edited it (or a release wrote it before
-                    // digests were kept): never trampled.
-                    return Ok((
-                        ta("generated-changed", targs!("file" => DOCUMENT.to_string())),
-                        1,
-                    ));
-                }
-                if standing == fresh {
-                    return Ok((t("generated-stands"), 0));
-                }
-                let mut whole = String::with_capacity(text.len());
-                whole.push_str(&text[..from]);
-                whole.push_str(&fresh);
-                whole.push_str(&text[to..]);
-                (whole, t("generated-refreshed"))
-            }
-        },
+        }
     };
 
-    // The config first: a document written without its digest would
-    // be a stranger to the very next run.
-    if let Err(refusal) = record(root, &digest(&fresh)) {
-        return Ok((
-            ta("generated-config-failed", targs!("error" => refusal.reason)),
-            1,
-        ));
-    }
-    if let Err(e) = std::fs::write(&path, whole) {
-        return Ok((
+    // The document first, the record after it (review 0022 R-1): a
+    // digest recorded for a document that was never written is the
+    // one state nothing can heal.
+    if let Err(e) = std::fs::write(&path, &whole) {
+        return (
             ta("generated-write-failed", targs!("error" => e.to_string())),
             1,
-        ));
+        );
     }
-    Ok((word, 0))
+    let written =
+        span(&whole).map_or_else(|| fresh.clone(), |(from, to)| whole[from..to].to_string());
+    if let Err(refusal) = record(root, &digest(&written)) {
+        return (
+            ta("generated-config-failed", targs!("error" => refusal.reason)),
+            1,
+        );
+    }
+    (word, 0)
 }
 
-/// Where the block's own text stands inside the document: between
-/// the markers, exclusive of them.
+/// Where the block stands inside the document: the markers
+/// INCLUDED, because they are part of what this release wrote and
+/// therefore part of what its digest answers for (review 0022 R-12:
+/// the comment used to say the opposite of the code).
 fn span(text: &str) -> Option<(usize, usize)> {
     let begin = text.find(BEGIN)?;
     let end = text[begin..].find(END)? + begin + END.len();

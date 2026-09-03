@@ -67,7 +67,9 @@ pub fn upsert(text: &str, section: &str, entries: &[(String, String)]) -> String
     }
 
     let mut out = lines.join(eol);
-    if text.ends_with('\n') || text.is_empty() {
+    // The predicate trust carried since 0010 (review 0022 R-4:
+    // the refactor must not change a byte of its behaviour).
+    if text.ends_with('\n') || !text.contains('\n') {
         out.push_str(eol);
     }
     out

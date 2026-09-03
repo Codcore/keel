@@ -17,4 +17,4 @@ ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
 "cargo fmt --manifest-path tool/Cargo.toml --check" = "668c699a0a59"
 
 [generated]
-"AGENTS.md" = "a325ea29a915"
+"AGENTS.md" = "dc5c000e9fa4"
