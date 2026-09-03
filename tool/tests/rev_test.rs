@@ -43,9 +43,9 @@ fn revision_recipe_reproduced() {
         // said aloud the field surface is prose-held; 7dd1d7 until
         // 0017 named the adapter by its language; 840bd9 until 0018
         // gave the version pin its court; dac6af until its review put
-        // the pin court above mode in words -- the pin follows the
-        // live text.
-        "5555a7"
+        // the pin court above mode in words; 5555a7 until 0022 gave
+        // [generated] its meaning -- the pin follows the live text.
+        "544f7a"
     );
 
     // Prefix comparison (§5.2): 4-6 characters, from the start.

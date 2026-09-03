@@ -135,7 +135,7 @@ fn generated_block_never_trampled() {
 
     // A block the person edited: refused aloud, and NOTHING is
     // written -- neither the document nor the config.
-    let edited = before.replace("keel:end", "keel:end").replace(
+    let edited = before.replace(
         "<!-- keel:end -->",
         "A line a person added inside the block.\n<!-- keel:end -->",
     );

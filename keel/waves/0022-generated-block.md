@@ -10,7 +10,7 @@ transforms:
   block-and-digest:
     implements:
       - generated-block-never-trampled
-    contracts: [tool-generated@be9eee, tool-confedit@733ed3, tool-trust@073452, tool-init@9fafaa, tool-config@5555a7]
+    contracts: [tool-generated@be9eee, tool-confedit@733ed3, tool-trust@a3e54b, tool-init@1b5bea, tool-config@544f7a]
     files:
       - tool/src/generated.rs
       - tool/src/confedit.rs
@@ -21,6 +21,10 @@ transforms:
       - tool/i18n/en.ftl
       - tool/i18n/uk.ftl
       - tool/tests/generated_test.rs
+      - tool/tests/init_test.rs
+      - tool/tests/rev_test.rs
+      - keel.toml
+      - AGENTS.md
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:

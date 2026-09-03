@@ -316,7 +316,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 19 -- the generated integrations (skills, hook configs, the AGENTS.md block) and their digests in [generated]
+check-next-rung = next step: rung 20 -- the generated skills and the CI workflow, by the same mechanism as the AGENTS.md block
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
@@ -471,6 +471,20 @@ version-pin-none = the version field is not set -- no pin; the concept advises o
 version-no-file = keel.toml is absent -- no pin, the binary above runs
 version-unread = keel.toml not read ({ $reason }) -- the pin unknown; the config court says the refusal in full
 
+update-title = keel update — the generated integrations refreshed (NEW-CONCEPT, Distribution)
+generated-born = AGENTS.md — born with the keel block between its markers
+generated-appended = AGENTS.md — the keel block appended; the text above it is untouched
+generated-refreshed = AGENTS.md — the keel block refreshed by this release
+generated-stands = AGENTS.md — the keel block already stands as this release writes it
+generated-removed = AGENTS.md — the keel block was removed by hand: a decision, not a gap; nothing is written back
+generated-changed = { $file } — the keel block was changed by hand: NOT overwritten (§9.7). Keep your own, or delete the block and run keel update to have this release write it again
+generated-half-marked = AGENTS.md — one keel marker without the other: where the block ends is not guessed; repair the markers or delete both
+generated-unjudged-config = AGENTS.md — the keel block is not judged: keel.toml is not readable (the config court says why)
+generated-unread = AGENTS.md could not be read ({ $error }) — the block is not judged
+generated-write-failed = AGENTS.md could not be written ({ $error })
+generated-config-failed = the digest could not be recorded in keel.toml ({ $error }) — the block is not written either
+generated-config-failed-instead = repair keel.toml so it parses, then run keel update
+
 ## CLI frame
 main-unknown-command = refusal: unknown command "{ $command }"
 main-unknown-command-reason = reason: this is not one of the commands keel knows
@@ -484,4 +498,4 @@ main-new-unknown = refusal: keel new knows only: contract
 main-new-unknown-reason = reason: other document kinds are born by their own commands (waves by keel plan)
 main-new-no-slug = refusal: new contract needs the contract's name
 main-new-no-slug-reason = reason: the skeleton is born under the name that becomes its file (§1.4)
-main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [dir] | keel trust [dir] | keel hook [dir] | keel version [dir]
+main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [dir] | keel trust [dir] | keel hook [dir] | keel version [dir] | keel update [dir]

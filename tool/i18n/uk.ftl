@@ -318,7 +318,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: щабель 19 — згенеровані інтеграції (скіли, hook-конфіги, блок AGENTS.md) і їхні digest-и в [generated]
+check-next-rung = наступний крок: щабель 20 — згенеровані скіли і CI-workflow тим самим механізмом, що й блок AGENTS.md
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -474,6 +474,20 @@ version-pin-none = поле version не задано — піна нема; к�
 version-no-file = keel.toml нема — піна нема, біжить бінарник вище
 version-unread = keel.toml не прочитано ({ $reason }) — пін невідомий; відмову повністю скаже суд config
 
+update-title = keel update — згенеровані інтеграції оновлено (NEW-CONCEPT, «Дистрибуція»)
+generated-born = AGENTS.md — народжено з блоком keel між маркерами
+generated-appended = AGENTS.md — блок keel дописано; текст над ним не чіпано
+generated-refreshed = AGENTS.md — блок keel оновлено цим релізом
+generated-stands = AGENTS.md — блок keel уже стоїть таким, яким його пише цей реліз
+generated-removed = AGENTS.md — блок keel прибрано рукою: то рішення, а не прогалина; нічого не дописується
+generated-changed = { $file } — блок keel змінено рукою: НЕ перезаписано (§9.7). Лиши своє або прибери блок і повтори keel update, щоб реліз написав його наново
+generated-half-marked = AGENTS.md — один маркер keel без другого: де кінчається блок, не вгадується; полагодь маркери або прибери обидва
+generated-unjudged-config = AGENTS.md — блок keel не суджено: keel.toml не читається (причину каже суд config)
+generated-unread = AGENTS.md не прочитано ({ $error }) — блок не суджено
+generated-write-failed = AGENTS.md не записано ({ $error })
+generated-config-failed = digest не записано в keel.toml ({ $error }) — і блок теж не записано
+generated-config-failed-instead = полагодь keel.toml, щоб він парсився, і повтори keel update
+
 ## рамка CLI
 main-unknown-command = відмова: невідома команда "{ $command }"
 main-unknown-command-reason = причина: такої команди keel не знає
@@ -487,4 +501,4 @@ main-new-unknown = відмова: keel new знає лише: contract
 main-new-unknown-reason = причина: інші види документів народжуються своїми командами (хвилі — keel plan)
 main-new-no-slug = відмова: new contract потребує імени контракту
 main-new-no-slug-reason = причина: скелет народжується під імʼям, що стане його файлом (§1.4)
-main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [тека] | keel trust [тека] | keel hook [тека] | keel version [тека]
+main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [тека] | keel trust [тека] | keel hook [тека] | keel version [тека] | keel update [тека]
