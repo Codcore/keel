@@ -2,16 +2,13 @@
 //! read-config. proves tags -- revisions per §5.3-§5.4, computed by
 //! hand (bootstrap; the rev rung rides wave 0003).
 
+mod common;
+
+use common::sandbox;
+
 use keel::config;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0002-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    dir
-}
 
 fn write(dir: &Path, rel: &str, text: &str) -> PathBuf {
     let p = dir.join(rel);

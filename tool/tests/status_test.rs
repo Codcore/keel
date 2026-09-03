@@ -5,8 +5,12 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
+mod common;
+
+use common::keel_sandbox;
+
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 fn git(dir: &Path, args: &[&str]) {
@@ -29,15 +33,6 @@ fn git(dir: &Path, args: &[&str]) {
         "git {args:?}:\n{}",
         String::from_utf8_lossy(&out.stderr)
     );
-}
-
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0012s-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    fs::create_dir_all(dir.join("keel/reviews")).unwrap();
-    dir
 }
 
 fn write(dir: &Path, rel: &str, text: &str) {
@@ -66,7 +61,7 @@ fn keel(args: &[&str]) -> (String, String, i32) {
 /// ourselves stand.
 #[test]
 fn status_tells_where() {
-    let dir = sandbox("threestages");
+    let dir = keel_sandbox("threestages");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
     write(
         &dir,
@@ -145,7 +140,7 @@ fn status_tells_where() {
 fn status_tells_where_second_birth() {
     // A closed wave and a plan wave sharing the scenario name "s":
     // the old tag is the old wave's proof, never the plan's start.
-    let dir = sandbox("namesake");
+    let dir = keel_sandbox("namesake");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
     write(
         &dir,
@@ -183,7 +178,7 @@ fn status_tells_where_second_birth() {
 
     // A light wave on its own branch: no merge happened, so the line
     // does not claim its fact -- the wave rides, it is not closed.
-    let dir = sandbox("lightown");
+    let dir = keel_sandbox("lightown");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
     write(
         &dir,
@@ -212,7 +207,7 @@ fn status_tells_where_second_birth() {
 
     // A branch named after a wave whose document refused: the branch
     // line says that, never "named as no wave".
-    let dir = sandbox("brokenbranch");
+    let dir = keel_sandbox("brokenbranch");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
     write(
         &dir,

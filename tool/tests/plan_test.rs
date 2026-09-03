@@ -6,17 +6,13 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0013p-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+use common::keel_sandbox;
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -67,7 +63,7 @@ fn keel(args: &[&str]) -> (String, String, i32) {
 /// is ever overwritten.
 #[test]
 fn plan_skeleton_born() {
-    let dir = sandbox("wavebirth");
+    let dir = keel_sandbox("wavebirth");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     let (out, err, code) = keel(&["plan", "0100-first-steps", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
@@ -136,7 +132,7 @@ fn plan_skeleton_born() {
 
     // A number taken by a branch refuses too (§8.8 reads all
     // branches, not only main).
-    let dir = sandbox("branchnumber");
+    let dir = keel_sandbox("branchnumber");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     write(&dir, "seed.txt", "seed\n");
     git(&dir, &["init", "-q", "-b", "main"]);
@@ -160,7 +156,7 @@ fn plan_skeleton_born() {
 /// refuses naming what it knows.
 #[test]
 fn contract_skeleton_born() {
-    let dir = sandbox("contractbirth");
+    let dir = keel_sandbox("contractbirth");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     let (out, err, code) = keel(&["new", "contract", "session-run", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
@@ -220,7 +216,7 @@ fn contract_skeleton_born() {
 fn plan_skeleton_born_second_birth() {
     // R-2: the plan branch of the very wave being born holds its
     // name, not a rival number -- the birth passes.
-    let dir = sandbox("ownbranch");
+    let dir = keel_sandbox("ownbranch");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     write(&dir, "seed.txt", "seed\n");
     git(&dir, &["init", "-q", "-b", "main"]);
@@ -257,7 +253,7 @@ fn plan_skeleton_born_second_birth() {
 
     // R-1: where git is silent the refusal says the disk alone was
     // judged -- "every branch" would be a painted word.
-    let dir = sandbox("silentgit");
+    let dir = keel_sandbox("silentgit");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     write(&dir, "keel/waves/0001-held.md", "held by name\n");
     let (out, err, code) = keel(&["plan", "0001-clash", dir.to_str().unwrap()]);

@@ -4,17 +4,13 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0004s-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+use common::{Sandbox, keel_sandbox};
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -88,7 +84,7 @@ fn wave_declaring(files_yaml: &str) -> String {
 /// the first commit of the branch.
 #[test]
 fn scope_both_ways() {
-    let dir = sandbox("bothways");
+    let dir = keel_sandbox("bothways");
     git(&dir, &["init", "-q", "-b", "main"]);
     write(&dir, "lib/a.txt", "one\n");
     write(&dir, "lib/b.txt", "two\n");
@@ -137,7 +133,7 @@ fn scope_both_ways() {
 
     // Where main never existed, the base falls back to the first
     // commit of the branch -- and the report says what it took.
-    let dir = sandbox("firstbase");
+    let dir = keel_sandbox("firstbase");
     git(&dir, &["init", "-q", "-b", "0005-scope-w"]);
     write(
         &dir,
@@ -176,7 +172,7 @@ fn scope_both_ways() {
     // non-ASCII name must compare as itself -- git's default path
     // quoting ("\321\204...") must not turn an honest Ukrainian
     // filename into false drift plus false untouched.
-    let dir = sandbox("cyrillic");
+    let dir = keel_sandbox("cyrillic");
     git(&dir, &["init", "-q", "-b", "main"]);
     write(&dir, "lib/файл.txt", "one\n");
     git(&dir, &["add", "."]);
@@ -201,7 +197,7 @@ fn scope_both_ways() {
     // main often does not exist -- only origin/main does; the base
     // must come from there, not slide to the first commit and flood
     // the report with false drift.
-    let dir = sandbox("originmain");
+    let dir = keel_sandbox("originmain");
     git(&dir, &["init", "-q", "-b", "main"]);
     write(&dir, "lib/a.txt", "one\n");
     write(&dir, "lib/old.txt", "history\n");
@@ -233,7 +229,7 @@ fn scope_both_ways() {
     // Second birth (review R-2): a rename with both names declared is
     // honest work -- and the verdict must not depend on whatever
     // diff.renames the host machine fancies.
-    let dir = sandbox("renamed");
+    let dir = keel_sandbox("renamed");
     git(&dir, &["init", "-q", "-b", "main"]);
     write(&dir, "lib/old.txt", "the text\n");
     git(&dir, &["add", "."]);
@@ -257,7 +253,7 @@ fn scope_both_ways() {
     // Second birth (review R-3): "keel/ does not enter the comparison"
     // holds on the untouched side too -- a declared keel/ file the
     // branch never touched is not a finding.
-    let dir = sandbox("keeldecl");
+    let dir = keel_sandbox("keeldecl");
     git(&dir, &["init", "-q", "-b", "main"]);
     write(&dir, "lib/a.txt", "one\n");
     write(&dir, "keel/notes.md", "furniture\n");
@@ -287,8 +283,8 @@ fn scope_both_ways() {
 /// the count is fixed, there is no glob liberty.
 #[test]
 fn one_new_in_counted() {
-    let branch_with = |name: &str, files_yaml: &str, extra: &[(&str, &str)]| -> PathBuf {
-        let dir = sandbox(name);
+    let branch_with = |name: &str, files_yaml: &str, extra: &[(&str, &str)]| -> Sandbox {
+        let dir = keel_sandbox(name);
         git(&dir, &["init", "-q", "-b", "main"]);
         write(&dir, "lib/seed.txt", "seed\n");
         git(&dir, &["add", "."]);
@@ -394,7 +390,7 @@ fn one_new_in_counted() {
 fn scope_honest_when_unknown() {
     // A branch that is no wave: the declared file is touched and a
     // stranger file too, yet nothing is judged -- only said.
-    let dir = sandbox("notwave");
+    let dir = keel_sandbox("notwave");
     git(&dir, &["init", "-q", "-b", "main"]);
     write(
         &dir,
@@ -421,7 +417,7 @@ fn scope_honest_when_unknown() {
     );
 
     // No git at all: the same honesty, the other reason.
-    let dir = sandbox("nogit");
+    let dir = keel_sandbox("nogit");
     write(
         &dir,
         "keel/waves/0005-scope-w.md",
@@ -440,7 +436,7 @@ fn scope_honest_when_unknown() {
     // must not be judged by the parent's branch: the parent's paths
     // and the root's declared names would never meet, and every
     // verdict would be a lie. Honesty instead: not compared, aloud.
-    let parent = sandbox("parenttop");
+    let parent = keel_sandbox("parenttop");
     git(&parent, &["init", "-q", "-b", "main"]);
     write(
         &parent,
