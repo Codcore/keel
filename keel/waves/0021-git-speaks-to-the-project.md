@@ -3,16 +3,17 @@ depends_on: [0020-ignore-reminded]
 
 scenarios:
   courts-deaf-to-the-environment:
-    proves: tool-scope@5bf6e5
+    proves: tool-scope@f7bf0d
     covers: [functional.correctness, safety.fail-safe]
 
 transforms:
   one-git-hand:
     implements:
       - courts-deaf-to-the-environment
-    contracts: [tool-scope@5bf6e5, tool-gate@0a8613, tool-init@9fafaa, tool-plan@89aa74, tool-review@aa0a73, tool-next@ec56ff]
+    contracts: [tool-scope@f7bf0d, tool-adapter-cargo@e2f46f, tool-gate@0a8613, tool-init@9fafaa, tool-plan@89aa74, tool-review@aa0a73, tool-next@ec56ff]
     files:
       - tool/src/scope.rs
+      - tool/src/adapter.rs
       - tool/src/gate.rs
       - tool/src/init.rs
       - tool/src/check.rs
@@ -27,7 +28,7 @@ transforms:
 
 decisions:
   functional.appropriateness: "свідомо без окремого тесту: хвиля не додає ручок — вона робить правдою те, що всі суди вже обіцяли: судити названий проєкт"
-  functional.completeness: "тримає courts-deaf-to-the-environment: усі дванадцять місць виклику git ідуть однією рукою; grep за Command::new(\"git\") поза домом лишає нуль — це й перевіряє сценарій"
+  functional.completeness: "тримає courts-deaf-to-the-environment: дванадцять сирих Command::new(\"git\") стали одним — самим домом; і це число судить тест, що читає tool/src (виправлено за R-6 рецензії: раніше рішення обіцяло перевірку, якої не було)"
   performance.time-behaviour: "не застосовується: та сама кількість викликів git, лише з чистішим середовищем"
   performance.capacity: "не застосовується"
   performance.resource-utilisation: "не застосовується"
@@ -101,19 +102,27 @@ ignore і установку hook-а), решта дванадцяти місц�
 і рідня стоять у середовищі — рівно так, як їх лишає git-hook,
 **коли** над A біжать суди — `check`, `close`, `gate`, `review`,
 `status`, `next`, `plan`, — а також `keel trust` і `keel init`,
-**тоді** кожен судить A: `close` лишається червоним (вихід 1) і
-називає нестачі A, ніколи не зеленіє; `check` дає знахідки самого A
-(і жодної з B); `gate` називає гілку A; `review` збирає пакет A;
-`plan` рахує числа A; у репозиторій B не йде **жодного байта**, і
-жодна команда не читає з B ані рядка.
+**тоді** кожен судить A, і його вивід **побайтово той самий**, що
+й у чистому середовищі: `close` лишається червоним (вихід 1) і
+називає нестачу A; `check`, `status`, `next`, `review`, `rev`,
+`map`, `version`, `trust` кажуть слово в слово те саме; `gate`
+називає гілку A; `plan` бере число, вільне в A, хоч би що тримав
+B; `init` кладе hook у A. Батарея, яку жене `close`, теж біжить у
+світі A — тест проєкту бачить репозиторій A, не B (інакше суд
+роздав би тестам чужий репозиторій). У B не міняється **жодного
+байта**.
 
 ## transform: one-git-hand
 
 Рука `git_at` переїжджає з gate у `scope` — модуль, що вже знає git
 проєкту (гілка, історія, база порівняння), — і стає його експортом.
-Усі дванадцять місць виклику git (scope ×3, check ×5, gate, plan,
-review, next) кличуть її; init переходить із `gate::git_at` на неї
-ж. Знімаються змінні адресування репозиторію (`GIT_DIR`,
+Усі дванадцять сирих `Command::new("git")` (scope ×3, check ×5,
+gate, plan, review, next) стають одним — самим домом; викликів руки
+на голові чотирнадцять (init ×2 переходять із `gate::git_at`). Той
+самий перелік відкрито як `forget_the_hook` для тих, хто породжує
+дітей, здатних самим говорити з git: його бере батарея адаптера,
+бо `keel close` інакше роздавав би тестам проєкту репозиторій
+hook-а (рецензія 0021 R-3 виміряла це живцем). Знімаються змінні адресування репозиторію (`GIT_DIR`,
 `GIT_WORK_TREE`, `GIT_COMMON_DIR`, `GIT_INDEX_FILE`,
 `GIT_OBJECT_DIRECTORY`, `GIT_ALTERNATE_OBJECT_DIRECTORIES`,
 `GIT_PREFIX`, `GIT_CEILING_DIRECTORIES`) і механізм `-c`
@@ -121,12 +130,27 @@ review, next) кличуть її; init переходить із `gate::git_at`
 hook-ом не міняється ані на слово: без цих змінних рука — звичайний
 `git -C <корінь>`.
 
-Застереження: знімаються саме змінні витоку, не всі GIT_* —
-`GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`, `GIT_AUTHOR_*` і подібні
-лишаються, бо то свідомий вибір людини чи CI, а не спадок hook-а;
-grep за сирим `Command::new("git")` поза домом стає нулем, і саме
-це число хвиля тримає — нові виклики мусять іти рукою; тести самі
-чистять середовище своїх пісочниць тією ж школою (0020).
+Застереження: знімаються саме змінні адресування і механізм `-c`,
+не всі GIT_* — лишаються `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`,
+`GIT_AUTHOR_*` (свідомий вибір людини чи CI), а також
+`GIT_EXEC_PATH`, `GIT_EDITOR`, `GIT_ASKPASS`,
+`GIT_TERMINAL_PROMPT`, `GIT_SSL_CAINFO`, які hook теж лишає: вони
+не адресують репозиторію, і шкоди від них не показано — сказано
+вголос за R-9 рецензії, а не змовчано. Не всі десять імен списку
+однаково доказні, і це виміряно поіменно (знімав по одному і
+дивився пробу): **шість тримає біг** — `GIT_DIR`, `GIT_WORK_TREE`,
+`GIT_COMMON_DIR`, `GIT_OBJECT_DIRECTORY` (усі четверо міняють
+відповідь git, і проба ловить це побайтовою рівністю виводів) та
+обидві дороги `-c`, `GIT_CONFIG_PARAMETERS` і `GIT_CONFIG_COUNT`
+(обидві націлені на core.hooksPath, і рука, що пише, лягла б у
+чуже); **чотири знімаються спорідненістю** — `GIT_INDEX_FILE`,
+`GIT_ALTERNATE_OBJECT_DIRECTORIES`, `GIT_PREFIX`,
+`GIT_CEILING_DIRECTORIES`: при `-C <корінь>` над деревом із власним
+`.git` вони вкусити не можуть, і жоден суд на них не чутливий. Це
+названо тут числом, а не видано за доведене (R-1 рецензії). Тести самого інструмента
+середовища своїх пісочниць здебільшого НЕ чистять — двоє з
+сімнадцяти (0020 і ця хвиля); тому чистку взяв адаптер, і саме він
+тримає обіцянку «жодного байта в B» для `keel close` (R-3).
 
 ## transform: journal
 

@@ -64,17 +64,58 @@ fn git(dir: &Path, args: &[&str]) {
     );
 }
 
-/// keel run exactly as a git hook would leave the environment: the
-/// foreign repository named in every addressing variable.
-fn keel_from_hook(args: &[&str], foreign: &Path) -> (String, i32) {
-    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
-        .args(args)
-        .env("GIT_DIR", foreign.join(".git"))
-        .env("GIT_WORK_TREE", foreign)
-        .env("GIT_PREFIX", "")
-        .env("GIT_INDEX_FILE", foreign.join(".git/index"))
-        .output()
-        .unwrap();
+/// Everything a git hook can leave pointing at another repository:
+/// the ten names the tool forgets, plus the numbered pair that
+/// carries `git -c`. The probe sets them all -- eight of the ten
+/// were held by nothing before (review 0021 R-1).
+fn hook_env(foreign: &Path, judged: &Path) -> Vec<(String, String)> {
+    let git = foreign.join(".git");
+    vec![
+        ("GIT_DIR".into(), git.display().to_string()),
+        ("GIT_WORK_TREE".into(), foreign.display().to_string()),
+        ("GIT_COMMON_DIR".into(), git.display().to_string()),
+        (
+            "GIT_INDEX_FILE".into(),
+            git.join("index").display().to_string(),
+        ),
+        (
+            "GIT_OBJECT_DIRECTORY".into(),
+            git.join("objects").display().to_string(),
+        ),
+        (
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES".into(),
+            git.join("objects").display().to_string(),
+        ),
+        ("GIT_PREFIX".into(), String::new()),
+        (
+            "GIT_CEILING_DIRECTORIES".into(),
+            judged.display().to_string(),
+        ),
+        (
+            "GIT_CONFIG_PARAMETERS".into(),
+            format!("'core.hooksPath={}'", foreign.join("evil-hooks").display()),
+        ),
+        ("GIT_CONFIG_COUNT".into(), "1".into()),
+        ("GIT_CONFIG_KEY_0".into(), "core.hooksPath".into()),
+        (
+            "GIT_CONFIG_VALUE_0".into(),
+            foreign.join("evil-numbered").display().to_string(),
+        ),
+    ]
+}
+
+fn run(args: &[&str], env: &[(String, String)]) -> (String, i32) {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_keel"));
+    command.args(args);
+    for name in GIT_ENV {
+        command.env_remove(name);
+    }
+    command.env_remove("GIT_CONFIG_KEY_0");
+    command.env_remove("GIT_CONFIG_VALUE_0");
+    for (name, value) in env {
+        command.env(name, value);
+    }
+    let out = command.output().unwrap();
     (
         format!(
             "{}{}",
@@ -112,10 +153,15 @@ fn project(name: &str) -> PathBuf {
     // its lack blocks the merge (a wave with no tag at all would be
     // a plan, and a plan is not red, §6.5).
     let rev = keel::rev::text_rev("body of never-proven\n");
+    // The project's own test writes down which repository it was
+    // run in: the battery must run in this project's world, not in
+    // the one that spawned keel (review 0021 R-3).
     write(
         &dir,
         "tests/steady_test.rs",
-        &format!("/// proves: never-proven@{rev}\n#[test]\nfn steady() {{}}\n"),
+        &format!(
+            "/// proves: never-proven@{rev}\n#[test]\nfn steady() {{\n    let out = std::process::Command::new(\"git\")\n        .args([\"rev-parse\", \"--absolute-git-dir\"])\n        .current_dir(env!(\"CARGO_MANIFEST_DIR\"))\n        .output()\n        .unwrap();\n    std::fs::write(\n        std::path::Path::new(env!(\"CARGO_MANIFEST_DIR\")).join(\"seen-git.txt\"),\n        out.stdout,\n    )\n    .unwrap();\n}}\n"
+        ),
     );
     write(
         &dir,
@@ -168,7 +214,7 @@ fn snapshot(root: &Path) -> Vec<(String, Vec<u8>)> {
     out
 }
 
-/// proves: courts-deaf-to-the-environment@dfc133 -- holds what the
+/// proves: courts-deaf-to-the-environment@429407 -- holds what the
 /// 0020 review measured and the wave repairs: a git hook hands its
 /// children GIT_DIR and its kin, those outrank -C, and a court that
 /// inherits them judges the repository that spawned it. Under that
@@ -181,68 +227,99 @@ fn courts_deaf_to_the_environment() {
     let dir = project("judged");
     let stranger = foreign("stranger");
     let before = snapshot(&stranger);
+    let env = hook_env(&stranger, &dir);
+    let clean: Vec<(String, String)> = Vec::new();
+    let path = dir.to_str().unwrap();
 
-    // The closure court: red on this project's unproven wave, and
-    // never green because a stranger's repository looked tidy.
-    let (out, code) = keel_from_hook(&["close", dir.to_str().unwrap()], &stranger);
+    // Every read-only court: the word under a hook's environment is
+    // the word without it, byte for byte. This is the assertion that
+    // holds every one of the ten names that can change git's answer
+    // (review 0021 R-1, R-2: the old probe held two names and three
+    // courts, and a broken tool satisfied its check and plan asserts).
+    for args in [
+        vec!["check", path],
+        vec!["status", path],
+        vec!["next", path],
+        vec!["review", path],
+        vec!["rev", path],
+        vec!["map", path],
+        vec!["version", path],
+        vec!["trust", path],
+    ] {
+        let (plain, plain_code) = run(&args, &clean);
+        let (hooked, hooked_code) = run(&args, &env);
+        assert_eq!(
+            plain, hooked,
+            "{:?} says the same word whatever repository the environment names",
+            args[0]
+        );
+        assert_eq!(
+            plain_code, hooked_code,
+            "{:?} answers with the same exit code",
+            args[0]
+        );
+    }
+
+    // The closure court, the worst damage the 0020 review measured:
+    // red on this project's unproven wave, and the same word either
+    // way. It also runs the battery -- so the project's own test
+    // must have run in the project's world (R-3).
+    let (plain, plain_code) = run(&["close", path], &clean);
+    let (hooked, hooked_code) = run(&["close", path], &env);
+    assert_eq!(plain_code, 1, "close is red on the unproven wave:\n{plain}");
     assert_eq!(
-        code, 1,
-        "close stays red on the project's own unproven wave:\n{out}"
+        hooked_code, 1,
+        "close stays red under a stranger's environment:\n{hooked}"
     );
+    assert_eq!(plain, hooked, "close says the same word either way");
     assert!(
-        out.contains("0030-unproven") && out.contains("in progress"),
-        "close names this project's wave and its lack:\n{out}"
+        hooked.contains("0030-unproven") && hooked.contains("review"),
+        "close names this project's wave and its lack:\n{hooked}"
     );
+    let seen = fs::read_to_string(dir.join("seen-git.txt")).unwrap_or_default();
     assert!(
-        out.contains("review"),
-        "the lack named is the missing review report (§9.9):\n{out}"
+        seen.trim().starts_with(dir.to_str().unwrap()),
+        "the battery ran in this project's world, not the stranger's (R-3): {seen:?}"
     );
 
-    // The form court: this project's own findings, none of the
-    // stranger's documents.
-    let (out, _) = keel_from_hook(&["check", dir.to_str().unwrap()], &stranger);
-    assert!(
-        out.contains("0030-unproven"),
-        "check reads this project's documents:\n{out}"
-    );
-    assert!(
-        !out.contains("the stranger"),
-        "nothing of the stranger's tree reaches the verdict:\n{out}"
-    );
-
-    // The commit judgement: the branch of this project, by name.
+    // The commit judgement keeps its subject.
     write(&dir, ".git/COMMIT_MSG_PROBE", "red: never-proven\n");
     let msg = dir.join(".git/COMMIT_MSG_PROBE");
-    let (out, _) = keel_from_hook(
-        &["gate", msg.to_str().unwrap(), dir.to_str().unwrap()],
-        &stranger,
-    );
+    let (plain, _) = run(&["gate", msg.to_str().unwrap(), path], &clean);
+    let (hooked, _) = run(&["gate", msg.to_str().unwrap(), path], &env);
+    assert_eq!(plain, hooked, "the gate judges the same commit either way");
     assert!(
-        out.contains("never-proven") && !out.contains("is named as no wave"),
-        "the gate keeps its subject: this project's branch and scenario:\n{out}"
+        hooked.contains("never-proven"),
+        "the gate keeps this project's scenario:\n{hooked}"
     );
 
-    // The reviewer's package: built for this project's wave.
-    let (out, code) = keel_from_hook(&["review", dir.to_str().unwrap()], &stranger);
-    assert_eq!(code, 0, "review builds the package here:\n{out}");
-    assert!(
-        out.contains("0030-unproven"),
-        "the package is this project's wave:\n{out}"
-    );
-
-    // The step hand and the stage eye speak of this project too.
-    let (out, _) = keel_from_hook(&["next", dir.to_str().unwrap()], &stranger);
-    assert!(
-        out.contains("steady_test") || out.contains("0030-unproven"),
-        "next speaks of this project's own work, not a stranger's:\n{out}"
-    );
-
-    // The planning hand counts this project's numbers: 0030 is
-    // taken here, whatever the stranger holds.
-    let (out, code) = keel_from_hook(&["plan", "0030-twin", dir.to_str().unwrap()], &stranger);
+    // The planning hand counts THIS project's numbers: 0031 is free
+    // here and taken in the stranger, whose branch says so.
+    let (out, code) = run(&["plan", "0031-twin", path], &env);
     assert_eq!(
-        code, 2,
-        "plan refuses a number this project already holds:\n{out}"
+        code, 0,
+        "a number free in this project is free, whatever the stranger holds:\n{out}"
+    );
+    fs::remove_file(dir.join("keel/waves/0031-twin.md")).unwrap();
+
+    // `git -c` reaches a child by two roads -- the packed
+    // GIT_CONFIG_PARAMETERS and the numbered COUNT/KEY/VALUE -- and
+    // both point core.hooksPath at the stranger here. The frame's
+    // own writing hand proves both are forgotten: the hook lands in
+    // this project, and the stranger grows no hooks directory.
+    let fresh = project("hookpath");
+    let (out, code) = run(
+        &["hook", fresh.to_str().unwrap()],
+        &hook_env(&stranger, &fresh),
+    );
+    assert_eq!(code, 0, "the hook is installed:\n{out}");
+    assert!(
+        fresh.join(".git/hooks/commit-msg").is_file(),
+        "the hook lands in the project the tool was given:\n{out}"
+    );
+    assert!(
+        !stranger.join("evil-hooks").exists() && !stranger.join("evil-numbered").exists(),
+        "neither road of `git -c` moves the frame's hand:\n{out}"
     );
 
     // And the stranger is exactly as it was -- not one byte.
@@ -250,5 +327,32 @@ fn courts_deaf_to_the_environment() {
         snapshot(&stranger),
         before,
         "no court writes into the repository of the environment"
+    );
+}
+
+/// The one home judged by a run, not by prose (review 0021 R-6): a
+/// raw git call anywhere but inside the hand would let the next
+/// wave leak the environment again in silence.
+#[test]
+fn the_only_raw_git_call_is_the_hand() {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut raw = Vec::new();
+    for entry in fs::read_dir(&src).unwrap().flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "rs") {
+            let text = fs::read_to_string(&path).unwrap();
+            let count = text.matches("Command::new(\"git\")").count();
+            if count > 0 {
+                raw.push((
+                    path.file_name().unwrap().to_string_lossy().into_owned(),
+                    count,
+                ));
+            }
+        }
+    }
+    assert_eq!(
+        raw,
+        vec![("scope.rs".to_string(), 1usize)],
+        "git is called by one hand only -- scope::git_at (§ the wave's own promise)"
     );
 }
