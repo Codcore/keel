@@ -491,6 +491,64 @@ fn the_methodology_speaks_the_project_language() {
     // That is what a machine can hold of a translation -- and it is
     // held here rather than promised.
     keel::speak::methods_agree().expect("the two methodologies carry one skeleton");
+
+    // And the court is PLAYED, not promised: broken texts, refusals.
+    // Review 0029 R-3 measured that a mutant answering Ok to
+    // everything passed all eighty-seven tests, because the hand took
+    // no argument and nobody could feed it anything.
+    let uk_text = keel::speak::method_for("uk");
+    let en_text = keel::speak::method_for("en");
+    let renumbered: &'static str =
+        Box::leak(en_text.replace("**§5.3.**", "**§5.30.**").into_boxed_str());
+    let refusal = keel::speak::methods_agree_from(&[("uk", uk_text), ("en", renumbered)])
+        .expect_err("a paragraph that changed its number is refused");
+    let said = format!("{refusal}");
+    assert!(
+        said.contains("5.3") && said.contains("en") && said.contains("uk"),
+        "and the refusal names both numbers and both tongues:\n{said}"
+    );
+
+    let beheaded: &'static str = Box::leak(
+        en_text
+            .replace(
+                "## Appendix B. What is deliberately absent",
+                "## Appendix B0. Nothing\n\n## Appendix B. What is deliberately absent",
+            )
+            .into_boxed_str(),
+    );
+    assert!(
+        keel::speak::methods_agree_from(&[("uk", uk_text), ("en", beheaded)]).is_err(),
+        "a chapter with nothing under its heading is refused"
+    );
+
+    let short: &'static str = Box::leak(en_text.replace("**§5.3.**", "").into_boxed_str());
+    assert!(
+        keel::speak::methods_agree_from(&[("uk", uk_text), ("en", short)]).is_err(),
+        "a text that lost a paragraph is refused"
+    );
+    assert!(
+        keel::speak::methods_agree_from(&[("en", en_text)]).is_ok(),
+        "while the text as it stands is served"
+    );
+
+    // The translation is tied to the revision of its original
+    // (constitution, rule 4; review 0029 R-2): change the Ukrainian
+    // text and the record goes stale, so the translation cannot fall
+    // behind unnoticed.
+    keel::speak::translation_is_current()
+        .expect("the translation records the revision it was made from, and it is current");
+    assert!(
+        en_text.contains("translated_from:"),
+        "and the record stands in the document itself"
+    );
+
+    // The mouth says the English text IS a translation -- before
+    // review 0029 R-1 it said no translation exists, printed over the
+    // English contents it had just served.
+    assert!(
+        said_en.contains("translation") && !said_en.contains("does not translate"),
+        "the source line names the text a translation:\n{said_en}"
+    );
     assert_eq!(
         keel::speak::methods().len(),
         keel::config::LANGUAGES.len(),

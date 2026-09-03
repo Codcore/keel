@@ -260,8 +260,14 @@ pub fn methods() -> Vec<(&'static str, &'static str)> {
 
 /// The methodology in the language a project speaks.
 pub fn method_for(lang: &str) -> &'static str {
+    // Named, not defaulted: a language added to LANGUAGES and to
+    // methods() but forgotten here would have read English in
+    // silence (review 0029 R-10). The frame refuses an unknown
+    // language before this hand is ever reached; this arm is the
+    // second lock, and it names which tongue it fell back to.
     match lang {
         "uk" => METHOD,
+        "en" => METHOD_EN,
         _ => METHOD_EN,
     }
 }
@@ -270,74 +276,187 @@ pub fn method_for(lang: &str) -> &'static str {
 /// same chapters in the same order, the same paragraph numbers, none
 /// of them empty.
 pub fn methods_agree() -> Result<(), Refusal> {
-    let mut carried: Option<(&str, Vec<String>, Vec<String>)> = None;
-    for (lang, text) in methods() {
-        let chapters: Vec<String> = text
-            .lines()
-            .filter_map(|line| line.strip_prefix("## ").map(str::to_string))
-            .collect();
-        let numbers: Vec<String> = text
-            .lines()
-            .filter_map(|line| {
-                line.strip_prefix("**§")
-                    .and_then(|rest| rest.split_once(".**"))
-                    .map(|(number, _)| number.to_string())
-            })
-            .collect();
-        // A paragraph that lost its body is a translation that stopped
-        // halfway, and it must not pass as a shorter text.
+    translation_is_current()?;
+    methods_agree_from(&methods())
+}
+
+/// Whether the translation was made from the Ukrainian text as it now
+/// stands (constitution, rule 4). Review 0029 R-2: nothing tied the
+/// two documents together, so the original could be rewritten and the
+/// translation left behind -- the skeletons would still agree, the
+/// gate would stay green, and nobody would learn of it for a year.
+/// The methodology already owns the mechanism for exactly this, and
+/// it is the mechanism used here: the English text records the
+/// revision it was translated from, and a stale record is a finding.
+pub fn translation_is_current() -> Result<(), Refusal> {
+    let recorded = METHOD_EN
+        .lines()
+        .find_map(|line| {
+            line.split_once("`translated_from: ")
+                .and_then(|(_, rest)| rest.split_once('`'))
+                .map(|(revision, _)| revision.trim().to_string())
+        })
+        .ok_or_else(|| Refusal {
+            file: Path::new(named_method("en")).to_path_buf(),
+            reason: t("speak-method-unrecorded"),
+            instead: t("speak-method-unrecorded-instead"),
+        })?;
+    let standing = crate::rev::text_rev(METHOD);
+    if crate::rev::matches(&recorded, &standing) {
+        return Ok(());
+    }
+    Err(Refusal {
+        file: Path::new(named_method("en")).to_path_buf(),
+        reason: ta(
+            "speak-method-stale",
+            targs!("recorded" => recorded, "standing" => standing),
+        ),
+        instead: t("speak-method-stale-instead"),
+    })
+}
+
+/// The same, over documents handed in -- so the court can be PLAYED
+/// and not merely promised, which is the norm this contract already
+/// sets for the checklist and did not keep for the methodology
+/// (review 0029 R-3: `methods_agree()` took no argument, so a probe
+/// could not feed it a broken text, and a mutant that always
+/// answered Ok passed all eighty-seven tests).
+pub fn methods_agree_from(texts: &[(&str, &'static str)]) -> Result<(), Refusal> {
+    // The shape of one text: its chapters, each with the numbers of
+    // its pieces.
+    type Shape<'a> = Vec<(&'a str, Vec<String>)>;
+    let mut carried: Option<(&str, Shape<'_>)> = None;
+    for (lang, text) in texts {
+        let chapters = chapters_of(text);
+        // A chapter with an EMPTY BODY is a translation stopped at
+        // its heading. Not "a chapter without pieces": the three
+        // appendices are prose and carry none by design, and the two
+        // texts must simply agree on that -- which the shape
+        // comparison below does. Before this, the Constitution's
+        // eight rules and all three appendices sat outside the court
+        // entirely, and every rule could be deleted while the gate
+        // stayed green (review 0029 R-4).
+        if let Some(title) = empty_chapter(text) {
+            return Err(Refusal {
+                file: Path::new(named_method(lang)).to_path_buf(),
+                reason: ta(
+                    "speak-method-empty-chapter",
+                    targs!("chapter" => title, "lang" => (*lang).to_string()),
+                ),
+                instead: t("speak-method-skeleton-instead"),
+            });
+        }
         if let Some(number) = hollow_paragraph(text) {
             return Err(Refusal {
                 file: Path::new(named_method(lang)).to_path_buf(),
                 reason: ta(
                     "speak-method-hollow",
-                    targs!("number" => number, "lang" => lang.to_string()),
+                    targs!("number" => number, "lang" => (*lang).to_string()),
                 ),
                 instead: t("speak-method-hollow-instead"),
             });
         }
+        let shape: Shape<'_> = chapters
+            .iter()
+            .map(|(title, pieces)| {
+                (
+                    *title,
+                    pieces.iter().map(|(number, _)| number.clone()).collect(),
+                )
+            })
+            .collect();
         match &carried {
-            None => carried = Some((lang, chapters, numbers)),
-            Some((first_lang, first_chapters, first_numbers)) => {
-                if first_chapters.len() != chapters.len() {
+            None => carried = Some((lang, shape)),
+            Some((first_lang, first_shape)) => {
+                if first_shape.len() != shape.len() {
                     return Err(Refusal {
                         file: Path::new(named_method(lang)).to_path_buf(),
                         reason: ta(
                             "speak-method-chapters",
                             targs!(
-                                "lang" => lang.to_string(),
-                                "read" => chapters.len().to_string(),
-                                "other" => first_lang.to_string(),
-                                "judged" => first_chapters.len().to_string()
+                                "lang" => (*lang).to_string(),
+                                "read" => shape.len().to_string(),
+                                "other" => (*first_lang).to_string(),
+                                "judged" => first_shape.len().to_string()
                             ),
                         ),
                         instead: t("speak-method-skeleton-instead"),
                     });
                 }
-                if *first_numbers != numbers {
-                    let at = first_numbers
-                        .iter()
-                        .zip(numbers.iter())
-                        .find(|(a, b)| a != b)
-                        .map(|(a, b)| format!("§{a} / §{b}"))
-                        .unwrap_or_else(|| t("speak-method-none"));
-                    return Err(Refusal {
-                        file: Path::new(named_method(lang)).to_path_buf(),
-                        reason: ta(
-                            "speak-method-numbers",
-                            targs!(
-                                "lang" => lang.to_string(),
-                                "other" => first_lang.to_string(),
-                                "at" => at
-                            ),
-                        ),
-                        instead: t("speak-method-skeleton-instead"),
-                    });
+                // Chapter by chapter, piece by piece: a number that
+                // moved to another chapter is drift even when the
+                // whole list still matches.
+                for (at, ((_, first_numbers), (_, numbers))) in
+                    first_shape.iter().zip(shape.iter()).enumerate()
+                {
+                    if first_numbers != numbers {
+                        let disagreement = first_numbers
+                            .iter()
+                            .zip(numbers.iter())
+                            .find(|(a, b)| a != b)
+                            .map_or_else(
+                                || {
+                                    ta(
+                                        "speak-method-count",
+                                        targs!(
+                                            "at" => (at + 1).to_string(),
+                                            "other" => (*first_lang).to_string(),
+                                            "judged" => first_numbers.len().to_string(),
+                                            "lang" => (*lang).to_string(),
+                                            "read" => numbers.len().to_string()
+                                        ),
+                                    )
+                                },
+                                |(a, b)| {
+                                    // Each side named with ITS OWN
+                                    // tongue: the pair used to run in
+                                    // the opposite order to the
+                                    // sentence around it (R-7).
+                                    ta(
+                                        "speak-method-numbers",
+                                        targs!(
+                                            "other" => (*first_lang).to_string(),
+                                            "first" => a.clone(),
+                                            "lang" => (*lang).to_string(),
+                                            "second" => b.clone()
+                                        ),
+                                    )
+                                },
+                            );
+                        return Err(Refusal {
+                            file: Path::new(named_method(lang)).to_path_buf(),
+                            reason: disagreement,
+                            instead: t("speak-method-skeleton-instead"),
+                        });
+                    }
                 }
             }
         }
     }
     Ok(())
+}
+
+/// The title of the first chapter with nothing under its heading.
+fn empty_chapter(text: &'static str) -> Option<String> {
+    let mut standing: Option<(String, bool)> = None;
+    for line in text.lines() {
+        if let Some(title) = line.strip_prefix("## ") {
+            if let Some((title, empty)) = standing.take()
+                && empty
+            {
+                return Some(title);
+            }
+            standing = Some((title.to_string(), true));
+            continue;
+        }
+        if let Some((_, empty)) = standing.as_mut()
+            && !line.trim().is_empty()
+            && line.trim() != "---"
+        {
+            *empty = false;
+        }
+    }
+    standing.and_then(|(title, empty)| empty.then_some(title))
 }
 
 /// The number of the first paragraph whose body is empty, if any.
@@ -420,7 +539,7 @@ pub fn method(lang: &str, asked: Option<&str>) -> Result<String, Refusal> {
         .iter()
         .flat_map(|(_, paragraphs)| paragraphs.iter())
         .map(|(number, _)| number.as_str())
-        .filter(|number| number.split('.').next() == Some(head))
+        .filter(|number| number.contains('.') && number.split('.').next() == Some(head))
         .collect();
     // Two states, two words. A chapter that exists gets its bounds;
     // a number belonging to no chapter gets the list of chapters,
@@ -487,37 +606,61 @@ fn numbered_rule(line: &str) -> Option<(String, String)> {
         .then(|| (number.to_string(), rest.to_string()))
 }
 
-/// The methodology split into chapters, each with its paragraphs.
+/// The methodology split into chapters, each with its pieces.
+///
+/// A chapter's pieces are its `**§N.M.**` paragraphs. A chapter that
+/// has none of those -- the Constitution, written as eight numbered
+/// rules -- is split by those rules instead, so that "Конституція —
+/// 0" stops reading as "there is nothing here". A numbered line
+/// INSIDE a §-paragraph is a list item and never a piece: taking it
+/// for one served §6.3 at 9% of itself and made the contents count
+/// pieces that do not exist (review 0029 R-5).
 fn chapters_of(text: &'static str) -> Vec<(&'static str, Vec<(String, String)>)> {
     let mut chapters: Vec<(&'static str, Vec<(String, String)>)> = Vec::new();
-    let mut carried: Option<(String, String)> = None;
+    let mut bodies: Vec<Vec<&str>> = Vec::new();
     for line in text.lines() {
         if let Some(title) = line.strip_prefix("## ") {
-            if let (Some((number, text)), Some(last)) = (carried.take(), chapters.last_mut()) {
-                last.1.push((number, text));
-            }
             chapters.push((title, Vec::new()));
+            bodies.push(Vec::new());
             continue;
         }
-        // A chapter written as numbered RULES rather than
-        // §-paragraphs (the Constitution) has pieces too: counting
-        // only § made it read "0" in the contents -- true by the
-        // letter and puzzling to a reader, which is the same defect
-        // as a silent one.
-        if let Some((number, opening)) = numbered_rule(line) {
-            if let (Some((number, text)), Some(last)) = (carried.take(), chapters.last_mut()) {
-                last.1.push((number, text));
-            }
-            carried = Some((number.clone(), format!("{number}. {opening}")));
-            continue;
+        if let Some(body) = bodies.last_mut() {
+            body.push(line);
         }
-        if let Some(rest) = line.strip_prefix("**§")
-            && let Some((number, opening)) = rest.split_once(".**")
-        {
-            if let (Some((number, text)), Some(last)) = (carried.take(), chapters.last_mut()) {
-                last.1.push((number, text));
+    }
+    for (at, body) in bodies.iter().enumerate() {
+        let paragraphs = if body.iter().any(|line| line.starts_with("**§")) {
+            pieces(body, |line| {
+                line.strip_prefix("**§")
+                    .and_then(|rest| rest.split_once(".**"))
+                    .map(|(number, opening)| {
+                        (number.to_string(), format!("**§{number}.**{opening}"))
+                    })
+            })
+        } else {
+            pieces(body, |line| {
+                numbered_rule(line)
+                    .map(|(number, opening)| (number.clone(), format!("{number}. {opening}")))
+            })
+        };
+        chapters[at].1 = paragraphs;
+    }
+    chapters
+}
+
+/// The pieces of one chapter's body, by whatever opens a piece.
+fn pieces(
+    body: &[&str],
+    opens: impl Fn(&str) -> Option<(String, String)>,
+) -> Vec<(String, String)> {
+    let mut found: Vec<(String, String)> = Vec::new();
+    let mut carried: Option<(String, String)> = None;
+    for line in body {
+        if let Some((number, opening)) = opens(line) {
+            if let Some(piece) = carried.take() {
+                found.push(piece);
             }
-            carried = Some((number.to_string(), format!("**§{number}.**{opening}")));
+            carried = Some((number, opening));
             continue;
         }
         if let Some((_, text)) = carried.as_mut() {
@@ -525,8 +668,8 @@ fn chapters_of(text: &'static str) -> Vec<(&'static str, Vec<(String, String)>)>
             text.push_str(line);
         }
     }
-    if let (Some((number, text)), Some(last)) = (carried.take(), chapters.last_mut()) {
-        last.1.push((number, text));
+    if let Some(piece) = carried.take() {
+        found.push(piece);
     }
-    chapters
+    found
 }

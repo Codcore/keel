@@ -87,23 +87,31 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         ));
     }
 
-    // The skeletons of the two methodologies (wave 0029): the same
-    // chapters in the same order, the same paragraph numbers, none of
-    // them empty. A translation drifts as easily as an original, and
-    // this one is the NORMATIVE text -- so the gate holds it.
-    let row = t("check-method-row");
-    courts.push((row.clone(), t("check-method-holds")));
-    rows.push((
-        row,
-        crate::speak::methods_agree().err().map(|refusal| {
-            format!(
-                "{}\n           {}: {}",
-                refusal.reason,
-                t("word-instead"),
-                refusal.instead
-            )
-        }),
-    ));
+    // The skeletons of the methodologies (wave 0029), a row PER
+    // TONGUE as the wave promised three times and delivered once
+    // (review 0029 R-8): each row says whether its own text stands
+    // whole, and the pair says whether the two agree.
+    for (lang, text) in crate::speak::methods() {
+        let row = ta(
+            "check-method-row",
+            targs!("lang" => t(&format!("word-lang-{lang}"))),
+        );
+        courts.push((row.clone(), t("check-method-holds")));
+        rows.push((
+            row,
+            crate::speak::methods_agree_from(&[(lang, text)])
+                .and_then(|()| crate::speak::methods_agree())
+                .err()
+                .map(|refusal| {
+                    format!(
+                        "{}\n           {}: {}",
+                        refusal.reason,
+                        t("word-instead"),
+                        refusal.instead
+                    )
+                }),
+        ));
+    }
 
     // The second floor (§7.1/§7.3): every contract reference in a
     // wave header is followed to its file and its revision compared.

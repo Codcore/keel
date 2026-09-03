@@ -11,6 +11,13 @@
 > truth: the §8.6 decisions are taken in it, and this translation
 > follows them. Where the two disagree, the Ukrainian one is right —
 > and the disagreement is a defect to report, not a choice to make.
+>
+> `translated_from: 552b6f` — the revision of the Ukrainian text this
+> translation was made from (constitution, rule 4: whoever leans on a
+> text holds its revision). `keel check` compares it with the
+> Ukrainian methodology as it now stands: change the original and the
+> recorded revision goes stale, so the translation cannot fall behind
+> unnoticed. This is not a lock but a doorbell.
 
 ---
 
@@ -18,8 +25,8 @@
 
 Eight rules that make Keel Keel. Everything else in this methodology
 can be changed by the ordinary order of work. These eight change only
-by a separate, deliberate decision recorded in this same list — and
-every decision taken while building v2 is measured against them.
+by a separate, deliberate decision recorded in this same list — and we
+measure every decision taken while building v2 against them.
 
 1. **State is not written by hand — it is derived.** What is done,
    what is in progress, what is merely planned: the methodology learns
@@ -39,7 +46,7 @@ every decision taken while building v2 is measured against them.
    any code is written, the plan lists exactly which files will be
    changed. Going beyond that list is allowed — but the departure
    shows up in the diff and in the check, and cannot pass unnoticed.
-   What is forbidden is not deviation from the plan but SILENT
+   What is forbidden is not deviation from the plan but *silent*
    deviation.
 
 4. **Whoever leans on a text holds its revision.** A revision is a
@@ -78,10 +85,13 @@ every decision taken while building v2 is measured against them.
 
 **§1.1.** This document is the norm. If any other text of the
 methodology contradicts it, this document is right and the other one
-is corrected.
+is corrected. In this translation, "this document" means the
+methodology itself, not this English rendering of it: where this text
+and the Ukrainian original disagree, §1.1 speaks through the
+Ukrainian one.
 
-**§1.2.** A document's header — what stands between the two `---`
-rules at the top of the file — is written in English, because its
+**§1.2.** A document's header — what stands between the three dashes `---`
+at the top of the file — is written in English, because its
 fields become code: file names, test tags, slugs in commits. The prose
 is written in the project's language, because a person reads and
 approves it.
@@ -201,7 +211,7 @@ Deleting wave and contract files stays forbidden, as before (chapter
 
 **§3.1.** The links of the graph — and no others:
 
-| Link | From, to | What for |
+| Link | From → to | What for |
 |---|---|---|
 | `depends_on` | wave → wave | the order of work |
 | `proves` | scenario → contract | the contract gains a proof |
@@ -214,14 +224,13 @@ Deleting wave and contract files stays forbidden, as before (chapter
 
 **§3.2.** A link lives in the header, not in the prose. A reference
 written as text is an emphasis, an anchor and a relative path: three
-things that break separately, and no check catches any of them. The
-header a check reads whole.
+things that break separately, and no check catches any of them. A check reads the header whole.
 
 **§3.3.** Every scenario leans on something: `proves` on a contract,
 or `covers` on at least one quality cut; both are allowed. A scenario
 with no support at all is an error. A contract is not required for
 this: a scenario without one is a promise at the level of the
-application, and the test itself carries it. The question "should this
+application, and the test itself carries it. The question "must this
 be a contract" is a judgement made while planning, not a compulsion.
 
 **§3.4.** The quality cuts that `covers` and `decisions` point at are
@@ -266,13 +275,13 @@ was approved: for a full wave after the plan PR is merged, for a light
 one after the wave file's first commit) and puts that list into the
 reviewer's package (chapter 9) as a separate obligatory item. For each
 file on the list the reviewer answers: the widening is justified, and
-why — or it is work sprawling, and then it is a finding. The list
+why — or it is scope creep, and then it is a finding. The list
 cannot be passed over in silence.
 
 **§4.7.** Whatever merely prepares the ground — a build file, a first
 dependency, the skeleton of a project — travels in the file list of
 the transform that needs it, and gets no transform of its own. And if
-the preparation IS the whole of the work, it is a chore transform
+the preparation is itself the whole of the work, it is a chore transform
 (§2.11): it need not pretend to be a promise.
 
 **§4.8.** The methodology's own files — the `keel/` directory, the
@@ -299,7 +308,7 @@ declare it. The exception is the project's account of itself: `README`
 and `BACKLOG` at the root. A paragraph about what the project has
 become carries no promise a test would prove, so it has no wave and
 can have none — and forbidding what has no lawful place is how you
-grow a way around.
+grow a workaround.
 
 **§4.12.** A document that changed its name says so itself: the new
 file carries `renamed_from: <old slug>` in its header. Then the
@@ -484,7 +493,7 @@ started" is an ordinary state.
 lets a `red: <scenario>` commit through only if the named test fails;
 a transform's commit only if the tests of its scenarios are green. The
 branch check requires that every proved scenario has its red commit.
-The honest edge: where the adapter can tell a failing check from a
+The honest limit: where the adapter can tell a failing check from a
 build error, an actual failure is required; where it cannot, any
 failure is accepted, and the check says so.
 
@@ -532,7 +541,7 @@ always be red — and a gate that is always shut stops being read. In
 their place the completeness of the plan is checked.
 
 **§8.4.** A commit message begins with a slug, and the grammar has two
-words:
+forms:
 
 - `red: <scenario>` — the birth of a test; the hook allows it only if
   the test fails (§7.12);
@@ -551,7 +560,7 @@ questions that stood; the options; the answer; who decided. And — if
 the author refused something aloud and then did it after all — what
 changed their mind. Git knows "who" and "when", the diff knows "what";
 "why" and "on whose word" nobody knows, because the chat does not
-travel with the repository. The boundary runs along "said aloud": a
+travel with the repository. The line runs along "said aloud": a
 thought nobody heard needs no trace, and a list of everything ever
 reconsidered is a diary nobody reads.
 
@@ -635,9 +644,9 @@ of two things: a fix, or a refusal said aloud in a line of the PR —
 there is no third state. The reviewer's report is kept as a file,
 `keel/reviews/<wave>.md`, beside the wave: the evidence that a review
 happened travels in the repository rather than staying in a chat, and
-a full wave without that file is not merged — a barrier held in time
-by machinery (a check in the tool), and until then a textual rule,
-honestly marked as one. The honest limit: machinery does not prove the
+a full wave without that file is not merged — a barrier that
+machinery (a check in the tool) will come to hold, and until it does
+a textual rule, honestly marked as one. The honest limit: machinery does not prove the
 reviewer's context was clean; the visible trace of that cleanliness is
 the report itself, and the findings and refusals in it.
 
