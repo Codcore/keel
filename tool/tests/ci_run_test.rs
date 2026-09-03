@@ -116,12 +116,15 @@ fn trusted_ci_runs() {
     // the row real words: colours are not words (found in the field
     // on slugline, wave 0019).
     let dir = project("painted");
-    let painted = "echo 'Diff in src/lib.rs'; echo '\u{1b}[m'; exit 1";
+    // The command's own text carries no escape -- only its output
+    // does, exactly like a coloured cargo fmt diff. The toml holds
+    // it in a literal string so the backslashes reach printf.
+    let painted = r#"printf "Diff in src/lib.rs\n\033[m\n"; exit 1"#;
     write(
         &dir,
         "keel.toml",
         &format!(
-            "lang = \"en\"\nadapter = \"rust\"\nci = \"echo 'Diff in src/lib.rs'; echo '\\u001B[m'; exit 1\"\n\n[trust]\n\"echo 'Diff in src/lib.rs'; echo '\\u001B[m'; exit 1\" = \"{}\"\n",
+            "lang = \"en\"\nadapter = \"rust\"\nci = '{painted}'\n\n[trust]\n'{painted}' = \"{}\"\n",
             keel::trust::fingerprint(painted)
         ),
     );
