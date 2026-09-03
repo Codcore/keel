@@ -4,18 +4,13 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0019b-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    fs::create_dir_all(dir.join("keel/reviews")).unwrap();
-    dir
-}
+use common::keel_sandbox;
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -53,7 +48,7 @@ fn all_decided_except(covered: &[&str]) -> String {
 /// red in every run stays "red".
 #[test]
 fn battery_several_runs() {
-    let dir = sandbox("runs");
+    let dir = keel_sandbox("runs");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
     write(
         &dir,

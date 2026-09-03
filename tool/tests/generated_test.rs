@@ -6,38 +6,13 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
+mod common;
+
+use common::{Sandbox, sandbox};
+
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
-
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0022b-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    MADE.with(|made| made.borrow_mut().push(dir.clone()));
-    dir
-}
-
-// The sandboxes THIS test made, swept when it ends. Review 0026
-// R-18 found ten thousand of them holding seventeen gigabytes:
-// every probe since 0005 has made them and none has removed one.
-//
-// Per THREAD, not per process: tests of one binary run in parallel
-// and share a pid, so a sweep by pid deletes a neighbour's sandbox
-// mid-run -- measured, and it turned a green battery red once
-// before this note was written. Best effort by design: a panicking
-// test keeps its sandbox, because that is the one a person wants.
-thread_local! {
-    static MADE: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
-}
-
-fn sweep() {
-    MADE.with(|made| {
-        for dir in made.borrow_mut().drain(..) {
-            let _ = fs::remove_dir_all(dir);
-        }
-    });
-}
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -73,7 +48,7 @@ fn keel(args: &[&str]) -> (String, i32) {
     )
 }
 
-fn project(name: &str) -> PathBuf {
+fn project(name: &str) -> Sandbox {
     let dir = sandbox(name);
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
     git(&dir, &["init", "-q", "-b", "main"]);
@@ -332,8 +307,6 @@ fn generated_block_never_trampled() {
         config.contains("# my comment") && config.contains("[trust]") && config.contains("echo hi"),
         "the config keeps its comment, its order and its other sections (R-5):\n{config}"
     );
-
-    sweep();
 }
 
 /// proves: every-artefact-kept@ae746d -- holds wave 0023: the
@@ -533,13 +506,11 @@ fn every_artefact_kept() {
         text.starts_with("<!-- keel:begin -->"),
         "an empty document gains no blank lines before the block (R-11): {text:?}"
     );
-
-    sweep();
 }
 
 /// A project whose config names its agents (or does not name them at
 /// all, which is a case of its own).
-fn agents_project(name: &str, agents: Option<&str>) -> PathBuf {
+fn agents_project(name: &str, agents: Option<&str>) -> Sandbox {
     agents_project_in(name, agents, "en")
 }
 
@@ -547,7 +518,7 @@ fn agents_project(name: &str, agents: Option<&str>) -> PathBuf {
 /// bilingual release are judged: until review 0024 R-1 every sandbox
 /// wrote lang = "en", so the Ukrainian templates -- the ones this
 /// very repository generates -- were read by no parser at all.
-fn agents_project_in(name: &str, agents: Option<&str>, lang: &str) -> PathBuf {
+fn agents_project_in(name: &str, agents: Option<&str>, lang: &str) -> Sandbox {
     let dir = sandbox(name);
     let mut text = format!("lang = \"{lang}\"\nadapter = \"rust\"\n");
     if let Some(list) = agents {
@@ -864,8 +835,6 @@ fn every_agent_in_its_own_format() {
         dir.join(SHARED_SKILL).is_file(),
         "the skill is born again by the two steps the word names:\n{out}"
     );
-
-    sweep();
 }
 
 /// The hook configs of wave 0025, each in its own tool's home.
@@ -1162,6 +1131,4 @@ fn hook_speaks_the_next_step() {
             );
         }
     }
-
-    sweep();
 }

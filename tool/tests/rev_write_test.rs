@@ -5,18 +5,13 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0016w-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    fs::create_dir_all(dir.join("keel/reviews")).unwrap();
-    dir
-}
+use common::keel_sandbox;
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -45,7 +40,7 @@ fn keel(args: &[&str]) -> (String, String, i32) {
 /// strict parser.
 #[test]
 fn stale_refs_rewritten() {
-    let dir = sandbox("drift");
+    let dir = keel_sandbox("drift");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
     write(
         &dir,
@@ -136,7 +131,7 @@ fn stale_refs_rewritten() {
 /// records, matching the diff a reader will check.
 #[test]
 fn stale_refs_rewritten_second_birth() {
-    let dir = sandbox("collisions");
+    let dir = keel_sandbox("collisions");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
     write(
         &dir,

@@ -4,17 +4,13 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0007m-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+use common::keel_sandbox;
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -74,7 +70,7 @@ fn all_decided_except(covered: &[&str]) -> String {
 /// names which map this is and why.
 #[test]
 fn map_drawn_per_wave() {
-    let dir = sandbox("perwave");
+    let dir = keel_sandbox("perwave");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,
@@ -150,7 +146,7 @@ fn map_drawn_per_wave() {
     // not break the one-row-per-cut shape -- the words are quoted
     // word for word, the whitespace runs collapse to one space
     // (§5.4's school), and the map stays forty rows.
-    let dir = sandbox("multiline");
+    let dir = keel_sandbox("multiline");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,
@@ -195,7 +191,7 @@ fn map_drawn_per_wave() {
 /// count of older answers next to it -- and the view is named aloud.
 #[test]
 fn map_drawn_for_project() {
-    let dir = sandbox("project");
+    let dir = keel_sandbox("project");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,

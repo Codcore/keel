@@ -4,16 +4,13 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0020i-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    dir
-}
+use common::{Sandbox, sandbox};
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -108,7 +105,7 @@ fn keel(args: &[&str]) -> (String, String, i32) {
 
 /// A git repository with a keel.toml naming the given adapter (or
 /// none at all), ready for the frame.
-fn project(name: &str, adapter: Option<&str>) -> PathBuf {
+fn project(name: &str, adapter: Option<&str>) -> Sandbox {
     let dir = sandbox(name);
     let mut config = String::from("lang = \"en\"\n");
     if let Some(adapter) = adapter {
@@ -127,7 +124,7 @@ fn project(name: &str, adapter: Option<&str>) -> PathBuf {
 
 /// The same, with the crate one level down -- keel's own shape, and
 /// the one where cargo writes a .gitignore of its own beside it.
-fn nested_project(name: &str) -> PathBuf {
+fn nested_project(name: &str) -> Sandbox {
     let dir = sandbox(name);
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
     write(

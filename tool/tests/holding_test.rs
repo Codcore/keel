@@ -5,17 +5,13 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0010h-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+use common::keel_sandbox;
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -43,7 +39,7 @@ fn keel(args: &[&str]) -> (String, String, i32) {
 /// compared the form" aloud instead of green.
 #[test]
 fn exports_held() {
-    let dir = sandbox("form");
+    let dir = keel_sandbox("form");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,
@@ -114,7 +110,7 @@ fn exports_held() {
 
     // No adapter named: nothing to compare with -- the word again,
     // and no finding invented.
-    let dir = sandbox("no-adapter");
+    let dir = keel_sandbox("no-adapter");
     write(&dir, "keel.toml", "lang = \"en\"\n");
     write(
         &dir,
@@ -142,7 +138,7 @@ fn exports_held_second_birth() {
     // Short form against a longer neighbour: `pub fn run` with only
     // run_all in the code is a vanished unit, never green (F1); and
     // the words say "no such unit", not "does not match" (F2/R-6).
-    let dir = sandbox("boundary");
+    let dir = keel_sandbox("boundary");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,
@@ -174,7 +170,7 @@ fn exports_held_second_birth() {
 
     // A plan branch runs no form court (§8.3): exports may grow
     // ahead of the code there, and the skip is a word aloud.
-    let dir = sandbox("planbranch");
+    let dir = keel_sandbox("planbranch");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,
@@ -236,7 +232,7 @@ fn git2(dir: &Path, args: &[&str]) {
 /// said aloud by name; the wave's first tag brings the court back.
 #[test]
 fn plan_window_forgiven() {
-    let dir = sandbox("window");
+    let dir = keel_sandbox("window");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,
@@ -305,7 +301,7 @@ fn plan_window_forgiven() {
 #[test]
 fn plan_window_forgiven_second_birth() {
     // Dead holder: all scenarios withdrawn -- no window, ever.
-    let dir = sandbox("deadwave");
+    let dir = keel_sandbox("deadwave");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,
@@ -352,7 +348,7 @@ fn plan_window_forgiven_second_birth() {
 
     // Namesake tag from a foreign wave: this wave's plan stays a
     // plan -- started is this wave's own revision, not a name match.
-    let dir = sandbox("namesake");
+    let dir = keel_sandbox("namesake");
     write(&dir, "keel.toml", "adapter = \"cargo\"\n");
     write(
         &dir,

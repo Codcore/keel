@@ -5,17 +5,13 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0005g-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+use common::{Sandbox, keel_sandbox, sandbox};
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -70,8 +66,8 @@ fn all_decided_except(covered: &[&str]) -> String {
 /// A real project on a branch named as its wave: keel.toml (the mode
 /// line as given), a toy crate, one wave with scenario `s` and
 /// transform `t`, and a tagged test whose body is the caller's.
-fn project(name: &str, mode_line: &str, test_fn_body: &str) -> PathBuf {
-    let dir = sandbox(name);
+fn project(name: &str, mode_line: &str, test_fn_body: &str) -> Sandbox {
+    let dir = keel_sandbox(name);
     write(
         &dir,
         "keel.toml",
@@ -448,8 +444,14 @@ fn hook_installed_aloud() {
     // against.
     let dir = project("hookwt", "", "assert!(true);");
     git(&dir, &["checkout", "-q", "-b", "parking"]);
-    let wt = std::env::temp_dir().join(format!("keel-0005g-{}-hookwt-wt", std::process::id()));
-    let _ = fs::remove_dir_all(&wt);
+    // The worktree lives INSIDE a sandbox, so it goes when the
+    // sandbox goes: review 0030 R-3 found this directory built by
+    // hand and removed on the last line of the body -- any panic
+    // between the two left it on disk, the very pattern this wave
+    // calls broken. git makes the leaf itself, so only the parent is
+    // ours to hold.
+    let parking = sandbox("hookwt-wt");
+    let wt = parking.join("tree");
     git(
         &dir,
         &["worktree", "add", "-q", wt.to_str().unwrap(), "0009-w"],
@@ -509,14 +511,14 @@ fn hook_installed_aloud() {
 #[test]
 fn battery_isolated() {
     let dir = project("isolated", "", "assert!(false);");
-    let poison = std::env::temp_dir().join(format!("keel-0009-poison-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&poison);
-    fs::create_dir_all(&poison).unwrap();
+    // Through the one hand, so the poison directory is swept with
+    // everything else (wave 0030).
+    let poison = sandbox("poison");
     let msg = dir.join("COMMIT_EDITMSG");
     fs::write(&msg, "red: s").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
         .args(["gate", msg.to_str().unwrap(), dir.to_str().unwrap()])
-        .env("CARGO_TARGET_DIR", &poison)
+        .env("CARGO_TARGET_DIR", poison.as_ref() as &std::path::Path)
         .output()
         .unwrap();
     let text = format!(
@@ -543,14 +545,17 @@ fn battery_isolated() {
     // knob -- CARGO_BUILD_TARGET_DIR -- must be dropped too, or the
     // shared cache walks back in through the side door.
     let dir = project("isolated-alias", "", "assert!(false);");
-    let poison = std::env::temp_dir().join(format!("keel-0009-poison-b-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&poison);
-    fs::create_dir_all(&poison).unwrap();
+    // Through the one hand, so the poison directory is swept with
+    // everything else (wave 0030).
+    let poison = sandbox("poison-b");
     let msg = dir.join("COMMIT_EDITMSG");
     fs::write(&msg, "red: s").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
         .args(["gate", msg.to_str().unwrap(), dir.to_str().unwrap()])
-        .env("CARGO_BUILD_TARGET_DIR", &poison)
+        .env(
+            "CARGO_BUILD_TARGET_DIR",
+            poison.as_ref() as &std::path::Path,
+        )
         .output()
         .unwrap();
     let text = format!(

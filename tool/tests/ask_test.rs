@@ -4,39 +4,14 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
+mod common;
+
+use common::{Sandbox, sandbox};
+
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use std::time::{Duration, Instant};
-
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0026-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    MADE.with(|made| made.borrow_mut().push(dir.clone()));
-    dir
-}
-
-// The sandboxes THIS test made, swept when it ends. Review 0026
-// R-18 found ten thousand of them holding seventeen gigabytes:
-// every probe since 0005 has made them and none has removed one.
-//
-// Per THREAD, not per process: tests of one binary run in parallel
-// and share a pid, so a sweep by pid deletes a neighbour's sandbox
-// mid-run -- measured, and it turned a green battery red once
-// before this note was written. Best effort by design: a panicking
-// test keeps its sandbox, because that is the one a person wants.
-thread_local! {
-    static MADE: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
-}
-
-fn sweep() {
-    MADE.with(|made| {
-        for dir in made.borrow_mut().drain(..) {
-            let _ = fs::remove_dir_all(dir);
-        }
-    });
-}
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -104,7 +79,7 @@ fn keel(args: &[&str]) -> (String, i32) {
 
 /// A bare project directory: git, and nothing else. No keel.toml --
 /// this wave is about the birth of that file.
-fn bare(name: &str) -> PathBuf {
+fn bare(name: &str) -> Sandbox {
     let dir = sandbox(name);
     git(&dir, &["init", "-q", "-b", "main"]);
     dir
@@ -433,6 +408,4 @@ fn init_asks_only_when_it_can_hear() {
         "the code's language may be left unnamed -- a project of another tongue \
          is not refused, it simply waits for its own wave"
     );
-
-    sweep();
 }

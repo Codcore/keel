@@ -4,10 +4,6 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-
 /// What a git hook hands its children -- the probe's own sandboxes
 /// must be as deaf to it as the tool is (school 0020).
 const GIT_ENV: [&str; 10] = [
@@ -23,14 +19,13 @@ const GIT_ENV: [&str; 10] = [
     "GIT_CONFIG_COUNT",
 ];
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0021g-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    fs::create_dir_all(dir.join("keel/reviews")).unwrap();
-    dir
-}
+mod common;
+
+use common::{Sandbox, keel_sandbox};
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -139,8 +134,8 @@ fn all_decided_except(covered: &[&str]) -> String {
 /// The judged project: a crate, a git repository on the wave's own
 /// branch, and one wave whose scenario carries no tag at all -- so
 /// the closure court must stay red.
-fn project(name: &str) -> PathBuf {
-    let dir = sandbox(name);
+fn project(name: &str) -> Sandbox {
+    let dir = keel_sandbox(name);
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
     write(
         &dir,
@@ -179,8 +174,8 @@ fn project(name: &str) -> PathBuf {
 
 /// A stranger's repository, whole and quiet: whatever the courts do,
 /// not one byte of it may change.
-fn foreign(name: &str) -> PathBuf {
-    let dir = sandbox(name);
+fn foreign(name: &str) -> Sandbox {
+    let dir = keel_sandbox(name);
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
     write(&dir, "README.md", "the stranger\n");
     git(&dir, &["init", "-q", "-b", "main"]);

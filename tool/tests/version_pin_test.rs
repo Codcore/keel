@@ -5,17 +5,13 @@
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-fn sandbox(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("keel-0018v-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("keel/waves")).unwrap();
-    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
-    dir
-}
+use common::keel_sandbox;
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 fn write(dir: &Path, rel: &str, text: &str) {
     let path = dir.join(rel);
@@ -79,7 +75,7 @@ fn version_pin() {
     let running = env!("CARGO_PKG_VERSION");
 
     // A matching pin: the courts run as before, the lamp says held.
-    let dir = sandbox("held");
+    let dir = keel_sandbox("held");
     write(
         &dir,
         "keel.toml",
@@ -103,7 +99,7 @@ fn version_pin() {
 
     // A foreign pin: every court refuses aloud with both names --
     // the wrong binary never judges -- while the lamp still answers.
-    let dir = sandbox("foreign");
+    let dir = keel_sandbox("foreign");
     write(
         &dir,
         "keel.toml",
@@ -139,7 +135,7 @@ fn version_pin() {
 
     // No version field: the courts run as they always did, the lamp
     // advises the pin.
-    let dir = sandbox("nopin");
+    let dir = keel_sandbox("nopin");
     write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"rust\"\n");
     crate_files(&dir);
     let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
@@ -154,7 +150,7 @@ fn version_pin() {
     );
 
     // The init scaffolding recommends pinning the running version.
-    let dir = sandbox("initpin");
+    let dir = keel_sandbox("initpin");
     git(&dir, &["init", "-q", "-b", "main"]);
     let (_, _, code) = keel(&["init", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "the frame lands");
@@ -183,7 +179,7 @@ fn version_pin_second_birth() {
 
     // R-1: the near foreign pin refuses in the court with both
     // names, and the lamp names it as not this binary.
-    let dir = sandbox("near");
+    let dir = keel_sandbox("near");
     write(
         &dir,
         "keel.toml",
@@ -219,7 +215,7 @@ fn version_pin_second_birth() {
     );
 
     // R-3 on the held side too: the quoted pin beside "held".
-    let dir = sandbox("heldquoted");
+    let dir = keel_sandbox("heldquoted");
     write(
         &dir,
         "keel.toml",
