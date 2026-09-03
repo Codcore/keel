@@ -344,7 +344,7 @@ close-verify-untrusted = verify "{ $command }" of { $contract } — did not run:
 close-verify-blockers = broken foreign promises: { $count } — the exit is red
 close-verify-no-words = the command left no words
 close-ci-passed = ci "{ $command }" — passed: the project's own gate is green
-close-ci-failed = ci "{ $command }" — FAILED ({ $words }) — the project's own gate is red, the wave does not merge (§7.16)
+close-ci-failed = ci "{ $command }" — FAILED ({ $words }) — the project's own gate is red, the wave does not merge (§7.16); run the command yourself to see its whole word
 close-ci-untrusted = ci "{ $command }" — did not run: not trusted (§7.16); check holds that verdict — record trust with keel trust
 close-ci-none = ci = "none" — a refusal aloud, lawful; nothing runs
 close-ci-undecided = ci = "" — undecided; nothing runs (check's finding)

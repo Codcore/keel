@@ -346,7 +346,7 @@ close-verify-untrusted = verify "{ $command }" контракту { $contract } 
 close-verify-blockers = зламаних чужих обіцянок: { $count } — вихід червоний
 close-verify-no-words = команда не лишила слів
 close-ci-passed = ci "{ $command }" — пройшов: власний gate проєкту зелений
-close-ci-failed = ci "{ $command }" — ВПАВ ({ $words }) — власний gate проєкту червоний, хвиля не зливається (§7.16)
+close-ci-failed = ci "{ $command }" — ВПАВ ({ $words }) — власний gate проєкту червоний, хвиля не зливається (§7.16); повтори команду сам, щоб побачити її слово повністю
 close-ci-untrusted = ci "{ $command }" — не бігав: недовірений (§7.16); той вирок тримає check — запиши довіру рукою keel trust
 close-ci-none = ci = "none" — відмова вголос, законна; нічого не біжить
 close-ci-undecided = ci = "" — не вирішено; нічого не біжить (знахідка check-а)

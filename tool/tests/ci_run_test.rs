@@ -35,6 +35,36 @@ fn keel(args: &[&str]) -> (String, String, i32) {
     )
 }
 
+fn git(dir: &Path, args: &[&str]) {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args([
+            "-c",
+            "user.email=keel@test",
+            "-c",
+            "user.name=keel-test",
+            "-c",
+            "commit.gpgsign=false",
+        ])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {args:?}:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+fn all_decided() -> String {
+    let mut block = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        block.push_str(&format!("  {cut}: \"n/a\"\n"));
+    }
+    block
+}
+
 /// A crate with one always-green test, so the battery has something
 /// to run and the court reaches the ci row.
 fn project(name: &str) -> PathBuf {
@@ -49,6 +79,23 @@ fn project(name: &str) -> PathBuf {
     dir
 }
 
+/// The same crate under a real git branch, carrying a light wave so
+/// no lack of its own can colour the exit -- whatever the exit says
+/// is the ci's doing (review 0019 R-1).
+fn project_on(name: &str, branch: &str) -> PathBuf {
+    let dir = project(name);
+    write(
+        &dir,
+        "keel/waves/0022-tidy.md",
+        &format!(
+            "---\ntransforms:\n  tidy: {{chore: \"lad\", files: [src/lib.rs]}}\n{}---\n",
+            all_decided()
+        ),
+    );
+    git(&dir, &["init", "-q", "-b", branch]);
+    dir
+}
+
 fn config_with(ci_line: &str, trust: Option<&str>) -> String {
     let mut text = format!("lang = \"en\"\nadapter = \"rust\"\n{ci_line}");
     if let Some(command) = trust {
@@ -60,7 +107,7 @@ fn config_with(ci_line: &str, trust: Option<&str>) -> String {
     text
 }
 
-/// proves: trusted-ci-runs@537361 -- holds §7.16 at work in the
+/// proves: trusted-ci-runs@2dafed -- holds §7.16 at work in the
 /// closure court: a trusted ci runs exactly once and its verdict is
 /// a row by name (passed -- silence in the count; failed -- a
 /// blocker with the command's words and a red exit); an untrusted
@@ -161,6 +208,59 @@ fn trusted_ci_runs() {
     assert!(
         out.contains("did not run") && out.contains("not trusted") && out.contains("§7.16"),
         "the untrusted ci is said aloud with §7.16:\n{out}"
+    );
+
+    // R-1: "a blocker whatever the branch" judged on real branches
+    // -- the wave's own branch, where the merge court stands, and a
+    // foreign one. Before this the six ci states were all judged
+    // with no git at all, and a counterfactual counting the ci
+    // blocker only off-wave passed the whole battery green.
+    for (name, branch) in [
+        ("branch-wave", "0022-tidy"),
+        ("branch-foreign", "feature/not-a-wave"),
+    ] {
+        let dir = project_on(name, branch);
+        let command = "echo drift && exit 1";
+        write(
+            &dir,
+            "keel.toml",
+            &config_with(&format!("ci = \"{command}\"\n"), Some(command)),
+        );
+        let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
+        let out = format!("{out}{err}");
+        assert_eq!(
+            code, 1,
+            "a red ci is a blocker on branch \"{branch}\" too (R-1):\n{out}"
+        );
+        assert!(
+            out.contains("the project's own gate is red"),
+            "the footer names the red gate on branch \"{branch}\":\n{out}"
+        );
+    }
+
+    // R-2: the second half of §7.16 -- "new OR CHANGED does not run".
+    // The key matches, the fingerprint answers another text: the
+    // command is changed, so it never runs (the 0010 school, which
+    // grew its own birth for verify and was owed to ci).
+    let dir = project("crooked");
+    let command = "echo run >> ci.count";
+    write(
+        &dir,
+        "keel.toml",
+        &format!(
+            "lang = \"en\"\nadapter = \"rust\"\nci = \"{command}\"\n\n[trust]\n\"{command}\" = \"{}\"\n",
+            keel::trust::fingerprint("echo something else entirely")
+        ),
+    );
+    let (out, err, _) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        !dir.join("ci.count").exists(),
+        "a changed command does not run under the old trust (R-2):\n{out}"
+    );
+    assert!(
+        out.contains("did not run") && out.contains("not trusted"),
+        "the crooked record is said aloud like an absent one (R-2):\n{out}"
     );
 
     // "none": a lawful refusal aloud, nothing runs.
