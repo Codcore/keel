@@ -47,14 +47,25 @@ fn bare(name: &str) -> PathBuf {
     dir
 }
 
-/// The config the wizard wrote, read back by a real TOML parser.
-fn config_of(dir: &Path) -> toml::Value {
+/// The shape of keel.toml, as a foreign parser sees it.
+#[derive(serde::Deserialize)]
+struct Written {
+    lang: Option<String>,
+    adapter: Option<String>,
+    mode: Option<String>,
+    agents: Option<Vec<String>>,
+    hooks: Option<bool>,
+}
+
+/// The config the wizard wrote, read back by a REAL TOML parser and
+/// typed -- not matched as strings (the school of 0023 R-1).
+fn config_of(dir: &Path) -> Written {
     let text = fs::read_to_string(dir.join("keel.toml")).expect("keel.toml stands");
-    text.parse::<toml::Value>()
+    toml::from_str(&text)
         .unwrap_or_else(|e| panic!("the config the wizard wrote is TOML: {e}\n{text}"))
 }
 
-/// proves: init-asks-only-when-it-can-hear@8ee7fb -- the operator's
+/// proves: init-asks-only-when-it-can-hear@8296ed -- the operator's
 /// §8.6 decision made mechanical, and its first clause is the silence:
 /// no terminal, no question and no hang. The answers have a
 /// question-free road, every one of them is judged by the vocabulary
@@ -104,17 +115,15 @@ fn init_asks_only_when_it_can_hear() {
     ]);
     assert_eq!(code, 0, "the answered frame lands:\n{out}");
     let config = config_of(&dir);
-    assert_eq!(config["lang"].as_str(), Some("uk"), "the answer is written");
-    assert_eq!(config["adapter"].as_str(), Some("rust"));
-    assert_eq!(config["mode"].as_str(), Some("soft"));
-    assert_eq!(config["hooks"].as_bool(), Some(false));
-    let agents: Vec<&str> = config["agents"]
-        .as_array()
-        .expect("agents is a list")
-        .iter()
-        .map(|value| value.as_str().unwrap())
-        .collect();
-    assert_eq!(agents, vec!["claude", "cursor"], "both, in the order named");
+    assert_eq!(config.lang.as_deref(), Some("uk"), "the answer is written");
+    assert_eq!(config.adapter.as_deref(), Some("rust"));
+    assert_eq!(config.mode.as_deref(), Some("soft"));
+    assert_eq!(config.hooks, Some(false));
+    assert_eq!(
+        config.agents.as_deref(),
+        Some(["claude".to_string(), "cursor".to_string()].as_slice()),
+        "both, in the order named"
+    );
 
     // And the tool READS what the wizard wrote: the skills of both
     // agents stand, the hook configs do not (that was the answer),
@@ -150,10 +159,24 @@ fn init_asks_only_when_it_can_hear() {
         dir.to_str().unwrap(),
     ]);
     assert_eq!(code, 0, "the frame lands around it:\n{out}");
-    assert_eq!(
-        fs::read_to_string(dir.join("keel.toml")).unwrap(),
-        mine,
-        "not one byte of a config that already stood"
+    let after = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        after.starts_with(mine),
+        "the person's own lines stand first and unchanged:\n{after}"
+    );
+    assert!(
+        after.contains("lang = \"en\"") && after.contains("mode = \"manual\""),
+        "and the answers on the command line do NOT overwrite what stood:\n{after}"
+    );
+    assert!(
+        !after.contains("lang = \"uk\"") && !after.contains("mode = \"soft\""),
+        "not once, not appended, not anywhere:\n{after}"
+    );
+    // What DOES grow is the [generated] record -- the hand of wave
+    // 0022, not the wizard's, and it only ever adds its own section.
+    assert!(
+        after == mine || after[mine.len()..].trim_start().starts_with("[generated]"),
+        "and the only thing added is the generated record:\n{after}"
     );
 
     // A value this release does not know is refused aloud, by the
@@ -201,7 +224,9 @@ fn init_asks_only_when_it_can_hear() {
             .find(|q| q.field == field)
             .unwrap_or_else(|| panic!("{field} is asked"))
     };
-    assert_eq!(of("lang").choices, vec!["uk", "en"]);
+    // The vocabulary of a question is the release's own vocabulary,
+    // in its own order -- one home, not a second list to drift.
+    assert_eq!(of("lang").choices, keel::config::LANGUAGES.to_vec());
     assert_eq!(of("mode").choices, vec!["strict", "soft", "manual"]);
     assert_eq!(of("mode").default, Some("strict"));
     assert_eq!(of("agents").choices, vec!["claude", "cursor"]);

@@ -103,6 +103,9 @@ fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
         ),
     ];
     rows.into_iter()
+        // A project that answered "no hooks" gets none: a question
+        // whose answer changes nothing is not a question (wave 0026).
+        .filter(|(_, kind, _, _)| config.hooks || !matches!(kind, Kind::Guest { .. }))
         .filter(|(_, _, owner, _)| match owner {
             Owner::Any => true,
             Owner::One(agent) => named.contains(agent),

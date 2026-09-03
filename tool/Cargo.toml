@@ -14,6 +14,7 @@ unic-langid = "0.9.6"
 inquire = "0.9.4"
 
 [dev-dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
 # The scenario reads the config the wizard wrote with a real TOML
 # parser, not by matching strings (the school of 0023 R-1).
 toml = "1.1.4"

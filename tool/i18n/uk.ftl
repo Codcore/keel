@@ -516,3 +516,19 @@ main-new-unknown-reason = причина: інші види документів
 main-new-no-slug = відмова: new contract потребує імени контракту
 main-new-no-slug-reason = причина: скелет народжується під імʼям, що стане його файлом (§1.4)
 main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [тека] | keel trust [тека] | keel hook [тека] | keel version [тека] | keel update [тека]
+
+# The settings wizard (wave 0026)
+ask-lang = Якою людською мовою говорить цей проєкт? (його проза і його відмови)
+ask-adapter = Якою мовою написаний код? («-» лишає поле неназваним)
+ask-mode = Наскільки суворий суд commit-ів? (strict заслоняє, soft попереджає, manual вимкнено)
+ask-agents = Для яких агентів keel має генерувати інтеграції? (пробіл — відмітити, мінімум один)
+ask-hooks = Поставити сесійні hook-и, щоб агент знав наступний крок одразу на старті?
+ask-unknown-field = «{ $field }» — не з тих налаштувань, про які питає цей реліз
+ask-unknown-field-instead = налаштування такі: { $known }
+ask-unknown-value = «{ $value }» — не з тих значень, які бере налаштування «{ $field }»
+ask-unknown-value-instead = { $field } бере одне з: { $known }
+ask-nobody = «{ $field }» не називає нікого, а треба щонайменше одного
+ask-nobody-instead = назви щонайменше одного з { $known } — відмітити можна кількох, але мінімум одного
+ask-interrupted = питання про «{ $field }» лишилось без відповіді: { $error }
+ask-interrupted-instead = відповідай, або дай відповіді прапорцями (--lang, --adapter, --mode, --agents, --hooks), або жени keel init --no-ask по типові значення
+init-config-answered = keel.toml — народжено з твоїх відповідей

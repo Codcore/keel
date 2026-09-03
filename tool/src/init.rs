@@ -4,6 +4,7 @@
 //! already stands, or a refusal aloud; the frame lands piece by
 //! piece, and a second run builds only what is missing.
 
+use crate::ask::Answers;
 use crate::gate;
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
@@ -13,7 +14,7 @@ use std::path::Path;
 /// The `keel init` report and the count of pieces that did not
 /// stand: zero is a green exit, anything else is honest red while
 /// the rest of the frame still landed.
-pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
+pub fn run(root: &Path, answers: &Answers) -> Result<(String, usize), Refusal> {
     let mut report = t("init-title");
     report.push('\n');
     let mut failed = 0usize;
@@ -79,14 +80,17 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
         ));
         report.push('\n');
     } else {
-        let text = format!(
-            "# {}\n# version = \"{}\"\n# lang = \"uk\"\n# adapter = \"rust\"\n# mode = \"strict\"\n",
-            t("init-config-header"),
-            env!("CARGO_PKG_VERSION")
-        );
+        // The wizard's hand writes it (wave 0026): answered fields
+        // stand as lines, unanswered ones stay comments, so a default
+        // never passes itself off as a choice.
+        let text = crate::ask::config_text(answers);
         match crate::plan::write_new(&config, &text).map_err(|refusal| refusal.reason) {
             Ok(()) => {
                 report.push_str(&ta("init-born", targs!("piece" => "keel.toml".to_string())));
+                if *answers != Answers::default() {
+                    report.push_str(" — ");
+                    report.push_str(&t("init-config-answered"));
+                }
                 report.push('\n');
             }
             Err(e) => {

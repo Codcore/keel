@@ -512,4 +512,20 @@ main-new-unknown = refusal: keel new knows only: contract
 main-new-unknown-reason = reason: other document kinds are born by their own commands (waves by keel plan)
 main-new-no-slug = refusal: new contract needs the contract's name
 main-new-no-slug-reason = reason: the skeleton is born under the name that becomes its file (§1.4)
-main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [dir] | keel trust [dir] | keel hook [dir] | keel version [dir] | keel update [dir]
+main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [--lang <l>] [--adapter <a>] [--mode <m>] [--agents <a,b>] [--hooks|--no-hooks] [--no-ask] [dir] | keel trust [dir] | keel hook [dir] | keel version [dir] | keel update [dir]
+
+# The settings wizard (wave 0026)
+ask-lang = Which human language does this project speak? (its prose, its refusals)
+ask-adapter = Which language is the code in? ("-" leaves it unnamed for now)
+ask-mode = How strict is the commit court? (strict blocks, soft warns, manual is off)
+ask-agents = Which agents should keel generate integrations for? (space to tick, at least one)
+ask-hooks = Install the session hooks, so an agent knows the next step as it opens?
+ask-unknown-field = "{ $field }" is not one of the settings this release asks about
+ask-unknown-field-instead = the settings are: { $known }
+ask-unknown-value = "{ $value }" is not a value the "{ $field }" setting takes
+ask-unknown-value-instead = { $field } takes one of: { $known }
+ask-nobody = "{ $field }" names nobody, and at least one is required
+ask-nobody-instead = name at least one of { $known } — several may be ticked, at least one must be
+ask-interrupted = the question about "{ $field }" was not answered: { $error }
+ask-interrupted-instead = answer it, or give the answers as flags (--lang, --adapter, --mode, --agents, --hooks), or run keel init --no-ask for the plain defaults
+init-config-answered = keel.toml — born from your answers
