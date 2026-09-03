@@ -111,6 +111,35 @@ fn trusted_ci_runs() {
         "the failed ci row carries the command's words:\n{out}"
     );
 
+    // A failing ci that paints its words -- cargo fmt --check ends
+    // its coloured diff with a bare reset sequence -- still gives
+    // the row real words: colours are not words (found in the field
+    // on slugline, wave 0019).
+    let dir = project("painted");
+    let painted = "echo 'Diff in src/lib.rs'; echo '\u{1b}[m'; exit 1";
+    write(
+        &dir,
+        "keel.toml",
+        &format!(
+            "lang = \"en\"\nadapter = \"rust\"\nci = \"echo 'Diff in src/lib.rs'; echo '\\u001B[m'; exit 1\"\n\n[trust]\n\"echo 'Diff in src/lib.rs'; echo '\\u001B[m'; exit 1\" = \"{}\"\n",
+            keel::trust::fingerprint(painted)
+        ),
+    );
+    let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 1,
+        "a painted red ci is a blocker all the same:\n{out}"
+    );
+    assert!(
+        !out.contains('\u{1b}'),
+        "no escape sequence is quoted as a verdict's words:\n{out:?}"
+    );
+    assert!(
+        out.contains("Diff in src/lib.rs"),
+        "the row carries the visible words the command left:\n{out}"
+    );
+
     // Untrusted: never runs -- no side effect lands -- and the row
     // says so aloud with §7.16.
     let dir = project("untrusted");
