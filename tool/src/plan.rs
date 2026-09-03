@@ -17,7 +17,7 @@ use std::process::Command;
 pub fn wave(root: &Path, slug: &str) -> Result<String, Refusal> {
     let waves = root.join("keel/waves");
     let file = waves.join(format!("{slug}.md"));
-    if !is_slug(slug) {
+    if !crate::docs::slug_ok(slug) {
         return Err(refuse_slug(&file, slug));
     }
     // The number is the digits before the first hyphen (§8.5). A
@@ -115,7 +115,7 @@ pub fn wave(root: &Path, slug: &str) -> Result<String, Refusal> {
 pub fn contract(root: &Path, slug: &str) -> Result<String, Refusal> {
     let contracts = root.join("keel/contracts");
     let file = contracts.join(format!("{slug}.md"));
-    if !is_slug(slug) {
+    if !crate::docs::slug_ok(slug) {
         return Err(refuse_slug(&file, slug));
     }
     keel_dirs(root, &contracts, &t("what-contracts"))?;
@@ -186,13 +186,6 @@ fn wave_file_numbers(waves: &Path) -> Vec<u64> {
     out
 }
 
-/// The slug shape of §1.2, as gate reads it for commit heads.
-fn is_slug(s: &str) -> bool {
-    !s.is_empty()
-        && s.chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
-}
-
 fn refuse_slug(file: &Path, slug: &str) -> Refusal {
     Refusal {
         file: file.to_path_buf(),
@@ -250,8 +243,9 @@ fn branch_numbers(root: &Path, slug: &str, taken: &mut Vec<u64>) -> bool {
 /// over something that exists: the text lands in a dot-temp next to
 /// its place (dot-files are outside every court) and arrives by
 /// rename, so a failure mid-write leaves no stub (review 0013 R-4);
-/// the refusal speaks of a birth, not of reading.
-fn write_new(file: &Path, text: &str) -> Result<(), Refusal> {
+/// the refusal speaks of a birth, not of reading. The one home of
+/// the write school (wave 0015): init asks here.
+pub(crate) fn write_new(file: &Path, text: &str) -> Result<(), Refusal> {
     let refuse = |e: std::io::Error| Refusal {
         file: file.to_path_buf(),
         reason: ta("plan-write-failed", targs!("error" => e.to_string())),

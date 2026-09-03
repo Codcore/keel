@@ -83,7 +83,7 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
             "# {}\n# lang = \"uk\"\n# adapter = \"cargo\"\n# mode = \"strict\"\n",
             t("init-config-header")
         );
-        match write_new(&config, &text) {
+        match crate::plan::write_new(&config, &text).map_err(|refusal| refusal.reason) {
             Ok(()) => {
                 report.push_str(&ta("init-born", targs!("piece" => "keel.toml".to_string())));
                 report.push('\n');
@@ -135,17 +135,4 @@ pub fn run(root: &Path) -> Result<(String, usize), Refusal> {
     report.push_str(&t("init-next"));
     report.push('\n');
     Ok((report, failed))
-}
-
-/// One whole new file by dot-temp and rename (the 0013 write
-/// school of plan) -- or the error's words, never a stub.
-fn write_new(file: &Path, text: &str) -> Result<(), String> {
-    let name = file.file_name().map(|n| n.to_string_lossy().into_owned());
-    let tmp = file.with_file_name(format!(".{}.tmp", name.unwrap_or_default()));
-    std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, file)
-        .inspect_err(|_| {
-            let _ = std::fs::remove_file(&tmp);
-        })
-        .map_err(|e| e.to_string())
 }
