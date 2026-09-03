@@ -170,6 +170,37 @@ fn main() -> ExitCode {
                 }
             }
         }
+        Some("init") => {
+            let root = args
+                .get(1)
+                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            // init runs before a config can be counted on -- but a
+            // broken keel.toml never steers the call silently
+            // (review 0014 R-1, §7.9): the refusal is said aloud
+            // and the frame still lands in the default language.
+            let lang = match keel::config::read(&root) {
+                Ok(config) => config.lang,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    String::new()
+                }
+            };
+            keel::i18n::init(&lang);
+            match keel::init::run(&root) {
+                Ok((report, failed)) => {
+                    print!("{report}");
+                    if failed == 0 {
+                        ExitCode::SUCCESS
+                    } else {
+                        ExitCode::from(1)
+                    }
+                }
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    ExitCode::from(2)
+                }
+            }
+        }
         Some("plan") => {
             let Some(slug) = args.get(1) else {
                 eprintln!(

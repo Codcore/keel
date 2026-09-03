@@ -397,6 +397,16 @@ next-ready = { "  " }стартуй гілку "{ $wave }" — хвиля зат
 next-working = { "  " }гілка "{ $wave }" триває — хвиля в роботі
 next-all-closed = всі хвилі закриті і жодна не чекає — час планувати нову хвилю: план цього покоління пишеться рукою, затвердження — merge файлу хвилі (§6.6)
 
+## команда init (NEW-CONCEPT «Наскрізні», §8.7)
+init-title = keel init — рама методики одним рухом
+init-born = { "  " }народжено: { $piece }
+init-stands = { "  " }вже стоїть: { $piece } — жоден байт не чіпається
+init-fed = { "  " }догодовано: { $piece } — .gitkeep, щоб наявна порожня тека пережила git
+init-failed = { "  " }не стало: { $piece } — { $error }; натомість: прибери заваду і повтори keel init
+init-config-header = keel.toml — словник §2.9; розкоментуй, щоб увімкнути; типові значення лишаються словам keel
+init-eight-seven = §8.7: вимкни squash і rebase у налаштуваннях репозиторію — правило тримає вимкнена кнопка, не памʼять
+init-next = далі — keel plan <перша хвиля>
+
 ## команда plan (§10.2, §8.2, §8.5)
 plan-created = народжено { $file } — риштування свідомо червоне: keel check веде (§3.3), поки план не стане повним, — тож недописане не зливається помилково
 plan-branches = гілки §8.2: повна хвиля планується на "plan/{ $slug }" і працює на "{ $slug }"; легка (§6.8) вся їде "{ $slug }"
@@ -440,4 +450,4 @@ main-new-unknown = відмова: keel new знає лише: contract
 main-new-unknown-reason = причина: інші види документів народжуються своїми командами (хвилі — keel plan)
 main-new-no-slug = відмова: new contract потребує імени контракту
 main-new-no-slug-reason = причина: скелет народжується під імʼям, що стане його файлом (§1.4)
-main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel trust [тека] | keel hook [тека]
+main-usage = натомість: keel check [тека] | keel rev [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [тека] | keel trust [тека] | keel hook [тека]
