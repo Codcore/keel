@@ -164,3 +164,73 @@ fn version_pin() {
         "the scaffolding recommends the running version as the pin:\n{config}"
     );
 }
+
+/// proves: version-pin@a1646e -- the second birth out of review
+/// 0018 (R-1, R-3, R-4): exactness is the heart of the pin, so a
+/// NEAR foreign pin -- same length, same first character, one
+/// character apart from the running version -- must refuse like a
+/// far one (the reviewer's first-character counterfeit survived
+/// the battery); the lamp quotes the pin so a trailing space or an
+/// empty pin is visible to the eye; and the refusal's instead names
+/// the order of moving the pin forward -- the new binary first,
+/// whose own gate passes the new pin.
+#[test]
+fn version_pin_second_birth() {
+    let running = env!("CARGO_PKG_VERSION");
+    let mut near = running.to_string();
+    let last = near.pop().unwrap();
+    near.push(if last == '9' { '8' } else { '9' });
+
+    // R-1: the near foreign pin refuses in the court with both
+    // names, and the lamp names it as not this binary.
+    let dir = sandbox("near");
+    write(
+        &dir,
+        "keel.toml",
+        &format!("lang = \"en\"\nadapter = \"rust\"\nversion = \"{near}\"\n"),
+    );
+    crate_files(&dir);
+    let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(
+        code, 2,
+        "a pin one character apart is as foreign as any (R-1):\n{out}"
+    );
+    assert!(
+        out.contains(&near) && out.contains(running),
+        "the refusal carries both names, near as they are (R-1):\n{out}"
+    );
+    // R-4: the instead names the order of moving the pin forward.
+    assert!(
+        out.contains("new binary"),
+        "the instead says the new binary comes first (R-4):\n{out}"
+    );
+    let (out, err, code) = keel(&["version", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the lamp answers on a near foreign pin:\n{out}");
+    assert!(
+        out.contains("NOT this binary"),
+        "the lamp calls the near pin what it is (R-1):\n{out}"
+    );
+    // R-3: the lamp quotes the pin -- the eye sees its exact bytes.
+    assert!(
+        out.contains(&format!("\"{near}\"")),
+        "the lamp quotes the pin (R-3):\n{out}"
+    );
+
+    // R-3 on the held side too: the quoted pin beside "held".
+    let dir = sandbox("heldquoted");
+    write(
+        &dir,
+        "keel.toml",
+        &format!("lang = \"en\"\nadapter = \"rust\"\nversion = \"{running}\"\n"),
+    );
+    crate_files(&dir);
+    let (out, err, code) = keel(&["version", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "the lamp answers on a held pin:\n{out}");
+    assert!(
+        out.contains(&format!("\"{running}\"")) && out.contains("held"),
+        "the held pin is quoted as well (R-3):\n{out}"
+    );
+}
