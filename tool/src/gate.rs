@@ -81,7 +81,7 @@ fn judge(root: &Path, wave: &docs::Wave, subject: &str) -> Result<Verdict, Refus
     }
     if let Some((head, _)) = subject.split_once(':') {
         let head = head.trim();
-        if is_slug(head) {
+        if docs::slug_ok(head) {
             if let Some((_, transform)) = wave.transforms.iter().find(|(n, _)| n == head) {
                 return judge_work(root, wave, head, transform);
             }
@@ -94,7 +94,9 @@ fn judge(root: &Path, wave: &docs::Wave, subject: &str) -> Result<Verdict, Refus
         // likeliest field typo -- does not walk past as "outside the
         // judgement" (review R-3).
         let lower = head.to_lowercase();
-        if is_slug(&lower) && (lower == "red" || wave.transforms.iter().any(|(n, _)| *n == lower)) {
+        if docs::slug_ok(&lower)
+            && (lower == "red" || wave.transforms.iter().any(|(n, _)| *n == lower))
+        {
             return Ok(Verdict::Refuse(ta(
                 "gate-case",
                 targs!("head" => head.to_string()),
@@ -229,13 +231,6 @@ fn judge_work(
         "gate-work-pass",
         targs!("transform" => slug.to_string(), "count" => checked),
     )))
-}
-
-/// The slug shape of §1.2: lowercase latin, digits, hyphens.
-fn is_slug(s: &str) -> bool {
-    !s.is_empty()
-        && s.chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
 /// The commit-msg hook text keel installs -- flat sh, replaceable by

@@ -549,8 +549,10 @@ fn as_texts(v: Val, what: &str, file: &Path) -> Result<Vec<(String, usize)>, Ref
     }
 }
 
-/// A slug: what will become code -- a branch name, a test tag (§1.2).
-fn slug_ok(s: &str) -> bool {
+/// A slug: what will become code -- a branch name, a test tag
+/// (§1.2). The one home of the predicate (wave 0015): gate and plan
+/// ask here instead of retelling.
+pub(crate) fn slug_ok(s: &str) -> bool {
     !s.is_empty()
         && s.chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
