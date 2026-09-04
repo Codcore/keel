@@ -101,8 +101,9 @@ fn answers_can_be_changed_after_init() {
         "strict",
         "--agents",
         "claude",
-        // --hooks is a switch, not a question with a value.
-        "--hooks",
+        // This project says no to hooks, and must still say no after
+        // a setup (R-4).
+        "--no-hooks",
     ]);
     // init leaves a [generated] section behind -- the digests of the
     // integrations it wrote. The wizard never asks about it, and
@@ -124,9 +125,31 @@ fn answers_can_be_changed_after_init() {
         after.contains("lang = \"en\""),
         "the changed answer lands:\n{after}"
     );
+    // Line by line, not by substring: review 0032 R-5 cut the whole
+    // seeding out of setup and this probe stayed green, because the
+    // COMMENTED default `# mode = "strict"` contains the very string
+    // it was looking for. An answer lost and a default shown are not
+    // the same thing.
+    let answered = |field: &str, value: &str| {
+        after
+            .lines()
+            .any(|line| line.trim() == format!("{field} = {value}"))
+    };
+    for (field, value) in [
+        ("mode", "\"strict\""),
+        ("adapter", "\"rust\""),
+        ("agents", "[\"claude\"]"),
+    ] {
+        assert!(
+            answered(field, value),
+            "the answers not asked about this time survive as ANSWERS, \
+             not as commented defaults -- {field} did not:\n{after}"
+        );
+    }
     assert!(
-        after.contains("mode = \"strict\""),
-        "the answers not asked about this time survive:\n{after}"
+        after.lines().any(|line| line.trim() == "hooks = false"),
+        "including the one that says no: a project that asked for no \
+         hooks does not get them back from a setup (R-4):\n{after}"
     );
     assert!(
         after.contains("[generated]") && after.contains("AGENTS.md"),

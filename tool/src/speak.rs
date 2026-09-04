@@ -502,6 +502,22 @@ fn named_method(lang: &str) -> &'static str {
     }
 }
 
+/// A served text with the line that says WHEN it was taken.
+///
+/// Review 0032 R-13: the line rode only the argument-free road, so
+/// `keel method §1.8` and `keel method 1` -- the two a person
+/// actually types -- served the text with nothing saying it is a
+/// snapshot from build time rather than the file on disk now.
+fn with_source(said: String) -> String {
+    format!(
+        "{said}\n{}\n",
+        ta(
+            "speak-method-source",
+            targs!("version" => env!("CARGO_PKG_VERSION").to_string()),
+        )
+    )
+}
+
 /// The methodology: its contents, or one paragraph of it.
 pub fn method(lang: &str, asked: Option<&str>) -> Result<String, Refusal> {
     let text = method_for(lang);
@@ -526,7 +542,7 @@ pub fn method(lang: &str, asked: Option<&str>) -> Result<String, Refusal> {
     // appendices, a sixth of the methodology that no paragraph number
     // can reach (review 0027 R-6).
     if let Some(said) = whole_chapter(text, wanted) {
-        return Ok(said);
+        return Ok(with_source(said));
     }
     for (name, paragraphs) in &chapters {
         if let Some((_, text)) = paragraphs.iter().find(|(number, _)| number == wanted) {
@@ -539,7 +555,7 @@ pub fn method(lang: &str, asked: Option<&str>) -> Result<String, Refusal> {
                 .trim_end_matches("---")
                 .trim_end()
                 .to_string();
-            return Ok(format!("{name}\n\n{text}\n"));
+            return Ok(with_source(format!("{name}\n\n{text}\n")));
         }
     }
     // The bounds of the chapter this number would live in, so the

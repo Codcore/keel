@@ -531,7 +531,7 @@ main-new-unknown = refusal: keel new knows only: contract
 main-new-unknown-reason = reason: other document kinds are born by their own commands (waves by keel plan)
 main-new-no-slug = refusal: new contract needs the contract's name
 main-new-no-slug-reason = reason: the skeleton is born under the name that becomes its file (§1.4)
-main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [--lang <l>] [--adapter <a>] [--mode <m>] [--agents <a,b>] [--hooks|--no-hooks] [--no-ask] [dir] | keel trust [dir] | keel hook [dir] | keel cuts [dir] | keel method [§N.M | chapter] [dir] | keel version [dir] | keel update [dir]
+main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [--lang <l>] [--adapter <a>] [--mode <m>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <command>] [--trust yes|no] [--no-ask] [dir] | keel setup [the same flags] [dir] | keel concept [dir] | keel trust [dir] | keel hook [dir] | keel cuts [dir] | keel method [§N.M | chapter] [dir] | keel version [dir] | keel update [dir]
 
 # The settings wizard (wave 0026)
 ask-lang = Which human language does this project speak? / Якою людською мовою говорить цей проєкт?
@@ -561,7 +561,7 @@ word-lang-en = in English
 word-lang-uk = in Ukrainian
 check-cuts-row = the vocabulary of this keel binary, { $lang } (the forty cuts and their questions)
 speak-concept-title = keel concept -- the concept this project leans on (NEW-CONCEPT.md)
-speak-concept-source = the text is NEW-CONCEPT.md as it stood at the moment keel { $version } was BUILT (збірки): a snapshot baked into this binary, not a file from your directory. This document exists in Ukrainian only -- it has no English twin, and the machine does not invent one
+speak-concept-source = the text is NEW-CONCEPT.md as it stood at the moment keel { $version } was BUILT: a snapshot baked into this binary, not a file from your directory. This document exists in Ukrainian only -- it has no English twin, and the machine does not invent one
 speak-cuts-title = keel cuts — the forty quality cuts, as the courts judge by them (§10.1)
 speak-cuts-source = every question above is the checklist QUALITY.md as it stood when keel { $version } was BUILT — a snapshot baked into this binary, not the file in your project; a newer checklist needs a newer keel. The slugs are the vocabulary keel check judges plan completeness by (§10.3)
 speak-cuts-drifted = { $count } cut(s) the courts judge by have no question in the checklist: { $cuts }
@@ -612,10 +612,11 @@ briefing-hygiene =
     HYGIENE (without it the review does not count):
       • your own clone: git clone --no-local <root> <your-path>;
         check git rev-parse --is-shallow-repository = false;
+      • your own binary from that very branch: cd tool && cargo build
+        (not an installed keel -- it is older and its vocabulary
+        differs);
       • your own CARGO_TARGET_DIR, or you are measuring someone
         else's cache;
-      • your own binary built from the branch under review, not an
-        installed one;
       • at the end, clean up YOURS: clone, target (gigabytes),
         directories.
 briefing-work =
@@ -624,20 +625,32 @@ briefing-work =
       • play counterfactuals: remove one assertion or one line of a
         court and see whether the battery CATCHES it. What nothing
         catches is a promise, not a court;
-      • hunt false positives where the author did not look;
+      • check that what EXISTS is not broken: the battery several
+        runs over, cargo test -- --list against main (did a test
+        vanish), clippy, fmt, keel check and keel rev on the
+        repository itself;
+      • hunt false positives where the author did not look: a foreign
+        section in the config, a broken file, an empty repository, a
+        second run, a project in the other tongue;
       • name the limits the wave did not name.
 briefing-questions =
-    THE FOUR QUESTIONS (§9.9):
-      1. What did the author keep quiet about?
-      2. Does the plan break? What is missing from the scenario
-         against what the probe actually runs?
-      3. Is what was promised delivered -- and not narrowed?
-      4. Are the corners covered?
+    THE FOUR QUESTIONS (§9.9, in the words the methodology itself
+    uses):
+      1. What did we keep quiet about?
+      2. Are all the possible scenarios accounted for?
+      3. Is everything promised delivered, with no quiet narrowing?
+      4. Does the test cover the whole scenario, or only a corner?
 briefing-report =
-    THE REPORT goes to keel/reviews/{ $wave }.md and carries: date,
-    who, the VERDICT (accept / accept with findings / send back for
-    rework); live mechanics with numbers; findings R-1, R-2, … each
-    with weight and PROOF; what you did not find; the four questions
-    in brief; your own mistakes. Numbers come ONLY from runs; what
-    you could not measure, say so and why. Without this file
-    keel close keeps the wave open.
+    THE REPORT is NOT written into the author's repository -- you
+    hand it back as text to whoever called you, ready to be placed in
+    keel/reviews/{ $wave }.md (the author places it; without that
+    file keel close keeps the wave open). Write it in the language of
+    the project's methodology. It carries: date, who, the VERDICT
+    (accept / accept with findings / send back for rework); live
+    mechanics with numbers; findings R-1, R-2, … each with weight and
+    PROOF; what you did not find; the four questions in brief; your
+    own mistakes. Weight: HEAVY -- the wave's promise is not kept or
+    its court is empty; MEDIUM -- it works but lies about itself or
+    misfires on a corner; LIGHT -- a word, a number, tidiness.
+    Numbers come ONLY from runs; what you could not measure, say so
+    and why.

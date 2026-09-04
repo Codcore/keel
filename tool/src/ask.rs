@@ -236,9 +236,28 @@ pub fn ask(questions: &[Question]) -> Result<Answers, Refusal> {
         if question.skippable {
             choices.push("-");
         }
-        let chosen = inquire::Select::new(&prompt, choices)
-            .prompt()
-            .map_err(|e| interrupted(question, &e.to_string()))?;
+        // A question whose vocabulary is a SUGGESTION is typed, not
+        // picked. Review 0032 R-8: the ci command was drawn as a
+        // list, so typing `make ci` filtered the list to nothing and
+        // the wizard hung there for ever, while the code and the
+        // probe both claimed it was free text.
+        let chosen = if free_text(question.field) {
+            let typed = inquire::Text::new(&prompt)
+                .with_default(question.default.unwrap_or(""))
+                .prompt()
+                .map_err(|e| interrupted(question, &e.to_string()))?;
+            let typed = typed.trim().to_string();
+            if typed.is_empty() {
+                continue;
+            }
+            typed
+        } else {
+            inquire::Select::new(&prompt, choices)
+                .prompt()
+                .map_err(|e| interrupted(question, &e.to_string()))?
+                .to_string()
+        };
+        let chosen = chosen.as_str();
         if chosen == "-" {
             continue;
         }
@@ -299,6 +318,47 @@ pub fn ask_unanswered(questions: &[Question], given: &Answers) -> Result<Answers
     })
 }
 
+/// Every question asked, with what the project already answered
+/// standing as the default (wave 0032, review R-6). `ask_unanswered`
+/// SKIPS a question that has an answer, which is right for init and
+/// exactly wrong for setup: there, an answer already given is the
+/// thing being changed.
+pub fn ask_with_defaults(questions: &[Question], current: &Answers) -> Result<Answers, Refusal> {
+    let shown: Vec<Question> = questions
+        .iter()
+        .map(|question| {
+            let mut question = question.clone();
+            if let Some(now) = current_of(current, question.field) {
+                // The current answer leads the list, so enter keeps
+                // it and a person changes only what they mean to.
+                question.choices.retain(|choice| *choice != now);
+                question.choices.insert(0, Box::leak(now.into_boxed_str()));
+            }
+            question
+        })
+        .collect();
+    ask(&shown)
+}
+
+/// What the project answers to one field today, as a word.
+fn current_of(answers: &Answers, field: &str) -> Option<String> {
+    match field {
+        "lang" => answers.lang.clone(),
+        "adapter" => answers.adapter.clone(),
+        "mode" => answers.mode.clone(),
+        "agents" => answers.agents.as_ref().and_then(|a| a.first().cloned()),
+        "hooks" => answers
+            .hooks
+            .map(|yes| if yes { "yes" } else { "no" }.to_string()),
+        "version" => answers.version.clone(),
+        "ci" => answers.ci.clone(),
+        "trust" => answers
+            .trust
+            .map(|yes| if yes { "yes" } else { "no" }.to_string()),
+        _ => None,
+    }
+}
+
 /// The answers a project already gave, so `keel setup` can show them
 /// as the defaults rather than asking from nothing (wave 0032). What
 /// a flag already answered wins: the person's word beats the file's.
@@ -308,7 +368,11 @@ pub fn from_config(config: &crate::config::Config, given: &Answers) -> Answers {
         adapter: given.adapter.clone().or_else(|| config.adapter.clone()),
         mode: given.mode.clone().or_else(|| Some(config.mode.clone())),
         agents: given.agents.clone().or_else(|| Some(config.agents.clone())),
-        hooks: given.hooks,
+        // Seeded, like everything else: review 0032 R-4 measured a
+        // project that had said --no-hooks getting them back after a
+        // single setup, because this field alone was left unseeded
+        // and the commented default reads true.
+        hooks: given.hooks.or(Some(config.hooks)),
         version: given
             .version
             .clone()

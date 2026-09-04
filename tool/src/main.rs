@@ -254,11 +254,21 @@ fn main() -> ExitCode {
                     return ExitCode::from(2);
                 }
             }
+            let setup = args.first().map(String::as_str) == Some("setup");
             // init runs before a config can be counted on -- but a
             // broken keel.toml never steers the call silently
             // (review 0014 R-1, §7.9): the refusal is said aloud
             // and the frame still lands in the default language.
-            let lang = match keel::config::read(&root) {
+            // setup reads it unpinned: a pin that no longer matches
+            // this binary is the commonest reason to run setup, and
+            // saying "refusal" while doing the work anyway is the
+            // very thing review 0032 R-1 caught.
+            let read = if setup {
+                keel::config::read_unpinned(&root)
+            } else {
+                keel::config::read(&root)
+            };
+            let lang = match read {
                 Ok(config) => config.lang,
                 Err(refusal) => {
                     eprintln!("{refusal}");
@@ -295,12 +305,39 @@ fn main() -> ExitCode {
             // setup asks even where a config stands -- that is the
             // whole point of it -- and seeds its defaults from the
             // answers already given.
-            let setup = args.first().map(String::as_str) == Some("setup");
-            if setup && let Ok(config) = keel::config::read(&root) {
-                answers = keel::ask::from_config(&config, &answers);
+            if setup && root.join("keel.toml").is_file() {
+                // read_unpinned, not read: a version pin that no
+                // longer matches this binary is the commonest reason
+                // to run setup at all, and refusing there would deny
+                // the person the very fix they came for.
+                //
+                // And an UNREADABLE config stops the command dead.
+                // Review 0032 R-1: swallowing the error let setup
+                // overwrite a config it had never read -- trust,
+                // digests and every answer gone, reported as "born",
+                // exit 0. A court that says "refusal" and does the
+                // opposite is worse than no court.
+                match keel::config::read_unpinned(&root) {
+                    Ok(config) => answers = keel::ask::from_config(&config, &answers),
+                    Err(refusal) => {
+                        eprintln!("{refusal}");
+                        return ExitCode::from(2);
+                    }
+                }
             }
             if !no_ask && listening && (setup || !root.join("keel.toml").is_file()) {
-                match keel::ask::ask_unanswered(&keel::ask::questions(), &answers) {
+                // init asks only what a flag has not answered; setup
+                // asks EVERYTHING, showing the current answer as the
+                // default -- otherwise it can change nothing that is
+                // already set, which is every answer it exists to
+                // change. Review 0032 R-6 measured it asking two of
+                // eight questions on a full config.
+                let asking = if setup {
+                    keel::ask::ask_with_defaults(&keel::ask::questions(), &answers)
+                } else {
+                    keel::ask::ask_unanswered(&keel::ask::questions(), &answers)
+                };
+                match asking {
                     Ok(asked) => answers = asked,
                     Err(refusal) => {
                         eprintln!("{refusal}");

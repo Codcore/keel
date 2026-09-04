@@ -105,4 +105,18 @@ fn the_texts_say_when_they_were_taken() {
         "and so does the concept:\n{}",
         &said[..said.len().min(300)]
     );
+
+    // And the roads a person actually types, not only the bare
+    // command: review 0032 R-13 found the line riding the
+    // argument-free road alone, so `keel method §1.8` -- the way
+    // anybody reaches one rule -- said nothing about where its text
+    // came from.
+    for asked in ["§1.8", "1"] {
+        let said = keel(&dir, &["method", asked]);
+        assert!(
+            said.contains("ЗБІРКИ") || said.contains("збірки"),
+            "`keel method {asked}` says when its text was taken:\n{}",
+            &said[..said.len().min(300)]
+        );
+    }
 }
