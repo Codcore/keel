@@ -17,6 +17,13 @@ enum Comparability {
     Source(String),
     NoAdapter,
     Deep,
+    /// The module was looked for and is not there. Wave 0035: this
+    /// used to be a note beside a green verdict, and a single-segment
+    /// name was silently read as `src/lib.rs` whatever the field
+    /// said -- so `module: /etc/passwd` reported a signature checked
+    /// and no finding at all. Renaming a module disarmed §7.6 with
+    /// every signature under it, which §7.15 never forgives a test.
+    Missing(String),
     NoFile,
 }
 
@@ -35,8 +42,22 @@ pub fn court(
         let Some((module, place)) = judged(contract) else {
             continue;
         };
-        let Comparability::Source(source) = comparability(root, config, module) else {
-            continue;
+        let source = match comparability(root, config, module) {
+            Comparability::Source(source) => source,
+            // Named and not there: a finding, not a margin note
+            // (wave 0035).
+            Comparability::Missing(looked) => {
+                out.push((
+                    place.clone(),
+                    ta(
+                        "holding-module-missing",
+                        targs!("contract" => contract.slug.clone(), "module" => module.to_string(), "looked" => looked),
+                    ),
+                    t("holding-module-missing-instead"),
+                ));
+                continue;
+            }
+            _ => continue,
         };
         // Comments are not code (0010 review R-3): a promise that
         // survives only in a comment has vanished.
@@ -97,6 +118,9 @@ pub(crate) fn survey(root: &Path, config: &Config, contracts: &[Contract]) -> (u
             }
             Comparability::Deep => t("holding-why-deep"),
             Comparability::NoFile => t("holding-why-no-file"),
+            // Said by the court itself as a finding, so it is not
+            // repeated here as an uncompared margin.
+            Comparability::Missing(_) => continue,
         };
         uncompared.push(ta(
             "check-holding-uncompared",
@@ -208,10 +232,42 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
     let Ok(crate_dir) = adapter::crate_root(root) else {
         return Comparability::NoFile;
     };
+    // The name is looked for as written. A bare crate name is the
+    // crate's own root -- but only when it IS the crate's name;
+    // anything else is a module nobody can find.
     let path = if segments.len() == 1 {
-        crate_dir.join("src/lib.rs")
+        let named_the_crate = crate_dir
+            .join("Cargo.toml")
+            .to_str()
+            .map(|_| module)
+            .is_some_and(|name| {
+                std::fs::read_to_string(crate_dir.join("Cargo.toml"))
+                    .map(|text| {
+                        text.lines().any(|line| {
+                            line.split_once('=').is_some_and(|(key, value)| {
+                                key.trim() == "name"
+                                    && value.trim().trim_matches('"').replace('-', "_")
+                                        == name.replace('-', "_")
+                            })
+                        })
+                    })
+                    .unwrap_or(false)
+            });
+        if named_the_crate {
+            crate_dir.join("src/lib.rs")
+        } else {
+            let guess = crate_dir.join("src").join(format!("{module}.rs"));
+            if !guess.is_file() {
+                return Comparability::Missing(format!("src/{module}.rs"));
+            }
+            guess
+        }
     } else {
-        crate_dir.join("src").join(format!("{}.rs", segments[1]))
+        let guess = crate_dir.join("src").join(format!("{}.rs", segments[1]));
+        if !guess.is_file() {
+            return Comparability::Missing(format!("src/{}.rs", segments[1]));
+        }
+        guess
     };
     match std::fs::read_to_string(path) {
         Ok(source) => Comparability::Source(source),

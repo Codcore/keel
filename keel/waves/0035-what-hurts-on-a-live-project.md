@@ -21,6 +21,8 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/module_exists_test.rs
+      - tool/tests/check_test.rs
+      - tool/tests/close_test.rs
   the-branch-said-aloud:
     implements:
       - the-branch-can-be-named-where-git-hides-it
