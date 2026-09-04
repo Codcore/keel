@@ -200,7 +200,11 @@ fn main() -> ExitCode {
                 }
             }
         }
-        Some("init") => {
+        // setup is init on a project that already has answers: the
+        // same wizard, the same flags, the current config as the
+        // defaults (wave 0032 -- until now a keel.toml was edited by
+        // hand or not at all).
+        Some("init") | Some("setup") => {
             // The answers of the wizard, given as flags (wave 0026):
             // the question-free road, and the road the probe drives,
             // since the drawing of questions needs a pty.
@@ -224,9 +228,8 @@ fn main() -> ExitCode {
                     }
                     "--hooks" => answer("hooks", Some(&"yes".to_string())),
                     "--no-hooks" => answer("hooks", Some(&"no".to_string())),
-                    "--lang" | "--adapter" | "--mode" | "--agents" => {
-                        answer(word.trim_start_matches("--"), rest.next())
-                    }
+                    "--lang" | "--adapter" | "--mode" | "--agents" | "--version" | "--ci"
+                    | "--trust" => answer(word.trim_start_matches("--"), rest.next()),
                     other if other.starts_with("--") && other.contains('=') => {
                         let (flag, value) = other.split_once('=').unwrap();
                         answer(flag.trim_start_matches("--"), Some(&value.to_string()))
@@ -251,11 +254,21 @@ fn main() -> ExitCode {
                     return ExitCode::from(2);
                 }
             }
+            let setup = args.first().map(String::as_str) == Some("setup");
             // init runs before a config can be counted on -- but a
             // broken keel.toml never steers the call silently
             // (review 0014 R-1, §7.9): the refusal is said aloud
             // and the frame still lands in the default language.
-            let lang = match keel::config::read(&root) {
+            // setup reads it unpinned: a pin that no longer matches
+            // this binary is the commonest reason to run setup, and
+            // saying "refusal" while doing the work anyway is the
+            // very thing review 0032 R-1 caught.
+            let read = if setup {
+                keel::config::read_unpinned(&root)
+            } else {
+                keel::config::read(&root)
+            };
+            let lang = match read {
                 Ok(config) => config.lang,
                 Err(refusal) => {
                     eprintln!("{refusal}");
@@ -289,8 +302,42 @@ fn main() -> ExitCode {
                 && std::io::IsTerminal::is_terminal(&std::io::stderr());
             // Flags answer their own questions and silence no others
             // (review 0026 R-4: one flag used to silence all five).
-            if !no_ask && listening && !root.join("keel.toml").is_file() {
-                match keel::ask::ask_unanswered(&keel::ask::questions(), &answers) {
+            // setup asks even where a config stands -- that is the
+            // whole point of it -- and seeds its defaults from the
+            // answers already given.
+            if setup && root.join("keel.toml").is_file() {
+                // read_unpinned, not read: a version pin that no
+                // longer matches this binary is the commonest reason
+                // to run setup at all, and refusing there would deny
+                // the person the very fix they came for.
+                //
+                // And an UNREADABLE config stops the command dead.
+                // Review 0032 R-1: swallowing the error let setup
+                // overwrite a config it had never read -- trust,
+                // digests and every answer gone, reported as "born",
+                // exit 0. A court that says "refusal" and does the
+                // opposite is worse than no court.
+                match keel::config::read_unpinned(&root) {
+                    Ok(config) => answers = keel::ask::from_config(&config, &answers),
+                    Err(refusal) => {
+                        eprintln!("{refusal}");
+                        return ExitCode::from(2);
+                    }
+                }
+            }
+            if !no_ask && listening && (setup || !root.join("keel.toml").is_file()) {
+                // init asks only what a flag has not answered; setup
+                // asks EVERYTHING, showing the current answer as the
+                // default -- otherwise it can change nothing that is
+                // already set, which is every answer it exists to
+                // change. Review 0032 R-6 measured it asking two of
+                // eight questions on a full config.
+                let asking = if setup {
+                    keel::ask::ask_with_defaults(&keel::ask::questions(), &answers)
+                } else {
+                    keel::ask::ask_unanswered(&keel::ask::questions(), &answers)
+                };
+                match asking {
                     Ok(asked) => answers = asked,
                     Err(refusal) => {
                         eprintln!("{refusal}");
@@ -298,7 +345,12 @@ fn main() -> ExitCode {
                     }
                 }
             }
-            match keel::init::run(&root, &answers) {
+            let done = if setup {
+                keel::init::setup(&root, &answers)
+            } else {
+                keel::init::run(&root, &answers)
+            };
+            match done {
                 Ok((report, failed)) => {
                     print!("{report}");
                     if failed == 0 {
@@ -557,6 +609,34 @@ fn main() -> ExitCode {
             } else {
                 ExitCode::from(1)
             }
+        }
+        // The concept, carried since wave 0032: a text the binary
+        // held and the mouth would not give.
+        Some("concept") => {
+            let (root, extra) = one_path(&args);
+            if extra {
+                eprintln!("{}", t("main-usage"));
+                return ExitCode::from(2);
+            }
+            let lang = match keel::config::read_unpinned(&root) {
+                Ok(config) => config.lang,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
+            keel::i18n::init(&lang);
+            println!("{}", t("speak-concept-title"));
+            println!();
+            println!("{}", keel::speak::concept());
+            println!(
+                "{}",
+                ta(
+                    "speak-concept-source",
+                    targs!("version" => env!("CARGO_PKG_VERSION").to_string())
+                )
+            );
+            ExitCode::SUCCESS
         }
         Some("cuts") => {
             // The mouth reads no document from disk: it serves what

@@ -336,8 +336,12 @@ fn init_asks_only_when_it_can_hear() {
     let names: Vec<&str> = questions.iter().map(|q| q.field).collect();
     assert_eq!(
         names,
-        vec!["lang", "adapter", "mode", "agents", "hooks"],
-        "five questions, exactly the ones the operator named"
+        vec![
+            "lang", "adapter", "mode", "agents", "hooks", "version", "ci", "trust"
+        ],
+        "eight questions: the five the operator named, and the three \
+         wave 0032 added -- version, ci and trust were listed as a \
+         limit in the plan of wave 0026 and stood unlifted for six waves"
     );
     let of = |field: &str| {
         questions
@@ -375,6 +379,11 @@ fn init_asks_only_when_it_can_hear() {
         // The agents are a MultiSelect: space ticks, enter takes.
         ("agents", " \r"),
         ("session hooks", "\r"),
+        // The three wave 0032 added. The ci command is free text
+        // (its list is a suggestion), so it is typed, not picked.
+        ("pin the keel version", "\r"),
+        ("what command does CI run", "\r"),
+        ("record trust", "\r"),
     ] {
         session
             .exp_string(asked)

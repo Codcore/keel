@@ -285,3 +285,69 @@ fn ignore_row(root: &Path) -> String {
         ),
     }
 }
+
+/// `keel setup`: the wizard on a project that already answered once.
+///
+/// Named as a limit by review 0026 and unlifted for six waves --
+/// until this one, a keel.toml was edited by hand or not at all. The
+/// answers the wizard did not ask about survive, and so do the
+/// sections it never asks about at all: `[trust]` and `[generated]`
+/// belong to the machine and to the person, not to the wizard.
+pub fn setup(root: &Path, answers: &crate::ask::Answers) -> Result<(String, usize), Refusal> {
+    let config = root.join("keel.toml");
+    // A project with no config at all gets the whole frame, not a
+    // lonely keel.toml: review 0032 R-7 measured setup leaving a
+    // directory with one file where init would have built the waves,
+    // the contracts, the integrations and the workflow.
+    if !config.is_file() {
+        return run(root, answers);
+    }
+    let mut text = crate::ask::config_text(answers);
+
+    // What the wizard never asked about is carried across verbatim.
+    {
+        // Unpinned, for the same reason main.rs reads it unpinned.
+        let kept = crate::config::read_unpinned(root).ok();
+        if let Some(kept) = kept {
+            // A trust line for a command this project no longer runs
+            // is "a door opened in advance" -- keel check says so,
+            // and review 0032 R-10 measured setup leaving one behind
+            // whenever the ci command changed, turning the gate red
+            // and sending the person back to editing by hand.
+            let live = answers.ci.clone();
+            let trust: Vec<(String, String)> = kept
+                .trust
+                .into_iter()
+                .filter(|(command, _)| live.as_deref() == Some(command.as_str()))
+                .collect();
+            for (section, entries) in [("trust", trust), ("generated", kept.generated)] {
+                if entries.is_empty() {
+                    continue;
+                }
+                let rows: Vec<(String, String)> = entries.into_iter().collect();
+                text = crate::confedit::upsert(&text, section, &rows);
+            }
+        }
+    }
+
+    // Through the same hand init writes with: a write that dies
+    // half-way leaves the old file whole, not a stump (the 0013
+    // school, which init::setup did not inherit -- review 0032 R-1).
+    crate::plan::write_over(&config, &text)?;
+    let mut report = ta("init-born", targs!("piece" => "keel.toml".to_string()));
+    report.push('\n');
+
+    // A changed answer that changes nothing is not a changed answer:
+    // review 0032 R-9 measured `keel setup --agents claude,cursor`
+    // writing the line and leaving the new agent with no files at
+    // all, so the project declared an agent nothing was written for.
+    let mut failed = 0;
+    if let Ok(now) = crate::config::read_unpinned(root) {
+        let (word, lacked) = crate::generated::write(root, &now);
+        failed += lacked;
+        report.push_str("  ");
+        report.push_str(&word);
+        report.push('\n');
+    }
+    Ok((report, failed))
+}

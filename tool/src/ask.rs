@@ -43,6 +43,14 @@ pub struct Answers {
     pub mode: Option<String>,
     pub agents: Option<Vec<String>>,
     pub hooks: Option<bool>,
+    /// Pin this binary's version into the config (wave 0032).
+    pub version: Option<String>,
+    /// The command CI runs.
+    pub ci: Option<String>,
+    /// Record the trust of that command now, so the gate does not
+    /// refuse it the first time it runs (§7.16 is trust on first
+    /// use, and first use should not be a surprise).
+    pub trust: Option<bool>,
 }
 
 impl Answers {
@@ -52,12 +60,17 @@ impl Answers {
             || self.mode.is_some()
             || self.agents.is_some()
             || self.hooks.is_some()
+            || self.version.is_some()
+            || self.ci.is_some()
+            || self.trust.is_some()
     }
 }
 
-/// The five questions, in the order they are asked -- exactly the
-/// ones the operator named: the human language, the code's language,
-/// the mode of the commit court, the agents, the hooks.
+/// The eight questions, in the order they are asked: the human
+/// language, the code's language, the mode of the commit court, the
+/// agents, the hooks -- and, since wave 0032, the three that make a
+/// project ready for its own gates. Their absence was named as a
+/// limit in the plan of wave 0026 and stood unlifted for six waves.
 pub fn questions() -> Vec<Question> {
     vec![
         Question {
@@ -102,7 +115,42 @@ pub fn questions() -> Vec<Question> {
             at_least_one: false,
             skippable: false,
         },
+        Question {
+            field: "version",
+            // Pin this binary's version, or leave the field unwritten
+            // and let any version judge this project.
+            choices: vec!["pin"],
+            default: Some("pin"),
+            many: false,
+            at_least_one: false,
+            skippable: true,
+        },
+        Question {
+            // The command is free text: the offered one is a
+            // suggestion, not the vocabulary.
+            field: "ci",
+            choices: vec!["cargo test"],
+            default: None,
+            many: false,
+            at_least_one: false,
+            skippable: true,
+        },
+        Question {
+            field: "trust",
+            choices: vec!["yes", "no"],
+            default: Some("yes"),
+            many: false,
+            at_least_one: false,
+            skippable: true,
+        },
     ]
+}
+
+/// Whether a question's choices are a suggestion rather than the
+/// whole vocabulary. Only the ci command is such a question: the
+/// list offers the usual one and accepts any.
+fn free_text(field: &str) -> bool {
+    field == "ci"
 }
 
 /// The answers given on the command line, each judged by the
@@ -140,9 +188,14 @@ pub fn from_flags(given: &[(String, String)]) -> Result<Answers, Refusal> {
         if question.many && question.at_least_one && named.is_empty() {
             return Err(nobody(question));
         }
-        for word in &named {
-            if !question.choices.contains(&word.as_str()) {
-                return Err(unknown_value(question, word));
+        // A question whose vocabulary is a SUGGESTION takes any word;
+        // every other one takes only what it named (wave 0032: a ci
+        // command cannot be picked from a list of one).
+        if !free_text(question.field) {
+            for word in &named {
+                if !question.choices.contains(&word.as_str()) {
+                    return Err(unknown_value(question, word));
+                }
             }
         }
         match question.field {
@@ -151,6 +204,9 @@ pub fn from_flags(given: &[(String, String)]) -> Result<Answers, Refusal> {
             "mode" => answers.mode = Some(named[0].clone()),
             "agents" => answers.agents = Some(named),
             "hooks" => answers.hooks = Some(named[0] == "yes"),
+            "version" => answers.version = Some(named[0].clone()),
+            "ci" => answers.ci = Some(named[0].clone()),
+            "trust" => answers.trust = Some(named[0] == "yes"),
             _ => return Err(unknown_field(field)),
         }
     }
@@ -180,9 +236,28 @@ pub fn ask(questions: &[Question]) -> Result<Answers, Refusal> {
         if question.skippable {
             choices.push("-");
         }
-        let chosen = inquire::Select::new(&prompt, choices)
-            .prompt()
-            .map_err(|e| interrupted(question, &e.to_string()))?;
+        // A question whose vocabulary is a SUGGESTION is typed, not
+        // picked. Review 0032 R-8: the ci command was drawn as a
+        // list, so typing `make ci` filtered the list to nothing and
+        // the wizard hung there for ever, while the code and the
+        // probe both claimed it was free text.
+        let chosen = if free_text(question.field) {
+            let typed = inquire::Text::new(&prompt)
+                .with_default(question.default.unwrap_or(""))
+                .prompt()
+                .map_err(|e| interrupted(question, &e.to_string()))?;
+            let typed = typed.trim().to_string();
+            if typed.is_empty() {
+                continue;
+            }
+            typed
+        } else {
+            inquire::Select::new(&prompt, choices)
+                .prompt()
+                .map_err(|e| interrupted(question, &e.to_string()))?
+                .to_string()
+        };
+        let chosen = chosen.as_str();
         if chosen == "-" {
             continue;
         }
@@ -199,6 +274,9 @@ pub fn ask(questions: &[Question]) -> Result<Answers, Refusal> {
             "adapter" => answers.adapter = Some(chosen.to_string()),
             "mode" => answers.mode = Some(chosen.to_string()),
             "hooks" => answers.hooks = Some(chosen == "yes"),
+            "version" => answers.version = Some(chosen.to_string()),
+            "ci" => answers.ci = Some(chosen.to_string()),
+            "trust" => answers.trust = Some(chosen == "yes"),
             other => return Err(unknown_field(other)),
         }
     }
@@ -217,6 +295,9 @@ pub fn ask_unanswered(questions: &[Question], given: &Answers) -> Result<Answers
             "mode" => given.mode.is_none(),
             "agents" => given.agents.is_none(),
             "hooks" => given.hooks.is_none(),
+            "version" => given.version.is_none(),
+            "ci" => given.ci.is_none(),
+            "trust" => given.trust.is_none(),
             _ => true,
         })
         .cloned()
@@ -231,7 +312,74 @@ pub fn ask_unanswered(questions: &[Question], given: &Answers) -> Result<Answers
         mode: given.mode.clone().or(asked.mode),
         agents: given.agents.clone().or(asked.agents),
         hooks: given.hooks.or(asked.hooks),
+        version: given.version.clone().or(asked.version),
+        ci: given.ci.clone().or(asked.ci),
+        trust: given.trust.or(asked.trust),
     })
+}
+
+/// Every question asked, with what the project already answered
+/// standing as the default (wave 0032, review R-6). `ask_unanswered`
+/// SKIPS a question that has an answer, which is right for init and
+/// exactly wrong for setup: there, an answer already given is the
+/// thing being changed.
+pub fn ask_with_defaults(questions: &[Question], current: &Answers) -> Result<Answers, Refusal> {
+    let shown: Vec<Question> = questions
+        .iter()
+        .map(|question| {
+            let mut question = question.clone();
+            if let Some(now) = current_of(current, question.field) {
+                // The current answer leads the list, so enter keeps
+                // it and a person changes only what they mean to.
+                question.choices.retain(|choice| *choice != now);
+                question.choices.insert(0, Box::leak(now.into_boxed_str()));
+            }
+            question
+        })
+        .collect();
+    ask(&shown)
+}
+
+/// What the project answers to one field today, as a word.
+fn current_of(answers: &Answers, field: &str) -> Option<String> {
+    match field {
+        "lang" => answers.lang.clone(),
+        "adapter" => answers.adapter.clone(),
+        "mode" => answers.mode.clone(),
+        "agents" => answers.agents.as_ref().and_then(|a| a.first().cloned()),
+        "hooks" => answers
+            .hooks
+            .map(|yes| if yes { "yes" } else { "no" }.to_string()),
+        "version" => answers.version.clone(),
+        "ci" => answers.ci.clone(),
+        "trust" => answers
+            .trust
+            .map(|yes| if yes { "yes" } else { "no" }.to_string()),
+        _ => None,
+    }
+}
+
+/// The answers a project already gave, so `keel setup` can show them
+/// as the defaults rather than asking from nothing (wave 0032). What
+/// a flag already answered wins: the person's word beats the file's.
+pub fn from_config(config: &crate::config::Config, given: &Answers) -> Answers {
+    Answers {
+        lang: given.lang.clone().or_else(|| Some(config.lang.clone())),
+        adapter: given.adapter.clone().or_else(|| config.adapter.clone()),
+        mode: given.mode.clone().or_else(|| Some(config.mode.clone())),
+        agents: given.agents.clone().or_else(|| Some(config.agents.clone())),
+        // Seeded, like everything else: review 0032 R-4 measured a
+        // project that had said --no-hooks getting them back after a
+        // single setup, because this field alone was left unseeded
+        // and the commented default reads true.
+        hooks: given.hooks.or(Some(config.hooks)),
+        version: given
+            .version
+            .clone()
+            .or(config.version.as_ref().map(|_| "pin".to_string())),
+        ci: given.ci.clone().or_else(|| config.ci.clone()),
+        trust: given.trust,
+    }
 }
 
 /// The text of keel.toml the answers make. An answered field stands
@@ -239,15 +387,42 @@ pub fn ask_unanswered(questions: &[Question], given: &Answers) -> Result<Answers
 /// still there to read and a default never passes itself off as a
 /// choice (the same honesty the config's own reading keeps).
 pub fn config_text(answers: &Answers) -> String {
-    let mut text = format!(
-        "# {}\n# version = \"{}\"\n",
-        t("init-config-header"),
-        env!("CARGO_PKG_VERSION")
-    );
+    let mut text = config_body(answers);
+    // Trust recorded here, at the moment the command is named, so
+    // the gate does not refuse it on its first run: §7.16 is trust
+    // on first use, and a first use that surprises the person is a
+    // court teaching them to ignore it (wave 0032).
+    if let (Some(true), Some(command)) = (answers.trust, answers.ci.as_ref()) {
+        text = crate::confedit::upsert(
+            &text,
+            "trust",
+            &[(command.clone(), crate::trust::fingerprint(command))],
+        );
+    }
+    text
+}
+
+/// The plain body of keel.toml, before any section is spliced in.
+fn config_body(answers: &Answers) -> String {
+    // The header no longer carries a commented version line: since
+    // wave 0032 the wizard ASKS about the pin, so the field is
+    // written by the same hand as every other answer -- two of them
+    // in one file would leave a person guessing which one counts.
+    let mut text = format!("# {}\n", t("init-config-header"));
     let line = |field: &str, value: Option<String>, shown: &str| match value {
         Some(value) => format!("{field} = {value}\n"),
         None => format!("# {field} = {shown}\n"),
     };
+    // Pinning writes THIS binary's version: the answer is "pin", the
+    // value is what pinning means (wave 0032).
+    text.push_str(&line(
+        "version",
+        answers
+            .version
+            .as_ref()
+            .map(|_| format!("\"{}\"", env!("CARGO_PKG_VERSION"))),
+        &format!("\"{}\"", env!("CARGO_PKG_VERSION")),
+    ));
     text.push_str(&line(
         "lang",
         answers.lang.as_ref().map(|v| format!("\"{v}\"")),
@@ -257,6 +432,11 @@ pub fn config_text(answers: &Answers) -> String {
         "adapter",
         answers.adapter.as_ref().map(|v| format!("\"{v}\"")),
         "\"rust\"",
+    ));
+    text.push_str(&line(
+        "ci",
+        answers.ci.as_ref().map(|v| format!("\"{v}\"")),
+        "\"cargo test\"",
     ));
     text.push_str(&line(
         "mode",

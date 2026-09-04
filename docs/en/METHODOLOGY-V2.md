@@ -12,7 +12,7 @@
 > follows them. Where the two disagree, the Ukrainian one is right —
 > and the disagreement is a defect to report, not a choice to make.
 >
-> `translated_from: 552b6f` — the revision of the Ukrainian text this
+> `translated_from: e423b6` — the revision of the Ukrainian text this
 > translation was made from (constitution, rule 4: whoever leans on a
 > text holds its revision). `keel check` compares it with the
 > Ukrainian methodology as it now stands: change the original and the
@@ -123,6 +123,16 @@ A word of the methodology's own — one the industry does not have — is
 explained in plain words where it is first used. Brevity does not
 excuse obscurity: two sentences too many beat one that has to be read
 three times.
+
+**§1.8.** The methodology of this generation is written in
+**Ukrainian**, and the Ukrainian text is the **source of truth**: the
+§8.6 decisions are taken in it. The English text is a hand
+translation that follows it. Where the two disagree the Ukrainian one
+is right, and **a disagreement is reported as a defect** rather than
+settled by picking the reading one prefers. The skeleton of both --
+the chapters, the paragraph numbers, and that none of them is empty
+-- is held by machine (`keel check`); the meaning is not, and that is
+a limit by construction.
 
 ---
 

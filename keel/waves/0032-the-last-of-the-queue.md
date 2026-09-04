@@ -24,6 +24,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/briefing_test.rs
+      - BACKLOG.md
   the-wizard-and-the-second-chance:
     implements:
       - the-wizard-asks-what-a-project-needs
@@ -31,10 +32,12 @@ transforms:
     files:
       - tool/src/ask.rs
       - tool/src/init.rs
+      - tool/src/plan.rs
       - tool/src/main.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/setup_test.rs
+      - tool/tests/ask_test.rs
   the-mouth-carries-all-it-holds:
     implements:
       - the-mouth-serves-every-text-it-carries
@@ -183,7 +186,11 @@ decisions:
 ## transform: the-wizard-and-the-second-chance
 
 `ask.rs` дістає три питання, `init.rs` їх ставить, `main.rs` вчиться
-слову `setup`.
+слову `setup`. `plan.rs` додано **під час розсилки рецензії**, а не
+перед роботою: R-1 показала, що `setup` писав звичайним `fs::write`,
+тож обірваний запис лишив би обрізок, — і атомний запис живе там,
+поруч із тим, яким пише `init`. Розширення scope назване тут, як
+того й вимагає §4.6.
 
 ## transform: the-mouth-carries-all-it-holds
 
