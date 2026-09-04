@@ -43,11 +43,7 @@ fn gate(dir: &Path, message: &str) -> (String, i32) {
 /// failing without breaking the very thing it guards.
 fn project(name: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
-    std::fs::write(
-        dir.join("keel.toml"),
-        "lang = \"uk\"\nadapter = \"rust\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
     std::fs::write(
         dir.join("Cargo.toml"),
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",

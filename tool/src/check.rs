@@ -454,6 +454,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                         // has work commits and no tag at all was red
                         // nowhere (conformance audit ВАЖКА-7) -- only
                         // `keel close` saw it, and only afterwards.
+                        // The named exception of §6.3 said aloud:
+                        // a green birth is lawful when its commit
+                        // records the mutant, and the machine does
+                        // NOT check the mutant is real -- so the
+                        // verdict names it and hands it to the
+                        // reviewer instead of swallowing it.
+                        extra_limits.extend(mutant_births(root, &sha));
                         for (scenario, instead) in untested_scenarios(
                             root,
                             wave,
@@ -868,6 +875,43 @@ fn verdict_limits(root: &Path, refs_unjudged: u64) -> Vec<String> {
     }
 
     limits
+}
+
+/// The green births of §6.3's named exception on this branch: every
+/// `red:` commit whose message carries a mutant line. Said aloud as a
+/// limit of the verdict, because that is exactly what it is -- the
+/// machine took the author's word.
+fn mutant_births(root: &Path, base: &str) -> Vec<String> {
+    let Some(log) = git_line(
+        root,
+        &["log", "--format=%s%x1f%b%x1e", &format!("{base}..HEAD")],
+    ) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for entry in log.split('\u{1e}') {
+        let Some((subject, body)) = entry.split_once('\u{1f}') else {
+            continue;
+        };
+        let subject = subject.trim();
+        let Some(rest) = subject.strip_prefix("red:") else {
+            continue;
+        };
+        let Some(scenario) = rest.split_whitespace().next() else {
+            continue;
+        };
+        if let Some((broke, named)) = crate::gate::mutant_line(body) {
+            out.push(ta(
+                "check-red-mutant",
+                targs!(
+                    "scenario" => scenario.to_string(),
+                    "broke" => broke,
+                    "named" => named
+                ),
+            ));
+        }
+    }
+    out
 }
 
 /// §7.5 judged by the BRANCH: a wave whose branch carries work

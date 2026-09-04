@@ -14,7 +14,7 @@
 > follows them. Where the two disagree, the Ukrainian one is right —
 > and the disagreement is a defect to report, not a choice to make.
 >
-> `translated_from: c7fd38` — the revision of the Ukrainian text this
+> `translated_from: 73a75e` — the revision of the Ukrainian text this
 > translation was made from (constitution, rule 4: whoever leans on a
 > text holds its revision). `keel check` compares it with the
 > Ukrainian methodology as it now stands: change the original and the
@@ -419,6 +419,19 @@ reads commit messages: on main, closing is judged by consequences
    step 2: a green test nobody ever saw red proves nothing;
 4. **withdrawn** — the `withdrawn` mark (§2.12); a withdrawn scenario
    is outside judgement.
+
+**The named exception** (the operator's decision of 2026-09-04). A
+court over **our own battery or tooling** cannot be seen failing
+without breaking the very thing it guards. Such a promise **may be
+born green**, if the commit message records the mutant: a line
+`mutant: <what was broken> -> <how the probe named it>`. The guarantee
+survives -- proving that the test can fail is still required; what
+changes is whose eye sees it: the reviewer's, not the hook's. The
+exception is narrow and costs work, because the cheap way out is one
+and it is worse -- rename the work `chore` and lose the promise
+altogether. **The honest limit: the machine does not check that the
+mutant is real.** It takes the author's word, says so aloud on its own
+line in the verdict, and leaves the rest to the reviewer's eye.
 
 **§6.4.** A contract holds when its promise is confirmed — the
 signatures are in place, or the `verify` command passed — and the
