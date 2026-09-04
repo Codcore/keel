@@ -1082,7 +1082,7 @@ fn vanished_documents(root: &Path, scan: &docs::Scan) -> Vec<(String, String, St
             [] => out.push((
                 path.to_string(),
                 ta("scope-vanished", targs!("slug" => slug.to_string())),
-                t("scope-vanished-instead"),
+                ta("scope-vanished-instead", targs!("slug" => slug.to_string())),
             )),
             [(heir, where_)] => {
                 if *where_ != home {

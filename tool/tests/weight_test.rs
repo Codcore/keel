@@ -45,11 +45,7 @@ fn decided() -> String {
 fn project(name: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
     // `status` is the eye of the stages and needs the adapter.
-    std::fs::write(
-        dir.join("keel.toml"),
-        "lang = \"uk\"\nadapter = \"rust\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
     std::fs::write(
         dir.join("Cargo.toml"),
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
@@ -126,7 +122,10 @@ fn the_weight_comes_from_the_file() {
     .unwrap();
     std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn c() {}\n").unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "work: a chore with a new contract"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "work: a chore with a new contract"],
+    );
 
     let (said, _) = keel(&dir, "status");
     assert!(

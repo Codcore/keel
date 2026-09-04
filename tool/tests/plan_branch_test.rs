@@ -58,7 +58,11 @@ fn a_plan_branch_carries_no_code() {
     let dir = project("planbranch");
     git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
     std::fs::write(dir.join("keel/waves/0001-a-wave.md"), WAVE).unwrap();
-    std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn sneaked() {}\n").unwrap();
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        "pub fn a() {}\npub fn sneaked() {}\n",
+    )
+    .unwrap();
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "plan: wave 0001"]);
 
