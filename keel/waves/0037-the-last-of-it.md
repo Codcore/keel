@@ -30,6 +30,7 @@ transforms:
       - tool/tests/reviewer_test.rs
       - tool/tests/next_test.rs
       - tool/tests/status_test.rs
+      - tool/tests/close_test.rs
   a-green-birth-carries-its-mutant:
     implements:
       - a-green-birth-is-named-and-proved
