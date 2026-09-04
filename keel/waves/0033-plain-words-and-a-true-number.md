@@ -1,0 +1,132 @@
+---
+depends_on: [0032-the-last-of-the-queue]
+
+scenarios:
+  the-skipped-count-is-true:
+    covers: [functional.correctness, security.non-repudiation]
+  the-tool-speaks-plainly:
+    covers: [interaction.learnability, interaction.appropriateness-recognisability]
+
+transforms:
+  a-number-nobody-can-fake:
+    implements:
+      - the-skipped-count-is-true
+    files:
+      - tool/tests/verdict_limits_test.rs
+  words-a-person-knows:
+    implements:
+      - the-tool-speaks-plainly
+    files:
+      - tool/i18n/uk.ftl
+      - tool/i18n/en.ftl
+      - tool/tests/plain_words_test.rs
+  journal:
+    chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
+    files:
+      - docs/uk/V2-PROCESS.md
+
+decisions:
+  functional.completeness: "тримає the-skipped-count-is-true: судиться саме число, а не наявність рядка"
+  functional.appropriateness: "не застосовується як окрема робота: обидві вади знайдено живим бігом при операторові"
+  performance.time-behaviour: "не застосовується"
+  performance.capacity: "не застосовується"
+  performance.resource-utilisation: "не застосовується"
+  compatibility.co-existence: "не застосовується"
+  compatibility.interoperability: "не застосовується"
+  interaction.operability: "не застосовується"
+  interaction.user-error-protection: "не застосовується"
+  interaction.user-engagement: "не застосовується"
+  interaction.inclusivity: "тримає the-tool-speaks-plainly: слова, яких нема поза цим проєктом, треба спершу вивчити — і це бар'єр для кожного, хто приходить"
+  interaction.self-descriptiveness: "тримає the-tool-speaks-plainly: рядок має пояснювати себе сам, а не відсилати до словника, якого нема"
+  interaction.user-assistance: "свідомо без тесту: кожен такий рядок і далі несе «щоб перевірити: <команда>»"
+  reliability.faultlessness: "тримає the-skipped-count-is-true: зіпсоване число — це саме та вада, яку я щойно вніс мутантом, і батарея її не побачила"
+  reliability.fault-tolerance: "не застосовується"
+  reliability.availability: "не застосовується"
+  reliability.recoverability: "не застосовується"
+  security.confidentiality: "не застосовується"
+  security.integrity: "не застосовується"
+  security.accountability: "не застосовується"
+  security.authenticity: "не застосовується"
+  security.resistance: "не застосовується"
+  maintainability.modularity: "не застосовується"
+  maintainability.reusability: "не застосовується"
+  maintainability.analysability: "не застосовується"
+  maintainability.modifiability: "не застосовується"
+  maintainability.testability: "тримає обидва сценарії: обидва судяться пробами, і обидві проби я зобов'язаний перевірити мутантом, перш ніж називати їх судами"
+  flexibility.adaptability: "не застосовується"
+  flexibility.scalability: "не застосовується"
+  flexibility.installability: "не застосовується"
+  flexibility.replaceability: "не застосовується"
+  safety.operational-constraints: "не застосовується"
+  safety.risk-identification: "не застосовується"
+  safety.fail-safe: "не застосовується"
+  safety.hazard-warning: "не застосовується"
+  safety.safe-integration: "тримає the-tool-speaks-plainly: міняються тільки слова у виводі — жоден суд не слабшає і не міцнішає, число знахідок те саме"
+---
+
+## Why
+
+Дві вади, знайдені за пʼять хвилин при операторові.
+
+**Перша — число бреше, і ніхто цього не бачить.** Я зламав один
+вираз: замість справжньої кількости пропущених звірок інструмент
+почав казати **нуль**. На обрізаному клоні він тепер повідомляє «0
+звірок не зроблено», хоча їх 141. Батарея: **97 зелених, 0
+червоних**. Проба перевіряє, що рядок зʼявився і що підсумки повного
+й обрізаного вироку різні, — обидві умови виконуються і з нулем.
+Правдивости числа не питає ніхто.
+
+Це рівно та вада, проти якої стоїть хвиля 0031: вирок, який каже
+більше (чи менше), ніж зробив. Тільки тепер вона в самому числі.
+
+**Друга — я вигадав слово і нікому його не пояснив.** Рядок, який
+бачить людина, зветься «**межа вироку**». Це моя вигадка з хвилі
+0031; у методиці такого поняття нема, у git такого нема, в індустрії
+такого нема. §1.7 каже: своє слово — те, якого в індустрії нема, —
+пояснюється простими словами там, де вжите вперше; стислість не
+виправдовує загадковість. Я не пояснив його ніде.
+
+Оператор прочитав вивід і не зрозумів, **що це взагалі таке**. Це не
+причіпка до стилю: інструмент, який доповідає незрозумілим словом,
+не доповідає нічого.
+
+Правильне слово — те, яке каже, що сталось: **«не перевірено»**.
+
+    було:  межа вироку: історія обрізана (shallow) — 141 звірок…
+    стане: не перевірено: історія обрізана — 141 звірку старих
+           редакцій пропущено; щоб перевірити: git fetch --unshallow
+
+    було:  підсумок: 52 документи, 0 знахідок, 2 межі вироку (вище)
+    стане: підсумок: 52 документи, 0 знахідок, 2 не перевірено (вище)
+
+## scenario: the-skipped-count-is-true
+
+**Дано** обрізаний клон і повний,
+**коли** обидва судить `keel check`,
+**тоді** число пропущених звірок у виводі обрізаного **дорівнює**
+тому, скільки звірок насправді зробив повний. Не «більше нуля», не
+«якесь» — саме те саме число. Мутант, що підставляє нуль або будь-яке
+інше число, червонить пробу.
+
+## scenario: the-tool-speaks-plainly
+
+**Дано** вивід, який читає людина,
+**коли** інструмент доповідає, чого він не перевірив,
+**тоді** він каже це словами, що існують поза цим проєктом: «не
+перевірено», і далі — що саме і як перевірити. Слова «межа вироку» у
+виводі нема; це судиться самим текстом виводу, а не памʼяттю автора.
+
+## transform: a-number-nobody-can-fake
+
+Проба рахує звірки в повному клоні і вимагає того самого числа в
+обрізаному.
+
+## transform: words-a-person-knows
+
+Рядки i18n обома мовами і проба, що забороняє вигадане слово у
+виводі.
+
+## transform: journal
+
+Журнальні записи bootstrap їдуть своєю хвилею (школа 0009 R-1):
+документ памʼяті лупа — docs/uk/V2-PROCESS.md (§9.10).
