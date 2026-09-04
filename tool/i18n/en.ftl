@@ -689,8 +689,19 @@ briefing-hygiene =
       • your own binary from that very branch: cd tool && cargo build
         (not an installed keel -- it is older and its vocabulary
         differs);
+      • and a SECOND binary from the base (main) for contrast:
+        without it "a regression" and "an old defect" cannot be told
+        apart -- half the heavy findings of 0034 and 0036 were
+        measured exactly that way;
+      • rebuild after mutating a file carried by include_str! --
+        reverting the file does not revert the binary;
       • your own CARGO_TARGET_DIR, or you are measuring someone
         else's cache;
+      • have the room: two targets are ~3.4 GiB, plus keel close;
+      • committing in YOUR OWN clone is allowed and expected -- it is
+        your sandbox;
+      • a red probe keeps its sandbox on purpose: look inside before
+        clearing it;
       • at the end, clean up YOURS: clone, target (gigabytes),
         directories.
 briefing-work =
@@ -706,6 +717,17 @@ briefing-work =
       • hunt false positives where the author did not look: a foreign
         section in the config, a broken file, an empty repository, a
         second run, a project in the other tongue;
+      • play EVERY limit named in a scenario's body as its own
+        counterfactual -- the bodies are above, and each "Then …" is
+        a commitment to be checked apart;
+      • check whether every assertion CAN still fail: a court hunting
+        words the tool no longer says is green for ever;
+      • check that no EXISTING court was narrowed: read the diff of
+        the probes apart from the diff of the code;
+      • repeat the conditions under which THIS project's CI runs the
+        battery;
+      • read keel/reviews/ -- earlier reviews say where this author
+        has gone wrong before;
       • name the limits the wave did not name.
 briefing-questions =
     THE FOUR QUESTIONS (§9.9, in the words the methodology itself
