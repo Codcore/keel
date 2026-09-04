@@ -3,7 +3,11 @@
 
 mod common;
 
-/// proves: a-court-that-cannot-fail-is-not-a-court@d1b15e --
+/// A chore, not a scenario, and the wave says why: this judges our
+/// own battery rather than keel's behaviour, and §6.3's red birth
+/// means something only where a state exists in which the probe
+/// fails before the work.
+///
 /// wave 0033 renamed a line a person reads and left a neighbouring
 /// assert hunting the old words. Nothing printed them any more, so
 /// the assert could never fail again -- and it was the one holding
