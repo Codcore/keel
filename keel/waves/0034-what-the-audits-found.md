@@ -40,6 +40,7 @@ transforms:
       - docs/uk/METHODOLOGY-V2.md
       - docs/en/METHODOLOGY-V2.md
       - tool/tests/vocabulary_test.rs
+      - tool/tests/red_birth_test.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:
