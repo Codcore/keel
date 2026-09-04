@@ -160,6 +160,16 @@ pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
                 }
             }
         }
+        // The weight, derived and said aloud (§6.8): it decides the
+        // ceremony, and until wave 0036 nothing computed it.
+        let word = match docs::weight(wave) {
+            docs::Weight::Light => t("word-weight-light"),
+            docs::Weight::Full => t("word-weight-full"),
+        };
+        report.push_str(&format!(
+            "           {}\n",
+            ta("status-weight", targs!("weight" => word))
+        ));
     }
 
     for refusal in &refusals {

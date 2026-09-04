@@ -44,7 +44,17 @@ fn decided() -> String {
 
 fn project(name: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
-    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\n").unwrap();
+    // `status` is the eye of the stages and needs the adapter.
+    std::fs::write(
+        dir.join("keel.toml"),
+        "lang = \"uk\"\nadapter = \"rust\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\n").unwrap();
     git(&dir, &["init", "-q", "-b", "main"]);

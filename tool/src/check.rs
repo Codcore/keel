@@ -333,6 +333,40 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                     .and_then(|base| scope::findings(root, wave).map(|list| (base, list)));
                 match compared {
                     Ok(((sha, from_main), list)) => {
+                        // §6.8/§8.1: a FULL wave rides two branches
+                        // and two PRs. When its own file was born in
+                        // this very diff, the plan PR never happened
+                        // -- and the second human look the paragraph
+                        // asks for went with it.
+                        if docs::weight(wave) == docs::Weight::Full
+                            && git_out(
+                                root,
+                                &[
+                                    "diff",
+                                    "--name-only",
+                                    "--no-renames",
+                                    "--diff-filter=A",
+                                    &sha,
+                                    "HEAD",
+                                    "--",
+                                    &wave_path,
+                                ],
+                            )
+                            .is_some_and(|out| !out.trim().is_empty())
+                        {
+                            rows.push((
+                                wave_path.clone(),
+                                Some(format!(
+                                    "{}\n           {}: {}",
+                                    ta(
+                                        "scope-full-one-branch",
+                                        targs!("wave" => slug.clone(), "weight" => t("word-weight-full")),
+                                    ),
+                                    t("word-instead"),
+                                    ta("scope-full-one-branch-instead", targs!("wave" => slug.clone())),
+                                )),
+                            ));
+                        }
                         // The red birth, judged by the BRANCH (§7.12).
                         // Two audits found this independently: the
                         // paragraph names two holders -- the hook and

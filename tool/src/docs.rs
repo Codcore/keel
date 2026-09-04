@@ -73,6 +73,42 @@ pub struct Wave {
     pub renamed_from: Option<String>,
 }
 
+/// The weight of a wave (§6.8), derived from its file and never
+/// written by hand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Weight {
+    Light,
+    Full,
+}
+
+/// §6.8 word for word: a wave is LIGHT when all three hold at once --
+/// one transform, no contract created or changed, nothing withdrawn.
+/// Otherwise it is FULL. Nothing computed this before wave 0036, so a
+/// chore that grew a NEW CONTRACT called itself light and rode in on
+/// one PR -- without the second human look the paragraph asks for in
+/// exactly that case (norm audit В-2, conformance audit ВАЖКА-6).
+pub fn weight(wave: &Wave) -> Weight {
+    if wave.transforms.len() != 1 {
+        return Weight::Full;
+    }
+    if wave.scenarios.iter().any(|(_, sc)| sc.withdrawn.is_some()) {
+        return Weight::Full;
+    }
+    for (_, transform) in &wave.transforms {
+        if !transform.contracts.is_empty() {
+            return Weight::Full;
+        }
+        for line in &transform.files {
+            if let ScopeLine::Path(path) = line
+                && path.starts_with("keel/contracts/")
+            {
+                return Weight::Full;
+            }
+        }
+    }
+    Weight::Light
+}
+
 /// A contract is a promise that outlives its wave (§2.6-§2.8).
 #[derive(Debug, Clone, Default)]
 pub struct Contract {
