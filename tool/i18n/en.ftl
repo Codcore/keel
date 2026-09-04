@@ -588,3 +588,51 @@ speak-method-source = the text is the methodology as it stood when keel { $versi
 speak-method-unknown = the methodology of this generation has no paragraph "{ $asked }"
 speak-method-unknown-instead = that chapter holds { $bounds }; without an argument keel method shows every chapter
 speak-method-none = no paragraph of that chapter
+
+# The briefing the tool hands a reviewer (wave 0032).
+briefing-header = ── BRIEFING FOR THE REVIEWER (§9.9) ──
+briefing-forbidden =
+    WHAT NOT TO DO (prohibitions first):
+      • TOUCH NOTHING THAT IS NOT YOURS. The disk and /tmp are
+        shared. Delete only what you made yourself. The price is on
+        the record: the reviewer of wave 0026 destroyed 10,128
+        directories belonging to other sessions because this line was
+        missing from his briefing.
+      • Do NOT write into the author's repository. Mutants,
+        counterfactuals and your own probes live in your clone and
+        die with it.
+      • Do not believe the wave's text. A number your own run did not
+        produce is not a number.
+briefing-hygiene =
+    HYGIENE (without it the review does not count):
+      • your own clone: git clone --no-local <root> <your-path>;
+        check git rev-parse --is-shallow-repository = false;
+      • your own CARGO_TARGET_DIR, or you are measuring someone
+        else's cache;
+      • your own binary built from the branch under review, not an
+        installed one;
+      • at the end, clean up YOURS: clone, target (gigabytes),
+        directories.
+briefing-work =
+    WHAT TO DO:
+      • read the wave whole and repeat EVERY measurement it claims;
+      • play counterfactuals: remove one assertion or one line of a
+        court and see whether the battery CATCHES it. What nothing
+        catches is a promise, not a court;
+      • hunt false positives where the author did not look;
+      • name the limits the wave did not name.
+briefing-questions =
+    THE FOUR QUESTIONS (§9.9):
+      1. What did the author keep quiet about?
+      2. Does the plan break? What is missing from the scenario
+         against what the probe actually runs?
+      3. Is what was promised delivered -- and not narrowed?
+      4. Are the corners covered?
+briefing-report =
+    THE REPORT goes to keel/reviews/{ $wave }.md and carries: date,
+    who, the VERDICT (accept / accept with findings / send back for
+    rework); live mechanics with numbers; findings R-1, R-2, … each
+    with weight and PROOF; what you did not find; the four questions
+    in brief; your own mistakes. Numbers come ONLY from runs; what
+    you could not measure, say so and why. Without this file
+    keel close keeps the wave open.

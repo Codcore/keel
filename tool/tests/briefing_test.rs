@@ -29,7 +29,7 @@ fn the_reviewer_is_briefed_by_the_tool() {
     std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\n").unwrap();
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
-        "---\nscenarios:\n  a-promise:\n    covers: [functional.correctness]\ntransforms: {}\n---\n\n## scenario: a-promise\nтекст\n",
+        "---\nscenarios:\n  a-promise:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - a-promise\n    files:\n      - src/lib.rs\n---\n\n## scenario: a-promise\nтекст\n\n## transform: work\nтекст\n",
     )
     .unwrap();
     for args in [
@@ -54,11 +54,13 @@ fn the_reviewer_is_briefed_by_the_tool() {
     }
 
     let package = keel(&["review", dir.to_str().unwrap()]);
+    // The briefing shouts its prohibitions, so the probe reads in one case.
+    let quiet = package.to_lowercase();
 
     // The prohibitions come first, and the one that cost 10,128
     // directories is among them.
     assert!(
-        package.contains("чужого не чіпай"),
+        quiet.contains("чужого не чіпай"),
         "the briefing forbids touching what is not yours:\n{package}"
     );
     assert!(
@@ -74,7 +76,7 @@ fn the_reviewer_is_briefed_by_the_tool() {
         "and where the report goes:\n{package}"
     );
     assert!(
-        package.contains("тільки з бігів"),
+        quiet.contains("тільки з бігів"),
         "and that numbers come from runs, not from reading:\n{package}"
     );
 
