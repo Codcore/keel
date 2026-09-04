@@ -46,7 +46,34 @@ fn keel(args: &[&str]) -> (String, i32) {
     )
 }
 
-const WAVE: &str = "---\nscenarios:\n  a-promise:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - a-promise\n    files:\n      - src/lib.rs\n---\n\n## scenario: a-promise\nтекст обіцянки\n\n## transform: work\nтекст роботи\n";
+/// A wave whose plan is complete: one cut carried by the promise,
+/// every other one answered. The list of cuts comes from the tool
+/// itself, so this fixture cannot fall behind the vocabulary.
+fn wave_text(dir: &std::path::Path) -> String {
+    let (said, _) = keel(&["cuts", dir.to_str().unwrap()]);
+    let mut cuts: Vec<String> = Vec::new();
+    for line in said.lines() {
+        let word = line.trim().split_whitespace().next().unwrap_or("");
+        if word.matches('.').count() == 1
+            && word
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c == '.' || c == '-')
+            && !cuts.contains(&word.to_string())
+        {
+            cuts.push(word.to_string());
+        }
+    }
+    assert!(cuts.len() > 30, "the tool named its cuts: {}", cuts.len());
+    let carried = "functional.correctness";
+    let decisions: String = cuts
+        .iter()
+        .filter(|cut| *cut != carried)
+        .map(|cut| format!("  {cut}: \"не застосовується: проба\"\n"))
+        .collect();
+    format!(
+        "---\nscenarios:\n  a-promise:\n    covers: [{carried}]\ntransforms:\n  work:\n    implements:\n      - a-promise\n    files:\n      - tests/probe_test.rs\ndecisions:\n{decisions}---\n\n## scenario: a-promise\nтекст обіцянки\n\n## transform: work\nтекст роботи\n"
+    )
+}
 
 /// proves: the-red-birth-is-judged-by-the-branch@d13d4f -- the
 /// load-bearing idea of the methodology is that a green test never
@@ -58,18 +85,30 @@ const WAVE: &str = "---\nscenarios:\n  a-promise:\n    covers: [functional.corre
 #[test]
 fn the_red_birth_is_judged_by_the_branch() {
     let dir = keel_sandbox("redbirth");
-    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\n").unwrap();
-    std::fs::write(dir.join("keel/waves/0001-a-wave.md"), WAVE).unwrap();
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("keel/waves/0001-a-wave.md"), wave_text(&dir)).unwrap();
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::write(dir.join("src/lib.rs"), "").unwrap();
+    std::fs::create_dir_all(dir.join("tests")).unwrap();
     git(&dir, &["init", "-q", "-b", "main"]);
     commit(&dir, "start");
 
     // A wave branch that does the work and never earned its red.
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let revision = {
+        let (said, _) = keel(&["rev", dir.to_str().unwrap()]);
+        said.split_once("a-promise@")
+            .map(|(_, tail)| tail.chars().take(6).collect::<String>())
+            .expect("the tool names the scenario's revision")
+    };
     std::fs::write(
-        dir.join("src/lib.rs"),
-        "/// proves: a-promise@0000\n#[test]\nfn a_promise() {}\n",
+        dir.join("tests/probe_test.rs"),
+        format!("/// proves: a-promise@{revision}\n#[test]\nfn a_promise() {{}}\n"),
     )
     .unwrap();
     commit(&dir, "work: the promise, with no red behind it");
@@ -89,11 +128,13 @@ fn the_red_birth_is_judged_by_the_branch() {
     git(&dir, &["checkout", "-q", "main"]);
     git(&dir, &["branch", "-q", "-D", "0001-a-wave"]);
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
-    std::fs::write(dir.join("src/lib.rs"), "// nothing yet\n").unwrap();
+    // git took the directory with the file when the branch went.
+    std::fs::create_dir_all(dir.join("tests")).unwrap();
+    std::fs::write(dir.join("tests/probe_test.rs"), "// nothing yet\n").unwrap();
     commit(&dir, "red: a-promise");
     std::fs::write(
-        dir.join("src/lib.rs"),
-        "/// proves: a-promise@0000\n#[test]\nfn a_promise() {}\n",
+        dir.join("tests/probe_test.rs"),
+        format!("/// proves: a-promise@{revision}\n#[test]\nfn a_promise() {{}}\n"),
     )
     .unwrap();
     commit(&dir, "work: the promise, born red");
