@@ -48,11 +48,7 @@ fn decided() -> String {
 /// that can hold it open is the reviewer's report.
 fn project(name: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
-    std::fs::write(
-        dir.join("keel.toml"),
-        "lang = \"uk\"\nadapter = \"rust\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
     std::fs::write(
         dir.join("Cargo.toml"),
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
@@ -60,6 +56,12 @@ fn project(name: &str) -> common::Sandbox {
     .unwrap();
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\n").unwrap();
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    // The wave, its proof and its work live on the wave's own branch,
+    // so `next` sees the work done and the report missing.
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
     let mut d = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
         if *cut != "functional.correctness" {
@@ -80,12 +82,19 @@ fn project(name: &str) -> common::Sandbox {
         format!("/// proves: it-holds@{rev}\n#[test]\nfn holds_it() {{}}\n"),
     )
     .unwrap();
-    git(&dir, &["init", "-q", "-b", "main"]);
+    std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn b() {}\n").unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "base"]);
-    // The closing court judges the branch it stands on, so the
-    // fixture stands where the wave lives.
-    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    git(&dir, &["commit", "-q", "-m", "red: it-holds"]);
+    git(
+        &dir,
+        &[
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "work: the work of it",
+        ],
+    );
     dir
 }
 
@@ -135,11 +144,7 @@ fn every_wave_has_its_reviewer() {
     // A wave with NO promises at all is read too: merging is still
     // its closure, but a person reads it first.
     let dir = keel_sandbox("chorewave");
-    std::fs::write(
-        dir.join("keel.toml"),
-        "lang = \"uk\"\nadapter = \"rust\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
     std::fs::write(
         dir.join("Cargo.toml"),
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",

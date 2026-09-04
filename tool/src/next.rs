@@ -378,18 +378,17 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
         return Ok(out);
     }
 
-    // §9.9 asks the report of a full wave only (review 0012 R-5): a
-    // light wave rides one PR and one human look -- the closure
-    // court says the same with its light verdict.
-    // Weight is §6.8's question, asked in one place (review 0036
-    // R-1): this used to call close::light, which counted by a rule
-    // of its own and disagreed with `status` about the same wave.
+    // §9.9 asks the report of EVERY wave (the operator's decision of
+    // 2026-09-04). It used to ask it of full waves only, and review
+    // 0036 measured what that meant once the weight was counted by
+    // §6.8 as written: a wave with one transform and a promise would
+    // ride one PR with nobody reading it. Weight still decides how
+    // many pull requests (§6.8, §8.1) and nothing else.
     let light = docs::weight(wave) == docs::Weight::Light;
-    if !light
-        && !root
-            .join("keel/reviews")
-            .join(format!("{}.md", wave.slug))
-            .is_file()
+    if !root
+        .join("keel/reviews")
+        .join(format!("{}.md", wave.slug))
+        .is_file()
     {
         out.push_str(&ta("next-step-review", targs!("wave" => wave.slug.clone())));
         out.push('\n');

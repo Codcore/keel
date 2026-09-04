@@ -461,8 +461,16 @@ pub(crate) fn wave_state(
     legal: &BTreeMap<String, Vec<String>>,
     battery: Option<&Battery>,
 ) -> Result<State, Refusal> {
+    // A wave with no promises has no test to wait for, but §9.9 asks
+    // a person to read it all the same (the operator's decision of
+    // 2026-09-04): merging is its closure only once the report lies
+    // beside it.
     if nothing_to_prove(wave) {
-        return Ok(State::ClosedLight);
+        let report = root.join("keel/reviews").join(format!("{}.md", wave.slug));
+        if report.is_file() {
+            return Ok(State::ClosedLight);
+        }
+        return Ok(State::Progress(vec![t("close-lack-review")]));
     }
 
     let wave_path = root.join("keel/waves").join(format!("{}.md", wave.slug));

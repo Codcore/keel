@@ -2,7 +2,8 @@
 
 > This is the English text of the methodology **this release of the tool
 > carries** — `keel method` serves it, and every refusal the tool prints
-> cites a paragraph of it.
+> cites a paragraph of it. It is the methodology **in force**: the draft
+> mark came off by the operator's decision of 2026-09-04.
 >
 > The methodology is written in Ukrainian, and the Ukrainian text is the
 > source of truth (§1.8): `docs/uk/METHODOLOGY-V2.md`. Where the two
@@ -652,9 +653,12 @@ of two things: a fix, or a refusal said aloud in a line of the PR —
 there is no third state. The reviewer's report is kept as a file,
 `keel/reviews/<wave>.md`, beside the wave: the evidence that a review
 happened travels in the repository rather than staying in a chat, and
-a full wave without that file is not merged — a barrier that
-machinery (a check in the tool) will come to hold, and until it does
-a textual rule, honestly marked as one. The honest limit: machinery does not prove the
+**no wave** without that file is merged — a barrier machinery holds
+(`keel close` does not call the wave closed, and `keel next` leads to
+the reviewer). Weight (§6.8) decides the number of pull requests and
+nothing else: the operator's decision of 2026-09-04 is a reviewer for
+every wave, since "one transform" does not make work safe, only
+small. The honest limit: machinery does not prove the
 reviewer's context was clean; the visible trace of that cleanliness is
 the report itself, and the findings and refusals in it.
 

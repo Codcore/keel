@@ -101,13 +101,20 @@ fn status_tells_where() {
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "a readable project is a green overview:\n{out}");
     assert!(
-        out.contains("0060-light") && out.contains("nothing to prove"),
-        "a wave with no promise is closed by the fact of merge \
-         (§2.11) -- and says THAT, not a weight: review 0036 R-1 \
+        out.contains("0060-light") && out.contains("review"),
+        "a wave with no promise waits for its reviewer like every \
+         other (§9.9, the operator's decision of 2026-09-04); the \
+         line never answers the WEIGHT question -- review 0036 R-1 \
          found two different weights of one wave in one report, both \
          citing §6.8, because this line counted by a rule of its \
          own:\n{out}"
     );
+    // With its report the chore wave closes, and the plan that
+    // depends on it becomes ready.
+    write(&dir, "keel/reviews/0060-light.md", "# Рецензія\n\nok\n");
+    let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert_eq!(code, 0, "still a green overview:\n{out}");
     assert!(
         out.contains("0061-plan") && out.contains("approved, not started"),
         "the plan wave is approved and not started, never red (§6.5):\n{out}"
@@ -201,9 +208,17 @@ fn status_tells_where_second_birth() {
     let (out, err, _) = keel(&["status", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
+        out.contains("0900-l") && out.contains("review"),
+        "a wave with no promise waits for its reviewer too \
+         (§9.9):\n{out}"
+    );
+    write(&dir, "keel/reviews/0900-l.md", "# Рецензія\n\nok\n");
+    let (out, err, _) = keel(&["status", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
         out.contains("0900-l") && out.contains("merging will close it"),
-        "a wave with no promise on its own branch RIDES: no merge \
-         happened, so its fact is not claimed (R-6):\n{out}"
+        "and with the report it RIDES: no merge happened, so its \
+         fact is not claimed (R-6):\n{out}"
     );
     assert!(
         !out.contains("merging closed it"),

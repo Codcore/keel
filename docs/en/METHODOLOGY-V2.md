@@ -1,10 +1,12 @@
 # Keel: the methodology, version 2
 
-> **This is a draft.** The file is assembled step by step by the
-> process in [V2-PROCESS.md](../uk/V2-PROCESS.md). A chapter without
-> the "draft" mark is approved by the operator; a chapter with it is
-> not yet. `METHODOLOGY.md` remains the methodology in force until v2
-> is assembled and accepted whole.
+> **This is the methodology in force.** The operator's decision of
+> 2026-09-04: the "draft" mark is removed. The text is assembled whole
+> -- ten chapters, the constitution and the appendices -- and
+> thirty-seven waves, the whole tool and every one of its courts run on
+> it; the record of how it was assembled is in
+> [V2-PROCESS.md](../uk/V2-PROCESS.md). The first version stays in the
+> archive: [METHODOLOGY-V1.md](METHODOLOGY-V1.md).
 >
 > **This text is a translation.** The methodology of this generation
 > is written in Ukrainian, and the Ukrainian text is the source of
@@ -12,7 +14,7 @@
 > follows them. Where the two disagree, the Ukrainian one is right —
 > and the disagreement is a defect to report, not a choice to make.
 >
-> `translated_from: 033de8` — the revision of the Ukrainian text this
+> `translated_from: c7fd38` — the revision of the Ukrainian text this
 > translation was made from (constitution, rule 4: whoever leans on a
 > text holds its revision). `keel check` compares it with the
 > Ukrainian methodology as it now stands: change the original and the
@@ -658,9 +660,12 @@ of two things: a fix, or a refusal said aloud in a line of the PR —
 there is no third state. The reviewer's report is kept as a file,
 `keel/reviews/<wave>.md`, beside the wave: the evidence that a review
 happened travels in the repository rather than staying in a chat, and
-a full wave without that file is not merged — a barrier that
-machinery (a check in the tool) will come to hold, and until it does
-a textual rule, honestly marked as one. The honest limit: machinery does not prove the
+**no wave** without that file is merged — a barrier machinery holds
+(`keel close` does not call the wave closed, and `keel next` leads to
+the reviewer). Weight (§6.8) decides the number of pull requests and
+nothing else: the operator's decision of 2026-09-04 is a reviewer for
+every wave, since "one transform" does not make work safe, only
+small. The honest limit: machinery does not prove the
 reviewer's context was clean; the visible trace of that cleanliness is
 the report itself, and the findings and refusals in it.
 

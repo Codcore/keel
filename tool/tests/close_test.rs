@@ -279,9 +279,20 @@ fn closure_needs_review_file() {
         out.contains("in progress") && out.contains("review"),
         "a full wave without its review is not closed (§9.9):\n{out}"
     );
+    // Since the operator's decision of 2026-09-04 a wave with no
+    // promises is read by a person too: merging is its closure only
+    // once the report lies beside it (§9.9).
     assert!(
-        out.contains("0013-tidy: closed"),
-        "a chore wave closes by the fact of merge:\n{out}"
+        out.contains("0013-tidy") && out.contains("review"),
+        "a wave with nothing to prove still waits for its \
+         reviewer:\n{out}"
+    );
+    write(&dir, "keel/reviews/0013-tidy.md", "# Рецензія\n\nok\n");
+    let (out2, err2, _) = keel(&["close", dir.to_str().unwrap()]);
+    let out2 = format!("{out2}{err2}");
+    assert!(
+        out2.contains("0013-tidy: closed"),
+        "and then merging closes it:\n{out2}"
     );
 
     // The report lands next to the wave -- closed.
