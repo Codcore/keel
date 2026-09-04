@@ -114,6 +114,8 @@ rev-write-none = nothing has drifted in the open waves — every record they hol
 rev-write-count = records rewritten: { $count }
 
 ## graph module
+graph-scenario-twice = scenario "{ $scenario }" lives in two waves: { $waves } -- a test tag is a bare name, so the machine cannot tell whose promise it proves, and one test closes both
+graph-scenario-twice-instead = give the scenarios different names: one name, one home
 graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
 graph-unknown-cut-instead = the forty cuts ship with the release (§3.4); pick one of them or fix the typo
 graph-double-cover = the cut "{ $slug }" has { $count } live covers: scenarios { $holders } (§10.3 -- exactly one answer)

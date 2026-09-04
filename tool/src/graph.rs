@@ -173,6 +173,39 @@ pub fn cross_findings(waves: &[Wave]) -> Vec<(String, String, String)> {
         .flat_map(|w| w.scenarios.iter().map(|(n, _)| n.as_str()))
         .collect();
 
+    // One name, one home. A test tag is a bare name, so two waves
+    // sharing a scenario name make one test close both -- the bug
+    // audit copied a wave under a new number and `keel close` said
+    // "closed" to both, though the second had no test at all. The
+    // norm never says the slugs are unique either (methodology audit
+    // С-9); until it does, the machine says it.
+    let mut homes: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for wave in waves {
+        for (name, scenario) in &wave.scenarios {
+            // A withdrawn promise no longer holds its name: §2.12
+            // retires it, and the next wave may reuse it honestly.
+            if scenario.withdrawn.is_some() {
+                continue;
+            }
+            homes.entry(name.as_str()).or_default().push(&wave.slug);
+        }
+    }
+    for (name, mut waves_with_it) in homes {
+        if waves_with_it.len() < 2 {
+            continue;
+        }
+        waves_with_it.sort_unstable();
+        let where_ = waves_with_it.join(", ");
+        out.push((
+            waves_with_it[0].to_string(),
+            ta(
+                "graph-scenario-twice",
+                targs!("scenario" => name.to_string(), "waves" => where_),
+            ),
+            t("graph-scenario-twice-instead"),
+        ));
+    }
+
     for wave in waves {
         for target in &wave.depends_on {
             if !slugs.contains(target.as_str()) {

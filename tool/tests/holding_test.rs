@@ -384,7 +384,10 @@ fn plan_window_forgiven_second_birth() {
         &dir,
         "keel/waves/0083-other.md",
         &format!(
-            "---\nscenarios:\n  s: {{covers: [performance.capacity]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\ndecisions:\n  functional.correctness: \"the other wave decides it\"\n{}---\n\n## scenario: s\n\na different body entirely\n\n## transform: t\n\nother work\n",
+            // Its own name: wave 0035 forbids two live waves sharing
+            // one scenario slug, since a test tag is bare and would
+            // close both.
+            "---\nscenarios:\n  other-s: {{covers: [performance.capacity]}}\ntransforms:\n  t:\n    implements: [other-s]\n    files: [src/lib.rs]\ndecisions:\n  functional.correctness: \"the other wave decides it\"\n{}---\n\n## scenario: other-s\n\na different body entirely\n\n## transform: t\n\nother work\n",
             {
                 let mut block = String::new();
                 for cut in keel::graph::cuts() {
@@ -400,13 +403,20 @@ fn plan_window_forgiven_second_birth() {
     write(
         &dir,
         "tests/t_test.rs",
-        &format!("/// proves: s@{other_rev}\n#[test]\nfn holds_other_s() {{}}\n"),
+        &format!("/// proves: other-s@{other_rev}\n#[test]\nfn holds_other_s() {{}}\n"),
     );
     let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
+    // The tag of ANOTHER wave's scenario does not slam this wave's
+    // window (R-9). It used to be a namesake -- the same slug in two
+    // waves -- and wave 0035 made that a finding of its own, since a
+    // bare tag cannot say whose promise it proves and one test then
+    // closed both waves. The situation this guards is still real:
+    // some other wave's tag must not touch this window. It is now
+    // played with a name of its own, which is what the norm requires.
     assert_eq!(
         code, 0,
-        "a foreign namesake tag does not slam the window (R-9):\n{out}"
+        "another wave's tag does not slam the window (R-9):\n{out}"
     );
     assert!(
         out.contains("approved, not started"),

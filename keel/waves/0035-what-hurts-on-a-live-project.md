@@ -39,6 +39,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/one_home_test.rs
+      - tool/tests/holding_test.rs
   the-tool-knows-its-own-words:
     implements:
       - the-tool-answers-when-asked-for-help
