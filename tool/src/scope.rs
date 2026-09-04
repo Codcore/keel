@@ -67,15 +67,25 @@ pub fn current_branch(root: &Path) -> Option<String> {
     // HEAD, the scope court was skipped entirely and a file no
     // transform declared went unseen (conformance audit ВАЖКА-5).
     //
-    // The environment is asked FIRST: where a person or a workflow
-    // has said which branch this is, that is the answer, and git
-    // guessing something else would only argue with them.
-    if let Ok(named) = std::env::var("KEEL_BRANCH") {
-        let named = named.trim().to_string();
-        if !named.is_empty() {
-            return Some(named);
-        }
+    // Asked only where git will not say. Review 0035 R-3: asking the
+    // environment FIRST made it a switch that turns courts off --
+    // KEEL_BRANCH=plan/x silenced the form court, KEEL_BRANCH=main
+    // silenced scope on a real wave branch, and both looked honest in
+    // the verdict. Where git knows the branch, git is the answer; the
+    // environment answers only the case §4.10 named, where git knows
+    // nothing.
+    let from_git = branch_by_git(root);
+    if from_git.is_some() {
+        return from_git;
     }
+    std::env::var("KEEL_BRANCH")
+        .ok()
+        .map(|named| named.trim().to_string())
+        .filter(|named| !named.is_empty())
+}
+
+/// The branch as git alone tells it.
+fn branch_by_git(root: &Path) -> Option<String> {
     let top = git_at(root)
         .args(["rev-parse", "--show-toplevel"])
         .output()
