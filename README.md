@@ -111,7 +111,15 @@ session-start hook puts the current state into the agent's context by itself.
 
 ## Installing
 
-The tool is a Rust crate in `tool/`. Build it and put it on PATH:
+The tool is a Rust crate in `tool/`; git and cargo are all it needs.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Codcore/keel/main/install.sh | sh
+```
+
+That clones the repository into `~/.keel`, builds the release binary and puts
+`keel` in `~/.local/bin`. Run it again to update. `KEEL_REPO`, `KEEL_HOME` and
+`KEEL_BIN` override all three. By hand it is the same three lines:
 
 ```bash
 git clone https://github.com/Codcore/keel ~/.keel
