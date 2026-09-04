@@ -6,8 +6,13 @@ use common::keel_sandbox;
 use std::path::Path;
 use std::process::Command;
 
+/// git with an identity of its own: review 0036 R-11 measured all
+/// five probes of this wave failing on a machine with no global
+/// git config -- a fresh CI container, that is -- while the
+/// twenty-one older ones, which pass `-c user.email`, held.
 fn git(dir: &Path, args: &[&str]) {
     let out = Command::new("git")
+        .args(["-c", "user.email=keel@test", "-c", "user.name=keel-test"])
         .args(args)
         .current_dir(dir)
         .output()
@@ -107,7 +112,78 @@ fn a_plan_branch_carries_no_code() {
 
     let said = check(&dir);
     assert!(
-        said.contains("0099-nowhere"),
-        "a plan branch of no wave is named aloud:\n{said}"
+        said.contains("0099-nowhere") && said.contains("такої хвилі нема"),
+        "a plan branch of no wave gets a word of its own, not the \
+         one meant for a real plan (review 0036 R-3, M17):\n{said}"
+    );
+    assert!(
+        !said.contains("keel/waves/0099-nowhere.md"),
+        "and its finding is addressed to the file it accuses, not to \
+         a wave file that does not exist (review 0036 R-14):\n{said}"
+    );
+
+    // A truncated clone compares nothing, and says so instead of
+    // printing "judged by §4.9" over a comparison that never
+    // happened (review 0036 R-7).
+    let dir = project("planshallow");
+    git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
+    std::fs::write(dir.join("keel/waves/0001-a-wave.md"), WAVE).unwrap();
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        "pub fn a() {}\npub fn sneaked() {}\n",
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "plan: wave 0001"]);
+    let shallow = keel_sandbox("planshallowclone");
+    std::fs::remove_dir_all(&*shallow).unwrap();
+    let out = Command::new("git")
+        .args([
+            "clone",
+            "-q",
+            "--depth",
+            "1",
+            "--branch",
+            "plan/0001-a-wave",
+            &format!("file://{}", dir.display()),
+            shallow.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "the shallow clone was made: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let said = check(&shallow);
+    assert!(
+        said.contains("не перевірено") && said.contains("не судили"),
+        "a truncated clone says the plan branch was NOT judged, \
+         rather than painting green over a comparison that never \
+         happened (§4.10):\n{said}"
+    );
+
+    // The methodology's own furniture is §4.8's list, not whatever a
+    // project happens to have recorded in [generated]: a project
+    // that never ran `keel update` still owns its skill and its
+    // workflow (review 0036 R-12).
+    let dir = project("furniture");
+    git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
+    std::fs::write(dir.join("keel/waves/0001-a-wave.md"), WAVE).unwrap();
+    std::fs::create_dir_all(dir.join(".claude/skills/keel")).unwrap();
+    std::fs::write(dir.join(".claude/skills/keel/SKILL.md"), "скіл\n").unwrap();
+    std::fs::create_dir_all(dir.join(".github/workflows")).unwrap();
+    std::fs::write(dir.join(".github/workflows/keel.yml"), "name: keel\n").unwrap();
+    std::fs::write(dir.join("AGENTS.md"), "агенти\n").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "plan: wave 0001 with its furniture"],
+    );
+    let said = check(&dir);
+    assert!(
+        !said.contains("несе план, а не код"),
+        "the skill, the CI file and AGENTS.md are the methodology's \
+         own furniture on any branch (§4.8):\n{said}"
     );
 }

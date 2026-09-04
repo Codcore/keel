@@ -101,8 +101,12 @@ fn status_tells_where() {
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "a readable project is a green overview:\n{out}");
     assert!(
-        out.contains("0060-light") && out.contains("light") && out.contains("closed by merge"),
-        "the light wave carries its weight and merge-fact stage (§6.8):\n{out}"
+        out.contains("0060-light") && out.contains("nothing to prove"),
+        "a wave with no promise is closed by the fact of merge \
+         (§2.11) -- and says THAT, not a weight: review 0036 R-1 \
+         found two different weights of one wave in one report, both \
+         citing §6.8, because this line counted by a rule of its \
+         own:\n{out}"
     );
     assert!(
         out.contains("0061-plan") && out.contains("approved, not started"),
@@ -197,12 +201,21 @@ fn status_tells_where_second_birth() {
     let (out, err, _) = keel(&["status", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
-        out.contains("0900-l — light, riding this branch"),
-        "a light wave on its own branch rides, no merge fact is guessed (R-6):\n{out}"
+        out.contains("0900-l") && out.contains("merging will close it"),
+        "a wave with no promise on its own branch RIDES: no merge \
+         happened, so its fact is not claimed (R-6):\n{out}"
     );
     assert!(
-        !out.contains("light, closed by merge"),
-        "no merge happened -- the closed-by-merge word would be a guess (R-6):\n{out}"
+        !out.contains("merging closed it"),
+        "no merge happened -- the closed-by-merge word would be a \
+         guess (R-6):\n{out}"
+    );
+    // And here, where the ceremony is still ahead, the weight is
+    // said -- in its own line and by §6.8's own rule (wave 0036).
+    assert!(
+        out.contains("weight light"),
+        "the weight is derived and said where it still decides \
+         something (§6.8):\n{out}"
     );
 
     // A branch named after a wave whose document refused: the branch

@@ -95,13 +95,22 @@ pub fn weight(wave: &Wave) -> Weight {
         return Weight::Full;
     }
     for (_, transform) in &wave.transforms {
-        if !transform.contracts.is_empty() {
-            return Weight::Full;
-        }
+        // "Creates or changes a contract" is read off the DECLARED
+        // FILES, in both spellings §4.1 allows. Review 0036 R-4
+        // measured a chore declaring `one new in keel/contracts/`
+        // sailing through as light -- the very hole this rule exists
+        // to close. And `contracts:` is NOT one of them: the
+        // vocabulary of chapter 3 calls it "what the work leans on",
+        // and leaning on a contract changes nothing (review R-9,
+        // which measured a lawful light wave turned red by it).
         for line in &transform.files {
-            if let ScopeLine::Path(path) = line
-                && path.starts_with("keel/contracts/")
-            {
+            let touches = match line {
+                ScopeLine::Path(path) => path.starts_with("keel/contracts/"),
+                ScopeLine::OneNewIn(dir) => {
+                    dir.starts_with("keel/contracts") || dir == "keel/contracts/"
+                }
+            };
+            if touches {
                 return Weight::Full;
             }
         }

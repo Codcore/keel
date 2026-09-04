@@ -381,7 +381,11 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
     // §9.9 asks the report of a full wave only (review 0012 R-5): a
     // light wave rides one PR and one human look -- the closure
     // court says the same with its light verdict.
-    if !close::light(wave)
+    // Weight is §6.8's question, asked in one place (review 0036
+    // R-1): this used to call close::light, which counted by a rule
+    // of its own and disagreed with `status` about the same wave.
+    let light = docs::weight(wave) == docs::Weight::Light;
+    if !light
         && !root
             .join("keel/reviews")
             .join(format!("{}.md", wave.slug))
@@ -395,7 +399,7 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
     // The PR words go by weight (§6.8; the debt named by the 0015
     // dogfood): a light wave hears its own -- no painted word about
     // a review it never needed.
-    if close::light(wave) {
+    if light {
         out.push_str(&t("next-step-pr-light"));
     } else {
         out.push_str(&t("next-step-pr"));

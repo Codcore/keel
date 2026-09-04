@@ -6,8 +6,13 @@ use common::keel_sandbox;
 use std::path::Path;
 use std::process::Command;
 
+/// git with an identity of its own: review 0036 R-11 measured all
+/// five probes of this wave failing on a machine with no global
+/// git config -- a fresh CI container, that is -- while the
+/// twenty-one older ones, which pass `-c user.email`, held.
 fn git(dir: &Path, args: &[&str]) {
     let out = Command::new("git")
+        .args(["-c", "user.email=keel@test", "-c", "user.name=keel-test"])
         .args(args)
         .current_dir(dir)
         .output()
@@ -126,5 +131,54 @@ fn work_without_a_proof_is_red() {
     assert!(
         !said.contains("не має жодного тегу"),
         "a promise with its tag is silence:\n{said}"
+    );
+
+    // A WITHDRAWN promise is outside judgement (§2.12) -- review 0036
+    // R-3 (M13) measured this rule held by nothing: accusing the
+    // withdrawn left the battery green.
+    let dir = project("withdrawnpromise");
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let mut decided = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        decided.push_str(&format!("  {cut}: \"не про цю пісочницю\"\n"));
+    }
+    std::fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        format!(
+            "---\nscenarios:\n  it-holds:\n    covers: [functional.correctness]\n    withdrawn: \"згорнуто\"\ntransforms:\n  work:\n    chore: \"дрібниця\"\n    files:\n      - src/lib.rs\n{decided}---\n\n## scenario: it-holds\nтіло обіцянки\n\n## transform: work\nтіло роботи\n"
+        ),
+    )
+    .unwrap();
+    std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn b() {}\n").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "work: on a withdrawn promise"],
+    );
+    let (said, _) = check(&dir);
+    assert!(
+        !said.contains("не має жодного тегу"),
+        "a withdrawn promise is outside judgement (§2.12):\n{said}"
+    );
+
+    // And a project the tags were never read for accuses nobody:
+    // without the rust adapter there is nothing to read them from.
+    let dir = project("noadapter");
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\n").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "chore: no adapter"]);
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    std::fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        wave("functional.correctness"),
+    )
+    .unwrap();
+    std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn b() {}\n").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "work: no tags to read"]);
+    let (said, _) = check(&dir);
+    assert!(
+        !said.contains("не має жодного тегу"),
+        "where the tags were never read, nothing is accused:\n{said}"
     );
 }

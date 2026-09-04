@@ -438,17 +438,20 @@ pub fn structural(root: &Path, wave: &Wave, tags: &[TestTag]) -> Result<bool, Re
     ))
 }
 
-/// A light wave is §6.8's word, not "chores only": exactly one
-/// transform, a chore, touching no contracts -- and nothing
-/// withdrawn: the death of a promise gets two human looks (review
-/// R-5). Opened pub(crate) so the step hand and the stage eye judge
-/// weight by the same word.
-pub(crate) fn light(wave: &docs::Wave) -> bool {
-    wave.transforms.len() == 1
-        && wave.transforms.iter().all(|(_, tr)| {
-            matches!(tr.kind, docs::TransformKind::Chore(_)) && tr.contracts.is_empty()
-        })
-        && wave.scenarios.is_empty()
+/// A wave with nothing to prove: it carries no scenario at all, so
+/// there is no test to wait for and merging closes it (§2.11).
+///
+/// This used to be called `light` and cite §6.8, and it counted by a
+/// rule of its own -- so the tool said one weight here and another in
+/// `status`, both citing the same paragraph (review 0036 R-1). Weight
+/// is §6.8's question and lives in `docs::weight`; this is a
+/// different question, and the two are asked apart now. The weight
+/// still decides the ceremony: a FULL wave is never closed by merge
+/// alone, even with nothing to prove, because §6.8 buys a second
+/// human look for exactly that case -- a chore that grows a contract
+/// (review R-2 measured `close` calling one closed and green).
+pub(crate) fn nothing_to_prove(wave: &docs::Wave) -> bool {
+    wave.scenarios.is_empty() && docs::weight(wave) == docs::Weight::Light
 }
 
 pub(crate) fn wave_state(
@@ -458,7 +461,7 @@ pub(crate) fn wave_state(
     legal: &BTreeMap<String, Vec<String>>,
     battery: Option<&Battery>,
 ) -> Result<State, Refusal> {
-    if light(wave) {
+    if nothing_to_prove(wave) {
         return Ok(State::ClosedLight);
     }
 

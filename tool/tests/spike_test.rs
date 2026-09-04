@@ -6,8 +6,13 @@ use common::keel_sandbox;
 use std::path::Path;
 use std::process::Command;
 
+/// git with an identity of its own: review 0036 R-11 measured all
+/// five probes of this wave failing on a machine with no global
+/// git config -- a fresh CI container, that is -- while the
+/// twenty-one older ones, which pass `-c user.email`, held.
 fn git(dir: &Path, args: &[&str]) {
     let out = Command::new("git")
+        .args(["-c", "user.email=keel@test", "-c", "user.name=keel-test"])
         .args(args)
         .current_dir(dir)
         .output()
@@ -94,6 +99,26 @@ fn research_does_not_merge() {
         "and the refusal says what to do instead -- bring the finding \
          back as a wave:\n{said}"
     );
+
+    // And "the documents are not judged" is true of the whole
+    // report, not only of one line in it. Review 0036 R-5 measured
+    // the §4.12 court running on a spike branch and contradicting
+    // that very sentence two lines below itself.
+    let dir = project("spikedocs");
+    git(&dir, &["checkout", "-q", "-b", "spike/try-something"]);
+    git(&dir, &["rm", "-q", "keel/waves/0001-a-wave.md"]);
+    git(&dir, &["commit", "-q", "-m", "spike: throwing things out"]);
+    // git takes the now-empty directory with the last file in it,
+    // and an absent documents directory is an older court's finding
+    // -- not the one under test here.
+    std::fs::create_dir_all(dir.join("keel/waves")).unwrap();
+    let (said, code) = keel(&dir, "check");
+    assert!(
+        !said.contains("зник із гілки"),
+        "on a research branch the documents are not judged, which is \
+         what the report says of itself (§4.13):\n{said}"
+    );
+    assert_eq!(code, 0, "and research is not a finding:\n{said}");
 
     // An ordinary branch is untouched by any of this.
     let dir = project("ordinary");

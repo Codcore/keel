@@ -120,6 +120,9 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // truncated history gets a word, not a judgement.
     let shallow = is_shallow(root);
     let has_history = has_git(root);
+    // Limits gathered while judging, said in the verdict's own
+    // margin rather than swallowed (§4.10, wave 0031).
+    let mut extra_limits: Vec<String> = Vec::new();
     // Tags are read once and serve three floors: the tag floor, the
     // §7.15 delta, and the §5.6 narrowing through structural closure.
     let found_tags: Option<Result<Vec<tags::TestTag>, Refusal>> = config
@@ -272,17 +275,32 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // declared files -- or an honest line that no judging happened.
     // Not compared is not a finding: the deviation is named, green is
     // not painted over the unverified.
-    // §4.12: a document does not vanish. Judged on every branch, not
-    // only one named after a wave -- a deletion is a deletion.
-    if has_history && !shallow {
-        for (file, reason, instead) in vanished_documents(root, &scan) {
-            rows.push((
-                file,
-                Some(format!(
-                    "{reason}\n           {}: {instead}",
-                    t("word-instead")
-                )),
-            ));
+    // §4.12: a document does not vanish. Judged on every branch
+    // named after anything but research -- on `spike/*` the sentence
+    // of §4.13 is "the documents are not judged", and review 0036 R-5
+    // measured this court making that sentence a lie in its own
+    // report.
+    let researching = scope::spike_branch(root).is_some();
+    if !researching {
+        // The limit said aloud instead of painted green (§4.10): a
+        // truncated history, no history at all, or a trunk this clone
+        // cannot name gives no base to compare against -- and review
+        // 0036 R-6 and R-8 measured both halves of the silence, one
+        // of them inventing findings about a file deleted years ago.
+        match compare_state(root, shallow, has_history) {
+            Compared::Yes => {
+                for (file, reason, instead) in vanished_documents(root, &scan) {
+                    rows.push((
+                        file,
+                        Some(format!(
+                            "{reason}\n           {}: {instead}",
+                            t("word-instead")
+                        )),
+                    ));
+                }
+            }
+            Compared::No(why) => extra_limits.push(why),
+            Compared::Silent => {}
         }
     }
 
@@ -303,25 +321,58 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         Some(branch) if branch.starts_with("plan/") => {
             let planned = scope::plan_branch(root).unwrap_or_default();
             let known = scan.waves.iter().any(|w| w.slug == planned);
-            match scope::plan_findings(root, &generated) {
-                Ok(list) => {
-                    for (reason, instead) in list {
+            // Compared, or said aloud that it was not: review 0036
+            // R-7 measured a shallow clone whose base IS the head
+            // printing "judged by §4.9" over a comparison that never
+            // happened -- the §4.10 lie word for word.
+            match compare_state(root, shallow, has_history) {
+                Compared::No(why) => {
+                    extra_limits.push(why);
+                    ta(
+                        "check-scope-plan-unjudged",
+                        targs!("branch" => branch, "wave" => planned),
+                    )
+                }
+                Compared::Silent => ta(
+                    "check-scope-plan-unjudged",
+                    targs!("branch" => branch, "wave" => planned),
+                ),
+                Compared::Yes => match scope::plan_findings(root, &generated) {
+                    Ok(list) => {
+                        for (file, reason, instead) in list {
+                            rows.push((
+                                file,
+                                Some(format!(
+                                    "{reason}\n           {}: {instead}",
+                                    t("word-instead")
+                                )),
+                            ));
+                        }
+                        let key = if known {
+                            "check-scope-plan"
+                        } else {
+                            "check-scope-plan-nowave"
+                        };
+                        ta(key, targs!("branch" => branch, "wave" => planned))
+                    }
+                    // A branch git cannot answer about is a line in
+                    // the report, not the end of it -- the wave
+                    // branch beside it has said so since 0012, and
+                    // review 0036 R-13 measured this one throwing the
+                    // whole verdict away instead.
+                    Err(refusal) => {
                         rows.push((
-                            format!("keel/waves/{planned}.md"),
+                            refusal.file.display().to_string(),
                             Some(format!(
-                                "{reason}\n           {}: {instead}",
-                                t("word-instead")
+                                "{}\n           {}: {}",
+                                refusal.reason,
+                                t("word-instead"),
+                                refusal.instead
                             )),
                         ));
+                        t("check-scope-skipped-refused")
                     }
-                    let key = if known {
-                        "check-scope-plan"
-                    } else {
-                        "check-scope-plan-nowave"
-                    };
-                    ta(key, targs!("branch" => branch, "wave" => planned))
-                }
-                Err(refusal) => return Err(refusal),
+                },
             }
         }
         Some(branch) => match scope::branch_wave(root, &scan.waves) {
@@ -353,6 +404,14 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                 ],
                             )
                             .is_some_and(|out| !out.trim().is_empty())
+                            // Unless the plan branch exists and
+                            // already carries the file: §8.1's two
+                            // PRs are then under way, the plan one
+                            // simply not merged yet. Review 0036 R-10
+                            // measured the lawful sequence accused,
+                            // with an instead telling the author to
+                            // do what they had already done.
+                            && !planned_elsewhere(root, &slug, &wave_path)
                         {
                             rows.push((
                                 wave_path.clone(),
@@ -635,7 +694,8 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     if refs_no_history > 0 {
         writeln!(report, "{}", t("check-refs-no-history")).unwrap();
     }
-    let limits = verdict_limits(root, refs_unjudged);
+    let mut limits = verdict_limits(root, refs_unjudged);
+    limits.extend(extra_limits);
     for limit in &limits {
         writeln!(report, "{limit}").unwrap();
     }
@@ -668,6 +728,57 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     writeln!(report, "{next}").unwrap();
 
     Ok(Outcome { report, findings })
+}
+
+/// Whether the wave's own plan branch exists and already carries its
+/// file (§8.1): then the plan PR is under way and the file did not
+/// come into being beside the work.
+fn planned_elsewhere(root: &Path, slug: &str, wave_path: &str) -> bool {
+    for branch in [format!("plan/{slug}"), format!("origin/plan/{slug}")] {
+        if git_out(root, &["cat-file", "-e", &format!("{branch}:{wave_path}")]).is_some() {
+            return true;
+        }
+    }
+    false
+}
+
+/// Whether a comparison against the fork point is possible at all,
+/// and if not, in what words. Review 0036 R-6, R-7 and R-8 measured
+/// three silences behind one green: a truncated clone whose base is
+/// HEAD itself, a project with no git, and a trunk not called `main`
+/// -- where the base falls back to the root commit and every ancient
+/// deletion is dragged up as a finding nobody can act on.
+enum Compared {
+    Yes,
+    /// Nothing to compare and nothing worth saying: there is no
+    /// repository here at all.
+    Silent,
+    No(String),
+}
+
+fn compare_state(root: &Path, shallow: bool, has_history: bool) -> Compared {
+    // A directory with no git at all is not a clone with problems --
+    // it is not a clone, and asking it about fork points would be
+    // the noise review 0031 R-8 already took out once.
+    if !has_history {
+        return Compared::Silent;
+    }
+    if shallow {
+        return Compared::No(t("limit-shallow-diff"));
+    }
+    let Ok((base, from_main)) = scope::compare_base(root) else {
+        return Compared::No(t("limit-no-base"));
+    };
+    if !from_main {
+        return Compared::No(t("limit-no-trunk"));
+    }
+    // A base that IS the head is the trunk itself, once a truncated
+    // history has been ruled out above: there are no commits of our
+    // own to compare, and saying so on every main-branch run would
+    // be noise, not honesty (the verdict-limits probe of wave 0031
+    // measured exactly that).
+    let _ = base;
+    Compared::Yes
 }
 
 /// What this verdict could NOT judge, in its own words.
