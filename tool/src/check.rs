@@ -272,6 +272,20 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // declared files -- or an honest line that no judging happened.
     // Not compared is not a finding: the deviation is named, green is
     // not painted over the unverified.
+    // §4.12: a document does not vanish. Judged on every branch, not
+    // only one named after a wave -- a deletion is a deletion.
+    if has_history && !shallow {
+        for (file, reason, instead) in vanished_documents(root, &scan) {
+            rows.push((
+                file,
+                Some(format!(
+                    "{reason}\n           {}: {instead}",
+                    t("word-instead")
+                )),
+            ));
+        }
+    }
+
     let generated: Vec<String> = config.generated.iter().map(|(k, _)| k.clone()).collect();
     let scope_status = match scope::current_branch(root) {
         None => t("check-scope-skipped-no-git"),
@@ -897,6 +911,102 @@ fn tag_rows(
         }
     }
     Ok(out)
+}
+
+/// §4.12: a document does not vanish. A wave or contract file gone
+/// against the base is a finding by slug -- unless a living document
+/// claims the inheritance with `renamed_from`. Two claimants, or a
+/// claimant in the other directory, are findings of their own: the
+/// old name cannot lead to both, and a wave is not a contract.
+///
+/// The conformance audit (ВАЖКА-3) measured the paragraph held by
+/// nothing: the file could simply be deleted, every promise in it
+/// with it, while §2.12 says a promise dies by `withdrawn` and by
+/// nothing else. `renamed_from` was parsed and read by no one.
+fn vanished_documents(root: &Path, scan: &docs::Scan) -> Vec<(String, String, String)> {
+    let Ok((base, _)) = scope::compare_base(root) else {
+        return Vec::new();
+    };
+    let Some(listing) = git_out(
+        root,
+        &[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--diff-filter=D",
+            &base,
+            "HEAD",
+            "--",
+            "keel/waves",
+            "keel/contracts",
+        ],
+    ) else {
+        return Vec::new();
+    };
+    // Who claims what, among the documents alive at HEAD.
+    let mut heirs: std::collections::BTreeMap<&str, Vec<(&str, &str)>> = Default::default();
+    for wave in &scan.waves {
+        if let Some(from) = &wave.renamed_from {
+            heirs
+                .entry(from.as_str())
+                .or_default()
+                .push((wave.slug.as_str(), "keel/waves"));
+        }
+    }
+    for contract in &scan.contracts {
+        if let Some(from) = &contract.renamed_from {
+            heirs
+                .entry(from.as_str())
+                .or_default()
+                .push((contract.slug.as_str(), "keel/contracts"));
+        }
+    }
+
+    let mut out = Vec::new();
+    let mut said: std::collections::BTreeSet<&str> = Default::default();
+    for path in listing.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        let Some((home, file)) = path.rsplit_once('/') else {
+            continue;
+        };
+        let Some(slug) = file.strip_suffix(".md") else {
+            continue;
+        };
+        let claimed = heirs.get(slug).map(Vec::as_slice).unwrap_or(&[]);
+        match claimed {
+            [] => out.push((
+                path.to_string(),
+                ta("scope-vanished", targs!("slug" => slug.to_string())),
+                t("scope-vanished-instead"),
+            )),
+            [(heir, where_)] => {
+                if *where_ != home {
+                    out.push((
+                        format!("{where_}/{heir}.md"),
+                        ta(
+                            "scope-moved-across",
+                            targs!("slug" => slug.to_string(), "heir" => heir.to_string()),
+                        ),
+                        t("scope-moved-across-instead"),
+                    ));
+                }
+            }
+            many => {
+                if said.insert(slug) {
+                    let names: Vec<String> =
+                        many.iter().map(|(heir, _)| (*heir).to_string()).collect();
+                    out.push((
+                        path.to_string(),
+                        ta(
+                            "scope-two-heirs",
+                            targs!("slug" => slug.to_string(), "heirs" => names.join(", ")),
+                        ),
+                        t("scope-two-heirs-instead"),
+                    ));
+                }
+            }
+        }
+    }
+    out
 }
 
 /// The §7.15 delta: scenarios whose tag lived at the fork point and

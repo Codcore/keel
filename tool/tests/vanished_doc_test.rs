@@ -84,6 +84,7 @@ fn a_document_does_not_vanish() {
     // departure is a line in the diff, not an error.
     let dir = project("renamed");
     git(&dir, &["rm", "-q", "keel/contracts/old-name.md"]);
+    std::fs::create_dir_all(dir.join("keel/contracts")).unwrap();
     std::fs::write(
         dir.join("keel/contracts/new-name.md"),
         "---\nmodule: toy\nexports: [\"pub fn a()\"]\nrenamed_from: old-name\n---\n\nтіло контракту\n",
@@ -93,7 +94,7 @@ fn a_document_does_not_vanish() {
     git(&dir, &["commit", "-q", "-m", "chore: renamed"]);
     let said = check(&dir);
     assert!(
-        !said.contains("зник"),
+        !said.contains("зник із гілки") && !said.contains("old-name"),
         "a rename that says so is lawful (§4.12):\n{said}"
     );
 
@@ -101,6 +102,7 @@ fn a_document_does_not_vanish() {
     // name cannot lead to both.
     let dir = project("twoheirs");
     git(&dir, &["rm", "-q", "keel/contracts/old-name.md"]);
+    std::fs::create_dir_all(dir.join("keel/contracts")).unwrap();
     for heir in ["heir-one", "heir-two"] {
         std::fs::write(
             dir.join(format!("keel/contracts/{heir}.md")),
@@ -121,6 +123,7 @@ fn a_document_does_not_vanish() {
     // contract, whatever the header says.
     let dir = project("crossmove");
     git(&dir, &["rm", "-q", "keel/contracts/old-name.md"]);
+    std::fs::create_dir_all(dir.join("keel/contracts")).unwrap();
     std::fs::write(
         dir.join("keel/waves/0003-c-wave.md"),
         "---\nrenamed_from: old-name\nscenarios:\n  it-holds-too:\n    covers: [performance.capacity]\ntransforms:\n  work:\n    implements:\n      - it-holds-too\n    files:\n      - src/lib.rs\n---\n\n## scenario: it-holds-too\nтіло обіцянки\n\n## transform: work\nтіло роботи\n",
