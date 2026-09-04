@@ -49,9 +49,13 @@ transforms:
       - tool/src/docs.rs
       - tool/src/check.rs
       - tool/src/status.rs
+      - tool/src/close.rs
+      - tool/src/next.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/weight_test.rs
+      - tool/tests/status_test.rs
+      - tool/tests/next_test.rs
   a-promise-without-a-test-is-red:
     implements:
       - work-without-a-proof-is-red
@@ -206,8 +210,14 @@ decisions:
 
 ## transform: the-weight-is-derived
 
-`docs.rs` рахує вагу хвилі за §6.8; `check.rs` робить із повної хвилі
-на одній гілці знахідку, `status.rs` називає вагу кожної хвилі.
+`docs.rs` рахує вагу хвилі за §6.8 — і це **єдине** місце, де вона
+рахується: `close.rs` і `next.rs` питають те саме джерело, бо доти
+`close::light` лічив за власним правилом і інструмент друкував дві
+різні ваги однієї хвилі в одному звіті (рецензія R-1). «Доводити нема
+чого» — окреме питання й окремі слова (§2.11), не вага. `check.rs`
+робить із повної хвилі на одній гілці знахідку — крім законної
+послідовності §8.1, де план уже стоїть своєю гілкою або вже дійшов до
+стовбура; `status.rs` називає вагу там, де церемонія ще попереду.
 
 ## transform: a-promise-without-a-test-is-red
 
