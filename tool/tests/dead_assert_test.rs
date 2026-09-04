@@ -74,11 +74,23 @@ fn a_court_that_cannot_fail_is_not_a_court() {
             // every word is still spoken somewhere is alive; one
             // carrying a word the tool no longer says anywhere is
             // not.
+            //
+            // A word the probe itself PUT INTO its fixture is alive
+            // too: a court that hands back a document's own text --
+            // the reason a wave was called off, say -- is measured by
+            // quoting that text, and the tool's vocabulary cannot
+            // contain it by definition. Wave 0037 met exactly that.
             let lost: Vec<&str> = needle
                 .split(|c: char| !c.is_alphanumeric())
                 .filter(|word| word.chars().count() >= 5)
                 .filter(|word| word.chars().any(|c| ('а'..='я').contains(&c)))
                 .filter(|word| !words.contains(&word.to_lowercase()))
+                .filter(|word| {
+                    // Said by the probe somewhere other than this
+                    // very assert: a fixture writes it, this line
+                    // reads it back.
+                    text.match_indices(*word).count() < 2
+                })
                 .collect();
             if !lost.is_empty() {
                 dead.push(format!("{file}:{} — \"{needle}\" ({lost:?})", number + 1));

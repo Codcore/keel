@@ -27,8 +27,13 @@ pub(crate) type Battery = BTreeMap<(String, String), Vec<bool>>;
 /// The structural stages of a wave -- close's own verdicts, opened
 /// pub(crate) so the stage eye (rung 11) asks instead of duplicating.
 pub(crate) enum State {
-    Closed { refs_unjudged: u64 },
+    Closed {
+        refs_unjudged: u64,
+    },
     ClosedLight,
+    /// Called off after it was started (§6): nothing to prove and
+    /// nothing to wait for, and the reason travels with it.
+    Cancelled(String),
     Plan,
     Progress(Vec<String>),
 }
@@ -292,6 +297,13 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
                 ));
                 report.push('\n');
             }
+            State::Cancelled(why) => {
+                report.push_str(&ta(
+                    "close-cancelled",
+                    targs!("wave" => wave.slug.clone(), "why" => why),
+                ));
+                report.push('\n');
+            }
             State::Plan => {
                 report.push_str(&ta("close-plan", targs!("wave" => wave.slug.clone())));
                 report.push('\n');
@@ -434,7 +446,7 @@ pub fn structural(root: &Path, wave: &Wave, tags: &[TestTag]) -> Result<bool, Re
     }
     Ok(matches!(
         wave_state(root, wave, tags, &legal, None)?,
-        State::Closed { .. } | State::ClosedLight
+        State::Closed { .. } | State::ClosedLight | State::Cancelled(_)
     ))
 }
 
@@ -461,6 +473,9 @@ pub(crate) fn wave_state(
     legal: &BTreeMap<String, Vec<String>>,
     battery: Option<&Battery>,
 ) -> Result<State, Refusal> {
+    if let Some(why) = &wave.cancelled {
+        return Ok(State::Cancelled(why.clone()));
+    }
     // A wave with no promises has no test to wait for, but §9.9 asks
     // a person to read it all the same (the operator's decision of
     // 2026-09-04): merging is its closure only once the report lies

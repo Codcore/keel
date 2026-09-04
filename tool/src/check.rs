@@ -123,6 +123,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // Limits gathered while judging, said in the verdict's own
     // margin rather than swallowed (§4.10, wave 0031).
     let mut extra_limits: Vec<String> = Vec::new();
+    let mut cancelled_rows: Vec<String> = Vec::new();
     // Tags are read once and serve three floors: the tag floor, the
     // §7.15 delta, and the §5.6 narrowing through structural closure.
     let found_tags: Option<Result<Vec<tags::TestTag>, Refusal>> = config
@@ -244,6 +245,17 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 }
             }
             Err(refusal) => push_refusal_row(&mut rows, root, &refusal),
+        }
+        // A wave called off is outside judgement (§6, the operator's
+        // decision of 2026-09-04) -- and named aloud, exactly as a
+        // withdrawn promise is: silence would look like a wave nobody
+        // wrote.
+        if let Some(why) = &wave.cancelled {
+            cancelled_rows.push(ta(
+                "check-wave-cancelled",
+                targs!("wave" => wave.slug.clone(), "why" => why.clone()),
+            ));
+            continue;
         }
         for (reason, instead) in graph::wave_findings(wave) {
             rows.push((
@@ -377,6 +389,17 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         }
         Some(branch) => match scope::branch_wave(root, &scan.waves) {
             None => ta("check-scope-skipped-not-wave", targs!("branch" => branch)),
+            Some(slug)
+                if scan
+                    .waves
+                    .iter()
+                    .any(|w| w.slug == slug && w.cancelled.is_some()) =>
+            {
+                ta(
+                    "check-scope-cancelled",
+                    targs!("branch" => branch, "wave" => slug),
+                )
+            }
             Some(slug) => {
                 let wave_path = format!("keel/waves/{slug}.md");
                 let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
@@ -703,6 +726,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     }
     let mut limits = verdict_limits(root, refs_unjudged);
     limits.extend(extra_limits);
+    limits.extend(cancelled_rows);
     for limit in &limits {
         writeln!(report, "{limit}").unwrap();
     }

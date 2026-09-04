@@ -54,11 +54,7 @@ fn wave(cancelled: bool) -> String {
 
 fn project(name: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
-    std::fs::write(
-        dir.join("keel.toml"),
-        "lang = \"uk\"\nadapter = \"rust\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
     std::fs::write(
         dir.join("Cargo.toml"),
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
@@ -74,7 +70,11 @@ fn project(name: &str) -> common::Sandbox {
     // Started: the wave file is written and some work is committed,
     // and then it is decided the wave will not be done.
     std::fs::write(dir.join("keel/waves/0001-a-wave.md"), wave(false)).unwrap();
-    std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn half_done() {}\n").unwrap();
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        "pub fn a() {}\npub fn half_done() {}\n",
+    )
+    .unwrap();
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "work: half of it"]);
     dir
@@ -116,9 +116,7 @@ fn a_started_wave_can_be_cancelled() {
 
     let (said, _) = keel(&dir, "status");
     assert!(
-        said.contains("0001-a-wave")
-            && said.contains("скасован")
-            && said.contains("передумали"),
+        said.contains("0001-a-wave") && said.contains("скасован") && said.contains("передумали"),
         "status names it cancelled and carries the reason \
          verbatim:\n{said}"
     );
@@ -142,8 +140,12 @@ fn a_started_wave_can_be_cancelled() {
     .unwrap();
     let (said, code) = keel(&dir, "check");
     assert_eq!(
-        code, 2,
-        "an empty reason is refused as a broken document, not read \
-         as a cancellation:\n{said}"
+        code, 1,
+        "an empty reason is a broken document (§7.9), not a \
+         cancellation:\n{said}"
+    );
+    assert!(
+        said.contains("cancelled") && said.contains("порожнє"),
+        "and the finding says which field and why:\n{said}"
     );
 }

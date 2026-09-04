@@ -14,7 +14,7 @@
 > follows them. Where the two disagree, the Ukrainian one is right —
 > and the disagreement is a defect to report, not a choice to make.
 >
-> `translated_from: 73a75e` — the revision of the Ukrainian text this
+> `translated_from: 47a8bf` — the revision of the Ukrainian text this
 > translation was made from (constitution, rule 4: whoever leans on a
 > text holds its revision). `keel check` compares it with the
 > Ukrainian methodology as it now stands: change the original and the
@@ -432,6 +432,18 @@ and it is worse -- rename the work `chore` and lose the promise
 altogether. **The honest limit: the machine does not check that the
 mutant is real.** It takes the author's word, says so aloud on its own
 line in the verdict, and leaves the rest to the reviewer's eye.
+
+**§6.3-a. Calling off a started wave** (the operator's decision of
+2026-09-04). A wave begun and then dropped dies by a mark in its
+header: `cancelled: <reason>`. A cancelled wave is outside judgement
+-- neither its promises nor its scope are judged, and `keel close` no
+longer calls it unclosed; instead every court names it aloud with its
+reason, since silence would look like a wave nobody wrote. The reason
+is required: a cancellation without one is not a cancellation. The
+file stays in the repository: deleting a document is always red
+(§4.12), and a cancelled wave is memory too, exactly as a withdrawn
+promise is (§2.12). Rolling back a **merged** wave, and a fast path
+for an urgent fix, are not covered by this paragraph.
 
 **§6.4.** A contract holds when its promise is confirmed — the
 signatures are in place, or the `verify` command passed — and the

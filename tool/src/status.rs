@@ -131,6 +131,15 @@ pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
                 }
                 report.push('\n');
             }
+            State::Cancelled(why) => {
+                // Neither closed nor working: called off, and the
+                // reason travels with it (§6).
+                report.push_str(&ta(
+                    "status-wave-cancelled",
+                    targs!("wave" => wave.slug.clone(), "why" => why.clone()),
+                ));
+                report.push('\n');
+            }
             State::Plan => {
                 plans += 1;
                 report.push_str(&ta("status-wave-plan", targs!("wave" => wave.slug.clone())));

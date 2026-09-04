@@ -57,6 +57,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/called_off_test.rs
+      - tool/tests/dead_assert_test.rs
   the-write-tells-the-truth:
     implements:
       - a-write-that-lies-is-red

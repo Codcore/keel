@@ -71,6 +71,12 @@ pub struct Wave {
     pub decisions: Vec<(String, String)>,
     pub depends_on: Vec<String>,
     pub renamed_from: Option<String>,
+    /// Called off after it was started (§6, the operator's decision
+    /// of 2026-09-04): the reason a person can read. A wave dropped
+    /// half-way had no way to die -- promises can be withdrawn and
+    /// the wave could not -- so the closing court would call it
+    /// unclosed for ever.
+    pub cancelled: Option<String>,
 }
 
 /// The weight of a wave (§6.8), derived from its file and never
@@ -629,7 +635,7 @@ fn as_contract_ref(s: &str, line: usize, what: &str, file: &Path) -> Result<Cont
 }
 
 fn wave_from(root: Val, slug: String, file: &Path) -> Result<Wave, Refusal> {
-    const KNOWN: &str = "scenarios, transforms, decisions, depends_on, renamed_from";
+    const KNOWN: &str = "scenarios, transforms, decisions, depends_on, renamed_from, cancelled";
     let mut slots: Vec<Slot> = as_fields(root, &t("what-wave-header"), file)?
         .into_iter()
         .map(Some)
@@ -706,6 +712,20 @@ fn wave_from(root: Val, slug: String, file: &Path) -> Result<Wave, Refusal> {
     if let Some((_, v)) = take(&mut slots, "renamed_from") {
         wave.renamed_from =
             Some(as_text(v, &ta("what-field", targs!("name" => "renamed_from")), file)?.0);
+    }
+    if let Some((_, v)) = take(&mut slots, "cancelled") {
+        let (why, _) = as_text(v, &ta("what-field", targs!("name" => "cancelled")), file)?;
+        // A cancellation without a reason is not a cancellation: the
+        // whole point of the field is that a person can read WHY the
+        // work stopped, exactly as `withdrawn` carries its reason.
+        if why.trim().is_empty() {
+            return Err(Refusal {
+                file: file.to_path_buf(),
+                reason: t("docs-cancelled-empty"),
+                instead: t("docs-cancelled-empty-instead"),
+            });
+        }
+        wave.cancelled = Some(why);
     }
 
     unknown_left(slots, &t("what-wave-header"), KNOWN, file)?;
