@@ -274,7 +274,12 @@ pub fn body_court(path: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Ref
 /// through the strict parser before landing by plan::write_new's
 /// dot-temp and rename, or nothing lands. A record pointing at a
 /// missing contract is not rewritten -- check names it (§7.1).
-pub fn write(root: &Path) -> Result<(String, usize), Refusal> {
+/// Returns the report, how many records were rewritten, and how many
+/// findings stopped it. The third number is the one the exit code is
+/// made of: the bug audit (B5) measured this hand printing a red
+/// line, then "nothing drifts", and exiting zero -- so CI saw success
+/// where the words said failure.
+pub fn write(root: &Path) -> Result<(String, usize, usize), Refusal> {
     let config = crate::config::read(root)?;
     if !config.rust_adapter() {
         return Err(Refusal {
@@ -293,6 +298,8 @@ pub fn write(root: &Path) -> Result<(String, usize), Refusal> {
     let mut report = t("rev-write-title");
     report.push('\n');
     let mut rewritten: usize = 0;
+    let mut findings: usize = 0;
+    let mut kept: usize = 0;
     for wave in &scan.waves {
         let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
         let mut refs: Vec<&docs::ContractRef> = wave
@@ -325,6 +332,7 @@ pub fn write(root: &Path) -> Result<(String, usize), Refusal> {
             continue;
         }
         if crate::close::structural(root, wave, &found)? {
+            kept += 1;
             report.push_str(&ta("rev-write-kept", targs!("wave" => wave.slug.clone())));
             report.push('\n');
             continue;
@@ -363,6 +371,7 @@ pub fn write(root: &Path) -> Result<(String, usize), Refusal> {
                 }
             }
             Err(refusal) => {
+                findings += 1;
                 let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
                 report.push_str(&format!(
                     "  {:<8} {} — {}\n           {}: {}\n",
@@ -378,13 +387,22 @@ pub fn write(root: &Path) -> Result<(String, usize), Refusal> {
     }
     // The none-word speaks of the open waves: the closed keep their
     // legally drifted records (§5.6) and their leaving lines above.
-    if rewritten == 0 {
+    // "Nothing drifts" is not said over a red line: the report and
+    // the exit code tell the same story or neither is worth reading.
+    if findings > 0 {
+        report.push_str(&ta("rev-write-stopped", targs!("count" => findings as u64)));
+    } else if kept > 0 && rewritten == 0 {
+        // Something DID drift; §5.6 is why it stays. Saying "nothing
+        // drifted" two lines under the record left standing is the
+        // self-contradiction the bug audit (B5) measured.
+        report.push_str(&ta("rev-write-only-kept", targs!("count" => kept as u64)));
+    } else if rewritten == 0 {
         report.push_str(&t("rev-write-none"));
     } else {
         report.push_str(&ta("rev-write-count", targs!("count" => rewritten as u64)));
     }
     report.push('\n');
-    Ok((report, rewritten))
+    Ok((report, rewritten, findings))
 }
 
 /// One full-token replacement pass (review 0016 R-1): the needle

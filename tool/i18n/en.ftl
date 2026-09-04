@@ -110,6 +110,14 @@ rev-write-needs-adapter = the rewriting hand needs the rust adapter named in kee
 rev-write-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
 rev-write-rewritten = { "  " }{ $wave }: { $contract }@{ $old } → { $contract }@{ $new } — the record now holds the current revision
 rev-write-kept = { "  " }{ $wave }: closed — leaving its records to history's court (§5.6)
+rev-write-stopped = the writing hand stopped: { $count } { $count ->
+    [one] finding
+   *[other] findings
+} above -- nothing further was written, and the exit code says the same
+rev-write-only-kept = there was nothing to rewrite: { $count } { $count ->
+    [one] record has drifted
+   *[other] records have drifted
+}, and every one of them is in a closed wave, where the old revision is lawful (§5.6)
 rev-write-none = nothing has drifted in the open waves — every record they hold is current
 rev-write-count = records rewritten: { $count }
 
