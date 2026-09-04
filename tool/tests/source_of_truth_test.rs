@@ -46,8 +46,17 @@ fn the_source_of_truth_is_a_numbered_rule() {
         .output()
         .unwrap();
     let verdict = String::from_utf8_lossy(&out.stdout).to_string();
+    let broken: Vec<&str> = verdict
+        .lines()
+        .filter(|line| line.trim_start().starts_with("red"))
+        .collect();
     assert!(
-        !verdict.contains("skeleton") && !verdict.contains("кістяк"),
-        "the two texts still carry one skeleton:\n{verdict}"
+        broken.is_empty(),
+        "the paragraph arrived in BOTH texts, so the skeleton court \
+         stays green: {broken:?}"
+    );
+    assert!(
+        verdict.contains("one skeleton"),
+        "and the court really ran:\n{verdict}"
     );
 }

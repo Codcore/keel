@@ -24,6 +24,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/briefing_test.rs
+      - BACKLOG.md
   the-wizard-and-the-second-chance:
     implements:
       - the-wizard-asks-what-a-project-needs
@@ -35,6 +36,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/setup_test.rs
+      - tool/tests/ask_test.rs
   the-mouth-carries-all-it-holds:
     implements:
       - the-mouth-serves-every-text-it-carries
