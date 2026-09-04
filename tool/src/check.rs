@@ -272,8 +272,37 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // declared files -- or an honest line that no judging happened.
     // Not compared is not a finding: the deviation is named, green is
     // not painted over the unverified.
+    let generated: Vec<String> = config.generated.iter().map(|(k, _)| k.clone()).collect();
     let scope_status = match scope::current_branch(root) {
         None => t("check-scope-skipped-no-git"),
+        // A plan branch is judged too, and by §4.9: it carries the
+        // plan and nothing else. The conformance audit (ВАЖКА-4)
+        // measured the paragraph held by nothing -- `plan/<wave>` is
+        // not the name of a wave, so the whole floor was skipped.
+        Some(branch) if branch.starts_with("plan/") => {
+            let planned = scope::plan_branch(root).unwrap_or_default();
+            let known = scan.waves.iter().any(|w| w.slug == planned);
+            match scope::plan_findings(root, &generated) {
+                Ok(list) => {
+                    for (reason, instead) in list {
+                        rows.push((
+                            format!("keel/waves/{planned}.md"),
+                            Some(format!(
+                                "{reason}\n           {}: {instead}",
+                                t("word-instead")
+                            )),
+                        ));
+                    }
+                    let key = if known {
+                        "check-scope-plan"
+                    } else {
+                        "check-scope-plan-nowave"
+                    };
+                    ta(key, targs!("branch" => branch, "wave" => planned))
+                }
+                Err(refusal) => return Err(refusal),
+            }
+        }
         Some(branch) => match scope::branch_wave(root, &scan.waves) {
             None => ta("check-scope-skipped-not-wave", targs!("branch" => branch)),
             Some(slug) => {

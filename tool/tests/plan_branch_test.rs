@@ -64,7 +64,9 @@ fn a_plan_branch_carries_no_code() {
 
     let said = check(&dir);
     assert!(
-        said.contains("червоне") && said.contains("src/lib.rs"),
+        said.contains("червоне")
+            && said.contains("src/lib.rs")
+            && said.contains("несе план, а не код"),
         "code on a plan branch is a finding that names the file (§4.9):\n{said}"
     );
     assert!(
@@ -82,7 +84,7 @@ fn a_plan_branch_carries_no_code() {
 
     let said = check(&dir);
     assert!(
-        !said.lines().any(|l| l.contains("§4.9")),
+        !said.contains("несе план, а не код"),
         "a plan branch carrying only the plan is silence:\n{said}"
     );
     assert!(
