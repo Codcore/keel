@@ -34,7 +34,10 @@ else
 fi
 
 echo "keel: building the tool (cargo, release)"
-cargo build --release --quiet --manifest-path "$KEEL_HOME/tool/Cargo.toml"
+# Its own target directory: an inherited CARGO_TARGET_DIR would put
+# the binary somewhere else entirely and the copy below would miss it.
+CARGO_TARGET_DIR="$KEEL_HOME/tool/target" \
+    cargo build --release --quiet --manifest-path "$KEEL_HOME/tool/Cargo.toml"
 
 mkdir -p "$KEEL_BIN"
 cp "$KEEL_HOME/tool/target/release/keel" "$KEEL_BIN/keel"

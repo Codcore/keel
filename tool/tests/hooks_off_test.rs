@@ -69,6 +69,36 @@ fn the_answers_are_obeyed() {
         "the default road is untouched:\n{said}"
     );
 
+    // Where git actually reads the hook -- core.hooksPath, and the
+    // shared directory of a worktree. Review 0037 R-10: a hard-wired
+    // .git/hooks said "not installed" over a hook standing elsewhere.
+    let dir = project("hookspath");
+    std::fs::create_dir_all(dir.join("myhooks")).unwrap();
+    std::fs::write(dir.join("myhooks/commit-msg"), "#!/bin/sh\n# чужий\n").unwrap();
+    git(&dir, &["config", "core.hooksPath", "myhooks"]);
+    let said = init(&dir, &["--no-ask", "--no-hooks", "--lang", "uk"]);
+    assert!(
+        said.contains("not ours"),
+        "a stranger's hook where git really reads it is named as \
+         such, not reported absent (§9.7):\n{said}"
+    );
+    assert!(
+        !said.contains("remove"),
+        "and nobody is told to remove somebody else's file:\n{said}"
+    );
+
+    // The answer already recorded in keel.toml holds for a later run
+    // that carries no flag at all (review 0037 R-11).
+    let dir = project("standing");
+    init(&dir, &["--no-ask", "--no-hooks", "--lang", "uk"]);
+    assert!(!dir.join(".git/hooks/commit-msg").exists(), "no hook yet");
+    let said = init(&dir, &["--no-ask", "--lang", "uk"]);
+    assert!(
+        !dir.join(".git/hooks/commit-msg").exists(),
+        "a second run without flags does not overrule the config's \
+         own answer:\n{said}"
+    );
+
     // A hook that is already ours is not swept away by a later "no":
     // removing what a person may rely on is not this command's to do.
     let dir = project("already");

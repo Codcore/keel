@@ -116,11 +116,26 @@ pub fn run(root: &Path, answers: &Answers) -> Result<(String, usize), Refusal> {
     // installed hook is not swept away by a later "no" -- removing
     // what a person may rely on is not this command's to do -- but it
     // is said aloud that nobody maintains it now.
-    if answers.hooks == Some(false) {
-        let key = if root.join(".git/hooks/commit-msg").is_file() {
-            "init-hook-off-standing"
-        } else {
-            "init-hook-off"
+    // The answer as it STANDS, not only as this call carries it:
+    // review 0037 R-11 measured a second `keel init` without flags
+    // re-installing the hook over a keel.toml that said no.
+    let hooks_off = answers.hooks == Some(false)
+        || (answers.hooks.is_none()
+            && crate::config::read_unpinned(root).is_ok_and(|config| !config.hooks));
+    if hooks_off {
+        // Asking git where the hook would live, and whose it is
+        // (review 0037 R-10): a hard-wired .git/hooks said "not
+        // installed" over a hook in core.hooksPath or a worktree's
+        // shared directory, and called a stranger's hook ours.
+        let key = match gate::hook_path(root) {
+            Some(path) if path.is_file() => {
+                if gate::hook_is_ours(&path) {
+                    "init-hook-off-standing"
+                } else {
+                    "init-hook-off-foreign"
+                }
+            }
+            _ => "init-hook-off",
         };
         report.push_str("  ");
         report.push_str(&t(key));

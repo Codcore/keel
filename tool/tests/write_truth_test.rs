@@ -68,7 +68,7 @@ fn decided(except: &str) -> String {
     d
 }
 
-/// proves: a-write-that-lies-is-red@56283f -- the bug audit (B5)
+/// proves: a-write-that-lies-is-red@6ee6d7 -- the bug audit (B5)
 /// measured `keel rev --write` printing a red line, then the words
 /// "nothing drifts", and exiting ZERO. CI sees the zero and drives
 /// on: a hand that failed reported success.
@@ -143,6 +143,78 @@ fn a_write_that_lies_is_red() {
         "leaving a closed wave's record is lawful, so the code is \
          zero -- and now the words agree with it:\n{said}"
     );
+
+    // And the exit code itself, measured -- review 0037 R-5 showed
+    // the named limit was wrong: rights DO hold, if one is not root.
+    // A directory the hand cannot write into is the shape of the
+    // audit's B5: a red line, and a zero under it.
+    let dir = project("cannotwrite");
+    std::fs::write(
+        dir.join("keel/contracts/anchor.md"),
+        "---\nmodule: toy\nexports: [\"pub fn a()\"]\n---\n\nтіло контракту\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        format!(
+            "---\nscenarios:\n  it-holds:\n    proves: anchor@beef00\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-holds\n    files:\n      - src/lib.rs\n{}---\n\n## scenario: it-holds\nтіло обіцянки\n\n## transform: work\nтіло роботи\n",
+            decided("functional.correctness")
+        ),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let waves = dir.join("keel/waves");
+        let mut perms = std::fs::metadata(&waves).unwrap().permissions();
+        perms.set_mode(0o555);
+        std::fs::set_permissions(&waves, perms).unwrap();
+        // Root ignores the mode, so the hand is run as nobody. Where
+        // that cannot be arranged the case is skipped aloud rather
+        // than pretended.
+        let out = Command::new("setpriv")
+            .args([
+                "--reuid=65534",
+                "--regid=65534",
+                "--clear-groups",
+                env!("CARGO_BIN_EXE_keel"),
+                "rev",
+                "--write",
+                dir.to_str().unwrap(),
+            ])
+            .output();
+        let mut perms = std::fs::metadata(&waves).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&waves, perms).unwrap();
+        match out {
+            Ok(out) => {
+                let said = format!(
+                    "{}{}",
+                    String::from_utf8_lossy(&out.stdout),
+                    String::from_utf8_lossy(&out.stderr)
+                );
+                assert!(
+                    said.contains("червоне"),
+                    "the hand says what stopped it:\n{said}"
+                );
+                assert_ne!(
+                    out.status.code().unwrap_or(-1),
+                    0,
+                    "and the exit code says the same -- a hand that \
+                     failed does not report success (bug audit \
+                     B5):\n{said}"
+                );
+                assert!(
+                    !said.contains("нічого не розійшлось"),
+                    "nor does it deny the drift it just printed:\n{said}"
+                );
+            }
+            Err(why) => eprintln!(
+                "the unwritable case is skipped: setpriv is not here ({why}) -- \
+                 said aloud rather than pretended"
+            ),
+        }
+    }
 
     // Where there is genuinely nothing to write, zero is honest.
     let dir = project("quiet");

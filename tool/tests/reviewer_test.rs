@@ -132,6 +132,18 @@ fn every_wave_has_its_reviewer() {
         "and the next step is the reviewer, whatever the weight:\n{said}"
     );
 
+    // An EMPTY file is not a review: review 0037 R-2 measured `: >
+    // file` passing the gate, with the verdict then claiming the
+    // report was beside the wave -- more than the machine ever
+    // looked at.
+    std::fs::write(dir.join("keel/reviews/0001-a-wave.md"), "   \n\n").unwrap();
+    let (said, code) = keel(&dir, "close");
+    assert_eq!(code, 1, "an empty file is not a review (§9.9):\n{said}");
+    assert!(
+        said.contains("порожній"),
+        "and the reason says exactly that:\n{said}"
+    );
+
     // With the report beside the wave, it closes.
     std::fs::write(
         dir.join("keel/reviews/0001-a-wave.md"),
@@ -140,6 +152,12 @@ fn every_wave_has_its_reviewer() {
     .unwrap();
     let (said, code) = keel(&dir, "close");
     assert_eq!(code, 0, "with the report it closes:\n{said}");
+    assert!(
+        said.contains("машина його не читала"),
+        "and the verdict says only what it measured -- that the FILE \
+         is there, not that a review happened (review 0037 \
+         R-2):\n{said}"
+    );
 
     // A wave with NO promises at all is read too: merging is still
     // its closure, but a person reads it first.

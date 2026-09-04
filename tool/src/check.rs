@@ -136,6 +136,14 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let mut refs_no_history: u64 = 0;
     let mut historic_items: Vec<String> = Vec::new();
     for wave in &scan.waves {
+        // A wave called off is outside judgement whole (§6.3-a):
+        // review 0037 R-1 measured this court and the §7.7 one below
+        // still judging it, so the report said "not judged" and gave
+        // a finding two lines apart -- the very self-contradiction
+        // this wave came to end elsewhere.
+        if wave.cancelled.is_some() {
+            continue;
+        }
         // The history blessing belongs to the structurally closed
         // wave only (§5.6 narrowed; review 0005, R-9): an open wave
         // updates its references deliberately (§5.1).
@@ -224,6 +232,14 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // both ways, an orphan section does not live in silence.
     let tags_judged = matches!(&found_tags, Some(Ok(_)));
     for wave in &scan.waves {
+        // Called off: outside judgement, and said so once, below.
+        if wave.cancelled.is_some() {
+            cancelled_rows.push(ta(
+                "check-wave-cancelled",
+                targs!("wave" => wave.slug.clone(), "why" => wave.cancelled.clone().unwrap_or_default()),
+            ));
+            continue;
+        }
         let wave_path = format!("keel/waves/{}.md", wave.slug);
         // The scenario side of §7.7 runs adapter-free too (review
         // 0011 R-2): where the tag floor did not read the file's
@@ -245,17 +261,6 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 }
             }
             Err(refusal) => push_refusal_row(&mut rows, root, &refusal),
-        }
-        // A wave called off is outside judgement (§6, the operator's
-        // decision of 2026-09-04) -- and named aloud, exactly as a
-        // withdrawn promise is: silence would look like a wave nobody
-        // wrote.
-        if let Some(why) = &wave.cancelled {
-            cancelled_rows.push(ta(
-                "check-wave-cancelled",
-                targs!("wave" => wave.slug.clone(), "why" => why.clone()),
-            ));
-            continue;
         }
         for (reason, instead) in graph::wave_findings(wave) {
             rows.push((
@@ -918,7 +923,9 @@ fn mutant_births(root: &Path, base: &str) -> Vec<String> {
             continue;
         };
         let subject = subject.trim();
-        let Some(rest) = subject.strip_prefix("red:") else {
+        // The same prefix the gate reads, space and all (review
+        // 0037 R-8): `red:` without it matched `red:x` too.
+        let Some(rest) = subject.strip_prefix("red: ") else {
             continue;
         };
         let Some(scenario) = rest.split_whitespace().next() else {
@@ -1147,7 +1154,10 @@ fn tag_rows(
     // and the verdict said nothing. A name is withdrawn only where
     // no wave still holds it alive.
     let mut revs: std::collections::BTreeMap<String, Vec<String>> = Default::default();
-    for wave in waves {
+    // A wave called off is outside judgement whole (§6.3-a) -- its
+    // half-written body is not read, and its refusal is not this
+    // court's row (review 0037 R-1).
+    for wave in waves.iter().filter(|w| w.cancelled.is_none()) {
         let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
         for (name, revision) in rev::scenario_revs(&path)? {
             let entry = wave.scenarios.iter().find(|(n, _)| *n == name);

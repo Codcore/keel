@@ -38,6 +38,12 @@ pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
     let mut legal: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut judged: Vec<&docs::Wave> = Vec::new();
     for wave in &scan.waves {
+        // Called off: its body is not read (§6.3-a), and the state
+        // eye still lists it -- with its reason.
+        if wave.cancelled.is_some() {
+            judged.push(wave);
+            continue;
+        }
         let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
         match rev::scenario_revs(&path) {
             Ok(revs) => {

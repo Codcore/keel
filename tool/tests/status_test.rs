@@ -101,13 +101,25 @@ fn status_tells_where() {
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "a readable project is a green overview:\n{out}");
     assert!(
-        out.contains("0060-light") && out.contains("review"),
+        out.lines()
+            .skip_while(|line| !line.contains("0060-light"))
+            .take(4)
+            .any(|line| line.contains("review")),
         "a wave with no promise waits for its reviewer like every \
-         other (§9.9, the operator's decision of 2026-09-04); the \
-         line never answers the WEIGHT question -- review 0036 R-1 \
-         found two different weights of one wave in one report, both \
-         citing §6.8, because this line counted by a rule of its \
-         own:\n{out}"
+         other (§9.9, the operator's decision of 2026-09-04):\n{out}"
+    );
+    // And that line never answers the WEIGHT question. Review 0036
+    // R-1 found two different weights of one wave in one report,
+    // both citing §6.8, because this line counted by a rule of its
+    // own; review 0037 R-4 measured the guard put in its place
+    // holding nothing, since the word "review" appears in the report
+    // from other waves entirely.
+    assert!(
+        !out.lines().any(|line| {
+            line.contains("0060-light") && (line.contains("— full") || line.contains("weight"))
+        }),
+        "the state line of a wave says its STATE; weight is §6.8's \
+         question and has a line of its own:\n{out}"
     );
     // With its report the chore wave closes, and the plan that
     // depends on it becomes ready.
@@ -179,7 +191,7 @@ fn status_tells_where_second_birth() {
     let (out, err, _) = keel(&["status", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
-        out.contains("0201-new — full, approved, not started"),
+        out.contains("0201-new — approved, not started"),
         "the namesake's foreign proof does not start the plan (R-2, 0011 R-9 school):\n{out}"
     );
     assert!(

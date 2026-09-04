@@ -181,7 +181,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // revision is legal for the slug, and a tag holding a foreign
     // wave's revision is not this wave's lack (review R-3).
     let mut legal: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for wave in &scan.waves {
+    for wave in scan.waves.iter().filter(|w| w.cancelled.is_none()) {
         let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
         for (name, revision) in rev::scenario_revs(&path)? {
             legal.entry(name).or_default().push(revision);
@@ -470,7 +470,11 @@ pub fn structural(root: &Path, wave: &Wave, tags: &[TestTag]) -> Result<bool, Re
     }
     Ok(matches!(
         wave_state(root, wave, tags, &legal, None)?,
-        State::Closed { .. } | State::ClosedLight | State::Cancelled(_)
+        // A cancelled wave is NOT closed: its promises were never
+        // kept, so a wave depending on it is not ready either
+        // (review 0037 R-19). It is simply outside judgement, which
+        // `judge` says in its own words.
+        State::Closed { .. } | State::ClosedLight
     ))
 }
 
@@ -487,7 +491,13 @@ pub fn structural(root: &Path, wave: &Wave, tags: &[TestTag]) -> Result<bool, Re
 /// human look for exactly that case -- a chore that grows a contract
 /// (review R-2 measured `close` calling one closed and green).
 pub(crate) fn nothing_to_prove(wave: &docs::Wave) -> bool {
-    wave.scenarios.is_empty() && docs::weight(wave) == docs::Weight::Light
+    // The weight is not asked here any more (review 0037 R-22): §9.9
+    // now wants a reviewer for every wave, so the second human look
+    // no longer hangs on this question, and §6.8's own line says the
+    // weight decides the number of pull requests and nothing else.
+    // What this asks is its own question: is there a promise to
+    // prove at all?
+    wave.scenarios.is_empty()
 }
 
 pub(crate) fn wave_state(
@@ -653,13 +663,17 @@ pub(crate) fn wave_state(
         ));
     }
 
-    // The §9.9 gate held by mechanics: a full wave carries its review.
-    if !root
-        .join("keel/reviews")
-        .join(format!("{}.md", wave.slug))
-        .is_file()
-    {
-        lacks.push(t("close-lack-review"));
+    // The §9.9 gate held by mechanics: every wave carries its review
+    // (the operator's decision of 2026-09-04). An EMPTY file is not
+    // one -- review 0037 R-2 measured `: > file` passing the gate,
+    // with the verdict then claiming "the review report is beside
+    // it", which is more than the machine ever looked at.
+    match std::fs::read_to_string(root.join("keel/reviews").join(format!("{}.md", wave.slug))) {
+        Err(_) => lacks.push(t("close-lack-review")),
+        Ok(text) if text.split_whitespace().next().is_none() => {
+            lacks.push(t("close-lack-review-empty"))
+        }
+        Ok(_) => {}
     }
 
     if lacks.is_empty() {

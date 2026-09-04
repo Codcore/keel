@@ -469,9 +469,12 @@ wave is **light** when all of these hold at once: it has one transform,
 it neither creates nor changes contracts, and it withdraws nothing
 (`withdrawn`). Otherwise the wave is **full**. A light one travels on
 one branch and one PR; a full one keeps the plan apart from the work
-(chapter 8). The ceremony scales with the risk: a new contract or the
-death of a promise is risk, and it gets two human looks; one transform
-without them does not.
+(chapter 8). Weight decides the NUMBER OF PULL REQUESTS and nothing
+else: every wave has its reviewer (§9.9, the operator's decision of
+2026-09-04). The ceremony scales with the risk in how many times the
+work passes through human hands: a new contract or the death of a
+promise rides two pull requests, one transform without them rides
+one.
 
 ---
 

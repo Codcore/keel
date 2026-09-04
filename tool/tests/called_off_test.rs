@@ -35,6 +35,27 @@ fn keel(dir: &Path, command: &str) -> (String, i32) {
     )
 }
 
+/// A wave whose BODY is missing the section its header promises --
+/// the likeliest state of a wave someone abandoned half-way, and the
+/// state review 0037 R-1 measured being judged despite the report
+/// saying it was not.
+fn half_written(cancelled: bool) -> String {
+    let mut d = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        if *cut != "functional.correctness" {
+            d.push_str(&format!("  {cut}: \"не про цю пісочницю\"\n"));
+        }
+    }
+    let head = if cancelled {
+        "cancelled: \"передумали: обіцянку закриє інша хвиля\"\n"
+    } else {
+        ""
+    };
+    format!(
+        "---\n{head}scenarios:\n  it-holds:\n    proves: anchor@beef00\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-holds\n    files:\n      - src/lib.rs\n      - README.md\n{d}---\n\n## transform: work\nтіло роботи\n"
+    )
+}
+
 fn wave(cancelled: bool) -> String {
     let mut d = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
@@ -129,6 +150,84 @@ fn a_started_wave_can_be_cancelled() {
     assert!(
         said.contains("0001-a-wave") && said.contains("скасован"),
         "saying so by name:\n{said}"
+    );
+
+    // And "outside judgement" means every court, not one of them.
+    // Review 0037 R-1: the §7.7 court (header vs body) and the §7.3
+    // one (contract records) went on judging, so the report said
+    // "not judged" and gave a finding two lines apart. A wave
+    // abandoned half-way is exactly the wave with a missing section
+    // and a record left behind.
+    let dir = project("halfwritten");
+    std::fs::write(
+        dir.join("keel/contracts/anchor.md"),
+        "---\nmodule: toy\nexports: [\"pub fn a()\"]\n---\n\nтіло контракту\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("keel/waves/0001-a-wave.md"), half_written(false)).unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "work: half written"]);
+    let (said, code) = keel(&dir, "check");
+    assert_eq!(code, 1, "half-written and not called off: judged:\n{said}");
+    assert!(
+        said.contains("it-holds") && said.contains("anchor"),
+        "both the §7.7 lack and the §7.3 record are findings:\n{said}"
+    );
+
+    std::fs::write(dir.join("keel/waves/0001-a-wave.md"), half_written(true)).unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "work: and called off"]);
+    let (said, code) = keel(&dir, "check");
+    assert_eq!(
+        code, 0,
+        "called off: EVERY court lets it be, not just the graph \
+         one (§6.3-a):\n{said}"
+    );
+    assert!(
+        !said.contains("it-holds") && !said.contains("anchor@beef00"),
+        "neither the missing section nor the drifted record is a \
+         finding any more:\n{said}"
+    );
+    assert!(
+        said.contains("не судиться") && said.contains("0001-a-wave"),
+        "and the wave is named aloud, so silence does not look like a \
+         wave nobody wrote:\n{said}"
+    );
+
+    // "Every court says so aloud" means the gate and the loop's hand
+    // too. Review 0037 R-6: with the hook `keel init` installs by
+    // default, a cancelled wave's branch could not take a commit at
+    // all -- the gate judged it in silence. R-7: `next` handed out
+    // "write the test" for a scenario of a wave nobody is doing.
+    let msg = dir.join("MSG");
+    for line in ["work: ще трохи", "red: it-holds"] {
+        std::fs::write(&msg, format!("{line}\n")).unwrap();
+        let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+            .args(["gate", msg.to_str().unwrap(), dir.to_str().unwrap()])
+            .output()
+            .unwrap();
+        let said = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(
+            out.status.code().unwrap_or(-1),
+            0,
+            "the gate lets a cancelled wave's branch commit (§6.3-a):\n{said}"
+        );
+        assert!(
+            said.contains("скасован") && said.contains("0001-a-wave"),
+            "and says why, rather than judging in silence:\n{said}"
+        );
+    }
+    std::fs::remove_file(&msg).ok();
+
+    let (said, _) = keel(&dir, "next");
+    assert!(
+        said.contains("скасован") && !said.contains("red: it-holds"),
+        "the loop's hand does not drive work on a wave nobody is \
+         doing (§6.3-a):\n{said}"
     );
 
     // A cancellation with no reason is not a cancellation: the whole

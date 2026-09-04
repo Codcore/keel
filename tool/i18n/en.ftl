@@ -282,6 +282,7 @@ gate-soft = mode: soft -- the same words, a warning only
 gate-hook-installed = the commit-msg hook now calls keel gate -- written to { $path }
 gate-adapter-unjudged = the adapter "{ $name }" is not of this release (it serves "rust") — the commit is not judged: the word stands aloud, the judgement waits for its adapter's wave
 gate-adapter-absent-name = not named
+init-hook-off-foreign = the git hook here is not ours and is not touched (§9.7); this project answered hooks = false, so keel installs none of its own
 init-hook-off = the git hook is not installed: this project answered hooks = false, and the answer holds for it too (§9.3)
 init-hook-off-standing = the git hook is left where it stands: this project answered hooks = false, so nobody maintains it now -- remove .git/hooks/commit-msg by hand, or set hooks = true
 gate-hook-already = the hook is already ours -- quietly the same file
@@ -320,13 +321,15 @@ check-scope-base-first = the first commit of the branch @ { $sha } (no main here
 limit-shallow-diff = not checked: the history is truncated, so vanished documents (§4.12) and code on a plan branch (§4.9) have nothing to be compared against
 limit-no-base = not checked: this clone gives no fork point -- vanished documents (§4.12) and code on a plan branch (§4.9) were not judged
 limit-no-trunk = not checked: this clone knows no main trunk, so there is no fork point -- vanished documents (§4.12) and code on a plan branch (§4.9) were not judged; name the trunk main or fetch origin/main
-check-red-mutant = not checked: the promise "{ $scenario }" was born green under the named exception of §6.3 -- the commit records that { $broke } was broken and the probe named it: { $named }. The machine does not check that the mutant is real; it is the author's word, and the reviewer reads it
-check-wave-cancelled = not judged: wave { $wave } was called off -- { $why } (§6)
-check-scope-cancelled = scope not compared: the branch "{ $branch }" is named after wave { $wave }, which was called off (§6)
-close-cancelled = { $wave }: called off -- { $why } (§6): there is nothing to prove, and the court does not wait for it
-status-wave-cancelled = { "  " }{ $wave } -- called off: { $why } (§6)
+check-red-mutant = not checked: the birth commit of "{ $scenario }" carries a §6.3 mutant line -- { $broke } was broken, and the probe named it: { $named }. Whether this commit took the exception or the test failed anyway was known only to the hook at that moment; the machine checks neither that, nor that the mutant is real -- it is the author's word, and the reviewer reads it
+check-wave-cancelled = not judged: wave { $wave } was called off -- { $why } (§6.3-a)
+check-scope-cancelled = scope not compared: the branch "{ $branch }" is named after wave { $wave }, which was called off (§6.3-a)
+close-cancelled = { $wave }: called off -- { $why } (§6.3-a): there is nothing to prove, and the court does not wait for it
+status-wave-cancelled = { "  " }{ $wave } -- called off: { $why } (§6.3-a)
 docs-cancelled-empty = the cancelled field is empty: a cancellation without a reason is not one (§6)
 docs-cancelled-empty-instead = write why the wave is not being done: a person reads this line, and it stays in the repository for good
+gate-cancelled = wave { $wave } was called off -- { $why } (§6.3-a): this court does not judge it, and the commit passes
+next-cancelled = wave { $wave } was called off -- { $why } (§6.3-a): there is no work here. Take another wave, or plan a new one
 check-untested = the promise "{ $scenario }" has no test tag at all, and the branch already carries work commits (§7.5)
 check-untested-instead = give birth to the test in red (`red: { $scenario }`) and tag it with proves -- or mark the promise withdrawn if it is no longer wanted (§2.12)
 check-scope-spike = the branch "{ $branch }" is research (§4.13): its documents are not judged, and it never merges into main
@@ -390,7 +393,7 @@ close-title = keel close -- the closure court (§6.5)
 close-test-red = { "  " }red test: { $test } ({ $file }) -- it failed in every run
 close-test-flaky = { "  " }flaky test: { $test } ({ $file }) -- it failed in some runs and not others, which is why the battery runs three times (§7.13)
 close-battery = battery: { $count } tests × { $runs } runs (§7.13) — green only when green in every run
-close-closed = { $wave }: closed -- every live scenario proven, references converge, the review lies next to it
+close-closed = { $wave }: closed -- every live scenario proven, references converge, and the review file lies next to it (the machine did not read it: what stands in it is the reviewer's word, and a person reads that)
 close-closed-unjudged = { $wave }: closed -- every live scenario proven, the review lies next to it; { $count } references not judged: history cannot testify here (§5.6)
 close-closed-light = { $wave }: closed (light) -- chores only, closed by the fact of merge
 close-plan = { $wave }: approved, not started -- a plan without tests is not red (§6.5)
@@ -401,6 +404,7 @@ close-lack-red = scenario "{ $scenario }": the test "{ $test }" is red -- not pr
 close-lack-notrun = scenario "{ $scenario }": the battery ran no test named "{ $test }"
 close-lack-flaky = scenario "{ $scenario }": the test "{ $test }" is green in { $green } of { $runs } runs — not green (§7.13)
 close-lack-ref = the reference { $contract }@{ $recorded } does not converge (§6.4)
+close-lack-review-empty = the review file keel/reviews/<wave>.md exists and is empty -- an empty file is not a review (§9.9)
 close-lack-review = the review file keel/reviews/<wave>.md is not next to the wave (§9.9)
 close-price = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; it wants about { $needed } GiB free (measured: one closing leaves 1.26 GiB)
 close-price-paid = price paid: { $target } weighs { $size } GiB
@@ -445,12 +449,12 @@ status-branch-plan = the branch "{ $branch }" is a plan branch -- the plan is be
 status-branch-other = the branch "{ $branch }" is named as no wave -- an overview without one
 status-branch-none = git named no branch for this root -- the overview rides without one, never a guess
 status-branch-broken = the branch "{ $branch }" is named as a wave whose document refused — mend it; the refusal rows stand below
-status-wave-closed = { "  " }{ $wave } — full, closed structurally: tags match, references converge, the review lies next to it
-status-wave-closed-unjudged = { "  " }{ $wave } — full, closed structurally; { $count } references not judged: history cannot testify here (§5.6)
+status-wave-closed = { "  " }{ $wave } — closed structurally: tags match, references converge, and the review file lies next to it
+status-wave-closed-unjudged = { "  " }{ $wave } — closed structurally; { $count } references not judged: history cannot testify here (§5.6)
 status-wave-closed-light = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging closed it (§2.11)
 status-wave-light-own = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§2.11)
-status-wave-plan = { "  " }{ $wave } — full, approved, not started (§6.5)
-status-wave-progress = { "  " }{ $wave } — full, in progress; the lacks, by name:
+status-wave-plan = { "  " }{ $wave } — approved, not started (§6.5)
+status-wave-progress = { "  " }{ $wave } — in progress; the lacks, by name:
 status-awaiting = { "  " }awaits its start: the wave { $wave } — the branch "{ $wave }" (§8.2)
 status-counts = counted: closed { $closed }, in progress { $working }, plans { $plans }
 status-no-battery = the stage here is structural (tags, references, the review) — the battery was not run: green tests are judged by close and the hook (§9.2)
@@ -728,6 +732,13 @@ briefing-work =
         battery;
       • read keel/reviews/ -- earlier reviews say where this author
         has gone wrong before;
+      • write out AS ITS OWN BLOCK every "Then …" commitment from the
+        scenario bodies, and answer each: kept / not kept / kept
+        differently from what is written;
+      • write out SEPARATELY every number the author named (how many
+        tests, how many findings, how many runs) and repeat each with
+        your own measurement: a number nobody checked is a promise
+        too;
       • name the limits the wave did not name.
 briefing-questions =
     THE FOUR QUESTIONS (§9.9, in the words the methodology itself

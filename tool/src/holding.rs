@@ -160,7 +160,7 @@ pub(crate) fn plan_window(
 ) -> Vec<(String, String)> {
     use std::collections::BTreeMap;
     let mut holders: BTreeMap<&str, Vec<&Wave>> = BTreeMap::new();
-    for wave in waves {
+    for wave in waves.iter().filter(|w| w.cancelled.is_none()) {
         let mut slugs: Vec<&str> = Vec::new();
         for (_, scenario) in &wave.scenarios {
             if scenario.withdrawn.is_none()

@@ -49,6 +49,21 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
         return Ok((report, 0));
     };
     let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
+    // A wave called off is outside judgement, and §6.3-a says EVERY
+    // court says so aloud. Review 0037 R-6: this one judged it in
+    // silence, so after a cancellation nothing could be committed on
+    // its branch at all -- with the hook `keel init` installs by
+    // default, the branch was simply frozen.
+    if let Some(why) = &wave.cancelled {
+        let report = format!(
+            "{mode_line}\n{}\n",
+            ta(
+                "gate-cancelled",
+                targs!("wave" => wave.slug.clone(), "why" => why.clone()),
+            )
+        );
+        return Ok((report, 0));
+    }
 
     // The one court that physically runs the toolchain asks the home
     // first (review 0017 R-4): an adapter this release does not
@@ -144,7 +159,10 @@ pub fn mutant_line(message: &str) -> Option<(String, String)> {
         let Some(rest) = line.trim().strip_prefix("mutant:") else {
             continue;
         };
-        let Some((broke, named)) = rest.split_once("->") else {
+        // Both arrows: the tool prints "→" in its own verdict, so
+        // refusing it while showing it was a trap of our own making
+        // (review 0037 R-20).
+        let Some((broke, named)) = rest.split_once("->").or_else(|| rest.split_once('→')) else {
             continue;
         };
         let (broke, named) = (broke.trim(), named.trim());
@@ -307,6 +325,28 @@ const HOOK: &str = "#!/bin/sh\n# keel gate -- the commit judged by the machine (
 /// call over our own hook is quietly the same file; a foreign hook
 /// is never overwritten -- a refusal aloud (§9.7). This is the one
 /// thing the module writes.
+/// Where git will actually read the commit-msg hook -- the shared
+/// directory of a worktree, `core.hooksPath` where someone set it.
+/// Review 0037 R-10: the hooks-off road looked at a hard-wired
+/// `.git/hooks` and so said "not installed" over a hook standing
+/// somewhere else entirely.
+pub fn hook_path(root: &Path) -> Option<std::path::PathBuf> {
+    let out = crate::scope::git_at(root)
+        .args(["rev-parse", "--git-path", "hooks"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let hooks = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!hooks.is_empty()).then(|| root.join(hooks).join("commit-msg"))
+}
+
+/// Whether the hook standing there is the one this release writes.
+pub fn hook_is_ours(path: &Path) -> bool {
+    std::fs::read_to_string(path).is_ok_and(|text| text == HOOK)
+}
+
 pub fn install_hook(root: &Path) -> Result<String, Refusal> {
     // --git-path hooks answers with the directory git will actually
     // read -- the shared hooks of the common dir in a worktree, and

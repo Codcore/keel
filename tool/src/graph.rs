@@ -166,6 +166,10 @@ pub fn cross_findings(waves: &[Wave], contracts: &[String]) -> Vec<(String, Stri
     use crate::targs;
     use std::collections::{BTreeMap, BTreeSet};
 
+    // A wave called off is outside judgement (§6.3-a): it neither
+    // holds a scenario name nor answers for a link.
+    let waves: Vec<&Wave> = waves.iter().filter(|w| w.cancelled.is_none()).collect();
+    let waves = waves.as_slice();
     let mut out = Vec::new();
     let slugs: BTreeSet<&str> = waves.iter().map(|w| w.slug.as_str()).collect();
     let contracts: BTreeSet<&str> = contracts.iter().map(String::as_str).collect();
