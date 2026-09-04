@@ -248,6 +248,27 @@ pub fn package(root: &Path) -> Result<String, Refusal> {
     )
     .unwrap();
 
+    // The briefing goes LAST, after the material: a reviewer reads
+    // it with the wave already in mind, and remembers the end. Until
+    // this wave it was not here at all -- it lived in a chat, written
+    // by hand for each reviewer, so each got a different one (wave
+    // 0032).
+    writeln!(out, "\n{}", t("briefing-header")).unwrap();
+    for part in [
+        "briefing-forbidden",
+        "briefing-hygiene",
+        "briefing-work",
+        "briefing-questions",
+    ] {
+        writeln!(out, "\n{}", t(part)).unwrap();
+    }
+    writeln!(
+        out,
+        "\n{}",
+        ta("briefing-report", targs!("wave" => slug.clone()))
+    )
+    .unwrap();
+
     Ok(out)
 }
 

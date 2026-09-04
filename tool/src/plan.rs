@@ -245,6 +245,21 @@ fn branch_numbers(root: &Path, slug: &str, taken: &mut Vec<u64>) -> bool {
 /// it -- their exists-checks stand before the call -- while
 /// rev --write lawfully sits over an existing wave file (review
 /// 0016 R-5: the home's words tell the truth about its residents).
+/// Writes over a file that already exists, atomically: a temporary
+/// beside it, then a rename. A write that dies half-way leaves the
+/// old file whole (review 0032 R-1).
+pub(crate) fn write_over(file: &Path, text: &str) -> Result<(), Refusal> {
+    let refuse = |e: std::io::Error| Refusal {
+        file: file.to_path_buf(),
+        reason: ta("plan-write-failed", targs!("error" => e.to_string())),
+        instead: t("plan-write-failed-instead"),
+    };
+    let temp = file.with_extension("toml.keel-tmp");
+    std::fs::write(&temp, text).map_err(refuse)?;
+    std::fs::rename(&temp, file).map_err(refuse)?;
+    Ok(())
+}
+
 pub(crate) fn write_new(file: &Path, text: &str) -> Result<(), Refusal> {
     let refuse = |e: std::io::Error| Refusal {
         file: file.to_path_buf(),
