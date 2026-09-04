@@ -315,6 +315,11 @@ fn workflow(config: &Config) -> String {
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}fetch-depth: 0\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the documents judged\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# On a pull_request event actions/checkout leaves a\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# detached HEAD and git serves no branch, so the scope\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# court would be skipped in silence. Sec. 4.10 asks for\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# the branch to be named where git hides it; this names\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# it. Where git does know the branch, git is believed.\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}env:\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}KEEL_BRANCH: ${{{{ github.head_ref || github.ref_name }}}}\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: keel check .\n\
