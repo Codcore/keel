@@ -93,8 +93,6 @@ transforms:
       - docs/uk/METHODOLOGY-V2.md
       - docs/en/METHODOLOGY-V2.md
       - METHODOLOGY.md
-      - docs/uk/QUALITY.md
-      - QUALITY.md
   the-first-implementation-is-buried:
     chore: "перша реалізація (keel.py, tests/ на Python, install.sh, що кличе python3) лежить поруч із чинною і не має жодного суду: два інструменти в одному репозиторії, і жоден не каже, який чинний"
     files:
@@ -103,10 +101,8 @@ transforms:
   the-briefing-pays-its-debt:
     chore: "борг доручення рецензентові: дванадцять рядків, названих рецензіями 0033 і 0034, не дописані двічі"
     files:
-      - tool/src/review.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
-      - tool/tests/briefing_test.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:
