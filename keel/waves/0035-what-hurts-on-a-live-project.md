@@ -22,6 +22,7 @@ transforms:
       - tool/tests/module_exists_test.rs
       - tool/tests/check_test.rs
       - tool/tests/close_test.rs
+      - tool/tests/holding_test.rs
   the-branch-said-aloud:
     implements:
       - the-branch-can-be-named-where-git-hides-it
@@ -33,11 +34,15 @@ transforms:
   one-name-one-home:
     implements:
       - a-scenario-name-belongs-to-one-wave
+    contracts: [tool-graph@5c19a5]
     files:
       - tool/src/graph.rs
+      - tool/src/check.rs
+      - keel/contracts/tool-graph.md
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/one_home_test.rs
+      - tool/tests/graph_test.rs
       - tool/tests/holding_test.rs
   the-tool-knows-its-own-words:
     implements:
@@ -52,6 +57,14 @@ transforms:
     files:
       - docs/uk/V2-PROCESS.md
       - BACKLOG.md
+      - keel/reviews/0035-what-hurts-on-a-live-project.md
+  the-generator-owns-what-it-writes:
+    chore: "рецензія R-9: рядок, дописаний рукою в згенерований файл, лишає лагодження в цьому репозиторії — його місце в генераторі, і сторож класу це тепер міряє"
+    files:
+      - tool/src/generated.rs
+      - .github/workflows/keel.yml
+      - keel.toml
+      - tool/tests/generated_stands_test.rs
 
 decisions:
   functional.appropriateness: "свідомо без тесту: доречність зміряна тим, що це перші чотири речі, які вкусять чужий проєкт — оператор так і сказав, і аудит багів назвав кожну числом"
@@ -160,8 +173,13 @@ detached HEAD, git гілки не дає, і суд scope **пропускає�
 
 ## transform: a-missing-module-is-a-finding
 
-`holding.rs` шукає названий модуль чесно і віддає причину; `check.rs`
-робить із неї знахідку.
+`holding.rs` шукає названий модуль чесно — саме там, де написано, з
+обома законними розкладками (`src/a.rs` і `src/a/mod.rs`), на всю
+глибину імені — і сам віддає знахідку з шляхом, за яким шукав. Імʼя,
+що виводить за межі crate (скісна риска, `..`), не шукається зовсім:
+про нього окрема відповідь. Рецензія 0035 R-13: тут стояло «`check.rs`
+робить із неї знахідку», а `check.rs` цією трансформою не чіпаний —
+знахідку віддає сам суд форми.
 
 ## transform: the-branch-said-aloud
 
@@ -169,15 +187,35 @@ detached HEAD, git гілки не дає, і суд scope **пропускає�
 
 ## transform: one-name-one-home
 
-`graph.rs` бачить однойменні сценарії у двох хвилях.
+`graph.rs` бачить однойменні сценарії у двох живих хвилях — і імʼя
+обіцянки, зайняте слаґом контракту (рецензія R-17): простір імен один,
+бо тег тесту голий. `check.rs` перестає прощати живій обіцянці її суди
+через однойменну зняту в іншій хвилі (R-4) і подає судові слаґи живих
+контрактів.
 
 ## transform: the-tool-knows-its-own-words
 
-`main.rs` вчиться `--help`, невідомим прапорцям і зайвим аргументам;
-підставлення в i18n стає повним.
+`main.rs` вчиться `--help`, невідомим прапорцям і зайвим аргументам —
+у кожній команді, включно з тими, що беруть власне слово перед текою
+(`gate`, `plan`, `new`), і `--help` та `--version` відповідають
+усюди, де їх набрано. Прапорець читається там, де стоїть. Довідка і
+рядок «натомість» звучать мовою проєкту. Підставлення в i18n стає
+повним, і повноту тримає не обхід кількох доріг, а суд самого файлу
+слів проти коду: повідомлення, що називає аргумент, мусить його
+діставати.
 
 ## transform: journal
 
 Журнальні записи bootstrap їдуть своєю хвилею (школа 0009 R-1):
 документ памʼяті лупа — docs/uk/V2-PROCESS.md (§9.10). BACKLOG
-втрачає чотири рядки, які ця хвиля закриває.
+втрачає чотири рядки, які ця хвиля закриває. Сюди ж лягає звіт
+рецензії.
+
+## transform: the-generator-owns-what-it-writes
+
+Рядки, яких потребує `.github/workflows/keel.yml`, пише генератор, а
+не рука: інакше лагодження лишається в цьому репозиторії, а кожен
+чужий проєкт дістає workflow без них, і §9.7 назавжди відмовляється
+чіпати «правлений рукою» файл. Сторож класу міряє це на самому
+репозиторії: жоден названий у `[generated]` файл не сміє розходитися
+з тим, що пише реліз.
