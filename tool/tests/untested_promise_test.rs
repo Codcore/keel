@@ -88,7 +88,7 @@ fn work_without_a_proof_is_red() {
     let (said, code) = check(&dir);
     assert_eq!(code, 1, "work with no proof is red (§7.5):\n{said}");
     assert!(
-        said.contains("it-holds") && said.contains("§7.5"),
+        said.contains("it-holds") && said.contains("не має жодного тегу"),
         "and the finding names the promise left unproven:\n{said}"
     );
 
@@ -106,7 +106,7 @@ fn work_without_a_proof_is_red() {
 
     let (said, _) = check(&dir);
     assert!(
-        !said.contains("§7.5"),
+        !said.contains("не має жодного тегу"),
         "a wave approved and not started is not red (§7.5):\n{said}"
     );
 
@@ -128,7 +128,7 @@ fn work_without_a_proof_is_red() {
 
     let (said, _) = check(&dir);
     assert!(
-        !said.contains("§7.5"),
+        !said.contains("не має жодного тегу"),
         "a promise with its tag is silence:\n{said}"
     );
 }

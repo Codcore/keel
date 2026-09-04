@@ -391,6 +391,24 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                 )),
                             ));
                         }
+                        // §7.5, judged BY THE BRANCH: a wave that
+                        // has work commits and no tag at all was red
+                        // nowhere (conformance audit ВАЖКА-7) -- only
+                        // `keel close` saw it, and only afterwards.
+                        for (scenario, instead) in untested_scenarios(
+                            root,
+                            wave,
+                            &sha,
+                            found_tags.as_ref().and_then(|r| r.as_ref().ok()),
+                        ) {
+                            rows.push((
+                                wave_path.clone(),
+                                Some(format!(
+                                    "{scenario}\n           {}: {instead}",
+                                    t("word-instead")
+                                )),
+                            ));
+                        }
                         for (reason, instead) in list {
                             rows.push((
                                 wave_path.clone(),
@@ -739,6 +757,53 @@ fn verdict_limits(root: &Path, refs_unjudged: u64) -> Vec<String> {
     }
 
     limits
+}
+
+/// §7.5 judged by the BRANCH: a wave whose branch carries work
+/// commits must have a tag for every live promise. The conformance
+/// audit (ВАЖКА-7) measured a branch with work and NOT ONE test
+/// getting zero findings -- §7.5 was held only by `keel close`, and
+/// only after the fact.
+///
+/// A wave approved and not started stays silent: the paragraph says
+/// so in as many words, and no work commit means nothing was
+/// promised proof yet. Where the tags were not read at all (no rust
+/// adapter), nothing is judged rather than everything accused.
+fn untested_scenarios(
+    root: &Path,
+    wave: &docs::Wave,
+    base: &str,
+    found: Option<&Vec<tags::TestTag>>,
+) -> Vec<(String, String)> {
+    let Some(found) = found else {
+        return Vec::new();
+    };
+    if is_shallow(root) {
+        return Vec::new();
+    }
+    let Some(subjects) = git_line(root, &["log", "--format=%s", &format!("{base}..HEAD")]) else {
+        return Vec::new();
+    };
+    // A work commit is the §8.4 grammar: the transform's own slug,
+    // then a colon. `red:` births and anything else are not work.
+    let worked = subjects.lines().any(|line| {
+        let head = line.trim().split(':').next().unwrap_or("").trim();
+        wave.transforms.iter().any(|(slug, _)| slug == head)
+    });
+    if !worked {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (name, scenario) in &wave.scenarios {
+        if scenario.withdrawn.is_some() || found.iter().any(|tag| &tag.scenario == name) {
+            continue;
+        }
+        out.push((
+            ta("check-untested", targs!("scenario" => name.clone())),
+            ta("check-untested-instead", targs!("scenario" => name.clone())),
+        ));
+    }
+    out
 }
 
 /// Scenarios this branch works on that never earned their red.
