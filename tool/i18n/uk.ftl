@@ -114,8 +114,10 @@ rev-write-none = у відкритих хвилях нічого не розій
 rev-write-count = записів переписано: { $count }
 
 ## модуль graph
-graph-scenario-twice = сценарій "{ $scenario }" живе у двох хвилях: { $waves } — тег тесту голий, тож машина не знає, чию обіцянку він доводить, і один тест закриває обидві
+graph-scenario-twice = сценарій "{ $scenario }" живе більш ніж в одній хвилі: { $waves } — тег тесту голий, тож машина не знає, чию обіцянку він доводить, і один тест закриває обидві
 graph-scenario-twice-instead = дай сценаріям різні імена: одне імʼя — один дім
+graph-name-taken = імʼя "{ $name }" носить і обіцянка хвилі { $wave }, і контракт — а тег тесту голий, тож не видно, чию редакцію він тримає
+graph-name-taken-instead = перейменуй одне з двох: імена обіцянок і слаґи контрактів живуть в одному просторі
 graph-unknown-cut = "{ $holder }" показує на розріз "{ $slug }", якого у словнику нема
 graph-unknown-cut-instead = сорок розрізів їдуть з релізом (§3.4); вибери один із них або виправ одрук
 graph-double-cover = розріз "{ $slug }" має { $count } живих covers: сценарії { $holders } (§10.3 — рівно одна відповідь)
@@ -190,9 +192,10 @@ check-holding-count = сигнатур звірено: { $count }
 check-holding-uncompared = { $contract } — форму ніхто не порівнював: { $why } (§7.6)
 holding-why-no-adapter = адаптер у keel.toml не названий
 holding-why-unknown-adapter = названий адаптер не цього релізу (реліз обслуговує "rust")
-holding-why-deep = шлях module глибший, ніж порівнює це покоління
 holding-module-missing = контракт { $contract } називає модуль "{ $module }", якого в коді нема — шукали { $looked } (§2.7, §7.6)
 holding-module-missing-instead = або поклади модуль там, де він названий, або перепиши поле module під те, що є; сигнатури цього контракту доти не звіряються
+holding-module-outside = контракт { $contract } називає модуль "{ $module }", а це не модуль цього crate: ім'я веде за його межі (§2.7, §7.6)
+holding-module-outside-instead = напиши module так, як пише мова — crate, далі модулі всередині, через ::; імені зі скісною рискою або з .. тут не шукають зовсім
 holding-why-no-file = файл модуля в crate не знайдено
 check-holding-plan = план-гілка: суд форми не біжить (§8.3) — exports ростуть наперед коду (§4.9)
 check-holding-window = { $contract } — форма не судиться: обіцянку ростить затверджена, ще не почата хвиля { $wave } (§6.5); перший тег хвилі поверне суд
@@ -510,7 +513,6 @@ generated-appended = { $file } — блок keel дописано; текст н
 generated-refreshed = { $file } — оновлено цим релізом
 generated-stands = { $file } — уже стоїть таким, яким його пише цей реліз
 generated-removed = { $file } — прибрано рукою: то рішення, а не прогалина; нічого не дописується. Щоб мати його знову, прибери його рядок у [generated] keel.toml і повтори keel update
-{ $snippet }
 next-unknown-agent = агент "{ $agent }" не з тих, що знає цей реліз: { $known }
 next-unknown-agent-instead = назви одного з { $known } — форма відповіді сесійного hook-а належить самому агентові, і в неназваного нема документованої форми, якою говорити
 generated-hooks-off = { $file } — більше не генерується: цей проєкт відповів hooks = false. Файл і його рядок у [generated] лишились, і тепер їх ніхто не судить — прибери обидва або постав hooks = true, щоб віддати файл keel-ові назад

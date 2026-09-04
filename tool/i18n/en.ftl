@@ -114,8 +114,10 @@ rev-write-none = nothing has drifted in the open waves — every record they hol
 rev-write-count = records rewritten: { $count }
 
 ## graph module
-graph-scenario-twice = scenario "{ $scenario }" lives in two waves: { $waves } -- a test tag is a bare name, so the machine cannot tell whose promise it proves, and one test closes both
+graph-scenario-twice = scenario "{ $scenario }" lives in more than one wave: { $waves } -- a test tag is a bare name, so the machine cannot tell whose promise it proves, and one test closes both
 graph-scenario-twice-instead = give the scenarios different names: one name, one home
+graph-name-taken = the name "{ $name }" is worn by a promise of wave { $wave } and by a contract at once -- and a test tag is a bare name, so whose revision it holds cannot be seen
+graph-name-taken-instead = rename one of the two: scenario names and contract slugs live in one namespace
 graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
 graph-unknown-cut-instead = the forty cuts ship with the release (§3.4); pick one of them or fix the typo
 graph-double-cover = the cut "{ $slug }" has { $count } live covers: scenarios { $holders } (§10.3 -- exactly one answer)
@@ -190,9 +192,10 @@ check-holding-count = signatures checked: { $count }
 check-holding-uncompared = { $contract } — no one compared the form: { $why } (§7.6)
 holding-why-no-adapter = no adapter named in keel.toml
 holding-why-unknown-adapter = the named adapter is not of this release (it serves "rust")
-holding-why-deep = the module path is deeper than this generation compares
 holding-module-missing = contract { $contract } names module "{ $module }", which is not in the code -- looked for { $looked } (§2.7, §7.6)
 holding-module-missing-instead = put the module where it is named, or rewrite the module field to match what exists; until then this contract's signatures are not compared
+holding-module-outside = contract { $contract } names module "{ $module }", and that is not a module of this crate: the name leads outside it (§2.7, §7.6)
+holding-module-outside-instead = write the module the way the language writes it -- the crate, then the modules inside it, separated by ::; a slash or a .. in the name is not looked for at all
 holding-why-no-file = the module's file was not found in the crate
 check-holding-plan = a plan branch: the form court does not run (§8.3) — exports may grow ahead of the code (§4.9)
 check-holding-window = { $contract } — the form is not judged: the promise is grown by the approved, not started wave { $wave } (§6.5); the wave's first tag brings the court back
@@ -503,7 +506,6 @@ generated-appended = { $file } — the keel block appended; the text above it is
 generated-refreshed = { $file } — refreshed by this release
 generated-stands = { $file } — already stands as this release writes it
 generated-removed = { $file } — removed by hand: a decision, not a gap; nothing is written back. To have it again, delete its line in [generated] of keel.toml and run keel update
-{ $snippet }
 next-unknown-agent = agent "{ $agent }" is not one this release knows: { $known }
 next-unknown-agent-instead = name one of { $known } — the answer shape of a session hook is the agent's own, and an unnamed agent has no documented shape to speak in
 generated-hooks-off = { $file } — no longer generated: this project answered hooks = false. The file and its line in [generated] still stand, and nothing judges them now — remove both, or set hooks = true to hand the file back to keel

@@ -61,7 +61,12 @@ fn exports_held() {
         "src/beta.rs",
         "pub fn beta_keeps(word: &str) -> String {\n    word.to_string()\n}\n",
     );
-    write(&dir, "src/deep.rs", "pub mod inner {}\n");
+    write(&dir, "src/deep/mod.rs", "pub mod inner;\n");
+    write(
+        &dir,
+        "src/deep/inner.rs",
+        "pub fn hidden() -> bool {\n    true\n}\n",
+    );
     write(
         &dir,
         "keel/contracts/toy-alpha.md",
@@ -75,7 +80,7 @@ fn exports_held() {
     write(
         &dir,
         "keel/contracts/toy-deep.md",
-        "---\nmodule: toy::deep::inner\nexports:\n  - \"pub fn hidden() -> bool\"\n---\n\nDeeper than this generation compares.\n",
+        "---\nmodule: toy::deep::inner\nexports:\n  - \"pub fn hidden() -> bool\"\n---\n\nA module two levels down, and held.\n",
     );
 
     let (out, err, code) = keel(&["check", dir.to_str().unwrap()]);
@@ -100,8 +105,11 @@ fn exports_held() {
         "the held signature is not a finding:\n{out}"
     );
     assert!(
-        out.contains("no one compared the form") && out.contains("deeper"),
-        "the deep module gets the word, not green (§7.6):\n{out}"
+        !out.lines()
+            .any(|l| l.contains("toy-deep") && (l.contains("§7.6") || l.contains("hidden"))),
+        "a module two levels down is compared like any other, and a \
+         held promise there is silence (wave 0035 R-5; before it, the \
+         court waved every deep path through unlooked-at):\n{out}"
     );
     assert!(
         out.contains("signatures checked:"),
@@ -421,5 +429,66 @@ fn plan_window_forgiven_second_birth() {
     assert!(
         out.contains("approved, not started"),
         "the lawful plan keeps its window:\n{out}"
+    );
+
+    // What the rewrite above gave up, played the way the norm now
+    // allows (review 0035 R-10): the guard of review 0011 R-1/R-9 is
+    // that a wave is STARTED by a tag holding ITS OWN revision, not
+    // by the bare name. The namesake in a second wave is a finding of
+    // its own since wave 0035, so the case is played with one wave
+    // and a tag whose revision is somebody else's: the wave is still
+    // a plan, and the stale tag is said aloud beside it.
+    let dir = keel_sandbox("foreignrev");
+    write(&dir, "keel.toml", "adapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(&dir, "src/lib.rs", "pub mod alpha;\n");
+    write(
+        &dir,
+        "src/alpha.rs",
+        "pub fn stays(x: u32) -> u32 {\n    x\n}\n",
+    );
+    write(
+        &dir,
+        "keel/contracts/toy-alpha.md",
+        "---\nmodule: toy::alpha\nexports:\n  - \"pub fn stays(x: u32) -> u32\"\n  - \"pub fn planned_ahead() -> bool\"\n---\n\nGrown ahead by the plan (§4.9).\n",
+    );
+    let contract_rev = keel::rev::contract_rev(&dir.join("keel/contracts/toy-alpha.md")).unwrap();
+    let mut decided = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        if *cut != "functional.correctness" {
+            decided.push_str(&format!("  {cut}: \"n/a for the window sandbox\"\n"));
+        }
+    }
+    write(
+        &dir,
+        "keel/waves/0084-plan.md",
+        &format!(
+            "---\nscenarios:\n  s:\n    proves: toy-alpha@{contract_rev}\n    covers: [functional.correctness]\ntransforms:\n  t:\n    implements: [s]\n    contracts: [toy-alpha@{contract_rev}]\n    files: [src/alpha.rs]\n{decided}---\n\n## scenario: s\n\nthe planned body\n\n## transform: t\n\nthe work ahead\n",
+        ),
+    );
+    write(
+        &dir,
+        "tests/t_test.rs",
+        "/// proves: s@beef00\n#[test]\nfn holds_s() {}\n",
+    );
+    let (out, err, _) = keel(&["check", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("approved, not started"),
+        "a tag holding somebody else's revision does not start this \
+         wave -- the window stands (review 0011 R-1/R-9):\n{out}"
+    );
+    assert!(
+        out.contains("beef00"),
+        "and the tag itself is said aloud, not swallowed:\n{out}"
+    );
+    assert!(
+        !out.contains("\"planned_ahead\"") || !out.contains("no such unit"),
+        "the promise grown ahead is not judged while the window \
+         stands:\n{out}"
     );
 }

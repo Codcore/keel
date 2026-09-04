@@ -640,6 +640,11 @@ fn old_revision_legal_when_historic() {
         "Cargo.toml",
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     );
+    // The crate the contract names, with the units it promises. This
+    // fixture had neither, and until wave 0035 the form court was
+    // silent about a module that is not there -- so the whole §5.6
+    // case ran on a false green.
+    write(&dir, "src/lib.rs", "pub fn one() {}\n\npub fn two() {}\n");
     write(
         &dir,
         "tests/s_test.rs",
@@ -707,6 +712,11 @@ fn old_revision_legal_when_historic() {
         &dir,
         "keel/contracts/anchor.md",
         "---\nmodule: toy\nexports: [\"one()\", \"two()\", \"three()\"]\n---\n\nnewest words\n",
+    );
+    write(
+        &dir,
+        "src/lib.rs",
+        "pub fn one() {}\n\npub fn two() {}\n\npub fn three() {}\n",
     );
     git(&dir, &["add", "."]);
     git(&dir, &["commit", "-q", "-m", "newest contract"]);

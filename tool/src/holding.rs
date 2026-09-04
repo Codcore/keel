@@ -16,7 +16,12 @@ use std::path::Path;
 enum Comparability {
     Source(String),
     NoAdapter,
-    Deep,
+    /// Not a module name of this crate at all: it carries a slash or
+    /// a `..`, so it points somewhere outside. Review 0035 R-2:
+    /// `Path::join` with an absolute component REPLACES the path, so
+    /// `module: /home/.../real.rs` had this court read a file outside
+    /// the project and call the contract held.
+    Outside,
     /// The module was looked for and is not there. Wave 0035: this
     /// used to be a note beside a green verdict, and a single-segment
     /// name was silently read as `src/lib.rs` whatever the field
@@ -54,6 +59,19 @@ pub fn court(
                         targs!("contract" => contract.slug.clone(), "module" => module.to_string(), "looked" => looked),
                     ),
                     t("holding-module-missing-instead"),
+                ));
+                continue;
+            }
+            // A name that leaves the crate is never compared, and
+            // never silence (wave 0035).
+            Comparability::Outside => {
+                out.push((
+                    place.clone(),
+                    ta(
+                        "holding-module-outside",
+                        targs!("contract" => contract.slug.clone(), "module" => module.to_string()),
+                    ),
+                    t("holding-module-outside-instead"),
                 ));
                 continue;
             }
@@ -116,11 +134,10 @@ pub(crate) fn survey(root: &Path, config: &Config, contracts: &[Contract]) -> (u
                     t("holding-why-no-adapter")
                 }
             }
-            Comparability::Deep => t("holding-why-deep"),
             Comparability::NoFile => t("holding-why-no-file"),
-            // Said by the court itself as a finding, so it is not
-            // repeated here as an uncompared margin.
-            Comparability::Missing(_) => continue,
+            // Said by the court itself as findings, so they are not
+            // repeated here as uncompared margins.
+            Comparability::Missing(_) | Comparability::Outside => continue,
         };
         uncompared.push(ta(
             "check-holding-uncompared",
@@ -218,17 +235,23 @@ fn judged(contract: &Contract) -> Option<(&str, String)> {
 }
 
 /// Where the module's source lives -- or why it cannot be compared:
-/// the cargo adapter names the crate, the last module segment names
-/// the file (the bare crate itself is src/lib.rs); deeper paths are
-/// beyond this generation.
+/// the cargo adapter names the crate, the segments after it name the
+/// directories and the file (the bare crate itself is src/lib.rs),
+/// and `src/a/mod.rs` is looked for wherever `src/a.rs` is.
 fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
     if !config.rust_adapter() {
         return Comparability::NoAdapter;
     }
-    let segments: Vec<&str> = module.split("::").collect();
-    if segments.len() > 2 {
-        return Comparability::Deep;
+    // A name that reaches outside the crate is not a module of it,
+    // and the court says so instead of looking (review 0035 R-2).
+    if module.starts_with('/')
+        || module
+            .split("::")
+            .any(|part| part == ".." || part.contains('/'))
+    {
+        return Comparability::Outside;
     }
+    let segments: Vec<&str> = module.split("::").collect();
     let Ok(crate_dir) = adapter::crate_root(root) else {
         return Comparability::NoFile;
     };
@@ -236,38 +259,55 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
     // crate's own root -- but only when it IS the crate's name;
     // anything else is a module nobody can find.
     let path = if segments.len() == 1 {
-        let named_the_crate = crate_dir
-            .join("Cargo.toml")
-            .to_str()
-            .map(|_| module)
-            .is_some_and(|name| {
-                std::fs::read_to_string(crate_dir.join("Cargo.toml"))
-                    .map(|text| {
-                        text.lines().any(|line| {
-                            line.split_once('=').is_some_and(|(key, value)| {
-                                key.trim() == "name"
-                                    && value.trim().trim_matches('"').replace('-', "_")
-                                        == name.replace('-', "_")
-                            })
-                        })
+        // Review 0035 R-16: this used to be wrapped in a `join`
+        // and a `to_str` whose result was thrown away -- ceremony
+        // that read as a check and was none.
+        let named_the_crate = std::fs::read_to_string(crate_dir.join("Cargo.toml"))
+            .map(|text| {
+                text.lines().any(|line| {
+                    line.split_once('=').is_some_and(|(key, value)| {
+                        key.trim() == "name"
+                            && value.trim().trim_matches('"').replace('-', "_")
+                                == module.replace('-', "_")
                     })
-                    .unwrap_or(false)
-            });
+                })
+            })
+            .unwrap_or(false);
         if named_the_crate {
-            crate_dir.join("src/lib.rs")
+            let lib = crate_dir.join("src/lib.rs");
+            if !lib.is_file() {
+                return Comparability::Missing("src/lib.rs".to_string());
+            }
+            lib
         } else {
-            let guess = crate_dir.join("src").join(format!("{module}.rs"));
-            if !guess.is_file() {
+            let flat = crate_dir.join("src").join(format!("{module}.rs"));
+            let as_dir = crate_dir.join("src").join(module).join("mod.rs");
+            if flat.is_file() {
+                flat
+            } else if as_dir.is_file() {
+                as_dir
+            } else {
                 return Comparability::Missing(format!("src/{module}.rs"));
             }
-            guess
         }
     } else {
-        let guess = crate_dir.join("src").join(format!("{}.rs", segments[1]));
-        if !guess.is_file() {
-            return Comparability::Missing(format!("src/{}.rs", segments[1]));
+        // Every segment after the crate is a directory, the last one
+        // a file -- and `src/a/mod.rs` is as lawful as `src/a.rs`
+        // (review 0035 R-5 measured the second layout falsely red).
+        // Deeper paths are looked for too: waving them through was
+        // the same silent disarming this wave exists to end (R-2).
+        let inner: Vec<&str> = segments[1..].to_vec();
+        let flat = crate_dir
+            .join("src")
+            .join(format!("{}.rs", inner.join("/")));
+        let as_dir = crate_dir.join("src").join(inner.join("/")).join("mod.rs");
+        if flat.is_file() {
+            flat
+        } else if as_dir.is_file() {
+            as_dir
+        } else {
+            return Comparability::Missing(format!("src/{}.rs", inner.join("/")));
         }
-        guess
     };
     match std::fs::read_to_string(path) {
         Ok(source) => Comparability::Source(source),
