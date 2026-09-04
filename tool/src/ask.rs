@@ -367,7 +367,20 @@ pub fn from_config(config: &crate::config::Config, given: &Answers) -> Answers {
         lang: given.lang.clone().or_else(|| Some(config.lang.clone())),
         adapter: given.adapter.clone().or_else(|| config.adapter.clone()),
         mode: given.mode.clone().or_else(|| Some(config.mode.clone())),
-        agents: given.agents.clone().or_else(|| Some(config.agents.clone())),
+        // Through the accessor, not the raw field: an absent key
+        // means the documented default, and the raw vector is empty.
+        // The bug audit measured one `keel setup` writing
+        // `agents = []` -- a value the tool itself refuses -- and
+        // bricking the project, setup included.
+        agents: given.agents.clone().or_else(|| {
+            Some(
+                config
+                    .agents()
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect::<Vec<String>>(),
+            )
+        }),
         // Seeded, like everything else: review 0032 R-4 measured a
         // project that had said --no-hooks getting them back after a
         // single setup, because this field alone was left unseeded
@@ -400,6 +413,37 @@ pub fn config_text(answers: &Answers) -> String {
         );
     }
     text
+}
+
+/// The answers that were actually given, as the `key = value` rows
+/// they become. An unanswered field is not here at all, so editing a
+/// file never turns somebody's silence into a written choice.
+pub fn answered_rows(answers: &Answers) -> Vec<(String, String)> {
+    let mut rows: Vec<(String, String)> = Vec::new();
+    if answers.version.is_some() {
+        rows.push((
+            "version".to_string(),
+            format!("\"{}\"", env!("CARGO_PKG_VERSION")),
+        ));
+    }
+    for (key, value) in [
+        ("lang", answers.lang.clone()),
+        ("adapter", answers.adapter.clone()),
+        ("ci", answers.ci.clone()),
+        ("mode", answers.mode.clone()),
+    ] {
+        if let Some(value) = value {
+            rows.push((key.to_string(), format!("\"{value}\"")));
+        }
+    }
+    if let Some(agents) = &answers.agents {
+        let named: Vec<String> = agents.iter().map(|a| format!("\"{a}\"")).collect();
+        rows.push(("agents".to_string(), format!("[{}]", named.join(", "))));
+    }
+    if let Some(hooks) = answers.hooks {
+        rows.push(("hooks".to_string(), hooks.to_string()));
+    }
+    rows
 }
 
 /// The plain body of keel.toml, before any section is spliced in.

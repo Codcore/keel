@@ -11,29 +11,34 @@ happened to occur to one particular agent.
 
 ## When this is read
 
-**One pass per wave** — where the scenarios are written. Every cut asks about
-what is being planned, and whatever it turns up becomes a scenario or a decision.
-Not at every level and not until it converges: Keel has no levels, it has waves.
+**Two passes per wave, by two different heads** (§10.2). Not one pass twice:
 
-Before the pull request the list is **not walked a second time**. The question
-there is narrower and needs no list: not "what else should be true" but "what did
-we stay silent about". Whatever that finds gets closed before the PR, like
-anything else.
+- the **planning pass** — the author, where the scenarios are written. Every cut
+  asks about what is being planned, and whatever it turns up becomes a scenario
+  or a decision, before the code;
+- the **checking pass** — the reviewer, after the implementation and before the
+  PR, against code that now exists: is every recorded answer honest?
 
-Two full passes over the same wave produce almost the same answers at twice the
-price, and that is exactly how lists stop being read.
+Different heads, different questions: the author decides what to promise, the
+reviewer checks what was delivered. What does not happen is the same head
+walking the list twice — that produces the same answers at twice the price, and
+that is exactly how lists stop being read.
 
 ## How to answer a cut
 
-One of three answers, and only one:
+One of two answers, and exactly one (§10.3):
 
-- **does not apply** — with a sentence saying why. A cut about the person at the
-  interface does not apply to a build file;
-- **answered** — naming the scenario that answers it. A scenario that proves
-  something narrower than the cut asks is not an answer; it is the next case;
-- **silent** — the cut is relevant, nothing closes it, and no decision turns it
-  down. Say what specifically can go wrong on this project, and write the
-  scenario that closes it.
+- **answered** — naming the scenario that carries this cut in its `covers`. A
+  scenario that proves something narrower than the cut asks is not an answer; it
+  is the next case;
+- **decided** — a line in `decisions:` with the reason: "does not apply,
+  because…" or "deliberately not doing this, because…". A cut about the person
+  at the interface does not apply to a build file.
+
+**There is no third answer: silence is forbidden at the field level.** A cut in
+nobody's `covers` and in no `decisions` is an incomplete plan, and the check is
+red before the review even starts. That is the author's duty, and the reviewer's
+pass does not lift it.
 
 **A cut that is relevant, and deliberately answered "no", is a decision.**
 "Backups are not in this wave" is recoverability, said out loud. Silence is what
@@ -144,6 +149,9 @@ the thing this file exists against.
 - **safe integration** — what does adding it to a running system risk
 
 **Not every cut applies to every wave, and pretending otherwise is the shortest
-road to the list no longer being read.** A cut with nothing to say leaves nothing
-behind: no scenario, no line, no note. The list costs one pass; what it buys is
+road to the list no longer being read.** But "does not apply" is an ANSWER too,
+and it is written down: a line in `decisions:` with the reason (§10.3). Leaving
+nothing behind -- no scenario, no line -- is not allowed: a cut with no answer
+makes the plan incomplete, and the check is red before the review. The list
+costs two passes, by two different heads; what it buys is
 that the case nobody thought of can no longer be passed over in silence.
