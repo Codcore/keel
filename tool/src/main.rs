@@ -200,7 +200,11 @@ fn main() -> ExitCode {
                 }
             }
         }
-        Some("init") => {
+        // setup is init on a project that already has answers: the
+        // same wizard, the same flags, the current config as the
+        // defaults (wave 0032 -- until now a keel.toml was edited by
+        // hand or not at all).
+        Some("init") | Some("setup") => {
             // The answers of the wizard, given as flags (wave 0026):
             // the question-free road, and the road the probe drives,
             // since the drawing of questions needs a pty.
@@ -224,9 +228,8 @@ fn main() -> ExitCode {
                     }
                     "--hooks" => answer("hooks", Some(&"yes".to_string())),
                     "--no-hooks" => answer("hooks", Some(&"no".to_string())),
-                    "--lang" | "--adapter" | "--mode" | "--agents" => {
-                        answer(word.trim_start_matches("--"), rest.next())
-                    }
+                    "--lang" | "--adapter" | "--mode" | "--agents" | "--version" | "--ci"
+                    | "--trust" => answer(word.trim_start_matches("--"), rest.next()),
                     other if other.starts_with("--") && other.contains('=') => {
                         let (flag, value) = other.split_once('=').unwrap();
                         answer(flag.trim_start_matches("--"), Some(&value.to_string()))
@@ -289,7 +292,14 @@ fn main() -> ExitCode {
                 && std::io::IsTerminal::is_terminal(&std::io::stderr());
             // Flags answer their own questions and silence no others
             // (review 0026 R-4: one flag used to silence all five).
-            if !no_ask && listening && !root.join("keel.toml").is_file() {
+            // setup asks even where a config stands -- that is the
+            // whole point of it -- and seeds its defaults from the
+            // answers already given.
+            let setup = args.first().map(String::as_str) == Some("setup");
+            if setup && let Ok(config) = keel::config::read(&root) {
+                answers = keel::ask::from_config(&config, &answers);
+            }
+            if !no_ask && listening && (setup || !root.join("keel.toml").is_file()) {
                 match keel::ask::ask_unanswered(&keel::ask::questions(), &answers) {
                     Ok(asked) => answers = asked,
                     Err(refusal) => {
@@ -298,7 +308,12 @@ fn main() -> ExitCode {
                     }
                 }
             }
-            match keel::init::run(&root, &answers) {
+            let done = if setup {
+                keel::init::setup(&root, &answers)
+            } else {
+                keel::init::run(&root, &answers)
+            };
+            match done {
                 Ok((report, failed)) => {
                     print!("{report}");
                     if failed == 0 {

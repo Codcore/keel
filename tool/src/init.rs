@@ -285,3 +285,39 @@ fn ignore_row(root: &Path) -> String {
         ),
     }
 }
+
+/// `keel setup`: the wizard on a project that already answered once.
+///
+/// Named as a limit by review 0026 and unlifted for six waves --
+/// until this one, a keel.toml was edited by hand or not at all. The
+/// answers the wizard did not ask about survive, and so do the
+/// sections it never asks about at all: `[trust]` and `[generated]`
+/// belong to the machine and to the person, not to the wizard.
+pub fn setup(root: &Path, answers: &crate::ask::Answers) -> Result<(String, usize), Refusal> {
+    let config = root.join("keel.toml");
+    let old = std::fs::read_to_string(&config).unwrap_or_default();
+    let mut text = crate::ask::config_text(answers);
+
+    // What the wizard never asked about is carried across verbatim.
+    if !old.is_empty() {
+        let kept = crate::config::read(root).ok();
+        if let Some(kept) = kept {
+            for (section, entries) in [("trust", kept.trust), ("generated", kept.generated)] {
+                if entries.is_empty() {
+                    continue;
+                }
+                let rows: Vec<(String, String)> = entries.into_iter().collect();
+                text = crate::confedit::upsert(&text, section, &rows);
+            }
+        }
+    }
+
+    std::fs::write(&config, &text).map_err(|e| Refusal {
+        file: config.clone(),
+        reason: ta("docs-unreadable", targs!("error" => e.to_string())),
+        instead: t("docs-unreadable-instead"),
+    })?;
+    let mut report = ta("init-born", targs!("piece" => "keel.toml".to_string()));
+    report.push('\n');
+    Ok((report, 0))
+}

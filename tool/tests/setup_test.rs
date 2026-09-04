@@ -45,8 +45,8 @@ fn the_wizard_asks_what_a_project_needs() {
         "strict",
         "--agents",
         "claude",
+        // --hooks is a switch, not a question with a value.
         "--hooks",
-        "yes",
         "--version",
         "pin",
         "--ci",
@@ -101,16 +101,17 @@ fn answers_can_be_changed_after_init() {
         "strict",
         "--agents",
         "claude",
+        // --hooks is a switch, not a question with a value.
         "--hooks",
-        "yes",
     ]);
-    // Something the wizard never asked about, written by a person.
-    let config = std::fs::read_to_string(dir.join("keel.toml")).unwrap();
-    std::fs::write(
-        dir.join("keel.toml"),
-        format!("{config}\n[generated]\n\"AGENTS.md\" = \"abc123\"\n"),
-    )
-    .unwrap();
+    // init leaves a [generated] section behind -- the digests of the
+    // integrations it wrote. The wizard never asks about it, and
+    // setup must not eat it.
+    let before = std::fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        before.contains("[generated]"),
+        "init records the digests it generated:\n{before}"
+    );
 
     let (said, code) = keel(&["setup", dir.to_str().unwrap(), "--lang", "en"]);
     assert_eq!(
