@@ -18,7 +18,9 @@ transforms:
     files:
       - tool/src/ask.rs
       - tool/src/init.rs
+      - tool/src/confedit.rs
       - tool/tests/setup_test.rs
+      - tool/tests/plain_words_test.rs
   every-assert-can-fail:
     implements:
       - a-court-that-cannot-fail-is-not-a-court

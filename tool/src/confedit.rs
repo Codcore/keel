@@ -150,3 +150,41 @@ fn toml_line(key: &str, value: &str) -> String {
     }
     format!("\"{escaped}\" = \"{value}\"")
 }
+
+/// Sets `key = value` among the file's top-level keys, leaving
+/// everything else byte for byte: a person's comments, the order of
+/// the lines, and any section below.
+///
+/// A commented key (`# lang = "uk"`) is the vocabulary showing what
+/// could be set, so setting it replaces that very line -- the answer
+/// lands where the reader already looked for it. The bug audit
+/// measured `keel setup` rebuilding the whole file instead and
+/// taking a person's own comments with it.
+pub fn upsert_root(text: &str, entries: &[(String, String)]) -> String {
+    let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+    // The root block ends where the first section begins.
+    let end = lines
+        .iter()
+        .position(|line| line.trim_start().starts_with('['))
+        .unwrap_or(lines.len());
+
+    for (key, value) in entries {
+        let row = format!("{key} = {value}");
+        let live = format!("{key} =");
+        let commented = format!("# {key} =");
+        let at = lines[..end].iter().position(|line| {
+            let bare = line.trim_start();
+            bare.starts_with(&live) || bare.starts_with(&commented)
+        });
+        match at {
+            Some(at) => lines[at] = row,
+            None => lines.insert(end, row),
+        }
+    }
+    let mut out = lines.join(eol);
+    if text.ends_with('\n') {
+        out.push_str(eol);
+    }
+    out
+}

@@ -63,7 +63,15 @@ fn the_tool_speaks_plainly() {
             .chars()
             .take_while(|c| c.is_ascii_lowercase())
             .collect();
-        if word.is_empty() || commands.contains(&word) {
+        // Three commands serve a carried document WHOLE -- the
+        // methodology, the checklist, the concept. What they print
+        // is a citation, not the tool speaking, exactly like the
+        // diff below. The tool's own voice lives in the i18n lines,
+        // and those are judged at their source further down.
+        if word.is_empty()
+            || commands.contains(&word)
+            || matches!(word.as_str(), "method" | "cuts" | "concept")
+        {
             continue;
         }
         commands.push(word);
