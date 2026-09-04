@@ -163,6 +163,40 @@ fn a_verdict_says_how_much_of_it_is_real() {
         "names how to get it back:\n{cut}"
     );
 
+    // The base-staleness limit, and its number. Review 0033 R-5:
+    // removing this limit outright left the battery green, so the
+    // wave that exists to make one number true left a second number
+    // beside it judged by nobody.
+    git(&dir, &["checkout", "-q", "main"]);
+    std::fs::write(dir.join("later.txt"), "later").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "-m",
+            "later",
+        ],
+    );
+    git(&dir, &["push", "-q", "origin", "main"]);
+    git(&dir, &["fetch", "-q", "origin"]);
+    git(&dir, &["reset", "-q", "--hard", "HEAD~1"]);
+    let (out, err, _) = keel(&["check", dir.to_str().unwrap()]);
+    let behind = format!("{out}{err}");
+    let line = behind
+        .lines()
+        .find(|line| line.contains("не перевірено") && line.contains("відстає"))
+        .unwrap_or_else(|| panic!("the verdict says its base is stale:\n{behind}"));
+    assert!(
+        line.contains(" 1 "),
+        "and by how much -- one commit, not a guess:\n{line}"
+    );
+
     // A directory with no git at all is not a clone with problems --
     // it is not a clone. Review 0031 R-8 found it told "this clone
     // knows no remote trunk", which is true of a shoebox too.
@@ -170,8 +204,14 @@ fn a_verdict_says_how_much_of_it_is_real() {
     std::fs::write(bare_dir.join("keel.toml"), "lang = \"uk\"\n").unwrap();
     let (out, err, _) = keel(&["check", bare_dir.to_str().unwrap()]);
     let quiet = format!("{out}{err}");
+    // Against what is PRINTED, not against a phrase that no longer
+    // exists anywhere. Review 0033 R-1: wave 0033 renamed this line
+    // and left the assert hunting the old words, so it could never
+    // fail again -- and it was the assert holding review 0031 R-8.
+    // An assert that searches for a string absent from the whole
+    // output is green forever.
     assert!(
-        !quiet.contains("межа вироку"),
+        !quiet.contains("не перевірено"),
         "a directory with no repository is asked nothing:\n{quiet}"
     );
 }
@@ -187,7 +227,7 @@ fn git_out(dir: &std::path::Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
-/// proves: the-skipped-count-is-true@d5c7d5 -- the operator watched
+/// proves: the-skipped-count-is-true@2d9059 -- the operator watched
 /// a single expression being replaced so the count came out zero,
 /// and the whole battery stayed green: the tool would have said "0
 /// checks of old revisions were not run" where the truth was 141.
@@ -211,6 +251,22 @@ fn the_skipped_count_is_true() {
         .parent()
         .unwrap()
         .to_path_buf();
+    // A cut-short root makes every clone of it cut short, so this
+    // probe would fail for a reason that has nothing to do with what
+    // it judges. It says that in words instead (review 0033 R-3).
+    let root_is_cut = Command::new("git")
+        .args(["rev-parse", "--is-shallow-repository"])
+        .current_dir(&repo)
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim() == "true")
+        .unwrap_or(false);
+    assert!(
+        !root_is_cut,
+        "this probe needs the repository's own history and this checkout \
+         is shallow -- fetch it whole (git fetch --unshallow, or \
+         fetch-depth: 0 in CI) and run again"
+    );
+
     let whole = dir.join("whole");
     let cut_short = dir.join("cut");
     for (into, depth) in [(&whole, None), (&cut_short, Some("1"))] {

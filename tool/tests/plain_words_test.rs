@@ -13,12 +13,20 @@ use std::process::Command;
 /// ordinary preposition ("keel не пише поверх того, чого не писав"),
 /// and a check that forbids a common word would be a check nobody
 /// can keep.
-const INVENTED: [&str; 5] = [
+const INVENTED: [&str; 9] = [
     "межа вироку",
     "межі вироку",
     "меж вироку",
     "цим поверхом",
-    "щабель ",
+    // Every case of the rung, not only the nominative with a space:
+    // review 0033 R-7 found "щаблем" alive in the Ukrainian text --
+    // the source of truth -- while the English side had already
+    // dropped it.
+    "щабель",
+    "щаблем",
+    "щаблі",
+    "limit of this verdict",
+    "by this floor",
 ];
 
 /// proves: the-tool-speaks-plainly@6caef1 -- the operator read
@@ -39,33 +47,93 @@ fn the_tool_speaks_plainly() {
         .status()
         .unwrap();
 
-    // Every road a person walks, not only the one this wave touched.
-    for command in [
-        &["check"][..],
-        &["status"][..],
-        &["next"][..],
-        &["map"][..],
-        &["rev"][..],
-    ] {
-        let mut args: Vec<&str> = command.to_vec();
-        let root = dir.to_str().unwrap();
-        args.push(root);
-        let out = Command::new(env!("CARGO_BIN_EXE_keel"))
-            .args(&args)
-            .output()
-            .unwrap();
-        let said = format!(
-            "{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        );
-        for word in INVENTED {
-            assert!(
-                !said.contains(word),
-                "`keel {}` says \"{word}\" -- a word invented here and \
-                 explained nowhere (§1.7):\n{said}",
-                command[0]
+    // EVERY road, and the list is taken from the code rather than
+    // written here: review 0033 R-2 measured the first cut of this
+    // probe walking three commands of nineteen, in one tongue, on a
+    // fixture where the changed lines never printed -- so putting
+    // the invented words back into `keel close` or the English side
+    // left the battery green.
+    let main_rs = std::fs::read_to_string(
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/main.rs"),
+    )
+    .unwrap();
+    let mut commands: Vec<String> = Vec::new();
+    for (at, _) in main_rs.match_indices("Some(\"") {
+        let word: String = main_rs[at + 6..]
+            .chars()
+            .take_while(|c| c.is_ascii_lowercase())
+            .collect();
+        if word.is_empty() || commands.contains(&word) {
+            continue;
+        }
+        commands.push(word);
+    }
+    assert!(
+        commands.len() >= 15,
+        "the list of commands comes from the code, and there are many: {commands:?}"
+    );
+
+    for tongue in ["uk", "en"] {
+        std::fs::write(
+            dir.join("keel.toml"),
+            format!("lang = \"{tongue}\"\nadapter = \"rust\"\n"),
+        )
+        .unwrap();
+        for command in &commands {
+            let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+                .args([command.as_str(), dir.to_str().unwrap()])
+                .output()
+                .unwrap();
+            let mut said = format!(
+                "{}{}",
+                String::from_utf8_lossy(&out.stdout),
+                String::from_utf8_lossy(&out.stderr)
             );
+            // `keel review` ends with the branch's whole diff, and a
+            // diff of THIS wave quotes the invented words dozens of
+            // times. A citation is not the tool speaking, so the
+            // diff is cut off -- and everything the package says in
+            // its own voice is still judged.
+            if let Some(at) = said
+                .find("## Повний diff")
+                .or_else(|| said.find("## Full diff"))
+            {
+                said.truncate(at);
+            }
+            for word in INVENTED {
+                assert!(
+                    !said.contains(word),
+                    "`keel {command}` in {tongue} says \"{word}\" -- a word \
+                     invented here and explained nowhere (§1.7):\n{said}"
+                );
+            }
+        }
+    }
+
+    // And the WORDS THEMSELVES, not only those a fixture manages to
+    // reach: review 0033 R-2 put an invented phrase into
+    // `close-title` and the battery stayed green, because this
+    // fixture has no crate and `keel close` refuses before it ever
+    // prints its own title. Every line a person can be shown is
+    // judged at its source.
+    let i18n = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("i18n");
+    for file in ["uk.ftl", "en.ftl"] {
+        let text = std::fs::read_to_string(i18n.join(file)).unwrap();
+        for (number, line) in text.lines().enumerate() {
+            // Comments explain the lines; they are not shown to
+            // anyone, and forbidding the word there would forbid
+            // saying why it is forbidden.
+            if line.trim_start().starts_with('#') {
+                continue;
+            }
+            for word in INVENTED {
+                assert!(
+                    !line.contains(word),
+                    "{file}:{} says \"{word}\" -- a word invented here and \
+                     explained nowhere (§1.7):\n{line}",
+                    number + 1
+                );
+            }
         }
     }
 
