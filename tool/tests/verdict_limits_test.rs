@@ -159,12 +159,63 @@ fn a_verdict_says_how_much_of_it_is_real() {
         "a shallow verdict says so in the line everyone reads:\n{cut_summary}"
     );
     assert!(
-        cut.contains("shallow") && cut.contains("git fetch --unshallow"),
-        "names what was cut off and how to get it back:\n{cut}"
+        cut.contains("git fetch --unshallow"),
+        "names how to get it back:\n{cut}"
     );
-    assert_ne!(
-        level_summary, cut_summary,
-        "and a shallow verdict no longer ends with the same words as a full one"
+
+    // The NUMBER, not merely its presence. Wave 0033: replacing the
+    // real count with a zero left the whole battery green, so the
+    // tool could say "0 checks were not run" where the truth was 141
+    // and nothing would notice.
+    //
+    // This needs real history -- a toy repository has no closed
+    // waves and no old revisions to check -- so it takes two clones
+    // of THIS repository, one whole and one cut to a single commit,
+    // and requires the cut one to name exactly the number the whole
+    // one actually checked.
+    let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let whole = dir.join("whole");
+    let cut_short = dir.join("cut");
+    for (into, depth) in [(&whole, None), (&cut_short, Some("1"))] {
+        let mut command = Command::new("git");
+        command.args(["clone", "-q"]);
+        if let Some(depth) = depth {
+            command.args(["--depth", depth]);
+        }
+        // file:// rather than a path: a local clone hard-links the
+        // whole object store and comes out full-depth whatever depth
+        // was asked for.
+        command.arg(format!("file://{}", repo.display())).arg(into);
+        command.status().unwrap();
+    }
+    let (out, err, _) = keel(&["check", whole.to_str().unwrap()]);
+    let whole_said = format!("{out}{err}");
+    let checked = whole_said
+        .lines()
+        .filter(|line| line.contains("справжня в історії"))
+        .count();
+    assert!(
+        checked > 0,
+        "the whole clone really checks old revisions:\n{}",
+        &whole_said[..whole_said.len().min(600)]
+    );
+    let (out, err, _) = keel(&["check", cut_short.to_str().unwrap()]);
+    let cut_said = format!("{out}{err}");
+    let claimed: usize = cut_said
+        .lines()
+        .find(|line| line.contains("не перевірено") && line.contains("shallow"))
+        .and_then(|line| {
+            line.split_whitespace()
+                .find_map(|word| word.parse::<usize>().ok())
+        })
+        .unwrap_or_else(|| panic!("the cut clone names a number:\n{cut_said}"));
+    assert_eq!(
+        claimed, checked,
+        "the cut clone says how many checks it skipped, and that is the \
+         number the whole one made -- not a zero, not a guess"
     );
 
     // A directory with no git at all is not a clone with problems --
