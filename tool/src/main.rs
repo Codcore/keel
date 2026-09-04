@@ -25,8 +25,66 @@ fn one_path(args: &[String]) -> (PathBuf, bool) {
     (root, extra)
 }
 
+/// The commands that take a directory and nothing else. Everything
+/// outside this list carries flags or arguments of its own and
+/// checks them itself (wave 0035).
+const PLAIN: [(&str, &[&str]); 13] = [
+    ("check", &[]),
+    ("close", &[]),
+    ("map", &[]),
+    ("review", &[]),
+    ("status", &[]),
+    ("trust", &[]),
+    ("hook", &[]),
+    ("cuts", &[]),
+    ("concept", &[]),
+    ("version", &[]),
+    ("update", &[]),
+    ("rev", &["--write"]),
+    ("next", &["--for"]),
+];
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+
+    // The first thing a person types. Before wave 0035 it was read
+    // as a path and answered with a refusal about a directory named
+    // "--help" (bug audit B9).
+    if matches!(
+        args.first().map(String::as_str),
+        Some("help") | Some("-h") | Some("--help") | None
+    ) {
+        println!("{}", keel::i18n::t("main-help"));
+        return ExitCode::SUCCESS;
+    }
+
+    // A flag nobody knows, or a second path, is a typo -- and a typo
+    // read as a directory is the worst possible answer. Seventeen
+    // commands of twenty swallowed both (bug audit B9, B10).
+    if let Some((_, flags)) = PLAIN.iter().find(|(name, _)| *name == args[0]) {
+        let mut paths = 0;
+        let mut rest = args.iter().skip(1);
+        let mut bad = false;
+        while let Some(word) = rest.next() {
+            if word.starts_with('-') {
+                if !flags.contains(&word.as_str()) {
+                    bad = true;
+                    break;
+                }
+                // A flag that takes a word takes it here.
+                if *word == "--for" {
+                    rest.next();
+                }
+            } else {
+                paths += 1;
+            }
+        }
+        if bad || paths > 1 {
+            eprintln!("{}", keel::i18n::t("main-usage"));
+            return ExitCode::from(2);
+        }
+    }
+
     match args.first().map(String::as_str) {
         Some("check") => {
             let root = args

@@ -544,6 +544,26 @@ main-new-unknown = відмова: keel new знає лише: contract
 main-new-unknown-reason = причина: інші види документів народжуються своїми командами (хвилі — keel plan)
 main-new-no-slug = відмова: new contract потребує імени контракту
 main-new-no-slug-reason = причина: скелет народжується під імʼям, що стане його файлом (§1.4)
+main-help = keel — інструмент методики. Команди:
+    keel check [тека] — судить документи і гілку
+    keel plan <слаг> [тека] — кладе риштування хвилі
+    keel rev [--write] [тека] — редакції сценаріїв і контрактів
+    keel next [--for <агент>] [тека] — один наступний крок
+    keel status [тека] — стан хвиль
+    keel close [тека] — суд закриття (жене батарею тричі)
+    keel review [тека] — пакет і доручення рецензентові
+    keel map [тека] — мапа якости, сорок розрізів
+    keel cuts [тека] — самі розрізи з питаннями
+    keel method [§N.M | розділ] [тека] — методика
+    keel concept [тека] — поняття, на яке спирається проєкт
+    keel init [прапорці] [тека] — рамка методики в проєкті
+    keel setup [прапорці] [тека] — змінити відповіді init
+    keel trust [тека] — записати довіру до команд (§7.16)
+    keel hook [тека] — поставити commit-msg hook
+    keel gate <файл-повідомлення> [тека] — суд одного комміту
+    keel new contract <слаг> [тека] — риштування контракту
+    keel update [тека] — оновити згенеровані інтеграції
+    keel version [тека] — версія і що вона тримає
 main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <команда>] [--trust yes|no] [--no-ask] [тека] | keel setup [ті самі прапорці] [тека] | keel concept [тека] | keel trust [тека] | keel hook [тека] | keel cuts [тека] | keel method [§N.M | розділ] [тека] | keel version [тека] | keel update [тека]
 
 # The settings wizard (wave 0026)

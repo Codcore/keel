@@ -537,6 +537,26 @@ main-new-unknown = refusal: keel new knows only: contract
 main-new-unknown-reason = reason: other document kinds are born by their own commands (waves by keel plan)
 main-new-no-slug = refusal: new contract needs the contract's name
 main-new-no-slug-reason = reason: the skeleton is born under the name that becomes its file (§1.4)
+main-help = keel -- the methodology's tool. Commands:
+    keel check [dir] -- judges the documents and the branch
+    keel plan <slug> [dir] -- lays a wave's scaffolding
+    keel rev [--write] [dir] -- revisions of scenarios and contracts
+    keel next [--for <agent>] [dir] -- the one next step
+    keel status [dir] -- the state of the waves
+    keel close [dir] -- the closing court (runs the battery three times)
+    keel review [dir] -- the package and briefing for a reviewer
+    keel map [dir] -- the quality map, forty cuts
+    keel cuts [dir] -- the cuts themselves, with their questions
+    keel method [§N.M | chapter] [dir] -- the methodology
+    keel concept [dir] -- the concept this project leans on
+    keel init [flags] [dir] -- the methodology's frame in a project
+    keel setup [flags] [dir] -- change what init asked
+    keel trust [dir] -- record trust for commands (§7.16)
+    keel hook [dir] -- install the commit-msg hook
+    keel gate <message-file> [dir] -- the court over one commit
+    keel new contract <slug> [dir] -- a contract's scaffolding
+    keel update [dir] -- refresh the generated integrations
+    keel version [dir] -- the version and what it holds
 main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [--lang <l>] [--adapter <a>] [--mode <m>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <command>] [--trust yes|no] [--no-ask] [dir] | keel setup [the same flags] [dir] | keel concept [dir] | keel trust [dir] | keel hook [dir] | keel cuts [dir] | keel method [§N.M | chapter] [dir] | keel version [dir] | keel update [dir]
 
 # The settings wizard (wave 0026)
