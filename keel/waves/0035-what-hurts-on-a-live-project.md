@@ -17,7 +17,6 @@ transforms:
       - a-contract-names-a-unit-that-exists
     files:
       - tool/src/holding.rs
-      - tool/src/check.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/module_exists_test.rs
@@ -28,8 +27,8 @@ transforms:
       - the-branch-can-be-named-where-git-hides-it
     files:
       - tool/src/scope.rs
-      - tool/i18n/uk.ftl
-      - tool/i18n/en.ftl
+      - tool/src/generated.rs
+      - .github/workflows/keel.yml
       - tool/tests/named_branch_test.rs
   one-name-one-home:
     implements:

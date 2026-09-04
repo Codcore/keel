@@ -19,6 +19,12 @@ jobs:
         with:
           fetch-depth: 0
       - name: the documents judged
+        # On a pull_request event actions/checkout leaves a detached
+        # HEAD, and git serves no branch -- so the scope court used
+        # to be skipped entirely (wave 0035). §4.10 asks for the
+        # branch to be named where git hides it; this is the naming.
+        env:
+          KEEL_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: keel check .
       - name: the closure court
         run: keel close .
