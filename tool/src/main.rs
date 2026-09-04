@@ -1,7 +1,10 @@
 //! CLI: a thin wrapper over the library. Commands are stitched to
 //! the methodology loop; every refusal carries a reason plus "what to
 //! do instead". CLI frame refusals -- before the config is read --
-//! are English: the project language is not known yet.
+//! fall back to English where no project answers, and otherwise speak
+//! the project's language: the help and the usage line are the first
+//! thing a person meets, and meeting them in a foreign tongue was
+//! review 0035 R-8.
 
 use keel::i18n::{t, ta};
 use keel::targs;
@@ -25,8 +28,123 @@ fn one_path(args: &[String]) -> (PathBuf, bool) {
     (root, extra)
 }
 
+/// The shape of a command line: the command, how many words it takes
+/// before the optional directory, and the flags it knows. `init`,
+/// `setup` and `method` read their own words and refuse a second
+/// path themselves, so they are not here.
+///
+/// Review 0035 R-6: the first cut of this table held only the
+/// commands that take nothing but a directory, so `keel gate MSG dir
+/// junk`, `keel plan slug dir junk` and `keel new contract slug dir
+/// junk` still swallowed the typo -- the very swallowing this wave
+/// exists to end.
+const SHAPES: [(&str, usize, &[&str]); 16] = [
+    ("check", 0, &[]),
+    ("close", 0, &[]),
+    ("map", 0, &[]),
+    ("review", 0, &[]),
+    ("status", 0, &[]),
+    ("trust", 0, &[]),
+    ("hook", 0, &[]),
+    ("cuts", 0, &[]),
+    ("concept", 0, &[]),
+    ("version", 0, &[]),
+    ("update", 0, &[]),
+    ("rev", 0, &["--write"]),
+    ("next", 0, &["--for"]),
+    ("gate", 1, &[]),
+    ("plan", 1, &[]),
+    ("new", 2, &[]),
+];
+
+/// The tongue the CLI frame speaks in. Its refusals used to be
+/// English always, "the project language is not known yet" -- but
+/// the help is not a refusal: it is the first thing a person types,
+/// and it was printed before any language was ever chosen, so the
+/// Ukrainian help could not be reached at all (review 0035 R-8).
+/// Called only where the next thing is printing and leaving, since
+/// the language is set once and the first setting wins.
+fn frame_tongue(args: &[String]) {
+    let root = args
+        .iter()
+        .skip(1)
+        .filter(|word| !word.starts_with('-'))
+        .map(PathBuf::from)
+        .find(|path| path.is_dir())
+        .unwrap_or_else(|| PathBuf::from("."));
+    if let Ok(config) = keel::config::read_unpinned(&root) {
+        keel::i18n::init(&config.lang);
+    }
+}
+
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+
+    // The two words every command-line tool answers to. Review 0035
+    // R-15: `keel version` worked and `keel --version` was refused,
+    // in a wave about the first thing a person types.
+    if matches!(
+        args.first().map(String::as_str),
+        Some("--version") | Some("-V")
+    ) {
+        args[0] = "version".to_string();
+    }
+
+    // And `--help` asked of a command is a question about that
+    // command, not a typo in its path (review 0035 R-15). Only the
+    // flag spelling is read anywhere: a bare "help" may be somebody's
+    // answer to a flag that takes a word.
+    if args
+        .iter()
+        .skip(1)
+        .any(|word| word == "--help" || word == "-h")
+    {
+        // The rest is left standing so the frame can still find the
+        // project whose language to answer in.
+        args[0] = "help".to_string();
+    }
+
+    // The first thing a person types. Before wave 0035 it was read
+    // as a path and answered with a refusal about a directory named
+    // "--help" (bug audit B9).
+    if matches!(
+        args.first().map(String::as_str),
+        Some("help") | Some("-h") | Some("--help") | None
+    ) {
+        frame_tongue(&args);
+        println!("{}", keel::i18n::t("main-help"));
+        return ExitCode::SUCCESS;
+    }
+
+    // A flag nobody knows, or a second path, is a typo -- and a typo
+    // read as a directory is the worst possible answer. Seventeen
+    // commands of twenty swallowed both (bug audit B9, B10).
+    if let Some((_, words, flags)) = SHAPES.iter().find(|(name, _, _)| *name == args[0]) {
+        let mut plain = 0;
+        let mut rest = args.iter().skip(1);
+        let mut bad = false;
+        while let Some(word) = rest.next() {
+            if word.starts_with('-') {
+                if !flags.contains(&word.as_str()) {
+                    bad = true;
+                    break;
+                }
+                // A flag that takes a word takes it here.
+                if *word == "--for" {
+                    rest.next();
+                }
+            } else {
+                plain += 1;
+            }
+        }
+        // The command's own words, then at most one directory.
+        if bad || plain > words + 1 {
+            frame_tongue(&args);
+            eprintln!("{}", keel::i18n::t("main-usage"));
+            return ExitCode::from(2);
+        }
+    }
+
     match args.first().map(String::as_str) {
         Some("check") => {
             let root = args
@@ -56,9 +174,18 @@ fn main() -> ExitCode {
             }
         }
         Some("rev") => {
-            let write_mode = args.get(1).map(String::as_str) == Some("--write");
+            // A flag is a flag wherever it stands. Review 0035 R-7:
+            // the new guard let `--write` pass at any position while
+            // this line still read it only at the first, so `keel rev
+            // <dir> --write` printed a reading report and wrote
+            // nothing -- a flag let through and then silently
+            // ignored, by the very wave that set out to end silent
+            // swallowing.
+            let write_mode = args.iter().skip(1).any(|word| word == "--write");
             let root = args
-                .get(if write_mode { 2 } else { 1 })
+                .iter()
+                .skip(1)
+                .find(|word| !word.starts_with('-'))
                 .map_or_else(|| PathBuf::from("."), PathBuf::from);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,

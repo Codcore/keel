@@ -252,7 +252,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             ));
         }
     }
-    for (wave_slug, reason, instead) in graph::cross_findings(&scan.waves) {
+    let live_contracts: Vec<String> = scan
+        .contracts
+        .iter()
+        .filter(|c| c.withdrawn.is_none())
+        .map(|c| c.slug.clone())
+        .collect();
+    for (wave_slug, reason, instead) in graph::cross_findings(&scan.waves, &live_contracts) {
         rows.push((
             format!("keel/waves/{wave_slug}.md"),
             Some(format!(
@@ -777,6 +783,25 @@ fn push_refusal_row(rows: &mut Vec<(String, Option<String>)>, root: &Path, refus
     ));
 }
 
+/// Names no wave holds alive any more: declared somewhere, withdrawn
+/// everywhere they are declared. A namesake still living in another
+/// wave keeps the name out of this set -- forgiving a tag by the bare
+/// name disarmed the courts over the living promise (review 0035
+/// R-4), which is the very silence §7.15 exists to end.
+fn fully_withdrawn(waves: &[docs::Wave]) -> std::collections::BTreeSet<&str> {
+    let mut declared: std::collections::BTreeSet<&str> = Default::default();
+    let mut alive: std::collections::BTreeSet<&str> = Default::default();
+    for wave in waves {
+        for (name, scenario) in &wave.scenarios {
+            declared.insert(name.as_str());
+            if scenario.withdrawn.is_none() {
+                alive.insert(name.as_str());
+            }
+        }
+    }
+    declared.difference(&alive).copied().collect()
+}
+
 /// The tag floor's findings: stale tags and orphan tags, judged
 /// against every wave's scenario revisions; matching tags counted.
 /// A scenario slug may live in several waves -- any matching
@@ -787,22 +812,28 @@ fn tag_rows(
     found: &[tags::TestTag],
     checked: &mut u64,
 ) -> Result<Vec<(String, String)>, Refusal> {
+    // Live revisions and withdrawn ones are kept apart. Review 0035
+    // R-4: one set keyed by the bare NAME meant a scenario withdrawn
+    // in one wave silenced its namesake living in another -- every
+    // tag of the living one went unjudged, stale or orphan alike,
+    // and the verdict said nothing. A name is withdrawn only where
+    // no wave still holds it alive.
     let mut revs: std::collections::BTreeMap<String, Vec<String>> = Default::default();
-    let mut withdrawn: std::collections::BTreeSet<String> = Default::default();
     for wave in waves {
         let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
         for (name, revision) in rev::scenario_revs(&path)? {
             let entry = wave.scenarios.iter().find(|(n, _)| *n == name);
             if entry.is_some_and(|(_, sc)| sc.withdrawn.is_some()) {
-                withdrawn.insert(name.clone());
+                continue;
             }
             revs.entry(name).or_default().push(revision);
         }
     }
+    let gone = fully_withdrawn(waves);
 
     let mut out = Vec::new();
     for tag in found {
-        if withdrawn.contains(&tag.scenario) {
+        if gone.contains(tag.scenario.as_str()) {
             continue;
         }
         let shown = tag.file.strip_prefix(root).unwrap_or(&tag.file);
@@ -874,12 +905,7 @@ fn vanished_rows(
 
     let head_scenarios: std::collections::BTreeSet<&str> =
         found.iter().map(|t| t.scenario.as_str()).collect();
-    let withdrawn: std::collections::BTreeSet<&str> = waves
-        .iter()
-        .flat_map(|w| w.scenarios.iter())
-        .filter(|(_, sc)| sc.withdrawn.is_some())
-        .map(|(n, _)| n.as_str())
-        .collect();
+    let withdrawn = fully_withdrawn(waves);
     let declared: std::collections::BTreeSet<&str> = waves
         .iter()
         .flat_map(|w| w.scenarios.iter())

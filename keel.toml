@@ -20,7 +20,7 @@ ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
 [generated]
 "AGENTS.md" = "4baf7dd8b4d7"
 ".claude/skills/keel/SKILL.md" = "64cf79a82114"
-".github/workflows/keel.yml" = "c37d9eaaf3b3"
 ".agents/skills/keel/SKILL.md" = "64cf79a82114"
 ".claude/settings.json" = "344054776a92"
 ".cursor/hooks.json" = "181fd6a6effd"
+".github/workflows/keel.yml" = "d10c238cb2fd"

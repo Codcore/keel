@@ -114,6 +114,10 @@ rev-write-none = у відкритих хвилях нічого не розій
 rev-write-count = записів переписано: { $count }
 
 ## модуль graph
+graph-scenario-twice = сценарій "{ $scenario }" живе більш ніж в одній хвилі: { $waves } — тег тесту голий, тож машина не знає, чию обіцянку він доводить, і один тест закриває обидві
+graph-scenario-twice-instead = дай сценаріям різні імена: одне імʼя — один дім
+graph-name-taken = імʼя "{ $name }" носить і обіцянка хвилі { $wave }, і контракт — а тег тесту голий, тож не видно, чию редакцію він тримає
+graph-name-taken-instead = перейменуй одне з двох: імена обіцянок і слаґи контрактів живуть в одному просторі
 graph-unknown-cut = "{ $holder }" показує на розріз "{ $slug }", якого у словнику нема
 graph-unknown-cut-instead = сорок розрізів їдуть з релізом (§3.4); вибери один із них або виправ одрук
 graph-double-cover = розріз "{ $slug }" має { $count } живих covers: сценарії { $holders } (§10.3 — рівно одна відповідь)
@@ -188,7 +192,10 @@ check-holding-count = сигнатур звірено: { $count }
 check-holding-uncompared = { $contract } — форму ніхто не порівнював: { $why } (§7.6)
 holding-why-no-adapter = адаптер у keel.toml не названий
 holding-why-unknown-adapter = названий адаптер не цього релізу (реліз обслуговує "rust")
-holding-why-deep = шлях module глибший, ніж порівнює це покоління
+holding-module-missing = контракт { $contract } називає модуль "{ $module }", якого в коді нема — шукали { $looked } (§2.7, §7.6)
+holding-module-missing-instead = або поклади модуль там, де він названий, або перепиши поле module під те, що є; сигнатури цього контракту доти не звіряються
+holding-module-outside = контракт { $contract } називає модуль "{ $module }", а це не модуль цього crate: ім'я веде за його межі (§2.7, §7.6)
+holding-module-outside-instead = напиши module так, як пише мова — crate, далі модулі всередині, через ::; імені зі скісною рискою або з .. тут не шукають зовсім
 holding-why-no-file = файл модуля в crate не знайдено
 check-holding-plan = план-гілка: суд форми не біжить (§8.3) — exports ростуть наперед коду (§4.9)
 check-holding-window = { $contract } — форма не судиться: обіцянку ростить затверджена, ще не почата хвиля { $wave } (§6.5); перший тег хвилі поверне суд
@@ -506,7 +513,6 @@ generated-appended = { $file } — блок keel дописано; текст н
 generated-refreshed = { $file } — оновлено цим релізом
 generated-stands = { $file } — уже стоїть таким, яким його пише цей реліз
 generated-removed = { $file } — прибрано рукою: то рішення, а не прогалина; нічого не дописується. Щоб мати його знову, прибери його рядок у [generated] keel.toml і повтори keel update
-{ $snippet }
 next-unknown-agent = агент "{ $agent }" не з тих, що знає цей реліз: { $known }
 next-unknown-agent-instead = назви одного з { $known } — форма відповіді сесійного hook-а належить самому агентові, і в неназваного нема документованої форми, якою говорити
 generated-hooks-off = { $file } — більше не генерується: цей проєкт відповів hooks = false. Файл і його рядок у [generated] лишились, і тепер їх ніхто не судить — прибери обидва або постав hooks = true, щоб віддати файл keel-ові назад
@@ -542,6 +548,26 @@ main-new-unknown = відмова: keel new знає лише: contract
 main-new-unknown-reason = причина: інші види документів народжуються своїми командами (хвилі — keel plan)
 main-new-no-slug = відмова: new contract потребує імени контракту
 main-new-no-slug-reason = причина: скелет народжується під імʼям, що стане його файлом (§1.4)
+main-help = keel — інструмент методики. Команди:
+    keel check [тека] — судить документи і гілку
+    keel plan <слаг> [тека] — кладе риштування хвилі
+    keel rev [--write] [тека] — редакції сценаріїв і контрактів
+    keel next [--for <агент>] [тека] — один наступний крок
+    keel status [тека] — стан хвиль
+    keel close [тека] — суд закриття (жене батарею тричі)
+    keel review [тека] — пакет і доручення рецензентові
+    keel map [тека] — мапа якости, сорок розрізів
+    keel cuts [тека] — самі розрізи з питаннями
+    keel method [§N.M | розділ] [тека] — методика
+    keel concept [тека] — поняття, на яке спирається проєкт
+    keel init [прапорці] [тека] — рамка методики в проєкті
+    keel setup [прапорці] [тека] — змінити відповіді init
+    keel trust [тека] — записати довіру до команд (§7.16)
+    keel hook [тека] — поставити commit-msg hook
+    keel gate <файл-повідомлення> [тека] — суд одного комміту
+    keel new contract <слаг> [тека] — риштування контракту
+    keel update [тека] — оновити згенеровані інтеграції
+    keel version [тека] — версія і що вона тримає
 main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <команда>] [--trust yes|no] [--no-ask] [тека] | keel setup [ті самі прапорці] [тека] | keel concept [тека] | keel trust [тека] | keel hook [тека] | keel cuts [тека] | keel method [§N.M | розділ] [тека] | keel version [тека] | keel update [тека]
 
 # The settings wizard (wave 0026)

@@ -218,7 +218,7 @@ fn wave_closure_judged() {
     write(
         &dir,
         "keel/contracts/anchor.md",
-        "---\nmodule: A\nexports: [\"one()\"]\n---\n\nwords\n",
+        "---\nmodule: toy\nexports: [\"one()\"]\n---\n\nwords\n",
     );
     write(
         &dir,

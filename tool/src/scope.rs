@@ -60,6 +60,32 @@ pub fn forget_the_hook(command: &mut Command) {
 /// declared names, so it does not get to judge (review R-4). The
 /// caller says aloud that scope was not compared.
 pub fn current_branch(root: &Path) -> Option<String> {
+    // Named by the environment when git will not say it. §4.10 says
+    // that where git knows no branch it must be named explicitly, and
+    // until wave 0035 there was no way to name it -- so in CI on a
+    // `pull_request` event, where actions/checkout leaves a detached
+    // HEAD, the scope court was skipped entirely and a file no
+    // transform declared went unseen (conformance audit ВАЖКА-5).
+    //
+    // Asked only where git will not say. Review 0035 R-3: asking the
+    // environment FIRST made it a switch that turns courts off --
+    // KEEL_BRANCH=plan/x silenced the form court, KEEL_BRANCH=main
+    // silenced scope on a real wave branch, and both looked honest in
+    // the verdict. Where git knows the branch, git is the answer; the
+    // environment answers only the case §4.10 named, where git knows
+    // nothing.
+    let from_git = branch_by_git(root);
+    if from_git.is_some() {
+        return from_git;
+    }
+    std::env::var("KEEL_BRANCH")
+        .ok()
+        .map(|named| named.trim().to_string())
+        .filter(|named| !named.is_empty())
+}
+
+/// The branch as git alone tells it.
+fn branch_by_git(root: &Path) -> Option<String> {
     let top = git_at(root)
         .args(["rev-parse", "--show-toplevel"])
         .output()
