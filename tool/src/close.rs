@@ -96,6 +96,17 @@ fn directory_bytes(path: &Path) -> u64 {
 }
 
 pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
+    // Research never merges (§4.13). This is the court that says
+    // whether a branch may go in, so this is where the ban lives --
+    // and it is said before anything is built, since nothing here
+    // can end in a merge anyway.
+    if let Some(name) = crate::scope::spike_branch(root) {
+        return Err(Refusal {
+            file: root.to_path_buf(),
+            reason: ta("close-spike", targs!("branch" => format!("spike/{name}"))),
+            instead: t("close-spike-instead"),
+        });
+    }
     let config = config::read(root)?;
     if !config.rust_adapter() {
         return Err(Refusal {

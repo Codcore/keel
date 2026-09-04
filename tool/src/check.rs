@@ -293,6 +293,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         // plan and nothing else. The conformance audit (ВАЖКА-4)
         // measured the paragraph held by nothing -- `plan/<wave>` is
         // not the name of a wave, so the whole floor was skipped.
+        // Research is outside the methodology and says so (§4.13).
+        // The norm promised the ban held BY MACHINE and the word
+        // `spike` was nowhere in the code: the branch was judged
+        // like any other stranger's, which is to say not at all.
+        Some(branch) if branch.starts_with("spike/") => {
+            ta("check-scope-spike", targs!("branch" => branch))
+        }
         Some(branch) if branch.starts_with("plan/") => {
             let planned = scope::plan_branch(root).unwrap_or_default();
             let known = scan.waves.iter().any(|w| w.slug == planned);

@@ -39,9 +39,15 @@ fn project(name: &str) -> common::Sandbox {
     std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\n").unwrap();
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\n").unwrap();
+    let mut decided = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        decided.push_str(&format!("  {cut}: \"не про цю пісочницю\"\n"));
+    }
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
-        "---\nscenarios:\n  it-holds:\n    withdrawn: \"не про це\"\ntransforms:\n  work:\n    chore: \"нічого\"\n    files:\n      - src/lib.rs\n---\n\n## scenario: it-holds\nтіло обіцянки\n\n## transform: work\nтіло роботи\n",
+        format!(
+            "---\nscenarios:\n  it-holds:\n    withdrawn: \"не про це\"\ntransforms:\n  work:\n    chore: \"нічого\"\n    files:\n      - src/lib.rs\n{decided}---\n\n## scenario: it-holds\nтіло обіцянки\n\n## transform: work\nтіло роботи\n"
+        ),
     )
     .unwrap();
     git(&dir, &["init", "-q", "-b", "main"]);
@@ -80,10 +86,9 @@ fn research_does_not_merge() {
     // close is the court that says whether this may be merged, and
     // for research the answer is never.
     let (said, code) = keel(&dir, "close");
-    assert_eq!(
-        code, 1,
-        "closing research is refused (§4.13):\n{said}"
-    );
+    // A refusal, not a finding: there is nothing here to judge, and
+    // the answer is the same on every branch of this shape.
+    assert_eq!(code, 2, "closing research is refused (§4.13):\n{said}");
     assert!(
         said.contains("spike/try-something") && said.contains("хвилею"),
         "and the refusal says what to do instead -- bring the finding \
