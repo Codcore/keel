@@ -85,7 +85,14 @@ fn next_hands_one_step() {
     write(
         &dir,
         "keel/waves/0070-w.md",
-        "---\nscenarios:\n  s: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n\n## transform: t\n\nthe work of t\n",
+        // A withdrawn promise makes this wave FULL by §6.8 -- the
+        // death of a promise is the risk the paragraph buys two
+        // human looks for -- so the review step below is the one the
+        // norm actually asks for. Before wave 0036 the weight was
+        // counted by a rule of `close`'s own, which called any
+        // one-transform wave with a scenario full whether §6.8 does
+        // or not (review 0036 R-1).
+        "---\nscenarios:\n  s: {covers: [functional.correctness]}\n  gone: {covers: [performance.capacity], withdrawn: \"folded\"}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n\n## scenario: gone\n\nold body\n\n## transform: t\n\nthe work of t\n",
     );
     commit_all(&dir);
 

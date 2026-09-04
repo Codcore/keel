@@ -1,0 +1,131 @@
+//! Scenario test of wave 0036: research does not merge.
+
+mod common;
+
+use common::keel_sandbox;
+use std::path::Path;
+use std::process::Command;
+
+/// git with an identity of its own: review 0036 R-11 measured all
+/// five probes of this wave failing on a machine with no global
+/// git config -- a fresh CI container, that is -- while the
+/// twenty-one older ones, which pass `-c user.email`, held.
+fn git(dir: &Path, args: &[&str]) {
+    let out = Command::new("git")
+        .args(["-c", "user.email=keel@test", "-c", "user.name=keel-test"])
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+fn keel(dir: &Path, command: &str) -> (String, i32) {
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args([command, dir.to_str().unwrap()])
+        .output()
+        .unwrap();
+    (
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        ),
+        out.status.code().unwrap_or(-1),
+    )
+}
+
+fn project(name: &str) -> common::Sandbox {
+    let dir = keel_sandbox(name);
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\n").unwrap();
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\n").unwrap();
+    let mut decided = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        decided.push_str(&format!("  {cut}: \"не про цю пісочницю\"\n"));
+    }
+    std::fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        format!(
+            "---\nscenarios:\n  it-holds:\n    withdrawn: \"не про це\"\ntransforms:\n  work:\n    chore: \"нічого\"\n    files:\n      - src/lib.rs\n{decided}---\n\n## scenario: it-holds\nтіло обіцянки\n\n## transform: work\nтіло роботи\n"
+        ),
+    )
+    .unwrap();
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    dir
+}
+
+/// proves: research-does-not-merge@5812f0 -- §4.13 promises the ban
+/// is held BY MACHINE ("the check on a PR from `spike/*` is red with
+/// an explanation"), and the norm audit (Л-8) plus the conformance
+/// audit (ВАЖКА-2) both measured the same thing: the word `spike`
+/// does not appear in the code at all. A research branch was judged
+/// like any other stranger's branch -- that is, not at all -- and
+/// merged without a word.
+#[test]
+fn research_does_not_merge() {
+    let dir = project("spike");
+    git(&dir, &["checkout", "-q", "-b", "spike/try-something"]);
+    std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn tried() {}\n").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "spike: playing with it"]);
+
+    // check says so aloud and does not judge the branch (§4.13).
+    let (said, code) = keel(&dir, "check");
+    assert!(
+        said.contains("spike/try-something") && said.contains("§4.13"),
+        "a research branch is named aloud, not passed over in silence:\n{said}"
+    );
+    assert_eq!(
+        code, 0,
+        "and research itself is not a finding -- it is outside the \
+         methodology, which the paragraph says in as many words:\n{said}"
+    );
+
+    // close is the court that says whether this may be merged, and
+    // for research the answer is never.
+    let (said, code) = keel(&dir, "close");
+    // A refusal, not a finding: there is nothing here to judge, and
+    // the answer is the same on every branch of this shape.
+    assert_eq!(code, 2, "closing research is refused (§4.13):\n{said}");
+    assert!(
+        said.contains("spike/try-something") && said.contains("хвилею"),
+        "and the refusal says what to do instead -- bring the finding \
+         back as a wave:\n{said}"
+    );
+
+    // And "the documents are not judged" is true of the whole
+    // report, not only of one line in it. Review 0036 R-5 measured
+    // the §4.12 court running on a spike branch and contradicting
+    // that very sentence two lines below itself.
+    let dir = project("spikedocs");
+    git(&dir, &["checkout", "-q", "-b", "spike/try-something"]);
+    git(&dir, &["rm", "-q", "keel/waves/0001-a-wave.md"]);
+    git(&dir, &["commit", "-q", "-m", "spike: throwing things out"]);
+    // git takes the now-empty directory with the last file in it,
+    // and an absent documents directory is an older court's finding
+    // -- not the one under test here.
+    std::fs::create_dir_all(dir.join("keel/waves")).unwrap();
+    let (said, code) = keel(&dir, "check");
+    assert!(
+        !said.contains("зник із гілки"),
+        "on a research branch the documents are not judged, which is \
+         what the report says of itself (§4.13):\n{said}"
+    );
+    assert_eq!(code, 0, "and research is not a finding:\n{said}");
+
+    // An ordinary branch is untouched by any of this.
+    let dir = project("ordinary");
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let (said, _) = keel(&dir, "check");
+    assert!(
+        !said.contains("§4.13"),
+        "a wave branch hears nothing about research:\n{said}"
+    );
+}

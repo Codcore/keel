@@ -118,6 +118,72 @@ pub fn branch_wave(root: &Path, waves: &[Wave]) -> Option<String> {
         .map(|w| w.slug.clone())
 }
 
+/// What a `plan/<name>` branch plans, by its name alone (§8.2). The
+/// name may be no wave at all -- that is the caller's to say aloud.
+pub fn plan_branch(root: &Path) -> Option<String> {
+    current_branch(root).and_then(|b| b.strip_prefix("plan/").map(str::to_string))
+}
+
+/// A `spike/*` branch: research, outside the methodology (§4.13).
+pub fn spike_branch(root: &Path) -> Option<String> {
+    current_branch(root).and_then(|b| b.strip_prefix("spike/").map(str::to_string))
+}
+
+/// §4.9: a plan branch carries the plan and nothing else. Everything
+/// it changed against the base that is not the methodology's own
+/// furniture (§4.8 -- the `keel/` directory, the config, and the
+/// files this release generates) is a finding by name.
+///
+/// The conformance audit (ВАЖКА-4) measured the paragraph held by
+/// nothing at all: a branch called `plan/<wave>` is not named after a
+/// wave, so the scope court was skipped entirely -- and code laid
+/// down there is seen by nobody, since the work branch no longer
+/// carries it in its diff.
+pub fn plan_findings(
+    root: &Path,
+    generated: &[String],
+) -> Result<Vec<(String, String, String)>, Refusal> {
+    let (base, _) = compare_base(root)?;
+    let changed_raw = git_line(
+        root,
+        &["diff", "--name-only", "--no-renames", &base, "HEAD"],
+    )?;
+    let mut out = Vec::new();
+    for file in changed_raw.lines().map(str::trim) {
+        if file.is_empty() || furniture(file, generated) {
+            continue;
+        }
+        // The finding is hung on the file it accuses: review 0036
+        // R-14 measured it addressed to `keel/waves/<name>.md` of a
+        // wave that may not exist at all.
+        out.push((
+            file.to_string(),
+            ta("scope-plan-code", targs!("file" => file.to_string())),
+            t("scope-plan-code-instead"),
+        ));
+    }
+    Ok(out)
+}
+
+/// The methodology's own files, §4.8 word for word: "the `keel/`
+/// directory, the skills, the CI file, the block in `AGENTS.md`".
+/// Review 0036 R-12 measured this read as "`keel/` plus whatever
+/// stands in [generated]", which was wrong in both directions: a
+/// project that never ran `keel update` had its own SKILL.md and
+/// workflow called code, and a generated file edited by hand went on
+/// being furniture -- which the paragraph's second sentence forbids
+/// in as many words. The digest is not compared here: `keel update`
+/// is the court of that (§9.7), and this one only decides whose file
+/// it is.
+fn furniture(file: &str, generated: &[String]) -> bool {
+    file.starts_with("keel/")
+        || file == "keel.toml"
+        || file == "AGENTS.md"
+        || file.starts_with(".github/workflows/keel")
+        || file.contains("/skills/keel/")
+        || generated.iter().any(|g| g == file)
+}
+
 /// The comparison base: the merge-base with main -- the local one,
 /// or origin/main on a fresh clone that has no local main -- or,
 /// where main never existed at all, the first commit of the branch.

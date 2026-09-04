@@ -94,7 +94,8 @@ pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
     let mut plans: u64 = 0;
     let mut awaiting: Vec<String> = Vec::new();
     for wave in &judged {
-        match close::wave_state(root, wave, &found, &legal, None)? {
+        let state = close::wave_state(root, wave, &found, &legal, None)?;
+        match &state {
             State::Closed { refs_unjudged: 0 } => {
                 closed += 1;
                 report.push_str(&ta(
@@ -159,6 +160,29 @@ pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
                     report.push_str(&format!("           {lack}\n"));
                 }
             }
+        }
+        // The weight, derived and said aloud (§6.8) -- but only where
+        // the ceremony it decides is still ahead. Review 0036 R-14
+        // measured the report growing from 44 lines to 80, a line
+        // per closed wave whose question was settled long ago.
+        // Settled means the merge already happened: then the
+        // ceremony §6.8 decides is behind us and the line is noise
+        // (review 0036 R-14). A wave still on its own branch hears
+        // it, whether or not it has promises to prove.
+        let settled = match &state {
+            State::Closed { .. } => true,
+            State::ClosedLight => branch.as_deref() != Some(wave.slug.as_str()),
+            _ => false,
+        };
+        if !settled {
+            let word = match docs::weight(wave) {
+                docs::Weight::Light => t("word-weight-light"),
+                docs::Weight::Full => t("word-weight-full"),
+            };
+            report.push_str(&format!(
+                "           {}\n",
+                ta("status-weight", targs!("weight" => word))
+            ));
         }
     }
 
