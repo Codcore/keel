@@ -37,7 +37,7 @@ fn cycle_reported_once() {
         wave("0002-b", "0003-c"),
         wave("0003-c", "0001-a"),
     ];
-    let findings = graph::cross_findings(&waves);
+    let findings = graph::cross_findings(&waves, &[]);
     let cycles: Vec<_> = findings
         .iter()
         .filter(|(_, r, _)| r.contains("->"))

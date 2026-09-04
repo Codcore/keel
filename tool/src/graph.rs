@@ -161,13 +161,14 @@ pub fn wave_findings(wave: &Wave) -> Vec<(String, String)> {
 
 /// Cross-wave judgement: depends_on existence and cycles (§7.2), a
 /// superseded_by successor unknown to any wave.
-pub fn cross_findings(waves: &[Wave]) -> Vec<(String, String, String)> {
+pub fn cross_findings(waves: &[Wave], contracts: &[String]) -> Vec<(String, String, String)> {
     use crate::i18n::{t, ta};
     use crate::targs;
     use std::collections::{BTreeMap, BTreeSet};
 
     let mut out = Vec::new();
     let slugs: BTreeSet<&str> = waves.iter().map(|w| w.slug.as_str()).collect();
+    let contracts: BTreeSet<&str> = contracts.iter().map(String::as_str).collect();
     let everyones_scenarios: BTreeSet<&str> = waves
         .iter()
         .flat_map(|w| w.scenarios.iter().map(|(n, _)| n.as_str()))
@@ -190,6 +191,24 @@ pub fn cross_findings(waves: &[Wave]) -> Vec<(String, String, String)> {
             homes.entry(name.as_str()).or_default().push(&wave.slug);
         }
     }
+    // The same namespace holds the contracts: a tag `proves: x@rev`
+    // is read as a scenario, so a contract wearing a scenario's name
+    // answers a question nobody asked -- review 0035 R-17 measured
+    // the finding coming back in the wrong noun entirely.
+    for (name, wave_slug) in homes.iter().filter_map(|(n, w)| w.first().map(|s| (n, s))) {
+        if !contracts.contains(name) {
+            continue;
+        }
+        out.push((
+            wave_slug.to_string(),
+            ta(
+                "graph-name-taken",
+                targs!("name" => name.to_string(), "wave" => wave_slug.to_string()),
+            ),
+            t("graph-name-taken-instead"),
+        ));
+    }
+
     for (name, mut waves_with_it) in homes {
         if waves_with_it.len() < 2 {
             continue;
