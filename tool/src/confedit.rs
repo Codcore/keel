@@ -150,3 +150,95 @@ fn toml_line(key: &str, value: &str) -> String {
     }
     format!("\"{escaped}\" = \"{value}\"")
 }
+
+/// Sets `key = value` among the file's top-level keys, leaving
+/// everything else byte for byte: a person's comments, the order of
+/// the lines, and any section below.
+///
+/// A commented key (`# lang = "uk"`) is the vocabulary showing what
+/// could be set, so setting it replaces that very line -- the answer
+/// lands where the reader already looked for it. The bug audit
+/// measured `keel setup` rebuilding the whole file instead and
+/// taking a person's own comments with it.
+pub fn upsert_root(text: &str, entries: &[(String, String)]) -> String {
+    let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+    // The root block ends where the first section begins.
+    let end = lines
+        .iter()
+        .position(|line| line.trim_start().starts_with('['))
+        .unwrap_or(lines.len());
+
+    for (key, value) in entries {
+        let row = format!("{key} = {value}");
+        // The key is matched by its NAME, not by the spelling of the
+        // spaces around it: `lang="uk"` and `ci  =  "x"` are valid
+        // TOML, and matching a raw prefix missed them and appended a
+        // duplicate key -- which is not TOML at all, so one setup
+        // bricked a healthy config (review 0034 R-1). The
+        // neighbouring hand has had this school since wave 0010; this
+        // one did not inherit it.
+        let names = |line: &str| -> Option<String> {
+            let bare = line.trim_start().trim_start_matches('#').trim_start();
+            let (name, _) = bare.split_once('=')?;
+            Some(name.trim().to_string())
+        };
+        let at = lines[..end]
+            .iter()
+            .position(|line| names(line).as_deref() == Some(key.as_str()));
+        match at {
+            Some(at) => lines[at] = row,
+            None => lines.insert(end, row),
+        }
+    }
+    let mut out = lines.join(eol);
+    if text.ends_with('\n') {
+        out.push_str(eol);
+    }
+    out
+}
+
+/// Removes from `[section]` every key that is not in `keep`,
+/// leaving the rest of the file untouched.
+///
+/// Review 0034 R-4: `keel setup` computed which trust records were
+/// still live and filtered a list -- but the text it wrote into was
+/// the person's own config with every record already in it, and
+/// `upsert` can only add or rewrite. The filter was inert, and the
+/// wizard left behind trust for commands nobody runs, which turns
+/// `keel check` red and sends the person to edit by hand: exactly
+/// the defect R-10 of review 0032 had already fixed once.
+pub fn retain(text: &str, section: &str, keep: &[String]) -> String {
+    let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+    let Some(at) = lines.iter().position(|line| is_header(line, section)) else {
+        return text.to_string();
+    };
+    let end = lines[at + 1..]
+        .iter()
+        .position(|line| line.trim_start().starts_with('['))
+        .map(|offset| at + 1 + offset)
+        .unwrap_or(lines.len());
+
+    let kept: Vec<String> = keep.iter().map(|word| collapse(word)).collect();
+    let mut out: Vec<String> = Vec::new();
+    for (number, line) in lines.drain(..).enumerate() {
+        let inside = number > at && number < end;
+        let name = line
+            .trim_start()
+            .split_once('=')
+            .map(|(name, _)| collapse(name.trim().trim_matches('"')));
+        let drop = inside
+            && !line.trim().is_empty()
+            && !line.trim_start().starts_with('#')
+            && name.is_some_and(|name| !kept.contains(&name));
+        if !drop {
+            out.push(line);
+        }
+    }
+    let mut text_out = out.join(eol);
+    if text.ends_with('\n') {
+        text_out.push_str(eol);
+    }
+    text_out
+}

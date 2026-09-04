@@ -63,7 +63,15 @@ fn the_tool_speaks_plainly() {
             .chars()
             .take_while(|c| c.is_ascii_lowercase())
             .collect();
-        if word.is_empty() || commands.contains(&word) {
+        // `concept` serves NEW-CONCEPT.md whole, and that document
+        // quotes this project's own history -- a citation, not the
+        // tool speaking, exactly like the diff below. Review 0034
+        // R-2: the first cut of this excluded `method` and `cuts`
+        // too, and measured, they were not needed -- two roads given
+        // up for nothing. Worse, the exception was added to hide a
+        // real finding instead of fixing it; the document is clean
+        // now and the exception is one command wide.
+        if word.is_empty() || commands.contains(&word) || word == "concept" {
             continue;
         }
         commands.push(word);

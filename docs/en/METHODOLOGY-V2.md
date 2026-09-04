@@ -12,7 +12,7 @@
 > follows them. Where the two disagree, the Ukrainian one is right —
 > and the disagreement is a defect to report, not a choice to make.
 >
-> `translated_from: e423b6` — the revision of the Ukrainian text this
+> `translated_from: 033de8` — the revision of the Ukrainian text this
 > translation was made from (constitution, rule 4: whoever leans on a
 > text holds its revision). `keel check` compares it with the
 > Ukrainian methodology as it now stands: change the original and the
@@ -153,9 +153,13 @@ when the work is finished. Every scenario becomes a test that proves
 that promise.
 
 **§2.4.** A transform is a portion of work that brings the wave's
-promises closer. Every transform becomes exactly one commit, and that
-commit's message begins with its slug — the name from the wave's
-header.
+promises closer. Every transform becomes at least one commit, and the
+message of each such commit begins with its slug — the name from the
+wave's header. How many there are does not matter: a transform is
+closed by the fact of such a commit (§6.2), and dispatching a
+reviewer's findings (§9.9) gives a second and a third by itself. The
+rule said "exactly one" until wave 0034 and was broken every wave,
+not least by the methodology itself.
 
 **§2.5.** The names of scenarios and transforms, and the links between
 them, live in the header; their texts are sections in the body. What

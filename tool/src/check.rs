@@ -277,6 +277,30 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                     .and_then(|base| scope::findings(root, wave).map(|list| (base, list)));
                 match compared {
                     Ok(((sha, from_main), list)) => {
+                        // The red birth, judged by the BRANCH (§7.12).
+                        // Two audits found this independently: the
+                        // paragraph names two holders -- the hook and
+                        // a branch check -- and only the hook existed.
+                        // A hook lives in .git/hooks, which does not
+                        // travel with git, so every fresh clone
+                        // worked without the guard: the audit
+                        // committed work with no test and no red
+                        // commit and got zero findings, and then
+                        // `keel close` called the wave closed.
+                        for (scenario, instead) in unborn_scenarios(
+                            root,
+                            wave,
+                            &sha,
+                            found_tags.as_ref().and_then(|r| r.as_ref().ok()),
+                        ) {
+                            rows.push((
+                                wave_path.clone(),
+                                Some(format!(
+                                    "{scenario}\n           {}: {instead}",
+                                    t("word-instead")
+                                )),
+                            ));
+                        }
                         for (reason, instead) in list {
                             rows.push((
                                 wave_path.clone(),
@@ -625,6 +649,63 @@ fn verdict_limits(root: &Path, refs_unjudged: u64) -> Vec<String> {
     }
 
     limits
+}
+
+/// Scenarios this branch works on that never earned their red.
+///
+/// A scenario counts as worked on when a test on this branch carries
+/// its tag; it counts as born when some commit between the base and
+/// HEAD is named `red: <scenario>`. Waves closed before this court
+/// existed are not judged: their branches are long merged, and
+/// demanding a red commit from history that is no longer reachable
+/// would redden the verdict on its own past. That is why the court
+/// asks the BRANCH, not the whole repository.
+fn unborn_scenarios(
+    root: &Path,
+    wave: &docs::Wave,
+    base: &str,
+    found: Option<&Vec<tags::TestTag>>,
+) -> Vec<(String, String)> {
+    // A history cut short cannot answer this: the base may be
+    // unreachable, or be HEAD itself, and then no commit is looked at
+    // at all. Review 0034 R-3 measured both halves of that -- a
+    // silent green on a depth-1 clone and a FALSE RED on a depth-2
+    // one, where the red birth lies below the graft. The wave named
+    // this limit in the scenario's body and did not build it; the
+    // court says it now, as every other limit does.
+    if is_shallow(root) {
+        return vec![(t("check-red-unjudged"), t("check-red-unjudged-instead"))];
+    }
+    let Some(names) = git_line(root, &["log", "--format=%s", &format!("{base}..HEAD")]) else {
+        return Vec::new();
+    };
+    // The first word after `red:`, exactly as the hook reads it:
+    // review 0034 R-8 measured the two disagreeing on
+    // `red: a-promise -- the first cut`, where the hook accepted the
+    // birth and this court accused the scenario anyway.
+    let born: Vec<&str> = names
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("red:"))
+        .filter_map(|rest| rest.split_whitespace().next())
+        .collect();
+    let mut unborn = Vec::new();
+    for (name, scenario) in &wave.scenarios {
+        if scenario.withdrawn.is_some() {
+            continue;
+        }
+        let worked = found.is_some_and(|tags| tags.iter().any(|tag| &tag.scenario == name));
+        if !worked || born.iter().any(|word| word == name) {
+            continue;
+        }
+        unborn.push((
+            ta("check-red-unborn", targs!("scenario" => name.clone())),
+            ta(
+                "check-red-unborn-instead",
+                targs!("scenario" => name.clone()),
+            ),
+        ));
+    }
+    unborn
 }
 
 /// The remote this clone actually has: `origin` when it is there,

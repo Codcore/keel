@@ -302,7 +302,14 @@ pub fn setup(root: &Path, answers: &crate::ask::Answers) -> Result<(String, usiz
     if !config.is_file() {
         return run(root, answers);
     }
-    let mut text = crate::ask::config_text(answers);
+    // The person's file, edited -- not a new file with their words
+    // dropped. Only what the wizard asked about moves.
+    let old = std::fs::read_to_string(&config).unwrap_or_default();
+    let mut text = if old.trim().is_empty() {
+        crate::ask::config_text(answers)
+    } else {
+        crate::confedit::upsert_root(&old, &crate::ask::answered_rows(answers))
+    };
 
     // What the wizard never asked about is carried across verbatim.
     {
@@ -314,11 +321,27 @@ pub fn setup(root: &Path, answers: &crate::ask::Answers) -> Result<(String, usiz
             // and review 0032 R-10 measured setup leaving one behind
             // whenever the ci command changed, turning the gate red
             // and sending the person back to editing by hand.
-            let live = answers.ci.clone();
+            // Every command this project really runs, not only the ci
+            // line: a contract's `verify` is trusted by a person's
+            // decision (§7.16), and the bug audit measured setup
+            // dropping those silently -- a defect I introduced while
+            // fixing R-10 of review 0032.
+            let scan = crate::docs::scan(root);
+            let contracts = scan.map(|scan| scan.contracts).unwrap_or_default();
+            let live: Vec<String> = crate::trust::live_commands(&kept, &contracts)
+                .into_iter()
+                .map(|(_, command)| command)
+                .chain(answers.ci.clone())
+                .collect();
+            // Removed, not merely filtered: the text being written is
+            // the person's own config with every record already in
+            // it, so a filtered list added nothing and took nothing
+            // away (review 0034 R-4).
+            text = crate::confedit::retain(&text, "trust", &live);
             let trust: Vec<(String, String)> = kept
                 .trust
                 .into_iter()
-                .filter(|(command, _)| live.as_deref() == Some(command.as_str()))
+                .filter(|(command, _)| live.iter().any(|word| word == command))
                 .collect();
             for (section, entries) in [("trust", trust), ("generated", kept.generated)] {
                 if entries.is_empty() {
