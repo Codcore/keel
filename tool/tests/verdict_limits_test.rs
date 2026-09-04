@@ -94,7 +94,7 @@ fn a_verdict_says_how_much_of_it_is_real() {
         .expect("there is a summary line")
         .to_string();
     assert!(
-        !level_summary.contains("меж"),
+        !level_summary.contains("не перевірено"),
         "a verdict that judged everything it claims says nothing about limits:\n{level_summary}"
     );
 
@@ -110,7 +110,7 @@ fn a_verdict_says_how_much_of_it_is_real() {
         .expect("there is a summary line")
         .to_string();
     assert!(
-        alone_summary.contains("меж"),
+        alone_summary.contains("не перевірено"),
         "and one that could not says so in the line everyone reads:\n{alone_summary}"
     );
     assert_ne!(
@@ -155,7 +155,7 @@ fn a_verdict_says_how_much_of_it_is_real() {
         })
         .to_string();
     assert!(
-        cut_summary.contains("меж"),
+        cut_summary.contains("не перевірено"),
         "a shallow verdict says so in the line everyone reads:\n{cut_summary}"
     );
     assert!(
@@ -163,7 +163,41 @@ fn a_verdict_says_how_much_of_it_is_real() {
         "names how to get it back:\n{cut}"
     );
 
-    // The NUMBER, not merely its presence. Wave 0033: replacing the
+    // A directory with no git at all is not a clone with problems --
+    // it is not a clone. Review 0031 R-8 found it told "this clone
+    // knows no remote trunk", which is true of a shoebox too.
+    let bare_dir = keel_sandbox("nogit");
+    std::fs::write(bare_dir.join("keel.toml"), "lang = \"uk\"\n").unwrap();
+    let (out, err, _) = keel(&["check", bare_dir.to_str().unwrap()]);
+    let quiet = format!("{out}{err}");
+    assert!(
+        !quiet.contains("межа вироку"),
+        "a directory with no repository is asked nothing:\n{quiet}"
+    );
+}
+
+/// One line of git output from a directory, for the probe's own
+/// questions.
+fn git_out(dir: &std::path::Path, args: &[&str]) -> String {
+    let out = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+/// proves: the-skipped-count-is-true@d5c7d5 -- the operator watched
+/// a single expression being replaced so the count came out zero,
+/// and the whole battery stayed green: the tool would have said "0
+/// checks of old revisions were not run" where the truth was 141.
+/// The old probe asked only that the line appear and that a full
+/// verdict and a shallow one end differently -- both true with a
+/// zero in place.
+#[test]
+fn the_skipped_count_is_true() {
+    let dir = keel_sandbox("counted");
+    // Wave 0033: replacing the
     // real count with a zero left the whole battery green, so the
     // tool could say "0 checks were not run" where the truth was 141
     // and nothing would notice.
@@ -217,27 +251,4 @@ fn a_verdict_says_how_much_of_it_is_real() {
         "the cut clone says how many checks it skipped, and that is the \
          number the whole one made -- not a zero, not a guess"
     );
-
-    // A directory with no git at all is not a clone with problems --
-    // it is not a clone. Review 0031 R-8 found it told "this clone
-    // knows no remote trunk", which is true of a shoebox too.
-    let bare_dir = keel_sandbox("nogit");
-    std::fs::write(bare_dir.join("keel.toml"), "lang = \"uk\"\n").unwrap();
-    let (out, err, _) = keel(&["check", bare_dir.to_str().unwrap()]);
-    let quiet = format!("{out}{err}");
-    assert!(
-        !quiet.contains("межа вироку"),
-        "a directory with no repository is asked nothing:\n{quiet}"
-    );
-}
-
-/// One line of git output from a directory, for the probe's own
-/// questions.
-fn git_out(dir: &std::path::Path, args: &[&str]) -> String {
-    let out = Command::new("git")
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .unwrap();
-    String::from_utf8_lossy(&out.stdout).trim().to_string()
 }

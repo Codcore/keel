@@ -13,6 +13,7 @@ transforms:
       - the-skipped-count-is-true
     files:
       - tool/tests/verdict_limits_test.rs
+      - tool/tests/check_test.rs
   words-a-person-knows:
     implements:
       - the-tool-speaks-plainly

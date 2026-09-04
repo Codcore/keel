@@ -85,8 +85,9 @@ fn check_reports_every_file() {
         "the broken one named with a reason:\n{out}"
     );
     assert!(
-        out.contains("checked by this floor"),
-        "the report names its own limits:\n{out}"
+        out.contains("what was checked"),
+        "the report says what it checked, in words that exist outside \
+         this project (wave 0033, §1.7):\n{out}"
     );
     // Fixture kept up with the ladder (0011): every floor of chapter
     // 7 stands, the unchecked line is gone -- §7.8's border speaks

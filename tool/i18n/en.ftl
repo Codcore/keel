@@ -222,7 +222,7 @@ review-diff-unverified = ## The full branch diff: not verified — no fork point
 review-not-wave = the branch "{ $branch }" is not named as a wave (§8.2) — the package does not guess which wave it is for
 review-not-wave-instead = checkout the wave's branch: the package is assembled for the branch's wave (§9.9)
 review-scenarios-none = none — a chore wave promises no scenarios (§6.8)
-review-transform-no-body = (no body section — §7.7's header-vs-body floor is a rung ahead; judge it by hand)
+review-transform-no-body = (no body section — §7.7's header-vs-body court is a step ahead; judge it by hand)
 review-protocol-header = ## What the reviewer does with this (§9.9)
 review-protocol-rows = every row of every list above gets an answer — "fine, because…" — or becomes a finding; skipping a row in silence is not allowed
 review-protocol-questions = above the lists, four judgement questions: what did we keep silent about; are all possible scenarios accounted for; is everything promised implemented, with no quiet narrowing; does the test cover the whole scenario, not a corner of it
@@ -275,7 +275,7 @@ rev-title = keel rev -- current revisions
 rev-next = next step: hold these revisions in proves/contracts and in test tags (§5.5); reread before updating a stale one (§5.1)
 
 ## check command
-check-title = keel check -- documents (rung 1)
+check-title = keel check -- documents
 check-config-present = config: keel.toml (lang = { $lang })
 check-config-absent = no keel.toml -- defaults in effect (lang = en); a default does not pass itself off as read
 check-config-lang-default = config: keel.toml (lang not set -- default en in effect; a default does not pass itself off as read)
@@ -300,7 +300,7 @@ check-scope-skipped-no-git = scope not compared: git serves no branch for this r
 check-scope-skipped-refused = scope not compared: git refused mid-way -- its refusal stands among the findings
 check-header-reads = header reads
 check-no-documents = no documents yet
-check-checked = checked by this floor: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); trust of verify/ci commands against recorded fingerprints (§7.16, §2.8); the form of contracts held (§7.6, §2.9); header-vs-body both ways (§7.7); closure is judged by keel close (§6.5)
+check-checked = what was checked: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); trust of verify/ci commands against recorded fingerprints (§7.16, §2.8); the form of contracts held (§7.6, §2.9); header-vs-body both ways (§7.7); closure is judged by keel close (§6.5)
 check-adapter-synonym = adapter = "cargo" is an accepted synonym — the canonical name is the language's: adapter = "rust" (NEW-CONCEPT, Config; wave 0017)
 check-borders = the border of green (§7.8): a green test means it exists, matches and passes -- not that the promise is proven in essence; green form is not yet meaning. No mechanics closes that gap: the fresh reviewer holds it with the four questions (§9.9)
 check-ref-missing = wave { $wave }: the reference { $contract }@{ $recorded } points to a contract file that does not exist
@@ -308,14 +308,14 @@ check-ref-missing-instead = create keel/contracts/{ $contract }.md or fix the sl
 check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the contract text now gives { $actual }
 check-ref-stale-instead = reread the contract and update the reference deliberately (§5.1); if this wave is already closed, the old revision is legal (§5.6)
 # The verdict's own limits (wave 0031).
-limit-shallow = limit of this verdict: the history is shallow -- { $skipped ->
+limit-shallow = not checked: the history is shallow -- { $skipped ->
         [one] { $skipped } check of an old revision was not run
        *[other] { $skipped } checks of old revisions were not run
     }, and how many of them this depth COULD have run is not counted; instead: git fetch --unshallow
-limit-base-stale = limit of this verdict: local { $trunk } is { $behind } behind { $base } as of the last fetch (this clone knows nothing newer) -- scope was judged against a stale base; instead: git fetch
-limit-base-local-only = limit of this verdict: this clone knows no remote { $trunk } -- the base of comparison is local and its freshness cannot be checked
-limit-unpushed = limit of this verdict: this clone does not see branch "{ $branch }" in { $remote } -- whether it is really there was not asked (no network); instead: git push -u { $remote } { $branch }
-limit-ahead = limit of this verdict: branch "{ $branch }" differs from { $remote }/{ $branch } as this clone knows them -- this judges what { $remote } may not have yet; instead: git push
+limit-base-stale = not checked: local { $trunk } is { $behind } behind { $base } as of the last fetch (this clone knows nothing newer) -- scope was judged against a stale base; instead: git fetch
+limit-base-local-only = not checked: this clone knows no remote { $trunk } -- the base of comparison is local and its freshness cannot be checked
+limit-unpushed = not checked: this clone does not see branch "{ $branch }" in { $remote } -- whether it is really there was not asked (no network); instead: git push -u { $remote } { $branch }
+limit-ahead = not checked: branch "{ $branch }" differs from { $remote }/{ $branch } as this clone knows them -- this judges what { $remote } may not have yet; instead: git push
 
 check-summary = summary: { $docs ->
         [one] { $docs } document
@@ -325,12 +325,12 @@ check-summary = summary: { $docs ->
        *[other] { $refusals } findings
     }{ $limits ->
         [0] { "" }
-        [one] , { $limits } limit of this verdict (above)
-       *[other] , { $limits } limits of this verdict (above)
+        [one] , { $limits } thing not checked (above)
+       *[other] , { $limits } things not checked (above)
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: rung 21 -- a contract naming a module that does not exist must be a finding off the plan branch, not advice (review 0022 R-13)
+check-next-rung = next step: a contract naming a module that does not exist must be a finding off the plan branch, not advice (review 0022 R-13)
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)

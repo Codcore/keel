@@ -9,7 +9,17 @@ use std::process::Command;
 /// mean nothing to anyone who has not read the commit history, and
 /// §1.7 asks for the opposite: a word of the methodology's own is
 /// explained in plain words where it is first used.
-const INVENTED: [&str; 3] = ["межа вироку", "поверх", "щабель"];
+/// Written as the PHRASES they appear in: "поверх" on its own is an
+/// ordinary preposition ("keel не пише поверх того, чого не писав"),
+/// and a check that forbids a common word would be a check nobody
+/// can keep.
+const INVENTED: [&str; 5] = [
+    "межа вироку",
+    "межі вироку",
+    "меж вироку",
+    "цим поверхом",
+    "щабель ",
+];
 
 /// proves: the-tool-speaks-plainly@6caef1 -- the operator read
 /// the output of `keel check` and could not tell what "межа вироку"
@@ -59,19 +69,9 @@ fn the_tool_speaks_plainly() {
         }
     }
 
-    // And what replaced them says what happened, in words that exist
-    // outside this project.
-    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
-        .args(["check", dir.to_str().unwrap()])
-        .output()
-        .unwrap();
-    let said = format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    assert!(
-        said.contains("не перевірено"),
-        "the tool says plainly what it did not check:\n{said}"
-    );
+    // What REPLACED them -- the plain "не перевірено" -- is judged
+    // where such a line actually appears: verdict_limits_test, which
+    // builds a clone that has something to not check. This probe
+    // holds the other half: no road a person walks says a word this
+    // project invented and never explained.
 }
