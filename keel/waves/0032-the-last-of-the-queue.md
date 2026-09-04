@@ -32,6 +32,7 @@ transforms:
     files:
       - tool/src/ask.rs
       - tool/src/init.rs
+      - tool/src/plan.rs
       - tool/src/main.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
@@ -185,7 +186,11 @@ decisions:
 ## transform: the-wizard-and-the-second-chance
 
 `ask.rs` дістає три питання, `init.rs` їх ставить, `main.rs` вчиться
-слову `setup`.
+слову `setup`. `plan.rs` додано **під час розсилки рецензії**, а не
+перед роботою: R-1 показала, що `setup` писав звичайним `fs::write`,
+тож обірваний запис лишив би обрізок, — і атомний запис живе там,
+поруч із тим, яким пише `init`. Розширення scope назване тут, як
+того й вимагає §4.6.
 
 ## transform: the-mouth-carries-all-it-holds
 
