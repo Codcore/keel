@@ -26,6 +26,16 @@ const METHOD: &str = include_str!("../../docs/uk/METHODOLOGY-V2.md");
 /// where the settings say English). The Ukrainian text stays the
 /// source of truth, and the English one says so in its own opening.
 const METHOD_EN: &str = include_str!("../../docs/en/METHODOLOGY-V2.md");
+/// The concept the project leans on -- carried since wave 0032,
+/// because wave 0027 named "the mouth does not serve NEW-CONCEPT.md"
+/// as a limit and it stood for five waves. It exists in Ukrainian
+/// only, and the frame says so rather than pretending otherwise.
+const CONCEPT: &str = include_str!("../../docs/uk/NEW-CONCEPT.md");
+
+/// The concept this release was built with.
+pub fn concept() -> &'static str {
+    CONCEPT
+}
 
 /// The checklist this release was built with -- handed out so a
 /// caller can judge it against the courts' own list without a second

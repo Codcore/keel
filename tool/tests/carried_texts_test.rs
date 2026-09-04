@@ -24,11 +24,12 @@ fn keel(dir: &std::path::Path, args: &[&str]) -> String {
 /// Every text this binary carries, and the word that asks for it.
 /// A text added to speak.rs without a row here fails the probe: the
 /// rule is held by machinery, not by memory (§9.6).
-const CARRIED: [(&str, &str); 4] = [
+const CARRIED: [(&str, &str); 5] = [
     ("QUALITY.md", "cuts"),
     ("docs/uk/QUALITY.md", "cuts"),
     ("docs/uk/METHODOLOGY-V2.md", "method"),
     ("docs/en/METHODOLOGY-V2.md", "method"),
+    ("docs/uk/NEW-CONCEPT.md", "concept"),
 ];
 
 /// proves: the-mouth-serves-every-text-it-carries@856de7 -- named as

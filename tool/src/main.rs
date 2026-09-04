@@ -573,6 +573,34 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         }
+        // The concept, carried since wave 0032: a text the binary
+        // held and the mouth would not give.
+        Some("concept") => {
+            let (root, extra) = one_path(&args);
+            if extra {
+                eprintln!("{}", t("main-usage"));
+                return ExitCode::from(2);
+            }
+            let lang = match keel::config::read_unpinned(&root) {
+                Ok(config) => config.lang,
+                Err(refusal) => {
+                    eprintln!("{refusal}");
+                    return ExitCode::from(2);
+                }
+            };
+            keel::i18n::init(&lang);
+            println!("{}", t("speak-concept-title"));
+            println!();
+            println!("{}", keel::speak::concept());
+            println!(
+                "{}",
+                ta(
+                    "speak-concept-source",
+                    targs!("version" => env!("CARGO_PKG_VERSION").to_string())
+                )
+            );
+            ExitCode::SUCCESS
+        }
         Some("cuts") => {
             // The mouth reads no document from disk: it serves what
             // this release was built with, so a project that has
