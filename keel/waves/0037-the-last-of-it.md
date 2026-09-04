@@ -55,10 +55,13 @@ transforms:
       - tool/src/check.rs
       - tool/src/close.rs
       - tool/src/status.rs
+      - tool/src/graph.rs
+      - tool/src/holding.rs
+      - tool/src/gate.rs
+      - tool/src/next.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/called_off_test.rs
-      - tool/tests/dead_assert_test.rs
   the-write-tells-the-truth:
     implements:
       - a-write-that-lies-is-red
