@@ -17,6 +17,8 @@ transforms:
       - tool/src/ask.rs
       - tool/src/init.rs
       - tool/src/confedit.rs
+      - QUALITY.md
+      - docs/uk/QUALITY.md
       - tool/tests/setup_test.rs
       - tool/tests/plain_words_test.rs
   every-assert-can-fail:

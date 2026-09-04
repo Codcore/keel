@@ -32,21 +32,29 @@ fn the_vocabulary_cannot_drift_from_the_norm() {
         "and that there is no third answer"
     );
 
+    // Review 0034 R-5: the wave fixed three phrases at the top --
+    // the three this probe looked for -- and the LAST paragraph of
+    // both files went on saying the opposite. A reader who finishes
+    // the page did what §10.3 calls red.
     for (file, claims) in [
         (
             "QUALITY.md",
-            [
+            vec![
                 "One pass per wave",
                 "not walked a second time",
                 "One of three answers",
+                "leaves nothing",
+                "costs one pass",
             ],
         ),
         (
             "docs/uk/QUALITY.md",
-            [
+            vec![
                 "Один прохід на хвилю",
                 "удруге не проходять",
                 "з трьох відповідей",
+                "не лишає по собі нічого",
+                "коштує\nодного проходу",
             ],
         ),
     ] {

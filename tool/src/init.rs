@@ -333,6 +333,11 @@ pub fn setup(root: &Path, answers: &crate::ask::Answers) -> Result<(String, usiz
                 .map(|(_, command)| command)
                 .chain(answers.ci.clone())
                 .collect();
+            // Removed, not merely filtered: the text being written is
+            // the person's own config with every record already in
+            // it, so a filtered list added nothing and took nothing
+            // away (review 0034 R-4).
+            text = crate::confedit::retain(&text, "trust", &live);
             let trust: Vec<(String, String)> = kept
                 .trust
                 .into_iter()

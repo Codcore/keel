@@ -666,13 +666,27 @@ fn unborn_scenarios(
     base: &str,
     found: Option<&Vec<tags::TestTag>>,
 ) -> Vec<(String, String)> {
+    // A history cut short cannot answer this: the base may be
+    // unreachable, or be HEAD itself, and then no commit is looked at
+    // at all. Review 0034 R-3 measured both halves of that -- a
+    // silent green on a depth-1 clone and a FALSE RED on a depth-2
+    // one, where the red birth lies below the graft. The wave named
+    // this limit in the scenario's body and did not build it; the
+    // court says it now, as every other limit does.
+    if is_shallow(root) {
+        return vec![(t("check-red-unjudged"), t("check-red-unjudged-instead"))];
+    }
     let Some(names) = git_line(root, &["log", "--format=%s", &format!("{base}..HEAD")]) else {
         return Vec::new();
     };
+    // The first word after `red:`, exactly as the hook reads it:
+    // review 0034 R-8 measured the two disagreeing on
+    // `red: a-promise -- the first cut`, where the hook accepted the
+    // birth and this court accused the scenario anyway.
     let born: Vec<&str> = names
         .lines()
         .filter_map(|line| line.trim().strip_prefix("red:"))
-        .map(str::trim)
+        .filter_map(|rest| rest.split_whitespace().next())
         .collect();
     let mut unborn = Vec::new();
     for (name, scenario) in &wave.scenarios {

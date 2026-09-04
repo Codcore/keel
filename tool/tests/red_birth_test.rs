@@ -53,7 +53,7 @@ fn wave_text(dir: &std::path::Path) -> String {
     let (said, _) = keel(&["cuts", dir.to_str().unwrap()]);
     let mut cuts: Vec<String> = Vec::new();
     for line in said.lines() {
-        let word = line.trim().split_whitespace().next().unwrap_or("");
+        let word = line.split_whitespace().next().unwrap_or("");
         if word.matches('.').count() == 1
             && word
                 .chars()
@@ -143,6 +143,23 @@ fn the_red_birth_is_judged_by_the_branch() {
     assert!(
         !said.contains("red:"),
         "and a scenario that was born red is not accused of anything:\n{said}"
+    );
+
+    // The limit the scenario names, played rather than promised:
+    // review 0034 R-3 measured a cut-short clone giving a silent
+    // green on one depth and a FALSE RED on another. A court that
+    // cannot see the history says so.
+    let cut = dir.join("cut");
+    Command::new("git")
+        .args(["clone", "-q", "--depth", "1", "--branch", "0001-a-wave"])
+        .arg(format!("file://{}", dir.display()))
+        .arg(&cut)
+        .status()
+        .unwrap();
+    let (said, _) = keel(&["check", cut.to_str().unwrap()]);
+    assert!(
+        said.contains("червоних народжень на цій гілці не звірити"),
+        "a cut-short history is told it cannot be judged, not passed as green:\n{said}"
     );
 
     // The court does not depend on a hook: nothing was installed in

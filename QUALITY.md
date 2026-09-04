@@ -149,6 +149,9 @@ the thing this file exists against.
 - **safe integration** — what does adding it to a running system risk
 
 **Not every cut applies to every wave, and pretending otherwise is the shortest
-road to the list no longer being read.** A cut with nothing to say leaves nothing
-behind: no scenario, no line, no note. The list costs one pass; what it buys is
+road to the list no longer being read.** But "does not apply" is an ANSWER too,
+and it is written down: a line in `decisions:` with the reason (§10.3). Leaving
+nothing behind -- no scenario, no line -- is not allowed: a cut with no answer
+makes the plan incomplete, and the check is red before the review. The list
+costs two passes, by two different heads; what it buys is
 that the case nobody thought of can no longer be passed over in silence.

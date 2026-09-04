@@ -126,6 +126,26 @@ fn setup_never_breaks_what_it_edits() {
         "and the words a person wrote are still there:\n{after}"
     );
 
+    // Trust: what the project still runs stays, what nobody runs any
+    // more goes. Review 0034 R-4 measured the wizard keeping a dead
+    // record and turning the gate red -- the very defect R-10 of
+    // review 0032 had fixed once already.
+    let config = std::fs::read_to_string(dir.join("keel.toml")).unwrap();
+    std::fs::write(
+        dir.join("keel.toml"),
+        format!("{config}\n[trust]\n\"a command nothing runs\" = \"deadbeef\"\n"),
+    )
+    .unwrap();
+    keel(&["setup", "--no-ask", dir.to_str().unwrap()]);
+    let after = std::fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        !after.contains("a command nothing runs"),
+        "trust for a command nobody runs goes with it, instead of \
+         reddening the gate:\n{after}"
+    );
+    let (verdict, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "and the gate stays green:\n{verdict}");
+
     // A config that cannot be read stops the command rather than
     // being overwritten unseen.
     std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nthis is not toml\n").unwrap();
