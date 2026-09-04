@@ -195,6 +195,30 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         targs!("count" => battery.len() as u64, "runs" => BATTERY_RUNS as u64),
     ));
     report.push('\n');
+    // What the court just watched fail, by name (bug audit B6): it
+    // ran the battery three times, saw red, and said only that the
+    // wave is not closed -- so a person had to run the whole battery
+    // again to learn what this court had already seen.
+    let mut fell: Vec<String> = battery
+        .iter()
+        .filter(|(_, runs)| runs.iter().any(|green| !green))
+        .map(|((file, test), runs)| {
+            let every = runs.iter().all(|green| !green);
+            ta(
+                if every {
+                    "close-test-red"
+                } else {
+                    "close-test-flaky"
+                },
+                targs!("file" => file.clone(), "test" => test.clone()),
+            )
+        })
+        .collect();
+    fell.sort();
+    for line in &fell {
+        report.push_str(line);
+        report.push('\n');
+    }
 
     // The verify of live contracts (§7.6, §2.8), under the §7.16
     // trust court: only a matching fingerprint runs; a failing

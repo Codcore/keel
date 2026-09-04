@@ -109,30 +109,48 @@ pub fn run(root: &Path, answers: &Answers) -> Result<(String, usize), Refusal> {
     // The commit-msg hook by gate's own hand (§9.3) -- no double: a
     // foreign hook or a silent git is gate's refusal, said here as a
     // row, and the frame keeps landing around it.
-    match gate::install_hook(root) {
-        Ok(words) => {
-            report.push_str("  ");
-            report.push_str(&words);
-            report.push('\n');
-        }
-        Err(refusal) => {
-            failed += 1;
-            let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
-            // Where the refusal points at the root itself the
-            // stripped name is empty -- the piece keeps its name.
-            let shown = if shown.as_os_str().is_empty() {
-                std::path::Path::new("commit-msg")
-            } else {
-                shown
-            };
-            report.push_str(&format!(
-                "  {:<8} {} — {}\n           {}: {}\n",
-                t("word-red"),
-                shown.display(),
-                refusal.reason,
-                t("word-instead"),
-                refusal.instead
-            ));
+    //
+    // Unless the project answered `hooks = false`. Review 0035 named
+    // this and set it aside: the answer went into keel.toml and the
+    // hook was written anyway, so the question changed nothing. An
+    // installed hook is not swept away by a later "no" -- removing
+    // what a person may rely on is not this command's to do -- but it
+    // is said aloud that nobody maintains it now.
+    if answers.hooks == Some(false) {
+        let key = if root.join(".git/hooks/commit-msg").is_file() {
+            "init-hook-off-standing"
+        } else {
+            "init-hook-off"
+        };
+        report.push_str("  ");
+        report.push_str(&t(key));
+        report.push('\n');
+    } else {
+        match gate::install_hook(root) {
+            Ok(words) => {
+                report.push_str("  ");
+                report.push_str(&words);
+                report.push('\n');
+            }
+            Err(refusal) => {
+                failed += 1;
+                let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
+                // Where the refusal points at the root itself the
+                // stripped name is empty -- the piece keeps its name.
+                let shown = if shown.as_os_str().is_empty() {
+                    std::path::Path::new("commit-msg")
+                } else {
+                    shown
+                };
+                report.push_str(&format!(
+                    "  {:<8} {} — {}\n           {}: {}\n",
+                    t("word-red"),
+                    shown.display(),
+                    refusal.reason,
+                    t("word-instead"),
+                    refusal.instead
+                ));
+            }
         }
     }
 

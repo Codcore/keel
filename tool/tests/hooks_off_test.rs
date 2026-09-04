@@ -73,7 +73,10 @@ fn the_answers_are_obeyed() {
     // removing what a person may rely on is not this command's to do.
     let dir = project("already");
     init(&dir, &["--no-ask", "--hooks", "--lang", "uk"]);
-    assert!(dir.join(".git/hooks/commit-msg").exists(), "the hook stands");
+    assert!(
+        dir.join(".git/hooks/commit-msg").exists(),
+        "the hook stands"
+    );
     let said = init(&dir, &["--no-ask", "--no-hooks", "--lang", "uk"]);
     assert!(
         dir.join(".git/hooks/commit-msg").exists(),

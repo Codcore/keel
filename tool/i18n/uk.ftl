@@ -284,6 +284,8 @@ gate-soft = mode: soft — ті самі слова, лише попередже
 gate-hook-installed = commit-msg hook тепер кличе keel gate — записано в { $path }
 gate-adapter-unjudged = адаптер "{ $name }" не цього релізу (реліз обслуговує "rust") — комміт не суджений: слово стоїть уголос, суд чекає хвилі свого адаптера
 gate-adapter-absent-name = не названий
+init-hook-off = git-гачок не ставлю: проєкт відповів hooks = false — відповідь чинна і для нього (§9.3)
+init-hook-off-standing = git-гачок лишаю там, де він є: проєкт відповів hooks = false, тож ним ніхто не опікується — прибери .git/hooks/commit-msg рукою або постав hooks = true
 gate-hook-already = hook уже наш — тихо той самий файл
 gate-hook-foreign = commit-msg hook тут уже є, і він не наш
 gate-hook-foreign-instead = keel не затирає чужий hook (§9.7); прочитай його і злий або прибери сам, тоді повтори keel hook
@@ -393,6 +395,8 @@ check-next-rung = наступний крок: контракт, що назив
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
+close-test-red = { "  " }червоний тест: { $test } ({ $file }) — падав у кожному бігу
+close-test-flaky = { "  " }хиткий тест: { $test } ({ $file }) — падав не в кожному бігу, і саме тому батарея жене тричі (§7.13)
 close-battery = батарея: { $count } тестів × { $runs } біги (§7.13) — зелений лише зелений у кожному бігу
 close-closed = { $wave }: закрита — кожен живий сценарій доведений, посилання сходяться, звіт рецензії поруч
 close-closed-unjudged = { $wave }: закрита — кожен живий сценарій доведений, звіт рецензії поруч; посилань не звірено: { $count } — історія тут не свідчить (§5.6)

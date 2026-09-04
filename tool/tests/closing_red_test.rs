@@ -28,11 +28,7 @@ fn git(dir: &Path, args: &[&str]) {
 #[test]
 fn the_closing_says_what_failed() {
     let dir = keel_sandbox("closingred");
-    std::fs::write(
-        dir.join("keel.toml"),
-        "lang = \"uk\"\nadapter = \"rust\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
     std::fs::write(
         dir.join("Cargo.toml"),
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
@@ -90,7 +86,8 @@ fn the_closing_says_what_failed() {
          B6):\n{said}"
     );
     assert!(
-        !said.contains("holds_it") || said.matches("holds_it").count() < said.matches("falls_over").count() + 3,
+        !said.contains("holds_it")
+            || said.matches("holds_it").count() < said.matches("falls_over").count() + 3,
         "and does not drown it in the names of the green ones:\n{said}"
     );
 }

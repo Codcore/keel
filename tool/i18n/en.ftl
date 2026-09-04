@@ -282,6 +282,8 @@ gate-soft = mode: soft -- the same words, a warning only
 gate-hook-installed = the commit-msg hook now calls keel gate -- written to { $path }
 gate-adapter-unjudged = the adapter "{ $name }" is not of this release (it serves "rust") — the commit is not judged: the word stands aloud, the judgement waits for its adapter's wave
 gate-adapter-absent-name = not named
+init-hook-off = the git hook is not installed: this project answered hooks = false, and the answer holds for it too (§9.3)
+init-hook-off-standing = the git hook is left where it stands: this project answered hooks = false, so nobody maintains it now -- remove .git/hooks/commit-msg by hand, or set hooks = true
 gate-hook-already = the hook is already ours -- quietly the same file
 gate-hook-foreign = a commit-msg hook already exists here, and it is not ours
 gate-hook-foreign-instead = keel does not overwrite someone's hook (§9.7); read it and merge or remove it yourself, then re-run keel hook
@@ -385,6 +387,8 @@ check-next-rung = next step: a contract naming a module that does not exist must
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
+close-test-red = { "  " }red test: { $test } ({ $file }) -- it failed in every run
+close-test-flaky = { "  " }flaky test: { $test } ({ $file }) -- it failed in some runs and not others, which is why the battery runs three times (§7.13)
 close-battery = battery: { $count } tests × { $runs } runs (§7.13) — green only when green in every run
 close-closed = { $wave }: closed -- every live scenario proven, references converge, the review lies next to it
 close-closed-unjudged = { $wave }: closed -- every live scenario proven, the review lies next to it; { $count } references not judged: history cannot testify here (§5.6)
