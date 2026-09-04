@@ -79,6 +79,65 @@ fn the_wizard_asks_what_a_project_needs() {
     );
 }
 
+/// proves: setup-never-breaks-what-it-edits@9aee6c -- the bug
+/// audit found one `keel setup` turning a healthy project into one
+/// where nothing works, including setup itself.
+#[test]
+fn setup_never_breaks_what_it_edits() {
+    let dir = keel_sandbox("no-harm");
+    Command::new("git")
+        .args(["init", "-q", "-b", "main"])
+        .current_dir(&dir)
+        .status()
+        .unwrap();
+    // A config the wizard was never asked about: no agents key at
+    // all, which is the default state of `keel init --no-ask`.
+    keel(&["init", "--no-ask", dir.to_str().unwrap()]);
+    let (_, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the project starts healthy");
+
+    // Somebody's own words, and somebody's own trust.
+    let config = std::fs::read_to_string(dir.join("keel.toml")).unwrap();
+    std::fs::write(
+        dir.join("keel.toml"),
+        config.replace(
+            "# keel.toml",
+            "# a line a person wrote
+# keel.toml",
+        ),
+    )
+    .unwrap();
+
+    let (said, code) = keel(&["setup", "--no-ask", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "setup runs:\n{said}");
+
+    let after = std::fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        !after.contains("agents = []"),
+        "and never writes a value the tool itself refuses:\n{after}"
+    );
+    let (verdict, code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        code, 0,
+        "the project the wizard edited is still one the tool can read:\n{verdict}"
+    );
+    assert!(
+        after.contains("a line a person wrote"),
+        "and the words a person wrote are still there:\n{after}"
+    );
+
+    // A config that cannot be read stops the command rather than
+    // being overwritten unseen.
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nthis is not toml\n").unwrap();
+    let (said, code) = keel(&["setup", "--no-ask", dir.to_str().unwrap()]);
+    assert_eq!(code, 2, "a config it cannot read stops it:\n{said}");
+    let kept = std::fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        kept.contains("this is not toml"),
+        "and the file is left exactly as it was:\n{kept}"
+    );
+}
+
 /// proves: answers-can-be-changed-after-init@cecf6a -- named as a
 /// limit in review 0026 and never lifted: keel.toml was edited by
 /// hand or not at all.
