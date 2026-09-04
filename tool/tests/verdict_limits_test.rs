@@ -94,7 +94,7 @@ fn a_verdict_says_how_much_of_it_is_real() {
         .expect("there is a summary line")
         .to_string();
     assert!(
-        !level_summary.contains("меж"),
+        !level_summary.contains("не перевірено"),
         "a verdict that judged everything it claims says nothing about limits:\n{level_summary}"
     );
 
@@ -110,7 +110,7 @@ fn a_verdict_says_how_much_of_it_is_real() {
         .expect("there is a summary line")
         .to_string();
     assert!(
-        alone_summary.contains("меж"),
+        alone_summary.contains("не перевірено"),
         "and one that could not says so in the line everyone reads:\n{alone_summary}"
     );
     assert_ne!(
@@ -155,16 +155,46 @@ fn a_verdict_says_how_much_of_it_is_real() {
         })
         .to_string();
     assert!(
-        cut_summary.contains("меж"),
+        cut_summary.contains("не перевірено"),
         "a shallow verdict says so in the line everyone reads:\n{cut_summary}"
     );
     assert!(
-        cut.contains("shallow") && cut.contains("git fetch --unshallow"),
-        "names what was cut off and how to get it back:\n{cut}"
+        cut.contains("git fetch --unshallow"),
+        "names how to get it back:\n{cut}"
     );
-    assert_ne!(
-        level_summary, cut_summary,
-        "and a shallow verdict no longer ends with the same words as a full one"
+
+    // The base-staleness limit, and its number. Review 0033 R-5:
+    // removing this limit outright left the battery green, so the
+    // wave that exists to make one number true left a second number
+    // beside it judged by nobody.
+    git(&dir, &["checkout", "-q", "main"]);
+    std::fs::write(dir.join("later.txt"), "later").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "-m",
+            "later",
+        ],
+    );
+    git(&dir, &["push", "-q", "origin", "main"]);
+    git(&dir, &["fetch", "-q", "origin"]);
+    git(&dir, &["reset", "-q", "--hard", "HEAD~1"]);
+    let (out, err, _) = keel(&["check", dir.to_str().unwrap()]);
+    let behind = format!("{out}{err}");
+    let line = behind
+        .lines()
+        .find(|line| line.contains("не перевірено") && line.contains("відстає"))
+        .unwrap_or_else(|| panic!("the verdict says its base is stale:\n{behind}"));
+    assert!(
+        line.contains(" 1 "),
+        "and by how much -- one commit, not a guess:\n{line}"
     );
 
     // A directory with no git at all is not a clone with problems --
@@ -174,8 +204,14 @@ fn a_verdict_says_how_much_of_it_is_real() {
     std::fs::write(bare_dir.join("keel.toml"), "lang = \"uk\"\n").unwrap();
     let (out, err, _) = keel(&["check", bare_dir.to_str().unwrap()]);
     let quiet = format!("{out}{err}");
+    // Against what is PRINTED, not against a phrase that no longer
+    // exists anywhere. Review 0033 R-1: wave 0033 renamed this line
+    // and left the assert hunting the old words, so it could never
+    // fail again -- and it was the assert holding review 0031 R-8.
+    // An assert that searches for a string absent from the whole
+    // output is green forever.
     assert!(
-        !quiet.contains("межа вироку"),
+        !quiet.contains("не перевірено"),
         "a directory with no repository is asked nothing:\n{quiet}"
     );
 }
@@ -189,4 +225,86 @@ fn git_out(dir: &std::path::Path, args: &[&str]) -> String {
         .output()
         .unwrap();
     String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+/// proves: the-skipped-count-is-true@2d9059 -- the operator watched
+/// a single expression being replaced so the count came out zero,
+/// and the whole battery stayed green: the tool would have said "0
+/// checks of old revisions were not run" where the truth was 141.
+/// The old probe asked only that the line appear and that a full
+/// verdict and a shallow one end differently -- both true with a
+/// zero in place.
+#[test]
+fn the_skipped_count_is_true() {
+    let dir = keel_sandbox("counted");
+    // Wave 0033: replacing the
+    // real count with a zero left the whole battery green, so the
+    // tool could say "0 checks were not run" where the truth was 141
+    // and nothing would notice.
+    //
+    // This needs real history -- a toy repository has no closed
+    // waves and no old revisions to check -- so it takes two clones
+    // of THIS repository, one whole and one cut to a single commit,
+    // and requires the cut one to name exactly the number the whole
+    // one actually checked.
+    let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    // A cut-short root makes every clone of it cut short, so this
+    // probe would fail for a reason that has nothing to do with what
+    // it judges. It says that in words instead (review 0033 R-3).
+    let root_is_cut = Command::new("git")
+        .args(["rev-parse", "--is-shallow-repository"])
+        .current_dir(&repo)
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim() == "true")
+        .unwrap_or(false);
+    assert!(
+        !root_is_cut,
+        "this probe needs the repository's own history and this checkout \
+         is shallow -- fetch it whole (git fetch --unshallow, or \
+         fetch-depth: 0 in CI) and run again"
+    );
+
+    let whole = dir.join("whole");
+    let cut_short = dir.join("cut");
+    for (into, depth) in [(&whole, None), (&cut_short, Some("1"))] {
+        let mut command = Command::new("git");
+        command.args(["clone", "-q"]);
+        if let Some(depth) = depth {
+            command.args(["--depth", depth]);
+        }
+        // file:// rather than a path: a local clone hard-links the
+        // whole object store and comes out full-depth whatever depth
+        // was asked for.
+        command.arg(format!("file://{}", repo.display())).arg(into);
+        command.status().unwrap();
+    }
+    let (out, err, _) = keel(&["check", whole.to_str().unwrap()]);
+    let whole_said = format!("{out}{err}");
+    let checked = whole_said
+        .lines()
+        .filter(|line| line.contains("справжня в історії"))
+        .count();
+    assert!(
+        checked > 0,
+        "the whole clone really checks old revisions:\n{}",
+        &whole_said[..whole_said.len().min(600)]
+    );
+    let (out, err, _) = keel(&["check", cut_short.to_str().unwrap()]);
+    let cut_said = format!("{out}{err}");
+    let claimed: usize = cut_said
+        .lines()
+        .find(|line| line.contains("не перевірено") && line.contains("shallow"))
+        .and_then(|line| {
+            line.split_whitespace()
+                .find_map(|word| word.parse::<usize>().ok())
+        })
+        .unwrap_or_else(|| panic!("the cut clone names a number:\n{cut_said}"));
+    assert_eq!(
+        claimed, checked,
+        "the cut clone says how many checks it skipped, and that is the \
+         number the whole one made -- not a zero, not a guess"
+    );
 }
