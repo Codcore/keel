@@ -40,17 +40,11 @@ fn pinned(name: &str, version: &str) -> Sandbox {
 /// and takes what the verdict tells a person to give it. That border
 /// is named rather than dressed up -- running it would clone the
 /// repository over the network.
-fn installer(dir: &Path) -> String {
-    let mut here = dir.to_path_buf();
-    loop {
-        let candidate = here.join("install.sh");
-        if candidate.is_file() {
-            return fs::read_to_string(candidate).unwrap();
-        }
-        if !here.pop() {
-            panic!("install.sh lives at the root of the repository");
-        }
-    }
+fn installer() -> String {
+    // From the crate's own directory, not from a sandbox in /tmp and
+    // not from a relative path that depends on where cargo was run.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    fs::read_to_string(root.join("install.sh")).unwrap()
 }
 
 /// proves: the-pin-has-a-hand@37ae08 -- `keel version` over a mismatched
@@ -88,7 +82,7 @@ fn the_pin_has_a_hand() {
 
     // The hand itself takes the version, by argument and by variable,
     // and refuses a ref that is not there instead of building main.
-    let script = installer(&dir);
+    let script = installer();
     assert!(
         script.contains("KEEL_REF"),
         "install.sh reads KEEL_REF:\n{script}"

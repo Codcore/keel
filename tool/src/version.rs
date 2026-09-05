@@ -20,7 +20,21 @@ pub fn report(root: &Path) -> String {
         Ok(config) if !config.present => t("version-no-file"),
         Ok(config) => {
             if let Some(pin) = config.pin_mismatch(running) {
-                ta("version-pin-mismatch", targs!("pin" => pin.to_string()))
+                // And the hand that makes them meet (wave 0039): the
+                // verdict used to say the courts refuse until the pin
+                // and the binary agree, and name nothing a person
+                // could run to bring that about.
+                format!(
+                    "{}\n{}",
+                    ta("version-pin-mismatch", targs!("pin" => pin.to_string())),
+                    ta(
+                        "version-pin-hand",
+                        targs!(
+                            "pin" => pin.to_string(),
+                            "installer" => crate::generated::INSTALLER.to_string()
+                        )
+                    )
+                )
             } else {
                 match config.version.as_deref() {
                     Some(pin) => ta("version-pin-held", targs!("pin" => pin.to_string())),
