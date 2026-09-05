@@ -25,7 +25,7 @@ pub fn report(root: &Path) -> String {
                 // and the binary agree, and name nothing a person
                 // could run to bring that about.
                 format!(
-                    "{}\n{}",
+                    "{}\n{}\n{}",
                     ta("version-pin-mismatch", targs!("pin" => pin.to_string())),
                     ta(
                         "version-pin-hand",
@@ -33,7 +33,13 @@ pub fn report(root: &Path) -> String {
                             "pin" => pin.to_string(),
                             "installer" => crate::generated::INSTALLER.to_string()
                         )
-                    )
+                    ),
+                    // And what the hand is NOT (review 0039 R-3): the
+                    // pin field holds a version number, the repository
+                    // holds refs, and the two are not one word. Advice
+                    // that hides that is advice that fails on the
+                    // first real pin.
+                    t("version-pin-hand-border")
                 )
             } else {
                 match config.version.as_deref() {

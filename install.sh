@@ -9,7 +9,10 @@
 # because a release binary is not published yet. Updating is one `git pull` and
 # one rebuild, which is what a second run does.
 #
-# git and cargo are needed. Nothing else.
+# git and cargo are needed. Nothing else -- but cargo writes its own registry
+# and cache into CARGO_HOME (~/.cargo by default, tens of megabytes on a first
+# build). That is cargo's home, not keel's, and this script does not move it:
+# set CARGO_HOME yourself if it must live elsewhere (review 0039 R-9).
 #
 # A VERSION may be named -- as the first argument or as KEEL_REF -- and then
 # exactly that git ref is installed:
@@ -44,9 +47,20 @@ if [ -d "$KEEL_HOME/.git" ]; then
     echo "keel: updating $KEEL_HOME"
     git -C "$KEEL_HOME" fetch --quiet --tags origin
     # A checkout of a named ref is not on a branch, so pull would have
-    # nothing to fast-forward. Only the unpinned road pulls.
+    # nothing to fast-forward. Only the unpinned road pulls -- and it
+    # comes back to a branch first, by the remote's own head.
+    #
+    # Review 0039 R-2: `checkout -` stood here, and `@{-1}` does not
+    # exist in a clone that was never moved, so the SECOND ordinary
+    # run died -- the very run this script's own head calls updating.
     if [ -z "$KEEL_REF" ]; then
-        git -C "$KEEL_HOME" checkout --quiet -
+        if ! git -C "$KEEL_HOME" symbolic-ref -q HEAD >/dev/null 2>&1; then
+            head="$(git -C "$KEEL_HOME" symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null || true)"
+            branch="${head#origin/}"
+            [ -n "$branch" ] || branch="main"
+            echo "keel: back to $branch from a pinned checkout"
+            git -C "$KEEL_HOME" checkout --quiet "$branch"
+        fi
         git -C "$KEEL_HOME" pull --ff-only --quiet
     fi
 else
