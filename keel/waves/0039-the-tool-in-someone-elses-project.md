@@ -29,8 +29,8 @@ transforms:
       - the-generated-ci-runs-where-it-is-born
     files:
       - tool/src/generated.rs
-      - tool/i18n/uk.ftl
-      - tool/i18n/en.ftl
+      - .github/workflows/keel.yml
+      - keel.toml
       - tool/tests/workflow_runs_test.rs
   the-pin-can-be-fetched:
     implements:

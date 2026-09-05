@@ -294,10 +294,18 @@ fn cursor_hooks() -> String {
     )
 }
 
-/// The CI workflow (wave 0023): the three courts a merge needs.
-/// It calls keel as a command and does NOT install it -- the
-/// installing step arrives with the distribution rung, and the file
-/// says so itself.
+/// Where install.sh lives. One place, so the workflow and the
+/// version lamp point at the same hand (wave 0039).
+pub const INSTALLER: &str = "https://raw.githubusercontent.com/Codcore/keel/main/install.sh";
+
+/// The CI workflow (wave 0023): the three courts a merge needs, and
+/// since wave 0039 the tool that runs them. It used to call `keel`
+/// without installing it and admit so in a comment -- so a project
+/// that ran `keel init` and pushed got `keel: command not found` on
+/// its first run, from a file the frame itself had written. The step
+/// builds from source, because there is no released binary yet, and
+/// it says that about itself rather than leaving a reader to find
+/// out on a runner.
 fn workflow(config: &Config) -> String {
     // The battery step is the tongue's own, and its absence is never
     // silence (review 0038 R-9): a project whose adapter this release
@@ -317,11 +325,12 @@ fn workflow(config: &Config) -> String {
     format!(
         "# keel (generated -- do not edit; keel update rewrites this file)\n\
          #\n\
-         # This workflow calls `keel` as a command and does NOT\n\
-         # install it: the installing step arrives with the\n\
-         # distribution rung of the concept (~/.keel/versions/).\n\
-         # Until then, add a step of your own above these that puts\n\
-         # `keel` on PATH.\n\
+         # The first step installs the tool; the rest judge with it.\n\
+         # There is no released binary yet, so that step builds it from source:\n\
+         # it needs git and cargo on the runner, and it costs minutes on a\n\
+         # cold cache. If your project already puts `keel` on PATH some other\n\
+         # way, replace this step with yours -- the courts below do not care\n\
+         # how it got there.\n\
          name: keel\n\
          \n\
          on:\n\
@@ -335,6 +344,14 @@ fn workflow(config: &Config) -> String {
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- uses: actions/checkout@v4\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}fetch-depth: 0\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the tool itself\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Clones the method into ~/.keel, then builds it from source.\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# It needs git and cargo on the runner. Where keel.toml\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# pins a version, set KEEL_REF to that tag here: the\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# courts refuse while the pin and the binary differ.\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: |\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}curl -fsSL {INSTALLER} | sh\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the documents judged\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# On a pull_request event actions/checkout leaves a\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# detached HEAD and git serves no branch, so the scope\n\

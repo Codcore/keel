@@ -80,7 +80,7 @@ fn the_generated_ci_runs_where_it_is_born() {
     // It is a step with its own name, so a failure to install is not
     // a `command not found` in the middle of a judgement.
     assert!(
-        text.contains("- name: keel itself"),
+        text.contains("- name: the tool itself"),
         "the installing step carries its own name:\n{text}"
     );
 
