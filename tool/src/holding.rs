@@ -251,6 +251,24 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
     {
         return Comparability::Outside;
     }
+    // Ruby keeps a constant's source where ruby keeps it (wave
+    // 0038): `Toy::Bar` in `lib/toy/bar.rb`. The court asks the
+    // adapter where to look instead of knowing one language's
+    // layout by heart.
+    if config.language() == Some(crate::config::Language::Ruby) {
+        let looked = crate::ruby::module_paths(root, module);
+        for path in &looked {
+            if let Ok(source) = std::fs::read_to_string(path) {
+                return Comparability::Source(source);
+            }
+        }
+        let shown = looked
+            .first()
+            .and_then(|path| path.strip_prefix(root).ok())
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| module.to_string());
+        return Comparability::Missing(shown);
+    }
     let segments: Vec<&str> = module.split("::").collect();
     let Ok(crate_dir) = adapter::crate_root(root) else {
         return Comparability::NoFile;

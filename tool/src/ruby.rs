@@ -51,7 +51,7 @@ pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
 /// Where a module's source lives: `Toy::Bar` is `lib/toy/bar.rb`, and
 /// the bare `Toy` is `lib/toy.rb`. Both layouts ruby itself uses.
 pub fn module_paths(root: &Path, module: &str) -> Vec<PathBuf> {
-    let parts: Vec<String> = module.split("::").map(|part| snake_case(part)).collect();
+    let parts: Vec<String> = module.split("::").map(snake_case).collect();
     let joined = parts.join("/");
     vec![
         root.join("lib").join(format!("{joined}.rb")),

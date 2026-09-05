@@ -199,16 +199,30 @@ one records the revision it was translated from, and a stale record is a finding
 
 ## Adapters — and the honest state of them
 
-**Today there is exactly one adapter, `rust` (`"cargo"` accepted), and it exists
-so that keel can judge itself.** No adapter for any other language is written
-yet. If your project is not Rust, say so plainly: you get every document, link,
-scope and revision court, and the tool names the ones it skipped instead of
-leaving them green — but the two language-shaped courts (test tags, contract
-form) do not run.
+Two adapters exist: **`rust`** (`"cargo"` accepted) and **`ruby`** (minitest).
+Both run the language-shaped courts — the `proves:` tags are read from the
+project's test files, and a contract's `exports` are compared against the
+module's own source, wherever that language keeps it.
 
-The concept's starting set is **Elixir, Ruby, Python, TypeScript/JavaScript**,
-and none of the four is built. That is the largest gap in this tool, and it is
-named here rather than left for a reader to discover.
+Name a language this release does not know and you get a finding with the list
+of the ones it does — never a silent skip. Name none at all and every other
+court still runs: documents, links, scope, revisions, and the tool says which
+ones it skipped instead of leaving them green.
+
+The concept's starting set is **Elixir, Ruby, Python, TypeScript/JavaScript**.
+Ruby is built; the other three are not, and RSpec is not read yet either — the
+ruby adapter is minitest. That is the largest remaining gap, and it is named
+here rather than left for a reader to discover.
+
+| language | tests | one test | module source |
+|---|---|---|---|
+| `rust` | `tests/*.rs` | `cargo test --test <file> <fn> -- --exact` | `src/<name>.rs`, `src/<name>/mod.rs` |
+| `ruby` | `test/**/*_test.rb` | `ruby -Itest <file> -n <method>` | `lib/<name>.rb` for `Name`, `lib/a/b.rb` for `A::B` |
+
+An honest limit of the ruby adapter, and §7.12 foresaw it: ruby does not tell
+"failed" from "did not load" by its exit code — both are 1. The adapter reads
+the text (`SyntaxError`, `LoadError`), and where the text does not say, it takes
+a failure as a failure: the direction that cannot turn red into green.
 
 What an adapter has to answer is small and written down:
 

@@ -17,7 +17,14 @@ transforms:
     files:
       - tool/src/adapter.rs
       - tool/src/config.rs
-      - keel/contracts/tool-adapter.md
+      - tool/src/check.rs
+      - tool/src/close.rs
+      - tool/src/gate.rs
+      - tool/src/init.rs
+      - tool/src/map.rs
+      - tool/src/next.rs
+      - tool/src/rev.rs
+      - tool/src/status.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/adapter_choice_test.rs
@@ -26,6 +33,9 @@ transforms:
       - ruby-tests-are-read-and-run
     files:
       - tool/src/adapter.rs
+      - tool/src/lib.rs
+      - tool/src/tags.rs
+      - tool/src/close.rs
       - one new in tool/src/
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl

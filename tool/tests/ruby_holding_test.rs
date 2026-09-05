@@ -39,11 +39,7 @@ fn check(dir: &Path) -> (String, i32) {
 /// wherever the case wants it.
 fn project(name: &str, module: &str, exports: &str, at: Option<(&str, &str)>) -> common::Sandbox {
     let dir = keel_sandbox(name);
-    std::fs::write(
-        dir.join("keel.toml"),
-        "lang = \"uk\"\nadapter = \"ruby\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"ruby\"\n").unwrap();
     std::fs::create_dir_all(dir.join("lib")).unwrap();
     std::fs::create_dir_all(dir.join("test")).unwrap();
     if let Some((path, body)) = at {
@@ -115,13 +111,15 @@ fn a_ruby_contract_holds_its_form() {
     );
     let (said, code) = check(&dir);
     assert_eq!(code, 1, "a vanished ruby unit is a finding:\n{said}");
-    assert!(
-        said.contains("gone"),
-        "and it is named:\n{said}"
-    );
+    assert!(said.contains("gone"), "and it is named:\n{said}");
 
     // A module that is not there says where it was looked for.
-    let dir = project("rbmissing", "Toy::Nowhere", "  - \"def self.works\"\n", None);
+    let dir = project(
+        "rbmissing",
+        "Toy::Nowhere",
+        "  - \"def self.works\"\n",
+        None,
+    );
     let (said, code) = check(&dir);
     assert_eq!(code, 1, "a missing ruby module is a finding:\n{said}");
     assert!(
