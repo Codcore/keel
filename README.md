@@ -270,12 +270,20 @@ could **not** judge rather than painting green over it:
 `keel close` is the heavier one: it runs the project's battery three times in
 its own target directory, because an inherited cache shifts verdicts.
 
-**The generated CI runs where your crate is.** keel asks the adapter for the
-tongue's root — `Cargo.toml`, `mix.exs`, `Gemfile` — and writes a
-`working-directory` only when that differs from the repository root. Until wave
-0044 the step was `cargo test` at the root, so a project whose crate sits in a
-subdirectory got `could not find Cargo.toml` from a file keel had written for
-it. keel's own repository is that shape, and its own CI had been saying so.
+**The generated CI runs where keel itself runs the battery.** The question goes
+to the adapter, because only the adapter knows which directory it works from:
+for rust that is the crate's root, and for **ruby and elixir it is always the
+repository root**, since both adapters run from there. A `working-directory` is
+written only when that differs from the repository root; where the adapter
+cannot say — no crate, several, or one deeper than a level — the file says so
+in a comment rather than leaving a step to fail on a runner without a reason.
+
+Until wave 0044 the step was `cargo test` at the root, so a project whose crate
+sits in a subdirectory got `could not find Cargo.toml` from a file keel had
+written for it. keel's own repository is that shape, and its own CI had been
+saying so. The first cut of the fix looked for `Gemfile` and `mix.exs` itself,
+and that was worse: CI then ran a *different* battery from the one the courts
+judge, and a red tree came out green.
 
 **And it names the toolchain it judged with**, for a tongue that has one: a
 project carrying `rust-toolchain.toml` gets its channel installed by name, and
@@ -284,6 +292,13 @@ runner has that day, which is repeatable only by accident. keel does not pin on
 your behalf; the pin is your project's decision. It made that decision for
 itself after `clippy -D warnings` came out clean on 1.94 and red on 1.98, on the
 same tree, because a lint had been added in between.
+
+The channel is read with a TOML reader and must be a channel **name** —
+letters, digits, dot, dash, underscore, and the whole of the value. The first
+cut took the text after `channel` by hand and put it straight into a `run:`
+line, so a pin could write any command at all into the workflow keel generates.
+A value this release cannot vouch for is treated as no pin: the file then says
+none is named, which is true and harmless.
 
 **A test it watched fail holds the wave open** — whoever claims it. That reads
 obvious and was not true until wave 0043: blockers were counted only from the

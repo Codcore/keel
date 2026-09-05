@@ -17,6 +17,7 @@ transforms:
     files:
       - tool/src/generated.rs
       - keel/contracts/tool-generated.md
+      - tool/src/adapter.rs
       - tool/tests/generated_ci_test.rs
       - .github/workflows/keel.yml
       - .github/workflows/tool-ci.yml
@@ -180,10 +181,16 @@ error: this `if` can be collapsed into the outer `match`
 
 ## transform: the-step-that-can-run
 
-`generated.rs` питає адаптер, де корінь мови, і пише `working-directory`
-там, де він не збігається з коренем репозиторію. Плюс названа ланка для
-rust. Контракт `tool-generated.md` каже обидва правила; словник дістає
-свої рядки обома мовами. Власний `.github/workflows/keel.yml` цього
+`generated.rs` питає адаптер — `adapter::battery_dir` — де той жене
+батарею, і пише `working-directory` лише там, де ця тека не збігається
+з коренем репозиторію. Для ruby й elixir відповідь **завжди корінь**,
+бо їхні адаптери женуть звідти; де адаптер не може сказати, файл каже
+це вголос замість кроку, приреченого впасти без причини. Канал піна
+читається TOML-читачем і мусить бути **іменем** — інакше пін міг би
+вписати довільну команду в згенеровану CI. Плюс названа ланка для
+rust. Контракт `tool-generated.md` каже всі три правила. Словника це не
+чіпає: увесь згенерований `keel.yml` — англійський, шапкою і
+коментарями, як і був. Власний `.github/workflows/keel.yml` цього
 репозиторію переписується тим самим `keel update` — інакше ця хвиля
 знову доводила б щось лише на фікстурі.
 

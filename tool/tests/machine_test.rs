@@ -118,3 +118,51 @@ fn a_probe_without_its_tool_stops_aloud() {
          what was not judged:\n{said}"
     );
 }
+
+/// The two halves review 0044 found unjudged: a tool that IS on PATH
+/// and will not run is not the same as one that is absent (m20), and
+/// a machine that HAS the tool must be JUDGED, not skipped (m22) --
+/// a skip that fires where everything is installed is a way of not
+/// judging at all, which is worse than the red it replaced.
+#[test]
+fn the_two_answers_a_machine_can_give() {
+    // Present and working: judge.
+    assert!(
+        common::machine_has("git").ready(),
+        "git is here and runs, so the case is judged"
+    );
+
+    // Absent: skip, and the skip names it.
+    let bin = common::sandbox("machine-answers");
+    match common::machine_has("no-such-tool-413d37") {
+        common::Machine::Has => panic!("a tool that does not exist is not here"),
+        common::Machine::Lacks(why) => assert!(
+            why.contains("no-such-tool-413d37") && why.contains("not on this machine"),
+            "the skip names what is missing: {why}"
+        ),
+    }
+
+    // On PATH and will NOT run -- a shim that leaves with 3. The
+    // difference matters: "absent" is a machine's shape, "will not
+    // run" is a machine's fault, and a person reading the log needs
+    // to know which one stopped the court.
+    let shim = bin.join("brokentool");
+    std::fs::write(&shim, "#!/bin/sh\nexit 3\n").unwrap();
+    let mut perms = std::fs::metadata(&shim).unwrap().permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);
+    std::fs::set_permissions(&shim, perms).unwrap();
+    let was = std::env::var("PATH").unwrap_or_default();
+    // SAFETY: this probe runs in its own binary and sets PATH before
+    // it asks, on the single thread the harness gives this test.
+    unsafe { std::env::set_var("PATH", format!("{}:{was}", bin.display())) };
+    let answer = common::machine_has("brokentool");
+    unsafe { std::env::set_var("PATH", &was) };
+    match answer {
+        common::Machine::Has => panic!("a tool that exits 3 did not answer"),
+        common::Machine::Lacks(why) => assert!(
+            why.contains("left with 3") && why.contains("will not run"),
+            "a tool on PATH that will not run is told from an absent \
+             one, and both are told from a verdict: {why}"
+        ),
+    }
+}

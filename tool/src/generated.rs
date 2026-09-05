@@ -314,40 +314,55 @@ pub const INSTALLER: &str = "https://raw.githubusercontent.com/Codcore/keel/main
 /// (wave 0044). Before this, the generated battery step was
 /// `cargo test` at the repository root, and this repository's own CI
 /// answered `could not find Cargo.toml` on every run.
-fn tongue_root(root: &Path, config: &Config) -> Option<String> {
-    let found = match config.language() {
-        Some(Language::Rust) => adapter::crate_root(root).ok()?,
-        Some(Language::Elixir) => marker_dir(root, "mix.exs")?,
-        Some(Language::Ruby) => marker_dir(root, "Gemfile")?,
-        None => return None,
-    };
-    let shown = found.strip_prefix(root).ok()?.to_str()?.to_string();
-    (!shown.is_empty()).then_some(shown)
+enum Where {
+    /// The battery runs at the repository root: nothing to say.
+    Root,
+    /// It runs in this directory, named as a person would name it.
+    Inside(String),
+    /// The adapter cannot say where -- and a step written over that
+    /// silence would fail on a runner without saying why.
+    Unknown,
 }
 
-/// The root itself when the marker lies there, else the one
-/// first-level directory that carries it -- and nothing when the
-/// answer is not one directory, because guessing is worse than
-/// leaving the step where it was.
-fn marker_dir(root: &Path, marker: &str) -> Option<std::path::PathBuf> {
-    if root.join(marker).is_file() {
-        return Some(root.to_path_buf());
+/// Where the generated battery step must run, asked of the ADAPTER
+/// and not worked out here (review 0044 R-2, R-5): the first cut of
+/// this looked for `Gemfile` and `mix.exs` itself, and those two
+/// tongues are run from the repository root by their own adapters --
+/// so a directory taken from a marker sent CI to run a different
+/// battery from the one the courts judge, and a red tree came out
+/// green.
+fn tongue_root(root: &Path, config: &Config) -> Where {
+    if config.language().is_none() {
+        return Where::Root;
     }
-    let mut found: Vec<std::path::PathBuf> = std::fs::read_dir(root)
-        .ok()?
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|path| path.is_dir() && path.join(marker).is_file())
-        .collect();
-    found.sort();
-    (found.len() == 1).then(|| found.remove(0))
+    let Some(found) = adapter::battery_dir(root) else {
+        return Where::Unknown;
+    };
+    match found.strip_prefix(root).ok().and_then(|rest| rest.to_str()) {
+        Some(shown) if !shown.is_empty() => Where::Inside(shown.to_string()),
+        Some(_) => Where::Root,
+        None => Where::Unknown,
+    }
 }
 
-/// The toolchain this project pins, if it pins one. A verdict from
-/// "whatever stable was that day" is repeatable only by accident:
-/// `clippy --all-targets -- -D warnings` was clean on the author's
-/// 1.94 and red on the runner's 1.98, on the same tree, because a
-/// lint had been added in between (wave 0044).
+/// The toolchain this project pins, if it pins one -- and only when
+/// what it pins is a NAME.
+///
+/// Read with the TOML reader this crate already carries, not by
+/// hand: the hand-written first cut of this took the text after
+/// `channel` and dropped it straight into a `run:` line, so
+/// `channel = "1.94.1 && curl … | sh #"` wrote that command into the
+/// generated workflow, and a legal inline comment
+/// (`channel = "1.75.0" # my pin`) leaked a stray quote into the
+/// step (review 0044 R-1, R-3, R-7). A value this release cannot
+/// vouch for is treated as no pin at all: the workflow then says
+/// aloud that nothing is named, which is true and harmless, where
+/// writing it would have been neither.
+///
+/// The shape allowed is rustup's own vocabulary for a channel --
+/// `stable`, `1.94.1`, `nightly-2026-03-25`,
+/// `1.94.1-x86_64-unknown-linux-gnu` -- letters, digits, dot, dash,
+/// underscore. Nothing that a shell reads as anything.
 fn pinned_toolchain(root: &Path, where_crate: Option<&str>) -> Option<String> {
     let mut looked = vec![
         root.join("rust-toolchain.toml"),
@@ -361,25 +376,39 @@ fn pinned_toolchain(root: &Path, where_crate: Option<&str>) -> Option<String> {
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
-        // `rust-toolchain` (no extension) is the bare channel; the
-        // TOML form keeps it under `channel =`.
-        if path.extension().is_none() {
-            let bare = text.trim();
-            if !bare.is_empty() && !bare.contains('[') {
-                return Some(bare.to_string());
-            }
-        }
-        for line in text.lines() {
-            if let Some(rest) = line.trim().strip_prefix("channel") {
-                let value = rest.trim_start_matches([' ', '=']).trim();
-                let value = value.trim_matches(['"', '\'']);
-                if !value.is_empty() {
-                    return Some(value.to_string());
-                }
-            }
+        let found = match toml::from_str::<toml::Value>(&text) {
+            Ok(value) => value
+                .get("toolchain")
+                .and_then(|table| table.get("channel"))
+                .and_then(|channel| channel.as_str())
+                .map(str::to_string),
+            // `rust-toolchain` without an extension is the bare
+            // channel and no TOML at all, which is why the parse
+            // failing is not itself an answer.
+            Err(_) if path.extension().is_none() => Some(text.trim().to_string()),
+            Err(_) => None,
+        };
+        match found {
+            Some(channel) if channel_named(&channel) => return Some(channel),
+            // Something is written there and this release cannot
+            // vouch for it. Saying "no pin" is true; passing it on
+            // would not be.
+            Some(_) => return None,
+            None => continue,
         }
     }
     None
+}
+
+/// Is this a channel NAME, and nothing a shell would read as more
+/// than one? The whole of the value must be it -- a prefix that
+/// looks right is exactly how the injection above got in.
+fn channel_named(channel: &str) -> bool {
+    !channel.is_empty()
+        && channel.len() <= 64
+        && channel
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_'))
 }
 
 fn workflow(root: &Path, config: &Config) -> String {
@@ -400,19 +429,32 @@ fn workflow(root: &Path, config: &Config) -> String {
         ),
         None => String::new(),
     };
-    // Where the crate is, said in the step rather than assumed
-    // (wave 0044): `cargo test` at the repository root cannot run in
-    // a project whose crate sits in a subdirectory -- and that is an
-    // ordinary shape, keel's own among them.
-    let where_crate = tongue_root(root, config);
-    let inside = match &where_crate {
-        Some(dir) => format!("        working-directory: {dir}\n"),
-        None => String::new(),
+    // Where the battery runs, ASKED OF THE ADAPTER (wave 0044): a
+    // step at the repository root cannot run in a project whose
+    // crate sits in a subdirectory -- and that is an ordinary shape,
+    // keel's own among them.
+    let where_battery = tongue_root(root, config);
+    let inside = match &where_battery {
+        Where::Inside(dir) => format!("        working-directory: {dir}\n"),
+        Where::Root => String::new(),
+        // Not a step written over a silence: the runner would fail
+        // and say only `could not find Cargo.toml`, which is the very
+        // thing this wave exists to stop (review 0044 R-6).
+        Where::Unknown => "        # This release could not tell where the crate of this project\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# is: it found none, or more than one, at the root and one\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# level down. The step below therefore runs where this file\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# does. If that is not where your battery lives, add a\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# working-directory here; `keel close` judges from the root.\n"
+            .to_string(),
+    };
+    let where_crate = match &where_battery {
+        Where::Inside(dir) => Some(dir.clone()),
+        _ => None,
     };
     // And which toolchain judged, for a tongue that has one. A
     // verdict from whatever the runner had that day is repeatable
-    // only by accident; where the project pins nothing, the file says
-    // so and names what would fix it.
+    // only by accident; where the project pins nothing -- or pins
+    // something this release will not vouch for -- the file says so.
     let toolchain = match config.language() {
         Some(Language::Rust) => match pinned_toolchain(root, where_crate.as_deref()) {
             Some(channel) => format!(
@@ -422,11 +464,12 @@ fn workflow(root: &Path, config: &Config) -> String {
                  \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# verdict here is the same verdict on any other machine.\n\
                  \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: rustup toolchain install {channel} --profile minimal\n"
             ),
-            None => "      # No toolchain named: this project pins none, so the courts\n\
-                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# below judge with whatever the runner has today. A lint added\n\
-                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# to a newer stable turns this file red on a tree that did not\n\
-                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# change -- a verdict repeatable only by accident. Add a\n\
-                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# rust-toolchain.toml to fix that, and bump it deliberately.\n"
+            None => "      # No toolchain named: this project pins none this release can\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# read as a channel NAME, so the courts below judge with\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# whatever the runner has today. A lint added to a newer stable\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# turns this file red on a tree that did not change -- a verdict\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# repeatable only by accident. Add a rust-toolchain.toml with a\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# plain channel name, and bump it deliberately.\n"
                 .to_string(),
         },
         _ => String::new(),
