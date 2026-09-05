@@ -169,11 +169,14 @@ pub fn tests_dir(root: &Path) -> Result<PathBuf, Refusal> {
 pub fn run_line(root: &Path, file: &Path, test: &str) -> String {
     let relative = file.strip_prefix(root).unwrap_or(file);
     match language_of(root) {
-        Some(Language::Elixir) => format!("mix test --only 'test:test {test}'"),
+        Some(Language::Elixir) => format!(
+            "mix test --only {}",
+            shell_quoted(&format!("test:test {test}"))
+        ),
         Some(Language::Python) => format!("pytest {}::{test}", relative.display()),
         Some(Language::JavaScript) => format!(
-            "node --test --test-name-pattern='^{}$' {}",
-            crate::javascript::escape_regex(test),
+            "node --test --test-name-pattern={} {}",
+            shell_quoted(&format!("^{}$", crate::javascript::escape_regex(test))),
             relative.display()
         ),
         Some(Language::Ruby) => format!("ruby -Itest {} -n {test}", relative.display()),
@@ -185,6 +188,17 @@ pub fn run_line(root: &Path, file: &Path, test: &str) -> String {
             format!("cargo test --test {stem} {test} -- --exact")
         }
     }
+}
+
+/// A word a shell will hand on whole: single-quoted, with any
+/// apostrophe inside it closed, escaped and reopened -- `it's` becomes
+/// `'it'\\''s'`. The line is for a person to paste, and an
+/// apostrophe in a test name left the pasted line waiting for a
+/// closing quote (review 0046 R-5; the elixir line had the same
+/// latent flaw). The RUN itself hands the name as one argument and
+/// never crosses a shell.
+fn shell_quoted(word: &str) -> String {
+    format!("'{}'", word.replace('\'', "'\\''"))
 }
 
 /// Which language leads this project, read from its config. The

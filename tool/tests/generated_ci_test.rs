@@ -304,3 +304,49 @@ fn a_pin_this_release_will_not_vouch_for_is_no_pin() {
         "the extension-less form is read too:\n{flow}\n{said}"
     );
 }
+
+/// The fifth tongue's step (review 0046 R-11): the battery is
+/// `node --test` at the root -- this hand judges from the root, as
+/// ruby's and elixir's do -- and the node it judges with is named
+/// where the project names one, said absent where it does not. No
+/// probe had run the generator over a javascript project.
+#[test]
+fn a_node_project_names_the_node_it_pins() {
+    let dir = tongue_project("cijs", "javascript", "package.json", "");
+    std::fs::write(dir.join(".nvmrc"), "22\n").unwrap();
+    let (said, code) = keel(&dir, &["update"]);
+    assert_eq!(code, 0, "the workflow is written:\n{said}");
+    let flow = std::fs::read_to_string(dir.join(".github/workflows/keel.yml")).unwrap();
+    assert!(
+        flow.contains("actions/setup-node@v4") && flow.contains("node-version-file: .nvmrc"),
+        "the step installs the node the project pins, read from the file \
+         the project already keeps:\n{flow}"
+    );
+    let step = battery_step(&dir);
+    assert!(
+        step.contains("node --test") && !step.contains("working-directory"),
+        "the battery is node's own, at the root the courts judge from:\n{step}"
+    );
+
+    // `.node-version` is the other file setup-node reads on its own.
+    let dir = tongue_project("cijsnv", "javascript", "package.json", "");
+    std::fs::write(dir.join(".node-version"), "22.22.2\n").unwrap();
+    let (said, code) = keel(&dir, &["update"]);
+    assert_eq!(code, 0, "the workflow is written:\n{said}");
+    let flow = std::fs::read_to_string(dir.join(".github/workflows/keel.yml")).unwrap();
+    assert!(
+        flow.contains("node-version-file: .node-version"),
+        "and that file is named where it is the one kept:\n{flow}"
+    );
+
+    // No pin: the file says so, and names what would fix it, rather
+    // than staying silent over whatever node the runner has today.
+    let dir = tongue_project("cijsnopin", "javascript", "package.json", "");
+    let (said, code) = keel(&dir, &["update"]);
+    assert_eq!(code, 0, "the workflow is written:\n{said}");
+    let flow = std::fs::read_to_string(dir.join(".github/workflows/keel.yml")).unwrap();
+    assert!(
+        flow.contains(".nvmrc") && !flow.contains("setup-node"),
+        "where nothing is pinned, the file says so and names the fix:\n{flow}"
+    );
+}

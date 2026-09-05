@@ -258,10 +258,17 @@ pub fn tap(said: &str) -> Vec<Entry> {
             at += 1;
             continue;
         }
+        // A directive is an UNESCAPED ` # ` -- node writes every `#`
+        // of a name as `\#`, so the first bare one is the directive
+        // and nothing before it is. The name is taken as node wrote
+        // it, a trailing space included: `test('trail ', …)` is a
+        // test named with that space, and TAP keeps it (review 0046
+        // R-1), then unescaped back into the name the tag carries.
         let (name, skipped) = match named.find(" # ") {
-            Some(cut) => (named[..cut].trim_end(), true),
-            None => (named.trim_end(), false),
+            Some(cut) => (&named[..cut], true),
+            None => (named, false),
         };
+        let name = unescape_tap(name);
         // The YAML block below it, if node wrote one.
         let mut suite = false;
         let mut look = at + 1;
@@ -279,7 +286,7 @@ pub fn tap(said: &str) -> Vec<Entry> {
             }
         }
         out.push(Entry {
-            name: name.to_string(),
+            name,
             ok,
             suite,
             skipped,
@@ -289,29 +296,59 @@ pub fn tap(said: &str) -> Vec<Entry> {
     out
 }
 
-/// What one run came to, read from TAP and from TAP alone: the line
-/// that names THIS test decides -- `ok` green, `not ok` red. No line
+/// node's TAP reporter escapes a name before it prints it: `\` goes
+/// out as `\\` and `#` as `\#` (the first because the second must be
+/// unambiguous). Read back, or a test named `fixes #12` -- the most
+/// ordinary name there is -- is one no verdict ever names, and the
+/// gate holds `work:` over a green test (review 0046 R-1). Only these
+/// two are undone: node also writes a tab as `\\t`, the same bytes as
+/// a literal backslash-t, so a name with a control character in it
+/// cannot be read back, and that border is named in the contract.
+pub fn unescape_tap(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut chars = name.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' && matches!(chars.peek(), Some('\\') | Some('#')) {
+            out.push(chars.next().unwrap());
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// What one run came to, read from TAP and from TAP alone: the lines
+/// that name THIS test decide -- `ok` green, `not ok` red. No line
 /// naming it: a broken build if node printed an error for the file
 /// (`# SyntaxError: …` above a `not ok` for the file itself), else
 /// "did not run" -- whatever the exit code, which is 0 here while
 /// node counts the file as one passed test.
+///
+/// LINES, because a name is not unique: two `describe` blocks may
+/// each hold a test of this name, `--test-name-pattern` runs both,
+/// and the tag cannot say which it meant. So every line with the
+/// name is read, the way the battery reads them (review 0046 R-2):
+/// any red among them is red -- the gate used to take the first
+/// line and bless `work:` over a tagged test that had just failed
+/// under the second describe, while `close` on the same tree said
+/// "red test". One rule, the safe one, in both courts.
 pub fn classify(said: &str, test: &str) -> crate::adapter::Outcome {
-    for entry in tap(said) {
-        if entry.suite || entry.name != test {
-            continue;
-        }
-        if entry.skipped {
-            return crate::adapter::Outcome::NotRun;
-        }
-        return if entry.ok {
-            crate::adapter::Outcome::Green
-        } else {
-            crate::adapter::Outcome::Failed
+    let named: Vec<Entry> = tap(said)
+        .into_iter()
+        .filter(|entry| !entry.suite && entry.name == test)
+        .collect();
+    if named.is_empty() {
+        return match broken(said, "") {
+            Some(words) => crate::adapter::Outcome::BuildBroken(words),
+            None => crate::adapter::Outcome::NotRun,
         };
     }
-    match broken(said, "") {
-        Some(words) => crate::adapter::Outcome::BuildBroken(words),
-        None => crate::adapter::Outcome::NotRun,
+    if named.iter().any(|entry| !entry.skipped && !entry.ok) {
+        crate::adapter::Outcome::Failed
+    } else if named.iter().any(|entry| !entry.skipped && entry.ok) {
+        crate::adapter::Outcome::Green
+    } else {
+        crate::adapter::Outcome::NotRun
     }
 }
 
@@ -360,6 +397,13 @@ fn node(root: &Path, args: &[String]) -> Result<String, Refusal> {
         .args(args)
         .current_dir(root);
     crate::scope::forget_the_hook(&mut command);
+    // "Writes nothing" held only while the environment was silent:
+    // with NODE_COMPILE_CACHE pointing into the project, node left a
+    // cache directory behind after `close` (review 0046 R-6). The
+    // python hand drops its cache by flag; this one drops the
+    // variable, the same way the courts drop an inherited
+    // CARGO_TARGET_DIR.
+    command.env_remove("NODE_COMPILE_CACHE");
     let out = command.output().map_err(|e| Refusal {
         file: root.to_path_buf(),
         reason: ta(

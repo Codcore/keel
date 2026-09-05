@@ -117,6 +117,42 @@ fn a_probe_without_its_tool_stops_aloud() {
          merely in a test's name, so a person reading the log knows \
          what was not judged:\n{said}"
     );
+
+    // The fifth tongue's probe, under a PATH without node (review
+    // 0046 R-11): the same hand, the same word, naming `node`.
+    let Some(probe) = probe_binary("javascript_border_test-") else {
+        panic!("the javascript probe binary was not found beside this one");
+    };
+    let bare = path_without("node", &["git", "sh", "true"]);
+    let bare_path = bare.display().to_string();
+    let there = Command::new("sh")
+        .args(["-c", "command -v node"])
+        .env("PATH", &bare_path)
+        .output()
+        .unwrap();
+    assert!(
+        !there.status.success(),
+        "the bare PATH must not carry node, or this probe measures nothing"
+    );
+    let out = Command::new(&probe)
+        .args(["--test-threads", "1", "--nocapture"])
+        .env("PATH", &bare_path)
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        out.status.code().unwrap_or(-1),
+        0,
+        "a javascript probe without node does not go red:\n{said}"
+    );
+    assert!(
+        said.contains("`node` is not on this machine"),
+        "and names node as what it lacked:\n{said}"
+    );
 }
 
 /// The two halves review 0044 found unjudged: a tool that IS on PATH

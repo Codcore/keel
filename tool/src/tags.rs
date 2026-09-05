@@ -146,7 +146,23 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                     None => name,
                 })
             } else if javascript {
-                js_test_name(trimmed)
+                match js_call(trimmed) {
+                    Some(JsCall::Named(name)) => Some(name),
+                    // A name node builds at run time, or a subtest
+                    // that cannot run without its parent: neither
+                    // is a declaration this tag can hold, and the
+                    // refusal says WHICH, not "no test function"
+                    // (review 0046 R-3).
+                    Some(JsCall::Dynamic) if pending.is_some() => {
+                        let (scenario, rev) = pending.take().unwrap();
+                        return Err(js_refusal(file, "tags-js-dynamic", &scenario, &rev));
+                    }
+                    Some(JsCall::Subtest) if pending.is_some() => {
+                        let (scenario, rev) = pending.take().unwrap();
+                        return Err(js_refusal(file, "tags-js-subtest", &scenario, &rev));
+                    }
+                    _ => None,
+                }
             } else if python {
                 // A class opens a group at its own indentation and
                 // holds it while the lines below sit deeper; a line
@@ -260,32 +276,120 @@ fn parens(trimmed: &str) -> i32 {
     trimmed.matches('(').count() as i32 - trimmed.matches(')').count() as i32
 }
 
-/// The name a `test('…', …)` or `it("…", …)` line declares, in any of
-/// the three quotes javascript writes, escapes read. `describe(` is
-/// not a declaration: node names the test inside by its bare name.
-pub fn js_test_name(trimmed: &str) -> Option<String> {
-    let rest = ["test(", "test (", "it(", "it ("]
+/// What a javascript line declares, for the tag above it.
+pub enum JsCall {
+    /// `test('name', …)` in any of the forms below: a test node will
+    /// report under this name.
+    Named(String),
+    /// A test whose name is a template with `${…}` in it -- node
+    /// builds the name at run time, and no reader of the source can
+    /// know it.
+    Dynamic,
+    /// `t.test('…')`: a subtest of the enclosing `test`. node runs it
+    /// only through its parent -- `--test-name-pattern` over the
+    /// subtest's own name runs nothing (measured, review 0046 R-3) --
+    /// so a tag over it can hold nothing on its own.
+    Subtest,
+}
+
+/// node names a test by a STRING: `test('it works', …)`, `it("…")`,
+/// the same in backticks -- and in the forms review 0046 R-3 played
+/// from node's own documentation: `test.only(`, `test.skip(`,
+/// `test.todo(`, their `it.` cousins, `await test(`, `const p =
+/// test(`, and any width of space before the parenthesis. A `.skip`
+/// or `.todo` is read as the declaration it is: node reports it
+/// `# SKIP`/`# TODO`, the court says "did not run", and that is the
+/// truth -- not "the tag holds nothing". `describe(` is a group, not
+/// a test. Escapes read: `\'` is a quote, `\\` a backslash, `\n` a
+/// line break (which node then prints in a form no reader can tell
+/// from a literal backslash-n -- the contract names that border).
+pub fn js_call(trimmed: &str) -> Option<JsCall> {
+    let mut rest = trimmed.trim_start();
+    if let Some(after) = rest.strip_prefix("await ") {
+        rest = after.trim_start();
+    } else if let Some(after) = ["const ", "let ", "var "]
         .iter()
-        .find_map(|word| trimmed.strip_prefix(word))?
-        .trim_start();
+        .find_map(|word| rest.strip_prefix(word))
+    {
+        // `const p = test(` -- a binding, then the call.
+        let after = after
+            .trim_start()
+            .trim_start_matches(|c: char| c.is_alphanumeric() || c == '_' || c == '$')
+            .trim_start();
+        rest = after.strip_prefix('=')?.trim_start();
+        if let Some(after) = rest.strip_prefix("await ") {
+            rest = after.trim_start();
+        }
+    }
+    // The callee: `test` or `it`, bare or with `.only`/`.skip`/
+    // `.todo`; `t.test(` and `context.test(` are subtests.
+    let callee = match ["test", "it"]
+        .iter()
+        .find_map(|word| rest.strip_prefix(word))
+    {
+        Some(after) => after,
+        None => {
+            let after_object =
+                rest.trim_start_matches(|c: char| c.is_alphanumeric() || c == '_' || c == '$');
+            return match after_object.strip_prefix(".test") {
+                Some(after) if after_object.len() < rest.len() => after
+                    .trim_start()
+                    .starts_with('(')
+                    .then_some(JsCall::Subtest),
+                _ => None,
+            };
+        }
+    };
+    let callee = match callee.strip_prefix('.') {
+        Some(method) => ["only", "skip", "todo"]
+            .iter()
+            .find_map(|word| method.strip_prefix(word))?,
+        None => callee,
+    };
+    let rest = callee.trim_start().strip_prefix('(')?.trim_start();
     let quote = rest.chars().next()?;
     if !matches!(quote, '\'' | '"' | '`') {
         return None;
     }
     let mut name = String::new();
-    let mut chars = rest[1..].chars();
+    let mut chars = rest[1..].chars().peekable();
     while let Some(ch) = chars.next() {
         match ch {
             '\\' => {
                 if let Some(next) = chars.next() {
-                    name.push(next);
+                    name.push(match next {
+                        'n' => '\n',
+                        't' => '\t',
+                        'r' => '\r',
+                        other => other,
+                    });
                 }
             }
-            c if c == quote => return (!name.is_empty()).then_some(name),
+            '$' if quote == '`' && chars.peek() == Some(&'{') => return Some(JsCall::Dynamic),
+            c if c == quote => return (!name.is_empty()).then_some(JsCall::Named(name)),
             c => name.push(c),
         }
     }
     None
+}
+
+/// The name a javascript line declares a test under, if it does.
+pub fn js_test_name(trimmed: &str) -> Option<String> {
+    match js_call(trimmed)? {
+        JsCall::Named(name) => Some(name),
+        _ => None,
+    }
+}
+
+fn js_refusal(file: &Path, key: &str, scenario: &str, rev: &str) -> Refusal {
+    Refusal {
+        file: file.to_path_buf(),
+        reason: ta(
+            key,
+            targs!("scenario" => scenario.to_string(), "rev" => rev.to_string()),
+        ),
+        instead: t(&format!("{key}-instead")),
+    }
 }
 
 /// The name a `class Something:` line opens, for python -- the

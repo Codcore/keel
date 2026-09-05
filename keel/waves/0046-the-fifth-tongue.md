@@ -21,11 +21,15 @@ transforms:
       - tool/src/config.rs
       - tool/src/tags.rs
       - tool/src/check.rs
+      - tool/src/next.rs
+      - tool/src/generated.rs
       - keel/contracts/tool-adapter-javascript.md
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/javascript_tests_test.rs
       - tool/tests/javascript_border_test.rs
+      - tool/tests/generated_ci_test.rs
+      - tool/tests/machine_test.rs
   a-javascript-module-is-compared:
     implements:
       - a-javascript-contract-holds-its-form
@@ -44,7 +48,7 @@ transforms:
 decisions:
   performance.time-behaviour: "не застосовується"
   performance.capacity: "не застосовується"
-  performance.resource-utilisation: "свідомо без тесту, і ціна названа: node --test нічого не збирає і нічого не пише — зміряно порожнім find після бігу; теки збірки нема, відмови за вільним місцем нема"
+  performance.resource-utilisation: "свідомо без тесту, і ціна названа: node --test нічого не збирає і нічого не пише — зміряно порожнім find після бігу, і з NODE_COMPILE_CACHE у середовищі теж (адаптер знімає її; рецензія R-6); теки збірки нема, відмови за вільним місцем нема"
   compatibility.co-existence: "тримає javascript-tests-are-read-and-run: пʼята мова стає в перелік і не міняє поведінки жодного наявного проєкту — rust, ruby, elixir, python судяться побайтово так само"
   compatibility.interoperability: "свідомо без тесту: адаптер кличе `node --test` — те саме, що людина в терміналі; імʼя тесту йде окремим аргументом `--test-name-pattern`, не крізь шел, і екранується як регулярний вираз"
   interaction.appropriateness-recognisability: "свідомо без тесту: імʼя адаптера — `javascript`, синоніми `typescript`, `node`, `js`, `ts`; TypeScript не окрема мова для цього бігуна — node 22 знімає типи сам"
@@ -59,14 +63,14 @@ decisions:
   reliability.availability: "не застосовується"
   reliability.recoverability: "не застосовується"
   security.confidentiality: "не застосовується"
-  security.integrity: "свідомо без тесту, і сказано точно: адаптер у проєкт не пише нічого — зміряно; node --test кешу не тримає"
+  security.integrity: "тримає javascript-tests-are-read-and-run: адаптер у проєкт не пише нічого — зміряно після close, і з NODE_COMPILE_CACHE, що показує в проєкт (рецензія R-6: кеш node лишався, поки середовище мовчало; змінну знято)"
   security.non-repudiation: "не застосовується"
   security.accountability: "не застосовується"
   security.authenticity: "не застосовується"
-  security.resistance: "свідомо без окремої роботи, і названо, бо хвиля 0044 навчила: імʼя тесту з тега йде в `--test-name-pattern` як регулярний вираз — тож воно ЕКРАНУЄТЬСЯ до `^…$` з усіма метасимволами, інакше імʼя `a.b` збігалось би з `axb`, а `(` ламало б бігун; це тримає проба"
+  security.resistance: "тримає javascript-tests-are-read-and-run: імʼя тесту з тега йде в `--test-name-pattern` як регулярний вираз — тож воно ЕКРАНУЄТЬСЯ до `^…$` з усіма метасимволами, інакше імʼя `a.b` збігалось би з `axb`, а `(` ламало б бігун; це тримає проба з шимом node, що записує argv (рецензія R-8), і рядок для людини береться в лапки шелу (R-5)"
   maintainability.modularity: "тримає a-javascript-contract-holds-its-form: мовне обличчя живе в адаптері мови, суди питають адаптер — `battery_dir`, `battery_key`, `strip_comments`"
   maintainability.reusability: "свідомо без тесту, і сказано чесно: javascript НЕ ділить читача коментарів ні з rust (шаблонні рядки в зворотних лапках — свій текст), ні з родиною `#`; це четвертий читач, малий і один на js/ts, бо це та сама робота для обох"
-  maintainability.modifiability: "свідомо без тесту, і число з README перераховане: сімнадцять місць, що гілкуються за мовою; ця хвиля додає ноги до них і жодного нового місця"
+  maintainability.modifiability: "свідомо без тесту, і число з README перераховане після рецензії: місць, що гілкуються за мовою, було сімнадцять; ця хвиля додає ноги до них і два нових у `next` — марку тега й теку тестів, які підказка називає мовою проєкту (R-10); grep дає двадцять рядків, і README показує, як рахувати"
   maintainability.testability: "свідомо без тесту: проби будують справжні node-проєкти спільною рукою 0030 і женуть справжній node; де його нема — зупиняються вголос рукою хвилі 0044"
   flexibility.scalability: "не застосовується"
   flexibility.installability: "не застосовується"
@@ -75,7 +79,7 @@ decisions:
   safety.risk-identification: "свідомо без окремої роботи: ризик названий числом — концепт назвав чотири стартові мови; з цією хвилею збудовано всі чотири; лишається RSpec"
   safety.hazard-warning: "не застосовується"
   safety.safe-integration: "тримає javascript-tests-are-read-and-run: наявні rust-, ruby-, elixir- і python-проєкти судяться так само — це міряє проба вибору хвилі 0038 і батарея цілком"
-  flexibility.adaptability: "тримає javascript-tests-are-read-and-run: пʼята мова — перша, чий бігун не розрізняє станів кодом виходу, тож диспетчер мусить пропускати ВЕСЬ вирок через текст, і це перевірка, що адаптер справді володіє вироком, а не тільки командою"
+  flexibility.adaptability: "тримає javascript-tests-are-read-and-run: пʼята мова — перша, чий бігун не розрізняє станів кодом виходу, тож диспетчер мусить пропускати ВЕСЬ вирок через текст, і це перевірка, що адаптер справді володіє вироком, а не тільки командою; і згенерований CI дістає ногу цієї мови — крок node, названий чи сказаний відсутнім (R-11)"
 ---
 
 ## Why
@@ -126,7 +130,11 @@ ok 3 - grouped
 
 **Імʼя тесту — рядок**, як в elixir: `test('it works', …)`, `it("…")`,
 або в зворотних лапках. Читач тегів вивчає `test(` та `it(` із трьома
-видами лапок. І **імʼя йде в регулярний вираз** — тож екранується:
+видами лапок — і, після рецензії, форми з документації node:
+`test.only`/`.skip`/`.todo`, `await test(`, звʼязану змінну; підтест
+`t.test` і імʼя з `${…}` — відмови, що називають себе. І **імʼя, яке
+node пише в TAP, екрановане** (`\#`, `\\`) — читається назад. І
+**імʼя йде в регулярний вираз** — тож екранується:
 `--test-name-pattern='^it works$'`, а `a.b (x)` → `^a\.b \(x\)$`. Це
 тримає проба, бо хвиля 0044 навчила, що рядок, який іде в чужу
 команду, — поверхня.
@@ -201,6 +209,13 @@ TAP, ключ — `adapter::battery_key`), `classify` **лише за текст
 трьома лапками. `check` дістає межу node. Словник — обома мовами.
 Контракт `tool-adapter-javascript.md` — з таблицею кодів, яка каже, чому
 код не читається.
+
+Після рецензії (§9.9) до файлів трансформи додано `next.rs`
+(підказка називає теку і марку тега мовою проєкту, R-10),
+`generated.rs` (нога node у згенерованому CI — одне з сімнадцяти місць,
+які ця хвиля обіцяла обійти, R-11) і проби `generated_ci_test.rs`,
+`machine_test.rs` з випадком javascript. Розширення названо тут і в
+записі рецензії, а не зроблено мовчки.
 
 ## transform: a-javascript-module-is-compared
 
