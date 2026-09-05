@@ -26,6 +26,7 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
         instead: t("docs-unreadable-instead"),
     })?;
     let subject = message.lines().next().unwrap_or("").trim().to_string();
+    let mutant = mutant_line(&message);
 
     let mode_line = if config.mode_set {
         ta("gate-mode", targs!("mode" => config.mode.clone()))
@@ -48,6 +49,21 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
         return Ok((report, 0));
     };
     let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
+    // A wave called off is outside judgement, and §6.3-a says EVERY
+    // court says so aloud. Review 0037 R-6: this one judged it in
+    // silence, so after a cancellation nothing could be committed on
+    // its branch at all -- with the hook `keel init` installs by
+    // default, the branch was simply frozen.
+    if let Some(why) = &wave.cancelled {
+        let report = format!(
+            "{mode_line}\n{}\n",
+            ta(
+                "gate-cancelled",
+                targs!("wave" => wave.slug.clone(), "why" => why.clone()),
+            )
+        );
+        return Ok((report, 0));
+    }
 
     // The one court that physically runs the toolchain asks the home
     // first (review 0017 R-4): an adapter this release does not
@@ -65,7 +81,7 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
         return Ok((report, 0));
     }
 
-    let verdict = judge(root, wave, &subject)?;
+    let verdict = judge(root, wave, &subject, mutant)?;
     let (words, guilty) = match verdict {
         Verdict::Pass(words) => (words, false),
         Verdict::Refuse(words) => (words, true),
@@ -90,10 +106,15 @@ enum Verdict {
 
 /// The judgement proper, mode-blind: what the message claims against
 /// what the tests really do.
-fn judge(root: &Path, wave: &docs::Wave, subject: &str) -> Result<Verdict, Refusal> {
+fn judge(
+    root: &Path,
+    wave: &docs::Wave,
+    subject: &str,
+    mutant: Option<(String, String)>,
+) -> Result<Verdict, Refusal> {
     if let Some(rest) = subject.strip_prefix("red: ") {
         let scenario = rest.split_whitespace().next().unwrap_or("");
-        return judge_red(root, wave, scenario);
+        return judge_red(root, wave, scenario, mutant);
     }
     if let Some((head, _)) = subject.split_once(':') {
         let head = head.trim();
@@ -122,7 +143,42 @@ fn judge(root: &Path, wave: &docs::Wave, subject: &str) -> Result<Verdict, Refus
     Ok(Verdict::Pass(t("gate-outside")))
 }
 
-fn judge_red(root: &Path, wave: &docs::Wave, scenario: &str) -> Result<Verdict, Refusal> {
+/// The named exception of §6.3 (the operator's decision of
+/// 2026-09-04): a court over our own battery or tooling cannot be
+/// seen failing without breaking the thing it guards, so it MAY be
+/// born green -- if the commit records the mutant it was proven with.
+/// The guarantee survives: proving that the test can fail is still
+/// required, only the proof moves from the hook's eye into the
+/// message, where a reviewer meets it.
+///
+/// What counts is a line `mutant: <what was broken> -> <how the probe
+/// named it>`, with words on both sides of the arrow: an exception
+/// that costs nothing is not an exception, it is a hole.
+pub fn mutant_line(message: &str) -> Option<(String, String)> {
+    for line in message.lines() {
+        let Some(rest) = line.trim().strip_prefix("mutant:") else {
+            continue;
+        };
+        // Both arrows: the tool prints "→" in its own verdict, so
+        // refusing it while showing it was a trap of our own making
+        // (review 0037 R-20).
+        let Some((broke, named)) = rest.split_once("->").or_else(|| rest.split_once('→')) else {
+            continue;
+        };
+        let (broke, named) = (broke.trim(), named.trim());
+        if !broke.is_empty() && !named.is_empty() {
+            return Some((broke.to_string(), named.to_string()));
+        }
+    }
+    None
+}
+
+fn judge_red(
+    root: &Path,
+    wave: &docs::Wave,
+    scenario: &str,
+    mutant: Option<(String, String)>,
+) -> Result<Verdict, Refusal> {
     let Some((name, sc)) = wave.scenarios.iter().find(|(n, _)| n == scenario) else {
         return Ok(Verdict::Refuse(ta(
             "gate-red-unknown",
@@ -147,10 +203,22 @@ fn judge_red(root: &Path, wave: &docs::Wave, scenario: &str) -> Result<Verdict, 
                 "gate-red-pass",
                 targs!("scenario" => name.clone(), "test" => mine[0].test.clone()),
             ))),
-            Outcome::Green => Ok(Verdict::Refuse(ta(
-                "gate-red-green",
-                targs!("scenario" => name.clone(), "test" => mine[0].test.clone()),
-            ))),
+            // The §6.3 exception: green, but the mutant is recorded.
+            Outcome::Green => Ok(match mutant {
+                Some((broke, named)) => Verdict::Pass(ta(
+                    "gate-red-mutant",
+                    targs!(
+                        "scenario" => name.clone(),
+                        "test" => mine[0].test.clone(),
+                        "broke" => broke,
+                        "named" => named
+                    ),
+                )),
+                None => Verdict::Refuse(ta(
+                    "gate-red-green",
+                    targs!("scenario" => name.clone(), "test" => mine[0].test.clone()),
+                )),
+            }),
             Outcome::BuildBroken(words) => Ok(Verdict::Refuse(ta(
                 "gate-red-broken",
                 targs!("scenario" => name.clone(), "words" => words),
@@ -257,6 +325,28 @@ const HOOK: &str = "#!/bin/sh\n# keel gate -- the commit judged by the machine (
 /// call over our own hook is quietly the same file; a foreign hook
 /// is never overwritten -- a refusal aloud (§9.7). This is the one
 /// thing the module writes.
+/// Where git will actually read the commit-msg hook -- the shared
+/// directory of a worktree, `core.hooksPath` where someone set it.
+/// Review 0037 R-10: the hooks-off road looked at a hard-wired
+/// `.git/hooks` and so said "not installed" over a hook standing
+/// somewhere else entirely.
+pub fn hook_path(root: &Path) -> Option<std::path::PathBuf> {
+    let out = crate::scope::git_at(root)
+        .args(["rev-parse", "--git-path", "hooks"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let hooks = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!hooks.is_empty()).then(|| root.join(hooks).join("commit-msg"))
+}
+
+/// Whether the hook standing there is the one this release writes.
+pub fn hook_is_ours(path: &Path) -> bool {
+    std::fs::read_to_string(path).is_ok_and(|text| text == HOOK)
+}
+
 pub fn install_hook(root: &Path) -> Result<String, Refusal> {
     // --git-path hooks answers with the directory git will actually
     // read -- the shared hooks of the common dir in a worktree, and

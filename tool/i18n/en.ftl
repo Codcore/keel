@@ -110,10 +110,22 @@ rev-write-needs-adapter = the rewriting hand needs the rust adapter named in kee
 rev-write-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
 rev-write-rewritten = { "  " }{ $wave }: { $contract }@{ $old } → { $contract }@{ $new } — the record now holds the current revision
 rev-write-kept = { "  " }{ $wave }: closed — leaving its records to history's court (§5.6)
+rev-write-stopped = the writing hand stopped: { $count } { $count ->
+    [one] finding
+   *[other] findings
+} above -- nothing further was written, and the exit code says the same
+rev-write-only-kept = there was nothing to rewrite: { $count } { $count ->
+    [one] record has drifted
+   *[other] records have drifted
+}, and every one of them is in a closed wave, where the old revision is lawful (§5.6)
 rev-write-none = nothing has drifted in the open waves — every record they hold is current
 rev-write-count = records rewritten: { $count }
 
 ## graph module
+graph-scenario-twice = scenario "{ $scenario }" lives in more than one wave: { $waves } -- a test tag is a bare name, so the machine cannot tell whose promise it proves, and one test closes both
+graph-scenario-twice-instead = give the scenarios different names: one name, one home
+graph-name-taken = the name "{ $name }" is worn by a promise of wave { $wave } and by a contract at once -- and a test tag is a bare name, so whose revision it holds cannot be seen
+graph-name-taken-instead = rename one of the two: scenario names and contract slugs live in one namespace
 graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
 graph-unknown-cut-instead = the forty cuts ship with the release (§3.4); pick one of them or fix the typo
 graph-double-cover = the cut "{ $slug }" has { $count } live covers: scenarios { $holders } (§10.3 -- exactly one answer)
@@ -188,7 +200,10 @@ check-holding-count = signatures checked: { $count }
 check-holding-uncompared = { $contract } — no one compared the form: { $why } (§7.6)
 holding-why-no-adapter = no adapter named in keel.toml
 holding-why-unknown-adapter = the named adapter is not of this release (it serves "rust")
-holding-why-deep = the module path is deeper than this generation compares
+holding-module-missing = contract { $contract } names module "{ $module }", which is not in the code -- looked for { $looked } (§2.7, §7.6)
+holding-module-missing-instead = put the module where it is named, or rewrite the module field to match what exists; until then this contract's signatures are not compared
+holding-module-outside = contract { $contract } names module "{ $module }", and that is not a module of this crate: the name leads outside it (§2.7, §7.6)
+holding-module-outside-instead = write the module the way the language writes it -- the crate, then the modules inside it, separated by ::; a slash or a .. in the name is not looked for at all
 holding-why-no-file = the module's file was not found in the crate
 check-holding-plan = a plan branch: the form court does not run (§8.3) — exports may grow ahead of the code (§4.9)
 check-holding-window = { $contract } — the form is not judged: the promise is grown by the approved, not started wave { $wave } (§6.5); the wave's first tag brings the court back
@@ -246,7 +261,8 @@ gate-not-wave = branch "{ $branch }" is not named as any wave that reads -- noth
 gate-outside = the message is neither a birth nor transform work -- outside the judgement, passing with this word
 gate-chore = the transform is a chore -- no promises to run (§2.11), passing
 gate-red-pass = red birth of "{ $scenario }": the test "{ $test }" truly fails -- the commit passes (§7.12)
-gate-red-green = red birth of "{ $scenario }" claimed, but the test "{ $test }" is green -- an unearned "seen red" does not enter history (§7.12)
+gate-red-mutant = a green birth of "{ $scenario }": the test "{ $test }" is green, and this is the named exception of §6.3 -- the commit records the mutant: { $broke } was broken → the probe named it: { $named }. The machine does not check that the mutant is real: it is the author's word, and the reviewer reads it
+gate-red-green = red birth of "{ $scenario }" claimed, but the test "{ $test }" is green -- an unearned "seen red" does not enter history (§7.12). If this is a court over your own battery or tooling, which cannot be seen failing without breaking the thing it guards, that is the named exception of §6.3: add a line `mutant: <what was broken> -> <how the probe named it>` to the message
 gate-red-unknown = red: names "{ $slug }", not a scenario of wave { $wave }
 gate-red-withdrawn = "{ $scenario }" is withdrawn -- a dead promise is not born (§2.12)
 gate-red-untagged = red birth of "{ $scenario }" claimed, but no test carries its proves tag (§5.5)
@@ -266,6 +282,9 @@ gate-soft = mode: soft -- the same words, a warning only
 gate-hook-installed = the commit-msg hook now calls keel gate -- written to { $path }
 gate-adapter-unjudged = the adapter "{ $name }" is not of this release (it serves "rust") — the commit is not judged: the word stands aloud, the judgement waits for its adapter's wave
 gate-adapter-absent-name = not named
+init-hook-off-foreign = the git hook here is not ours and is not touched (§9.7); this project answered hooks = false, so keel installs none of its own
+init-hook-off = the git hook is not installed: this project answered hooks = false, and the answer holds for it too (§9.3)
+init-hook-off-standing = the git hook is left where it stands: this project answered hooks = false, so nobody maintains it now -- remove .git/hooks/commit-msg by hand, or set hooks = true
 gate-hook-already = the hook is already ours -- quietly the same file
 gate-hook-foreign = a commit-msg hook already exists here, and it is not ours
 gate-hook-foreign-instead = keel does not overwrite someone's hook (§9.7); read it and merge or remove it yourself, then re-run keel hook
@@ -299,6 +318,39 @@ check-tags-skipped-refused = test tags not compared: the adapter refused mid-way
 check-scope-compared = scope: branch "{ $branch }" is the wave -- compared against { $base }
 check-scope-base-main = the merge-base with main @ { $sha }
 check-scope-base-first = the first commit of the branch @ { $sha } (no main here)
+limit-shallow-diff = not checked: the history is truncated, so vanished documents (§4.12) and code on a plan branch (§4.9) have nothing to be compared against
+limit-no-base = not checked: this clone gives no fork point -- vanished documents (§4.12) and code on a plan branch (§4.9) were not judged
+limit-no-trunk = not checked: this clone knows no main trunk, so there is no fork point -- vanished documents (§4.12) and code on a plan branch (§4.9) were not judged; name the trunk main or fetch origin/main
+check-red-mutant = not checked: the birth commit of "{ $scenario }" carries a §6.3 mutant line -- { $broke } was broken, and the probe named it: { $named }. Whether this commit took the exception or the test failed anyway was known only to the hook at that moment; the machine checks neither that, nor that the mutant is real -- it is the author's word, and the reviewer reads it
+check-wave-cancelled = not judged: wave { $wave } was called off -- { $why } (§6.3-a)
+check-scope-cancelled = scope not compared: the branch "{ $branch }" is named after wave { $wave }, which was called off (§6.3-a)
+close-cancelled = { $wave }: called off -- { $why } (§6.3-a): there is nothing to prove, and the court does not wait for it
+status-wave-cancelled = { "  " }{ $wave } -- called off: { $why } (§6.3-a)
+docs-cancelled-empty = the cancelled field is empty: a cancellation without a reason is not one (§6)
+docs-cancelled-empty-instead = write why the wave is not being done: a person reads this line, and it stays in the repository for good
+gate-cancelled = wave { $wave } was called off -- { $why } (§6.3-a): this court does not judge it, and the commit passes
+next-cancelled = wave { $wave } was called off -- { $why } (§6.3-a): there is no work here. Take another wave, or plan a new one
+check-untested = the promise "{ $scenario }" has no test tag at all, and the branch already carries work commits (§7.5)
+check-untested-instead = give birth to the test in red (`red: { $scenario }`) and tag it with proves -- or mark the promise withdrawn if it is no longer wanted (§2.12)
+check-scope-spike = the branch "{ $branch }" is research (§4.13): its documents are not judged, and it never merges into main
+close-spike = the branch "{ $branch }" is research, and research does not merge (§4.13)
+close-spike-instead = bring the finding back as a wave: the Why of that wave is the trace of the research
+word-weight-light = light
+word-weight-full = full
+status-weight = weight { $weight } (§6.8) -- derived from the file, never written by hand
+scope-full-one-branch = wave { $wave } is { $weight } (§6.8), and its file was born on this very branch together with the work: then the two human looks §6.8 asks for did not happen
+scope-full-one-branch-instead = a full wave is planned on its own plan/{ $wave } branch and its own PR (§8.1); if the weight came out full by accident, drop the contract or the withdrawal, or split the transforms
+scope-vanished = the document "{ $slug }" is gone from the branch, and promises do not die by a file disappearing (§4.12, §2.12)
+scope-vanished-instead = either bring the file back and mark its promises withdrawn, or give the new document a renamed_from: { $slug } line
+scope-two-heirs = the vanished document "{ $slug }" is claimed as inheritance by two at once: { $heirs } -- the old name cannot lead to both (§4.12)
+scope-two-heirs-instead = leave renamed_from in one of them only
+scope-moved-across = the document "{ $slug }" moved across directories: the inheritance is claimed by "{ $heir }" (§4.12)
+scope-moved-across-instead = a wave does not become a contract or the other way round -- make a new document without renamed_from, and mark the old one withdrawn
+scope-plan-code = { $file } — a plan branch carries the plan, not code (§4.9): this file cannot be here
+scope-plan-code-instead = move the change to the wave's work branch; a plan branch keeps only the methodology's own documents (§4.8)
+check-scope-plan-unjudged = the plan branch "{ $branch }" (wave { $wave }) was NOT judged by §4.9: there is nothing to compare against -- the reason stands in the "not checked" list above
+check-scope-plan = the plan branch "{ $branch }" plans wave { $wave } -- judged by §4.9: the methodology's documents only
+check-scope-plan-nowave = the branch "{ $branch }" calls itself the plan branch of wave { $wave }, and there is no such wave (§8.2) -- code on it is judged by §4.9 all the same
 check-scope-skipped-not-wave = scope not compared: branch "{ $branch }" is not named as any wave that reads (§8.2) -- said aloud, not painted green
 check-scope-skipped-no-git = scope not compared: git serves no branch for this root -- said aloud, not painted green
 check-scope-skipped-refused = scope not compared: git refused mid-way -- its refusal stands among the findings
@@ -338,8 +390,10 @@ check-next-rung = next step: a contract naming a module that does not exist must
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
+close-test-red = { "  " }red test: { $test } ({ $file }) -- it failed in every run
+close-test-flaky = { "  " }flaky test: { $test } ({ $file }) -- it failed in some runs and not others, which is why the battery runs three times (§7.13)
 close-battery = battery: { $count } tests × { $runs } runs (§7.13) — green only when green in every run
-close-closed = { $wave }: closed -- every live scenario proven, references converge, the review lies next to it
+close-closed = { $wave }: closed -- every live scenario proven, references converge, and the review file lies next to it (the machine did not read it: what stands in it is the reviewer's word, and a person reads that)
 close-closed-unjudged = { $wave }: closed -- every live scenario proven, the review lies next to it; { $count } references not judged: history cannot testify here (§5.6)
 close-closed-light = { $wave }: closed (light) -- chores only, closed by the fact of merge
 close-plan = { $wave }: approved, not started -- a plan without tests is not red (§6.5)
@@ -350,6 +404,7 @@ close-lack-red = scenario "{ $scenario }": the test "{ $test }" is red -- not pr
 close-lack-notrun = scenario "{ $scenario }": the battery ran no test named "{ $test }"
 close-lack-flaky = scenario "{ $scenario }": the test "{ $test }" is green in { $green } of { $runs } runs — not green (§7.13)
 close-lack-ref = the reference { $contract }@{ $recorded } does not converge (§6.4)
+close-lack-review-empty = the review file keel/reviews/<wave>.md exists and is empty -- an empty file is not a review (§9.9)
 close-lack-review = the review file keel/reviews/<wave>.md is not next to the wave (§9.9)
 close-price = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; it wants about { $needed } GiB free (measured: one closing leaves 1.26 GiB)
 close-price-paid = price paid: { $target } weighs { $size } GiB
@@ -394,12 +449,12 @@ status-branch-plan = the branch "{ $branch }" is a plan branch -- the plan is be
 status-branch-other = the branch "{ $branch }" is named as no wave -- an overview without one
 status-branch-none = git named no branch for this root -- the overview rides without one, never a guess
 status-branch-broken = the branch "{ $branch }" is named as a wave whose document refused — mend it; the refusal rows stand below
-status-wave-closed = { "  " }{ $wave } — full, closed structurally: tags match, references converge, the review lies next to it
-status-wave-closed-unjudged = { "  " }{ $wave } — full, closed structurally; { $count } references not judged: history cannot testify here (§5.6)
-status-wave-closed-light = { "  " }{ $wave } — light, closed by merge (§6.8)
-status-wave-light-own = { "  " }{ $wave } — light, riding this branch as one PR — it closes by the fact of merge (§6.8)
-status-wave-plan = { "  " }{ $wave } — full, approved, not started (§6.5)
-status-wave-progress = { "  " }{ $wave } — full, in progress; the lacks, by name:
+status-wave-closed = { "  " }{ $wave } — closed structurally: tags match, references converge, and the review file lies next to it
+status-wave-closed-unjudged = { "  " }{ $wave } — closed structurally; { $count } references not judged: history cannot testify here (§5.6)
+status-wave-closed-light = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging closed it (§2.11)
+status-wave-light-own = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§2.11)
+status-wave-plan = { "  " }{ $wave } — approved, not started (§6.5)
+status-wave-progress = { "  " }{ $wave } — in progress; the lacks, by name:
 status-awaiting = { "  " }awaits its start: the wave { $wave } — the branch "{ $wave }" (§8.2)
 status-counts = counted: closed { $closed }, in progress { $working }, plans { $plans }
 status-no-battery = the stage here is structural (tags, references, the review) — the battery was not run: green tests are judged by close and the hook (§9.2)
@@ -499,7 +554,6 @@ generated-appended = { $file } — the keel block appended; the text above it is
 generated-refreshed = { $file } — refreshed by this release
 generated-stands = { $file } — already stands as this release writes it
 generated-removed = { $file } — removed by hand: a decision, not a gap; nothing is written back. To have it again, delete its line in [generated] of keel.toml and run keel update
-{ $snippet }
 next-unknown-agent = agent "{ $agent }" is not one this release knows: { $known }
 next-unknown-agent-instead = name one of { $known } — the answer shape of a session hook is the agent's own, and an unnamed agent has no documented shape to speak in
 generated-hooks-off = { $file } — no longer generated: this project answered hooks = false. The file and its line in [generated] still stand, and nothing judges them now — remove both, or set hooks = true to hand the file back to keel
@@ -535,6 +589,26 @@ main-new-unknown = refusal: keel new knows only: contract
 main-new-unknown-reason = reason: other document kinds are born by their own commands (waves by keel plan)
 main-new-no-slug = refusal: new contract needs the contract's name
 main-new-no-slug-reason = reason: the skeleton is born under the name that becomes its file (§1.4)
+main-help = keel -- the methodology's tool. Commands:
+    keel check [dir] -- judges the documents and the branch
+    keel plan <slug> [dir] -- lays a wave's scaffolding
+    keel rev [--write] [dir] -- revisions of scenarios and contracts
+    keel next [--for <agent>] [dir] -- the one next step
+    keel status [dir] -- the state of the waves
+    keel close [dir] -- the closing court (runs the battery three times)
+    keel review [dir] -- the package and briefing for a reviewer
+    keel map [dir] -- the quality map, forty cuts
+    keel cuts [dir] -- the cuts themselves, with their questions
+    keel method [§N.M | chapter] [dir] -- the methodology
+    keel concept [dir] -- the concept this project leans on
+    keel init [flags] [dir] -- the methodology's frame in a project
+    keel setup [flags] [dir] -- change what init asked
+    keel trust [dir] -- record trust for commands (§7.16)
+    keel hook [dir] -- install the commit-msg hook
+    keel gate <message-file> [dir] -- the court over one commit
+    keel new contract <slug> [dir] -- a contract's scaffolding
+    keel update [dir] -- refresh the generated integrations
+    keel version [dir] -- the version and what it holds
 main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [--lang <l>] [--adapter <a>] [--mode <m>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <command>] [--trust yes|no] [--no-ask] [dir] | keel setup [the same flags] [dir] | keel concept [dir] | keel trust [dir] | keel hook [dir] | keel cuts [dir] | keel method [§N.M | chapter] [dir] | keel version [dir] | keel update [dir]
 
 # The settings wizard (wave 0026)
@@ -619,8 +693,19 @@ briefing-hygiene =
       • your own binary from that very branch: cd tool && cargo build
         (not an installed keel -- it is older and its vocabulary
         differs);
+      • and a SECOND binary from the base (main) for contrast:
+        without it "a regression" and "an old defect" cannot be told
+        apart -- half the heavy findings of 0034 and 0036 were
+        measured exactly that way;
+      • rebuild after mutating a file carried by include_str! --
+        reverting the file does not revert the binary;
       • your own CARGO_TARGET_DIR, or you are measuring someone
         else's cache;
+      • have the room: two targets are ~3.4 GiB, plus keel close;
+      • committing in YOUR OWN clone is allowed and expected -- it is
+        your sandbox;
+      • a red probe keeps its sandbox on purpose: look inside before
+        clearing it;
       • at the end, clean up YOURS: clone, target (gigabytes),
         directories.
 briefing-work =
@@ -636,6 +721,24 @@ briefing-work =
       • hunt false positives where the author did not look: a foreign
         section in the config, a broken file, an empty repository, a
         second run, a project in the other tongue;
+      • play EVERY limit named in a scenario's body as its own
+        counterfactual -- the bodies are above, and each "Then …" is
+        a commitment to be checked apart;
+      • check whether every assertion CAN still fail: a court hunting
+        words the tool no longer says is green for ever;
+      • check that no EXISTING court was narrowed: read the diff of
+        the probes apart from the diff of the code;
+      • repeat the conditions under which THIS project's CI runs the
+        battery;
+      • read keel/reviews/ -- earlier reviews say where this author
+        has gone wrong before;
+      • write out AS ITS OWN BLOCK every "Then …" commitment from the
+        scenario bodies, and answer each: kept / not kept / kept
+        differently from what is written;
+      • write out SEPARATELY every number the author named (how many
+        tests, how many findings, how many runs) and repeat each with
+        your own measurement: a number nobody checked is a promise
+        too;
       • name the limits the wave did not name.
 briefing-questions =
     THE FOUR QUESTIONS (§9.9, in the words the methodology itself

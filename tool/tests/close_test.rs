@@ -218,7 +218,7 @@ fn wave_closure_judged() {
     write(
         &dir,
         "keel/contracts/anchor.md",
-        "---\nmodule: A\nexports: [\"one()\"]\n---\n\nwords\n",
+        "---\nmodule: toy\nexports: [\"one()\"]\n---\n\nwords\n",
     );
     write(
         &dir,
@@ -279,9 +279,31 @@ fn closure_needs_review_file() {
         out.contains("in progress") && out.contains("review"),
         "a full wave without its review is not closed (§9.9):\n{out}"
     );
+    // Since the operator's decision of 2026-09-04 a wave with no
+    // promises is read by a person too: merging is its closure only
+    // once the report lies beside it (§9.9).
+    // Bound to the wave's own rows: review 0037 R-9 measured this
+    // assert satisfied by the word "review" from a NEIGHBOURING wave
+    // whose report was missing too, so a mutation that let a chore
+    // wave close without one left the battery green.
     assert!(
-        out.contains("0013-tidy: closed"),
-        "a chore wave closes by the fact of merge:\n{out}"
+        out.lines()
+            .skip_while(|line| !line.contains("0013-tidy"))
+            .take(3)
+            .any(|line| line.contains("review")),
+        "a wave with nothing to prove still waits for its \
+         reviewer:\n{out}"
+    );
+    assert!(
+        !out.contains("0013-tidy: closed"),
+        "and is not closed by the fact of merge before that:\n{out}"
+    );
+    write(&dir, "keel/reviews/0013-tidy.md", "# Рецензія\n\nok\n");
+    let (out2, err2, _) = keel(&["close", dir.to_str().unwrap()]);
+    let out2 = format!("{out2}{err2}");
+    assert!(
+        out2.contains("0013-tidy: closed"),
+        "and then merging closes it:\n{out2}"
     );
 
     // The report lands next to the wave -- closed.

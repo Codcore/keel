@@ -120,6 +120,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // truncated history gets a word, not a judgement.
     let shallow = is_shallow(root);
     let has_history = has_git(root);
+    // Limits gathered while judging, said in the verdict's own
+    // margin rather than swallowed (§4.10, wave 0031).
+    let mut extra_limits: Vec<String> = Vec::new();
+    let mut cancelled_rows: Vec<String> = Vec::new();
     // Tags are read once and serve three floors: the tag floor, the
     // §7.15 delta, and the §5.6 narrowing through structural closure.
     let found_tags: Option<Result<Vec<tags::TestTag>, Refusal>> = config
@@ -132,6 +136,14 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let mut refs_no_history: u64 = 0;
     let mut historic_items: Vec<String> = Vec::new();
     for wave in &scan.waves {
+        // A wave called off is outside judgement whole (§6.3-a):
+        // review 0037 R-1 measured this court and the §7.7 one below
+        // still judging it, so the report said "not judged" and gave
+        // a finding two lines apart -- the very self-contradiction
+        // this wave came to end elsewhere.
+        if wave.cancelled.is_some() {
+            continue;
+        }
         // The history blessing belongs to the structurally closed
         // wave only (§5.6 narrowed; review 0005, R-9): an open wave
         // updates its references deliberately (§5.1).
@@ -220,6 +232,14 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // both ways, an orphan section does not live in silence.
     let tags_judged = matches!(&found_tags, Some(Ok(_)));
     for wave in &scan.waves {
+        // Called off: outside judgement, and said so once, below.
+        if wave.cancelled.is_some() {
+            cancelled_rows.push(ta(
+                "check-wave-cancelled",
+                targs!("wave" => wave.slug.clone(), "why" => wave.cancelled.clone().unwrap_or_default()),
+            ));
+            continue;
+        }
         let wave_path = format!("keel/waves/{}.md", wave.slug);
         // The scenario side of §7.7 runs adapter-free too (review
         // 0011 R-2): where the tag floor did not read the file's
@@ -252,7 +272,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             ));
         }
     }
-    for (wave_slug, reason, instead) in graph::cross_findings(&scan.waves) {
+    let live_contracts: Vec<String> = scan
+        .contracts
+        .iter()
+        .filter(|c| c.withdrawn.is_none())
+        .map(|c| c.slug.clone())
+        .collect();
+    for (wave_slug, reason, instead) in graph::cross_findings(&scan.waves, &live_contracts) {
         rows.push((
             format!("keel/waves/{wave_slug}.md"),
             Some(format!(
@@ -266,10 +292,119 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // declared files -- or an honest line that no judging happened.
     // Not compared is not a finding: the deviation is named, green is
     // not painted over the unverified.
+    // §4.12: a document does not vanish. Judged on every branch
+    // named after anything but research -- on `spike/*` the sentence
+    // of §4.13 is "the documents are not judged", and review 0036 R-5
+    // measured this court making that sentence a lie in its own
+    // report.
+    let researching = scope::spike_branch(root).is_some();
+    if !researching {
+        // The limit said aloud instead of painted green (§4.10): a
+        // truncated history, no history at all, or a trunk this clone
+        // cannot name gives no base to compare against -- and review
+        // 0036 R-6 and R-8 measured both halves of the silence, one
+        // of them inventing findings about a file deleted years ago.
+        match compare_state(root, shallow, has_history) {
+            Compared::Yes => {
+                for (file, reason, instead) in vanished_documents(root, &scan) {
+                    rows.push((
+                        file,
+                        Some(format!(
+                            "{reason}\n           {}: {instead}",
+                            t("word-instead")
+                        )),
+                    ));
+                }
+            }
+            Compared::No(why) => extra_limits.push(why),
+            Compared::Silent => {}
+        }
+    }
+
+    let generated: Vec<String> = config.generated.iter().map(|(k, _)| k.clone()).collect();
     let scope_status = match scope::current_branch(root) {
         None => t("check-scope-skipped-no-git"),
+        // A plan branch is judged too, and by §4.9: it carries the
+        // plan and nothing else. The conformance audit (ВАЖКА-4)
+        // measured the paragraph held by nothing -- `plan/<wave>` is
+        // not the name of a wave, so the whole floor was skipped.
+        // Research is outside the methodology and says so (§4.13).
+        // The norm promised the ban held BY MACHINE and the word
+        // `spike` was nowhere in the code: the branch was judged
+        // like any other stranger's, which is to say not at all.
+        Some(branch) if branch.starts_with("spike/") => {
+            ta("check-scope-spike", targs!("branch" => branch))
+        }
+        Some(branch) if branch.starts_with("plan/") => {
+            let planned = scope::plan_branch(root).unwrap_or_default();
+            let known = scan.waves.iter().any(|w| w.slug == planned);
+            // Compared, or said aloud that it was not: review 0036
+            // R-7 measured a shallow clone whose base IS the head
+            // printing "judged by §4.9" over a comparison that never
+            // happened -- the §4.10 lie word for word.
+            match compare_state(root, shallow, has_history) {
+                Compared::No(why) => {
+                    extra_limits.push(why);
+                    ta(
+                        "check-scope-plan-unjudged",
+                        targs!("branch" => branch, "wave" => planned),
+                    )
+                }
+                Compared::Silent => ta(
+                    "check-scope-plan-unjudged",
+                    targs!("branch" => branch, "wave" => planned),
+                ),
+                Compared::Yes => match scope::plan_findings(root, &generated) {
+                    Ok(list) => {
+                        for (file, reason, instead) in list {
+                            rows.push((
+                                file,
+                                Some(format!(
+                                    "{reason}\n           {}: {instead}",
+                                    t("word-instead")
+                                )),
+                            ));
+                        }
+                        let key = if known {
+                            "check-scope-plan"
+                        } else {
+                            "check-scope-plan-nowave"
+                        };
+                        ta(key, targs!("branch" => branch, "wave" => planned))
+                    }
+                    // A branch git cannot answer about is a line in
+                    // the report, not the end of it -- the wave
+                    // branch beside it has said so since 0012, and
+                    // review 0036 R-13 measured this one throwing the
+                    // whole verdict away instead.
+                    Err(refusal) => {
+                        rows.push((
+                            refusal.file.display().to_string(),
+                            Some(format!(
+                                "{}\n           {}: {}",
+                                refusal.reason,
+                                t("word-instead"),
+                                refusal.instead
+                            )),
+                        ));
+                        t("check-scope-skipped-refused")
+                    }
+                },
+            }
+        }
         Some(branch) => match scope::branch_wave(root, &scan.waves) {
             None => ta("check-scope-skipped-not-wave", targs!("branch" => branch)),
+            Some(slug)
+                if scan
+                    .waves
+                    .iter()
+                    .any(|w| w.slug == slug && w.cancelled.is_some()) =>
+            {
+                ta(
+                    "check-scope-cancelled",
+                    targs!("branch" => branch, "wave" => slug),
+                )
+            }
             Some(slug) => {
                 let wave_path = format!("keel/waves/{slug}.md");
                 let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
@@ -277,6 +412,48 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                     .and_then(|base| scope::findings(root, wave).map(|list| (base, list)));
                 match compared {
                     Ok(((sha, from_main), list)) => {
+                        // §6.8/§8.1: a FULL wave rides two branches
+                        // and two PRs. When its own file was born in
+                        // this very diff, the plan PR never happened
+                        // -- and the second human look the paragraph
+                        // asks for went with it.
+                        if docs::weight(wave) == docs::Weight::Full
+                            && git_out(
+                                root,
+                                &[
+                                    "diff",
+                                    "--name-only",
+                                    "--no-renames",
+                                    "--diff-filter=A",
+                                    &sha,
+                                    "HEAD",
+                                    "--",
+                                    &wave_path,
+                                ],
+                            )
+                            .is_some_and(|out| !out.trim().is_empty())
+                            // Unless the plan branch exists and
+                            // already carries the file: §8.1's two
+                            // PRs are then under way, the plan one
+                            // simply not merged yet. Review 0036 R-10
+                            // measured the lawful sequence accused,
+                            // with an instead telling the author to
+                            // do what they had already done.
+                            && !planned_elsewhere(root, &slug, &wave_path)
+                        {
+                            rows.push((
+                                wave_path.clone(),
+                                Some(format!(
+                                    "{}\n           {}: {}",
+                                    ta(
+                                        "scope-full-one-branch",
+                                        targs!("wave" => slug.clone(), "weight" => t("word-weight-full")),
+                                    ),
+                                    t("word-instead"),
+                                    ta("scope-full-one-branch-instead", targs!("wave" => slug.clone())),
+                                )),
+                            ));
+                        }
                         // The red birth, judged by the BRANCH (§7.12).
                         // Two audits found this independently: the
                         // paragraph names two holders -- the hook and
@@ -288,6 +465,31 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                         // commit and got zero findings, and then
                         // `keel close` called the wave closed.
                         for (scenario, instead) in unborn_scenarios(
+                            root,
+                            wave,
+                            &sha,
+                            found_tags.as_ref().and_then(|r| r.as_ref().ok()),
+                        ) {
+                            rows.push((
+                                wave_path.clone(),
+                                Some(format!(
+                                    "{scenario}\n           {}: {instead}",
+                                    t("word-instead")
+                                )),
+                            ));
+                        }
+                        // §7.5, judged BY THE BRANCH: a wave that
+                        // has work commits and no tag at all was red
+                        // nowhere (conformance audit ВАЖКА-7) -- only
+                        // `keel close` saw it, and only afterwards.
+                        // The named exception of §6.3 said aloud:
+                        // a green birth is lawful when its commit
+                        // records the mutant, and the machine does
+                        // NOT check the mutant is real -- so the
+                        // verdict names it and hands it to the
+                        // reviewer instead of swallowing it.
+                        extra_limits.extend(mutant_births(root, &sha));
+                        for (scenario, instead) in untested_scenarios(
                             root,
                             wave,
                             &sha,
@@ -527,7 +729,9 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     if refs_no_history > 0 {
         writeln!(report, "{}", t("check-refs-no-history")).unwrap();
     }
-    let limits = verdict_limits(root, refs_unjudged);
+    let mut limits = verdict_limits(root, refs_unjudged);
+    limits.extend(extra_limits);
+    limits.extend(cancelled_rows);
     for limit in &limits {
         writeln!(report, "{limit}").unwrap();
     }
@@ -560,6 +764,57 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     writeln!(report, "{next}").unwrap();
 
     Ok(Outcome { report, findings })
+}
+
+/// Whether the wave's own plan branch exists and already carries its
+/// file (§8.1): then the plan PR is under way and the file did not
+/// come into being beside the work.
+fn planned_elsewhere(root: &Path, slug: &str, wave_path: &str) -> bool {
+    for branch in [format!("plan/{slug}"), format!("origin/plan/{slug}")] {
+        if git_out(root, &["cat-file", "-e", &format!("{branch}:{wave_path}")]).is_some() {
+            return true;
+        }
+    }
+    false
+}
+
+/// Whether a comparison against the fork point is possible at all,
+/// and if not, in what words. Review 0036 R-6, R-7 and R-8 measured
+/// three silences behind one green: a truncated clone whose base is
+/// HEAD itself, a project with no git, and a trunk not called `main`
+/// -- where the base falls back to the root commit and every ancient
+/// deletion is dragged up as a finding nobody can act on.
+enum Compared {
+    Yes,
+    /// Nothing to compare and nothing worth saying: there is no
+    /// repository here at all.
+    Silent,
+    No(String),
+}
+
+fn compare_state(root: &Path, shallow: bool, has_history: bool) -> Compared {
+    // A directory with no git at all is not a clone with problems --
+    // it is not a clone, and asking it about fork points would be
+    // the noise review 0031 R-8 already took out once.
+    if !has_history {
+        return Compared::Silent;
+    }
+    if shallow {
+        return Compared::No(t("limit-shallow-diff"));
+    }
+    let Ok((base, from_main)) = scope::compare_base(root) else {
+        return Compared::No(t("limit-no-base"));
+    };
+    if !from_main {
+        return Compared::No(t("limit-no-trunk"));
+    }
+    // A base that IS the head is the trunk itself, once a truncated
+    // history has been ruled out above: there are no commits of our
+    // own to compare, and saying so on every main-branch run would
+    // be noise, not honesty (the verdict-limits probe of wave 0031
+    // measured exactly that).
+    let _ = base;
+    Compared::Yes
 }
 
 /// What this verdict could NOT judge, in its own words.
@@ -649,6 +904,92 @@ fn verdict_limits(root: &Path, refs_unjudged: u64) -> Vec<String> {
     }
 
     limits
+}
+
+/// The green births of §6.3's named exception on this branch: every
+/// `red:` commit whose message carries a mutant line. Said aloud as a
+/// limit of the verdict, because that is exactly what it is -- the
+/// machine took the author's word.
+fn mutant_births(root: &Path, base: &str) -> Vec<String> {
+    let Some(log) = git_line(
+        root,
+        &["log", "--format=%s%x1f%b%x1e", &format!("{base}..HEAD")],
+    ) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for entry in log.split('\u{1e}') {
+        let Some((subject, body)) = entry.split_once('\u{1f}') else {
+            continue;
+        };
+        let subject = subject.trim();
+        // The same prefix the gate reads, space and all (review
+        // 0037 R-8): `red:` without it matched `red:x` too.
+        let Some(rest) = subject.strip_prefix("red: ") else {
+            continue;
+        };
+        let Some(scenario) = rest.split_whitespace().next() else {
+            continue;
+        };
+        if let Some((broke, named)) = crate::gate::mutant_line(body) {
+            out.push(ta(
+                "check-red-mutant",
+                targs!(
+                    "scenario" => scenario.to_string(),
+                    "broke" => broke,
+                    "named" => named
+                ),
+            ));
+        }
+    }
+    out
+}
+
+/// §7.5 judged by the BRANCH: a wave whose branch carries work
+/// commits must have a tag for every live promise. The conformance
+/// audit (ВАЖКА-7) measured a branch with work and NOT ONE test
+/// getting zero findings -- §7.5 was held only by `keel close`, and
+/// only after the fact.
+///
+/// A wave approved and not started stays silent: the paragraph says
+/// so in as many words, and no work commit means nothing was
+/// promised proof yet. Where the tags were not read at all (no rust
+/// adapter), nothing is judged rather than everything accused.
+fn untested_scenarios(
+    root: &Path,
+    wave: &docs::Wave,
+    base: &str,
+    found: Option<&Vec<tags::TestTag>>,
+) -> Vec<(String, String)> {
+    let Some(found) = found else {
+        return Vec::new();
+    };
+    if is_shallow(root) {
+        return Vec::new();
+    }
+    let Some(subjects) = git_line(root, &["log", "--format=%s", &format!("{base}..HEAD")]) else {
+        return Vec::new();
+    };
+    // A work commit is the §8.4 grammar: the transform's own slug,
+    // then a colon. `red:` births and anything else are not work.
+    let worked = subjects.lines().any(|line| {
+        let head = line.trim().split(':').next().unwrap_or("").trim();
+        wave.transforms.iter().any(|(slug, _)| slug == head)
+    });
+    if !worked {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (name, scenario) in &wave.scenarios {
+        if scenario.withdrawn.is_some() || found.iter().any(|tag| &tag.scenario == name) {
+            continue;
+        }
+        out.push((
+            ta("check-untested", targs!("scenario" => name.clone())),
+            ta("check-untested-instead", targs!("scenario" => name.clone())),
+        ));
+    }
+    out
 }
 
 /// Scenarios this branch works on that never earned their red.
@@ -777,6 +1118,25 @@ fn push_refusal_row(rows: &mut Vec<(String, Option<String>)>, root: &Path, refus
     ));
 }
 
+/// Names no wave holds alive any more: declared somewhere, withdrawn
+/// everywhere they are declared. A namesake still living in another
+/// wave keeps the name out of this set -- forgiving a tag by the bare
+/// name disarmed the courts over the living promise (review 0035
+/// R-4), which is the very silence §7.15 exists to end.
+fn fully_withdrawn(waves: &[docs::Wave]) -> std::collections::BTreeSet<&str> {
+    let mut declared: std::collections::BTreeSet<&str> = Default::default();
+    let mut alive: std::collections::BTreeSet<&str> = Default::default();
+    for wave in waves {
+        for (name, scenario) in &wave.scenarios {
+            declared.insert(name.as_str());
+            if scenario.withdrawn.is_none() {
+                alive.insert(name.as_str());
+            }
+        }
+    }
+    declared.difference(&alive).copied().collect()
+}
+
 /// The tag floor's findings: stale tags and orphan tags, judged
 /// against every wave's scenario revisions; matching tags counted.
 /// A scenario slug may live in several waves -- any matching
@@ -787,22 +1147,31 @@ fn tag_rows(
     found: &[tags::TestTag],
     checked: &mut u64,
 ) -> Result<Vec<(String, String)>, Refusal> {
+    // Live revisions and withdrawn ones are kept apart. Review 0035
+    // R-4: one set keyed by the bare NAME meant a scenario withdrawn
+    // in one wave silenced its namesake living in another -- every
+    // tag of the living one went unjudged, stale or orphan alike,
+    // and the verdict said nothing. A name is withdrawn only where
+    // no wave still holds it alive.
     let mut revs: std::collections::BTreeMap<String, Vec<String>> = Default::default();
-    let mut withdrawn: std::collections::BTreeSet<String> = Default::default();
-    for wave in waves {
+    // A wave called off is outside judgement whole (§6.3-a) -- its
+    // half-written body is not read, and its refusal is not this
+    // court's row (review 0037 R-1).
+    for wave in waves.iter().filter(|w| w.cancelled.is_none()) {
         let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
         for (name, revision) in rev::scenario_revs(&path)? {
             let entry = wave.scenarios.iter().find(|(n, _)| *n == name);
             if entry.is_some_and(|(_, sc)| sc.withdrawn.is_some()) {
-                withdrawn.insert(name.clone());
+                continue;
             }
             revs.entry(name).or_default().push(revision);
         }
     }
+    let gone = fully_withdrawn(waves);
 
     let mut out = Vec::new();
     for tag in found {
-        if withdrawn.contains(&tag.scenario) {
+        if gone.contains(tag.scenario.as_str()) {
             continue;
         }
         let shown = tag.file.strip_prefix(root).unwrap_or(&tag.file);
@@ -837,6 +1206,102 @@ fn tag_rows(
         }
     }
     Ok(out)
+}
+
+/// §4.12: a document does not vanish. A wave or contract file gone
+/// against the base is a finding by slug -- unless a living document
+/// claims the inheritance with `renamed_from`. Two claimants, or a
+/// claimant in the other directory, are findings of their own: the
+/// old name cannot lead to both, and a wave is not a contract.
+///
+/// The conformance audit (ВАЖКА-3) measured the paragraph held by
+/// nothing: the file could simply be deleted, every promise in it
+/// with it, while §2.12 says a promise dies by `withdrawn` and by
+/// nothing else. `renamed_from` was parsed and read by no one.
+fn vanished_documents(root: &Path, scan: &docs::Scan) -> Vec<(String, String, String)> {
+    let Ok((base, _)) = scope::compare_base(root) else {
+        return Vec::new();
+    };
+    let Some(listing) = git_out(
+        root,
+        &[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--diff-filter=D",
+            &base,
+            "HEAD",
+            "--",
+            "keel/waves",
+            "keel/contracts",
+        ],
+    ) else {
+        return Vec::new();
+    };
+    // Who claims what, among the documents alive at HEAD.
+    let mut heirs: std::collections::BTreeMap<&str, Vec<(&str, &str)>> = Default::default();
+    for wave in &scan.waves {
+        if let Some(from) = &wave.renamed_from {
+            heirs
+                .entry(from.as_str())
+                .or_default()
+                .push((wave.slug.as_str(), "keel/waves"));
+        }
+    }
+    for contract in &scan.contracts {
+        if let Some(from) = &contract.renamed_from {
+            heirs
+                .entry(from.as_str())
+                .or_default()
+                .push((contract.slug.as_str(), "keel/contracts"));
+        }
+    }
+
+    let mut out = Vec::new();
+    let mut said: std::collections::BTreeSet<&str> = Default::default();
+    for path in listing.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        let Some((home, file)) = path.rsplit_once('/') else {
+            continue;
+        };
+        let Some(slug) = file.strip_suffix(".md") else {
+            continue;
+        };
+        let claimed = heirs.get(slug).map(Vec::as_slice).unwrap_or(&[]);
+        match claimed {
+            [] => out.push((
+                path.to_string(),
+                ta("scope-vanished", targs!("slug" => slug.to_string())),
+                ta("scope-vanished-instead", targs!("slug" => slug.to_string())),
+            )),
+            [(heir, where_)] => {
+                if *where_ != home {
+                    out.push((
+                        format!("{where_}/{heir}.md"),
+                        ta(
+                            "scope-moved-across",
+                            targs!("slug" => slug.to_string(), "heir" => heir.to_string()),
+                        ),
+                        t("scope-moved-across-instead"),
+                    ));
+                }
+            }
+            many => {
+                if said.insert(slug) {
+                    let names: Vec<String> =
+                        many.iter().map(|(heir, _)| (*heir).to_string()).collect();
+                    out.push((
+                        path.to_string(),
+                        ta(
+                            "scope-two-heirs",
+                            targs!("slug" => slug.to_string(), "heirs" => names.join(", ")),
+                        ),
+                        t("scope-two-heirs-instead"),
+                    ));
+                }
+            }
+        }
+    }
+    out
 }
 
 /// The §7.15 delta: scenarios whose tag lived at the fork point and
@@ -874,12 +1339,7 @@ fn vanished_rows(
 
     let head_scenarios: std::collections::BTreeSet<&str> =
         found.iter().map(|t| t.scenario.as_str()).collect();
-    let withdrawn: std::collections::BTreeSet<&str> = waves
-        .iter()
-        .flat_map(|w| w.scenarios.iter())
-        .filter(|(_, sc)| sc.withdrawn.is_some())
-        .map(|(n, _)| n.as_str())
-        .collect();
+    let withdrawn = fully_withdrawn(waves);
     let declared: std::collections::BTreeSet<&str> = waves
         .iter()
         .flat_map(|w| w.scenarios.iter())

@@ -71,6 +71,57 @@ pub struct Wave {
     pub decisions: Vec<(String, String)>,
     pub depends_on: Vec<String>,
     pub renamed_from: Option<String>,
+    /// Called off after it was started (§6, the operator's decision
+    /// of 2026-09-04): the reason a person can read. A wave dropped
+    /// half-way had no way to die -- promises can be withdrawn and
+    /// the wave could not -- so the closing court would call it
+    /// unclosed for ever.
+    pub cancelled: Option<String>,
+}
+
+/// The weight of a wave (§6.8), derived from its file and never
+/// written by hand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Weight {
+    Light,
+    Full,
+}
+
+/// §6.8 word for word: a wave is LIGHT when all three hold at once --
+/// one transform, no contract created or changed, nothing withdrawn.
+/// Otherwise it is FULL. Nothing computed this before wave 0036, so a
+/// chore that grew a NEW CONTRACT called itself light and rode in on
+/// one PR -- without the second human look the paragraph asks for in
+/// exactly that case (norm audit В-2, conformance audit ВАЖКА-6).
+pub fn weight(wave: &Wave) -> Weight {
+    if wave.transforms.len() != 1 {
+        return Weight::Full;
+    }
+    if wave.scenarios.iter().any(|(_, sc)| sc.withdrawn.is_some()) {
+        return Weight::Full;
+    }
+    for (_, transform) in &wave.transforms {
+        // "Creates or changes a contract" is read off the DECLARED
+        // FILES, in both spellings §4.1 allows. Review 0036 R-4
+        // measured a chore declaring `one new in keel/contracts/`
+        // sailing through as light -- the very hole this rule exists
+        // to close. And `contracts:` is NOT one of them: the
+        // vocabulary of chapter 3 calls it "what the work leans on",
+        // and leaning on a contract changes nothing (review R-9,
+        // which measured a lawful light wave turned red by it).
+        for line in &transform.files {
+            let touches = match line {
+                ScopeLine::Path(path) => path.starts_with("keel/contracts/"),
+                ScopeLine::OneNewIn(dir) => {
+                    dir.starts_with("keel/contracts") || dir == "keel/contracts/"
+                }
+            };
+            if touches {
+                return Weight::Full;
+            }
+        }
+    }
+    Weight::Light
 }
 
 /// A contract is a promise that outlives its wave (§2.6-§2.8).
@@ -584,7 +635,7 @@ fn as_contract_ref(s: &str, line: usize, what: &str, file: &Path) -> Result<Cont
 }
 
 fn wave_from(root: Val, slug: String, file: &Path) -> Result<Wave, Refusal> {
-    const KNOWN: &str = "scenarios, transforms, decisions, depends_on, renamed_from";
+    const KNOWN: &str = "scenarios, transforms, decisions, depends_on, renamed_from, cancelled";
     let mut slots: Vec<Slot> = as_fields(root, &t("what-wave-header"), file)?
         .into_iter()
         .map(Some)
@@ -661,6 +712,20 @@ fn wave_from(root: Val, slug: String, file: &Path) -> Result<Wave, Refusal> {
     if let Some((_, v)) = take(&mut slots, "renamed_from") {
         wave.renamed_from =
             Some(as_text(v, &ta("what-field", targs!("name" => "renamed_from")), file)?.0);
+    }
+    if let Some((_, v)) = take(&mut slots, "cancelled") {
+        let (why, _) = as_text(v, &ta("what-field", targs!("name" => "cancelled")), file)?;
+        // A cancellation without a reason is not a cancellation: the
+        // whole point of the field is that a person can read WHY the
+        // work stopped, exactly as `withdrawn` carries its reason.
+        if why.trim().is_empty() {
+            return Err(Refusal {
+                file: file.to_path_buf(),
+                reason: t("docs-cancelled-empty"),
+                instead: t("docs-cancelled-empty-instead"),
+            });
+        }
+        wave.cancelled = Some(why);
     }
 
     unknown_left(slots, &t("what-wave-header"), KNOWN, file)?;

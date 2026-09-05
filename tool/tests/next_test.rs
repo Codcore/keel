@@ -85,7 +85,14 @@ fn next_hands_one_step() {
     write(
         &dir,
         "keel/waves/0070-w.md",
-        "---\nscenarios:\n  s: {covers: [functional.correctness]}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n\n## transform: t\n\nthe work of t\n",
+        // A withdrawn promise makes this wave FULL by §6.8 -- the
+        // death of a promise is the risk the paragraph buys two
+        // human looks for -- so the review step below is the one the
+        // norm actually asks for. Before wave 0036 the weight was
+        // counted by a rule of `close`'s own, which called any
+        // one-transform wave with a scenario full whether §6.8 does
+        // or not (review 0036 R-1).
+        "---\nscenarios:\n  s: {covers: [functional.correctness]}\n  gone: {covers: [performance.capacity], withdrawn: \"folded\"}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n---\n\n## Why\n\nwhy words\n\n## scenario: s\n\nbody of s\n\n## scenario: gone\n\nold body\n\n## transform: t\n\nthe work of t\n",
     );
     commit_all(&dir);
 
@@ -279,9 +286,11 @@ fn next_hands_one_step_second_birth() {
         "the verbatim label carries the body even over CRLF (R-4):\n{out}"
     );
 
-    // R-5: a light wave is not driven through the review -- §9.9
-    // asks the report of a full wave only; after its chore the step
-    // is the PR.
+    // R-5 as the norm now stands: a light wave is read by a person
+    // too (§9.9, the operator's decision of 2026-09-04), and what
+    // weight decides is the number of pull requests -- one, not two.
+    // The 0012 R-5 finding this guards is still guarded: the step
+    // after the report must not be the two-PR word.
     let dir = project("light", "0500-l");
     write(
         &dir,
@@ -294,8 +303,16 @@ fn next_hands_one_step_second_birth() {
     let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
-        out.contains("time for the PR") && !out.contains("time for the review"),
-        "a light wave heads to its one PR, no review demanded (R-5, §6.8):\n{out}"
+        out.contains("time for the review"),
+        "a light wave is read by a person too (§9.9):\n{out}"
+    );
+    write(&dir, "keel/reviews/0500-l.md", "# Рецензія\n\nok\n");
+    let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("time for the PR") && out.contains("one PR"),
+        "and then heads to its ONE pull request, not two (R-5, \
+         §6.8):\n{out}"
     );
 
     // R-7: a transform whose only scenario is withdrawn -- the run
@@ -346,9 +363,11 @@ fn next_hands_one_step_second_birth() {
 
 /// proves: light-pr-words-honest@6fa167 -- holds §6.8/§9.9 and the
 /// debt named by the 0015 dogfood: a light wave's PR step speaks its
-/// own words -- one PR, closed by the fact of merge -- and says
-/// nothing of a review it never needed; a full wave with its report
-/// keeps hearing the old words.
+/// own words -- ONE pull request, closed by the fact of merge -- while
+/// a full wave hears about its two. Since the operator's decision of
+/// 2026-09-04 the reviewer is asked of every wave, so the report lies
+/// beside both before either hears a PR word: weight decides how many
+/// pull requests and nothing else.
 #[test]
 fn light_pr_words_honest() {
     let dir = project("lightpr", "0800-l");
@@ -360,14 +379,22 @@ fn light_pr_words_honest() {
     commit_all(&dir);
     write(&dir, "src/lib.rs", "pub fn grown() {}\n");
     commit_all(&dir);
+
+    // First the reviewer, as for every wave (§9.9).
+    let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
+    let out = format!("{out}{err}");
+    assert!(
+        out.contains("time for the review"),
+        "a light wave is read by a person too (§9.9, the operator's \
+         decision of 2026-09-04):\n{out}"
+    );
+
+    write(&dir, "keel/reviews/0800-l.md", "# Рецензія\n\nok\n");
     let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
         out.contains("time for the PR") && out.contains("one PR"),
-        "the light wave hears its own PR words (§6.8):\n{out}"
-    );
-    assert!(
-        !out.contains("the review lies next to the wave"),
-        "no painted word about a review the light wave never needed:\n{out}"
+        "and then it hears its own PR words -- one, not two \
+         (§6.8):\n{out}"
     );
 }

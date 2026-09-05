@@ -117,6 +117,18 @@ pub fn step(root: &Path) -> Result<String, Refusal> {
     let branch = scope::current_branch(root);
     if let Some(name) = &branch {
         if let Some(wave) = scan.waves.iter().find(|w| w.slug == *name) {
+            // Called off (§6.3-a): the hand of the loop does not
+            // drive work on a wave nobody is doing. Review 0037 R-7
+            // measured it handing out "write the test" for a
+            // scenario of a cancelled wave.
+            if let Some(why) = &wave.cancelled {
+                report.push_str(&ta(
+                    "next-cancelled",
+                    targs!("wave" => wave.slug.clone(), "why" => why.clone()),
+                ));
+                report.push('\n');
+                return Ok(report);
+            }
             report.push_str(&wave_step(root, wave, &scan.waves)?);
             return Ok(report);
         }
@@ -133,7 +145,7 @@ pub fn step(root: &Path) -> Result<String, Refusal> {
     // continues, or the honest word that planning is the step.
     let found = tags::scan(&adapter::test_files(root)?)?;
     let mut legal: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for wave in &scan.waves {
+    for wave in scan.waves.iter().filter(|w| w.cancelled.is_none()) {
         let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
         match rev::scenario_revs(&path) {
             Ok(revs) => {
@@ -148,10 +160,12 @@ pub fn step(root: &Path) -> Result<String, Refusal> {
         }
     }
     let mut lines: Vec<String> = Vec::new();
-    for wave in &scan.waves {
+    for wave in scan.waves.iter().filter(|w| w.cancelled.is_none()) {
         match close::wave_state(root, wave, &found, &legal, None)? {
             State::Plan => {
                 let deps_closed = wave.depends_on.iter().all(|dep| {
+                    // A cancelled dependency is not a closed one: its
+                    // promises were never kept (review 0037 R-19).
                     scan.waves
                         .iter()
                         .find(|w| w.slug == *dep)
@@ -378,14 +392,17 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
         return Ok(out);
     }
 
-    // §9.9 asks the report of a full wave only (review 0012 R-5): a
-    // light wave rides one PR and one human look -- the closure
-    // court says the same with its light verdict.
-    if !close::light(wave)
-        && !root
-            .join("keel/reviews")
-            .join(format!("{}.md", wave.slug))
-            .is_file()
+    // §9.9 asks the report of EVERY wave (the operator's decision of
+    // 2026-09-04). It used to ask it of full waves only, and review
+    // 0036 measured what that meant once the weight was counted by
+    // §6.8 as written: a wave with one transform and a promise would
+    // ride one PR with nobody reading it. Weight still decides how
+    // many pull requests (§6.8, §8.1) and nothing else.
+    let light = docs::weight(wave) == docs::Weight::Light;
+    if !root
+        .join("keel/reviews")
+        .join(format!("{}.md", wave.slug))
+        .is_file()
     {
         out.push_str(&ta("next-step-review", targs!("wave" => wave.slug.clone())));
         out.push('\n');
@@ -395,7 +412,7 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
     // The PR words go by weight (§6.8; the debt named by the 0015
     // dogfood): a light wave hears its own -- no painted word about
     // a review it never needed.
-    if close::light(wave) {
+    if light {
         out.push_str(&t("next-step-pr-light"));
     } else {
         out.push_str(&t("next-step-pr"));

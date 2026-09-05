@@ -161,17 +161,73 @@ pub fn wave_findings(wave: &Wave) -> Vec<(String, String)> {
 
 /// Cross-wave judgement: depends_on existence and cycles (§7.2), a
 /// superseded_by successor unknown to any wave.
-pub fn cross_findings(waves: &[Wave]) -> Vec<(String, String, String)> {
+pub fn cross_findings(waves: &[Wave], contracts: &[String]) -> Vec<(String, String, String)> {
     use crate::i18n::{t, ta};
     use crate::targs;
     use std::collections::{BTreeMap, BTreeSet};
 
+    // A wave called off is outside judgement (§6.3-a): it neither
+    // holds a scenario name nor answers for a link.
+    let waves: Vec<&Wave> = waves.iter().filter(|w| w.cancelled.is_none()).collect();
+    let waves = waves.as_slice();
     let mut out = Vec::new();
     let slugs: BTreeSet<&str> = waves.iter().map(|w| w.slug.as_str()).collect();
+    let contracts: BTreeSet<&str> = contracts.iter().map(String::as_str).collect();
     let everyones_scenarios: BTreeSet<&str> = waves
         .iter()
         .flat_map(|w| w.scenarios.iter().map(|(n, _)| n.as_str()))
         .collect();
+
+    // One name, one home. A test tag is a bare name, so two waves
+    // sharing a scenario name make one test close both -- the bug
+    // audit copied a wave under a new number and `keel close` said
+    // "closed" to both, though the second had no test at all. The
+    // norm never says the slugs are unique either (methodology audit
+    // С-9); until it does, the machine says it.
+    let mut homes: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for wave in waves {
+        for (name, scenario) in &wave.scenarios {
+            // A withdrawn promise no longer holds its name: §2.12
+            // retires it, and the next wave may reuse it honestly.
+            if scenario.withdrawn.is_some() {
+                continue;
+            }
+            homes.entry(name.as_str()).or_default().push(&wave.slug);
+        }
+    }
+    // The same namespace holds the contracts: a tag `proves: x@rev`
+    // is read as a scenario, so a contract wearing a scenario's name
+    // answers a question nobody asked -- review 0035 R-17 measured
+    // the finding coming back in the wrong noun entirely.
+    for (name, wave_slug) in homes.iter().filter_map(|(n, w)| w.first().map(|s| (n, s))) {
+        if !contracts.contains(name) {
+            continue;
+        }
+        out.push((
+            wave_slug.to_string(),
+            ta(
+                "graph-name-taken",
+                targs!("name" => name.to_string(), "wave" => wave_slug.to_string()),
+            ),
+            t("graph-name-taken-instead"),
+        ));
+    }
+
+    for (name, mut waves_with_it) in homes {
+        if waves_with_it.len() < 2 {
+            continue;
+        }
+        waves_with_it.sort_unstable();
+        let where_ = waves_with_it.join(", ");
+        out.push((
+            waves_with_it[0].to_string(),
+            ta(
+                "graph-scenario-twice",
+                targs!("scenario" => name.to_string(), "waves" => where_),
+            ),
+            t("graph-scenario-twice-instead"),
+        ));
+    }
 
     for wave in waves {
         for target in &wave.depends_on {

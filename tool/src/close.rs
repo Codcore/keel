@@ -27,8 +27,13 @@ pub(crate) type Battery = BTreeMap<(String, String), Vec<bool>>;
 /// The structural stages of a wave -- close's own verdicts, opened
 /// pub(crate) so the stage eye (rung 11) asks instead of duplicating.
 pub(crate) enum State {
-    Closed { refs_unjudged: u64 },
+    Closed {
+        refs_unjudged: u64,
+    },
     ClosedLight,
+    /// Called off after it was started (§6): nothing to prove and
+    /// nothing to wait for, and the reason travels with it.
+    Cancelled(String),
     Plan,
     Progress(Vec<String>),
 }
@@ -96,6 +101,17 @@ fn directory_bytes(path: &Path) -> u64 {
 }
 
 pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
+    // Research never merges (§4.13). This is the court that says
+    // whether a branch may go in, so this is where the ban lives --
+    // and it is said before anything is built, since nothing here
+    // can end in a merge anyway.
+    if let Some(name) = crate::scope::spike_branch(root) {
+        return Err(Refusal {
+            file: root.to_path_buf(),
+            reason: ta("close-spike", targs!("branch" => format!("spike/{name}"))),
+            instead: t("close-spike-instead"),
+        });
+    }
     let config = config::read(root)?;
     if !config.rust_adapter() {
         return Err(Refusal {
@@ -165,7 +181,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // revision is legal for the slug, and a tag holding a foreign
     // wave's revision is not this wave's lack (review R-3).
     let mut legal: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for wave in &scan.waves {
+    for wave in scan.waves.iter().filter(|w| w.cancelled.is_none()) {
         let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
         for (name, revision) in rev::scenario_revs(&path)? {
             legal.entry(name).or_default().push(revision);
@@ -179,6 +195,30 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         targs!("count" => battery.len() as u64, "runs" => BATTERY_RUNS as u64),
     ));
     report.push('\n');
+    // What the court just watched fail, by name (bug audit B6): it
+    // ran the battery three times, saw red, and said only that the
+    // wave is not closed -- so a person had to run the whole battery
+    // again to learn what this court had already seen.
+    let mut fell: Vec<String> = battery
+        .iter()
+        .filter(|(_, runs)| runs.iter().any(|green| !green))
+        .map(|((file, test), runs)| {
+            let every = runs.iter().all(|green| !green);
+            ta(
+                if every {
+                    "close-test-red"
+                } else {
+                    "close-test-flaky"
+                },
+                targs!("file" => file.clone(), "test" => test.clone()),
+            )
+        })
+        .collect();
+    fell.sort();
+    for line in &fell {
+        report.push_str(line);
+        report.push('\n');
+    }
 
     // The verify of live contracts (§7.6, §2.8), under the §7.16
     // trust court: only a matching fingerprint runs; a failing
@@ -278,6 +318,13 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
                 report.push_str(&ta(
                     "close-closed-light",
                     targs!("wave" => wave.slug.clone()),
+                ));
+                report.push('\n');
+            }
+            State::Cancelled(why) => {
+                report.push_str(&ta(
+                    "close-cancelled",
+                    targs!("wave" => wave.slug.clone(), "why" => why),
                 ));
                 report.push('\n');
             }
@@ -423,21 +470,34 @@ pub fn structural(root: &Path, wave: &Wave, tags: &[TestTag]) -> Result<bool, Re
     }
     Ok(matches!(
         wave_state(root, wave, tags, &legal, None)?,
+        // A cancelled wave is NOT closed: its promises were never
+        // kept, so a wave depending on it is not ready either
+        // (review 0037 R-19). It is simply outside judgement, which
+        // `judge` says in its own words.
         State::Closed { .. } | State::ClosedLight
     ))
 }
 
-/// A light wave is §6.8's word, not "chores only": exactly one
-/// transform, a chore, touching no contracts -- and nothing
-/// withdrawn: the death of a promise gets two human looks (review
-/// R-5). Opened pub(crate) so the step hand and the stage eye judge
-/// weight by the same word.
-pub(crate) fn light(wave: &docs::Wave) -> bool {
-    wave.transforms.len() == 1
-        && wave.transforms.iter().all(|(_, tr)| {
-            matches!(tr.kind, docs::TransformKind::Chore(_)) && tr.contracts.is_empty()
-        })
-        && wave.scenarios.is_empty()
+/// A wave with nothing to prove: it carries no scenario at all, so
+/// there is no test to wait for and merging closes it (§2.11).
+///
+/// This used to be called `light` and cite §6.8, and it counted by a
+/// rule of its own -- so the tool said one weight here and another in
+/// `status`, both citing the same paragraph (review 0036 R-1). Weight
+/// is §6.8's question and lives in `docs::weight`; this is a
+/// different question, and the two are asked apart now. The weight
+/// still decides the ceremony: a FULL wave is never closed by merge
+/// alone, even with nothing to prove, because §6.8 buys a second
+/// human look for exactly that case -- a chore that grows a contract
+/// (review R-2 measured `close` calling one closed and green).
+pub(crate) fn nothing_to_prove(wave: &docs::Wave) -> bool {
+    // The weight is not asked here any more (review 0037 R-22): §9.9
+    // now wants a reviewer for every wave, so the second human look
+    // no longer hangs on this question, and §6.8's own line says the
+    // weight decides the number of pull requests and nothing else.
+    // What this asks is its own question: is there a promise to
+    // prove at all?
+    wave.scenarios.is_empty()
 }
 
 pub(crate) fn wave_state(
@@ -447,8 +507,19 @@ pub(crate) fn wave_state(
     legal: &BTreeMap<String, Vec<String>>,
     battery: Option<&Battery>,
 ) -> Result<State, Refusal> {
-    if light(wave) {
-        return Ok(State::ClosedLight);
+    if let Some(why) = &wave.cancelled {
+        return Ok(State::Cancelled(why.clone()));
+    }
+    // A wave with no promises has no test to wait for, but §9.9 asks
+    // a person to read it all the same (the operator's decision of
+    // 2026-09-04): merging is its closure only once the report lies
+    // beside it.
+    if nothing_to_prove(wave) {
+        let report = root.join("keel/reviews").join(format!("{}.md", wave.slug));
+        if report.is_file() {
+            return Ok(State::ClosedLight);
+        }
+        return Ok(State::Progress(vec![t("close-lack-review")]));
     }
 
     let wave_path = root.join("keel/waves").join(format!("{}.md", wave.slug));
@@ -592,13 +663,17 @@ pub(crate) fn wave_state(
         ));
     }
 
-    // The §9.9 gate held by mechanics: a full wave carries its review.
-    if !root
-        .join("keel/reviews")
-        .join(format!("{}.md", wave.slug))
-        .is_file()
-    {
-        lacks.push(t("close-lack-review"));
+    // The §9.9 gate held by mechanics: every wave carries its review
+    // (the operator's decision of 2026-09-04). An EMPTY file is not
+    // one -- review 0037 R-2 measured `: > file` passing the gate,
+    // with the verdict then claiming "the review report is beside
+    // it", which is more than the machine ever looked at.
+    match std::fs::read_to_string(root.join("keel/reviews").join(format!("{}.md", wave.slug))) {
+        Err(_) => lacks.push(t("close-lack-review")),
+        Ok(text) if text.split_whitespace().next().is_none() => {
+            lacks.push(t("close-lack-review-empty"))
+        }
+        Ok(_) => {}
     }
 
     if lacks.is_empty() {

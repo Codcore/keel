@@ -60,6 +60,32 @@ pub fn forget_the_hook(command: &mut Command) {
 /// declared names, so it does not get to judge (review R-4). The
 /// caller says aloud that scope was not compared.
 pub fn current_branch(root: &Path) -> Option<String> {
+    // Named by the environment when git will not say it. §4.10 says
+    // that where git knows no branch it must be named explicitly, and
+    // until wave 0035 there was no way to name it -- so in CI on a
+    // `pull_request` event, where actions/checkout leaves a detached
+    // HEAD, the scope court was skipped entirely and a file no
+    // transform declared went unseen (conformance audit ВАЖКА-5).
+    //
+    // Asked only where git will not say. Review 0035 R-3: asking the
+    // environment FIRST made it a switch that turns courts off --
+    // KEEL_BRANCH=plan/x silenced the form court, KEEL_BRANCH=main
+    // silenced scope on a real wave branch, and both looked honest in
+    // the verdict. Where git knows the branch, git is the answer; the
+    // environment answers only the case §4.10 named, where git knows
+    // nothing.
+    let from_git = branch_by_git(root);
+    if from_git.is_some() {
+        return from_git;
+    }
+    std::env::var("KEEL_BRANCH")
+        .ok()
+        .map(|named| named.trim().to_string())
+        .filter(|named| !named.is_empty())
+}
+
+/// The branch as git alone tells it.
+fn branch_by_git(root: &Path) -> Option<String> {
     let top = git_at(root)
         .args(["rev-parse", "--show-toplevel"])
         .output()
@@ -90,6 +116,72 @@ pub fn branch_wave(root: &Path, waves: &[Wave]) -> Option<String> {
         .iter()
         .find(|w| w.slug == branch)
         .map(|w| w.slug.clone())
+}
+
+/// What a `plan/<name>` branch plans, by its name alone (§8.2). The
+/// name may be no wave at all -- that is the caller's to say aloud.
+pub fn plan_branch(root: &Path) -> Option<String> {
+    current_branch(root).and_then(|b| b.strip_prefix("plan/").map(str::to_string))
+}
+
+/// A `spike/*` branch: research, outside the methodology (§4.13).
+pub fn spike_branch(root: &Path) -> Option<String> {
+    current_branch(root).and_then(|b| b.strip_prefix("spike/").map(str::to_string))
+}
+
+/// §4.9: a plan branch carries the plan and nothing else. Everything
+/// it changed against the base that is not the methodology's own
+/// furniture (§4.8 -- the `keel/` directory, the config, and the
+/// files this release generates) is a finding by name.
+///
+/// The conformance audit (ВАЖКА-4) measured the paragraph held by
+/// nothing at all: a branch called `plan/<wave>` is not named after a
+/// wave, so the scope court was skipped entirely -- and code laid
+/// down there is seen by nobody, since the work branch no longer
+/// carries it in its diff.
+pub fn plan_findings(
+    root: &Path,
+    generated: &[String],
+) -> Result<Vec<(String, String, String)>, Refusal> {
+    let (base, _) = compare_base(root)?;
+    let changed_raw = git_line(
+        root,
+        &["diff", "--name-only", "--no-renames", &base, "HEAD"],
+    )?;
+    let mut out = Vec::new();
+    for file in changed_raw.lines().map(str::trim) {
+        if file.is_empty() || furniture(file, generated) {
+            continue;
+        }
+        // The finding is hung on the file it accuses: review 0036
+        // R-14 measured it addressed to `keel/waves/<name>.md` of a
+        // wave that may not exist at all.
+        out.push((
+            file.to_string(),
+            ta("scope-plan-code", targs!("file" => file.to_string())),
+            t("scope-plan-code-instead"),
+        ));
+    }
+    Ok(out)
+}
+
+/// The methodology's own files, §4.8 word for word: "the `keel/`
+/// directory, the skills, the CI file, the block in `AGENTS.md`".
+/// Review 0036 R-12 measured this read as "`keel/` plus whatever
+/// stands in [generated]", which was wrong in both directions: a
+/// project that never ran `keel update` had its own SKILL.md and
+/// workflow called code, and a generated file edited by hand went on
+/// being furniture -- which the paragraph's second sentence forbids
+/// in as many words. The digest is not compared here: `keel update`
+/// is the court of that (§9.7), and this one only decides whose file
+/// it is.
+fn furniture(file: &str, generated: &[String]) -> bool {
+    file.starts_with("keel/")
+        || file == "keel.toml"
+        || file == "AGENTS.md"
+        || file.starts_with(".github/workflows/keel")
+        || file.contains("/skills/keel/")
+        || generated.iter().any(|g| g == file)
 }
 
 /// The comparison base: the merge-base with main -- the local one,

@@ -19,6 +19,13 @@ jobs:
         with:
           fetch-depth: 0
       - name: the documents judged
+        # On a pull_request event actions/checkout leaves a
+        # detached HEAD and git serves no branch, so the scope
+        # court would be skipped in silence. Sec. 4.10 asks for
+        # the branch to be named where git hides it; this names
+        # it. Where git does know the branch, git is believed.
+        env:
+          KEEL_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: keel check .
       - name: the closure court
         run: keel close .
