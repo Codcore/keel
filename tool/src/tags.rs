@@ -47,8 +47,28 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
         let mut pending: Option<(String, String)> = None;
         let mut describing: Option<(String, usize)> = None;
         let mut depth: usize = 0;
+        let mut heredoc = false;
         for line in text.lines() {
             let trimmed = line.trim();
+            // `@doc """ … """` with an example inside is the most
+            // ordinary thing an elixir file contains, and an example
+            // is written in the language it documents. A line reading
+            // `test "an example" is the shape we use` inside one is
+            // prose: it declares nothing, and it must not orphan the
+            // tag standing above the heredoc (measured -- a legal
+            // file `mix test` runs green was refused). Counted, not
+            // flagged, because a heredoc may open and close on one
+            // line.
+            if elixir {
+                let fences = trimmed.matches("\"\"\"").count();
+                let was = heredoc;
+                if fences % 2 == 1 {
+                    heredoc = !heredoc;
+                }
+                if was || heredoc {
+                    continue;
+                }
+            }
             if let Some((scenario, rev)) = tag_in(trimmed, marks) {
                 if let Some((held, held_rev)) = pending.take() {
                     return Err(dangling(file, &held, &held_rev));
@@ -75,8 +95,15 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                     describing = Some((group, depth));
                 }
                 if trimmed.starts_with("end") || trimmed == "end" {
+                    // The depth recorded when the block opened is
+                    // the depth OUTSIDE it; its own `do` raised the
+                    // count by one, so the `end` that closes it sits
+                    // one deeper. Off by that one, the group leaked to
+                    // the end of the module and named every test after
+                    // it wrongly -- and a scenario was called proven by
+                    // a test that had just failed (review 0042 R-1).
                     if let Some((_, opened)) = &describing
-                        && depth == *opened
+                        && depth == *opened + 1
                     {
                         describing = None;
                     }
@@ -102,14 +129,7 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 }
                 continue;
             }
-            // Doc lines and attributes may stand between the tag and
-            // its fn; any other code line orphans the tag.
-            if pending.is_some()
-                && !trimmed.is_empty()
-                && !trimmed.starts_with("///")
-                && !trimmed.starts_with("//")
-                && !trimmed.starts_with("#")
-            {
+            if pending.is_some() && !stands_between(trimmed, elixir) {
                 let (scenario, rev) = pending.take().unwrap();
                 return Err(dangling(file, &scenario, &rev));
             }
@@ -119,6 +139,20 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
         }
     }
     Ok(out)
+}
+
+/// What may stand between a tag and the declaration it holds. Blank
+/// lines and doc lines always may. Rust's `#[test]` rides in on the
+/// `#`; elixir writes its attributes with `@`, and `@tag :slow` --
+/// an everyday ExUnit line -- orphaned the tag on a file mix runs
+/// green (review 0042 R-7). Anything else is code, and code between
+/// the two means the tag holds nothing.
+fn stands_between(trimmed: &str, elixir: bool) -> bool {
+    trimmed.is_empty()
+        || trimmed.starts_with("///")
+        || trimmed.starts_with("//")
+        || trimmed.starts_with('#')
+        || (elixir && trimmed.starts_with('@'))
 }
 
 /// Which marks open a comment in this file -- the file's own name

@@ -158,8 +158,26 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // cannot tell a failure from a broken build; elixir can, and
     // saying ruby's sentence over an elixir project would be as
     // untrue as saying nothing (wave 0042).
+    // Said in the margin, but NOT counted among the things left
+    // unchecked (review 0042 R-8): this row is a measurement, and
+    // counting it inflated "not checked" by one on every elixir
+    // project -- with the very sentence the wave is proud of.
+    let mut measured: Vec<String> = Vec::new();
     if config.language() == Some(crate::config::Language::Elixir) {
-        extra_limits.push(t("limit-elixir-border"));
+        measured.push(t("limit-elixir-border"));
+        // A measured border is a boast; this one is a limit, and it
+        // goes where limits go (review 0042 R-16). Elixir writes no
+        // types either, and the ghost inside a `@moduledoc` heredoc
+        // was measured passing for a live `def` -- in both tongues.
+        extra_limits.push(t("limit-elixir-form"));
+        for path in crate::elixir::unread_files(root) {
+            let shown = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .display()
+                .to_string();
+            extra_limits.push(ta("limit-elixir-unread", targs!("file" => shown)));
+        }
     }
     if config.language() == Some(crate::config::Language::Ruby) {
         extra_limits.push(t("limit-ruby-border"));
@@ -817,6 +835,9 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let mut limits = verdict_limits(root, refs_unjudged);
     limits.extend(extra_limits);
     limits.extend(cancelled_rows);
+    for row in &measured {
+        writeln!(report, "{row}").unwrap();
+    }
     for limit in &limits {
         writeln!(report, "{limit}").unwrap();
     }

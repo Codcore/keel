@@ -77,6 +77,15 @@ pub enum BuildDir {
     Unknown,
 }
 
+/// Whether this tongue's build is the kind that wants gigabytes.
+/// cargo's is; mix's `_build` measured 148 KiB on the same battery
+/// (review 0042 R-4). A warning four orders of magnitude out is not
+/// a warning, and a refusal over free space it does not need is
+/// worse.
+pub fn builds_heavily(root: &Path) -> bool {
+    matches!(language_of(root), None | Some(Language::Rust))
+}
+
 pub fn build_dir(root: &Path) -> BuildDir {
     match language_of(root) {
         Some(Language::Ruby) => BuildDir::Nothing,

@@ -49,6 +49,37 @@ pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
     Ok(out)
 }
 
+/// The `.exs` files in `test/` this adapter does NOT read, because
+/// ExUnit's convention is `*_test.exs`. Named aloud, exactly as the
+/// ruby hand names its own (review 0042 R-6: `test/support/` is a
+/// standard ExUnit layout, and a tag left there was skipped in
+/// silence while ruby said so in the same case).
+pub fn unread_files(root: &Path) -> Vec<PathBuf> {
+    let dir = root.join("test");
+    let mut out: Vec<PathBuf> = Vec::new();
+    let mut stack = vec![dir];
+    while let Some(here) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&here) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|e| e == "exs")
+                && !path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.ends_with("_test.exs") || n == "test_helper.exs")
+            {
+                out.push(path);
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
 /// Where a module's source lives: `Toy.Bar` is `lib/toy/bar.ex`, and
 /// the bare `Toy` is `lib/toy.ex`. The layout mix itself generates.
 pub fn module_paths(root: &Path, module: &str) -> Vec<PathBuf> {
@@ -57,10 +88,10 @@ pub fn module_paths(root: &Path, module: &str) -> Vec<PathBuf> {
         .map(snake_case)
         .collect::<Vec<_>>()
         .join("/");
-    vec![
-        root.join("lib").join(format!("{joined}.ex")),
-        root.join("lib").join(&joined).join("init.ex"),
-    ]
+    // One path, because elixir has one convention. `lib/<x>/init.ex`
+    // stood here as a calque from the ruby hand and appears in no
+    // elixir project (review 0042 R-14).
+    vec![root.join("lib").join(format!("{joined}.ex"))]
 }
 
 /// `SomeName` -> `some_name`. An acronym stays one word, as it does
@@ -97,40 +128,43 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
     Ok(classify(&out.0, out.1))
 }
 
-/// The whole battery in one mix run, verdicts per test. The key is
-/// (test file stem, test name), as the courts above expect.
+/// The whole battery, verdicts per test, **in mix's own words**.
 ///
-/// `--trace` is what makes the verdicts readable one by one: it
-/// prints `* test <name> (1.1ms) [L#5]` for each test it ran, and
-/// lists every failure as `N) test <name> (<Module>)`.
+/// One run per test file, so the file a verdict belongs to is known
+/// -- the courts above key on it -- and `--trace` names every test
+/// that really ran. Review 0042 R-2: this used to read only the
+/// failures from mix and rebuild the LIST of tests by re-parsing the
+/// source, so anything the reader could not name did not exist for
+/// the court and its failure vanished with it. Four independent
+/// proofs of a false green followed, one of them on the file `mix
+/// new` generates itself (a `doctest`, which no source reader of
+/// ours was ever going to see). It is the same lesson wave 0038 R-1
+/// paid for in ruby, walked back in a new tongue.
 pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
-    let (said, code) = mix(root, &["--trace".to_string()])?;
-    // A build that does not build is a refusal aloud: without a build
-    // there is no verdict for anyone (the cargo hand's law, and here
-    // the exit code says it outright).
-    if code == 1 && !said.contains("no test was executed") {
-        return Err(Refusal {
-            file: root.to_path_buf(),
-            reason: ta(
-                "adapter-elixir-broken",
-                targs!("error" => first_error(&said)),
-            ),
-            instead: t("adapter-elixir-broken-instead"),
-        });
-    }
-    let fallen = failures(&said);
     let mut out: BTreeMap<(String, String), bool> = BTreeMap::new();
     for file in test_files(root)? {
+        let relative = file.strip_prefix(root).unwrap_or(&file);
         let stem = file
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or_default()
             .to_string();
-        for name in names_in(&std::fs::read_to_string(&file).map_err(|e| Refusal {
-            file: file.clone(),
-            reason: ta("docs-unreadable", targs!("error" => e.to_string())),
-            instead: t("docs-unreadable-instead"),
-        })?) {
+        let (said, code) = mix(
+            root,
+            &["--trace".to_string(), relative.display().to_string()],
+        )?;
+        if code == 1 && !said.contains("no test was executed") {
+            return Err(Refusal {
+                file: file.clone(),
+                reason: ta(
+                    "adapter-elixir-broken",
+                    targs!("error" => first_error(&said)),
+                ),
+                instead: t("adapter-elixir-broken-instead"),
+            });
+        }
+        let fallen = failures(&said);
+        for name in ran(&said) {
             let green = !fallen.contains(&name);
             out.insert((stem.clone(), name), green);
         }
@@ -138,57 +172,77 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     Ok(out)
 }
 
+/// Every test mix says it RAN, from the trace's own lines:
+/// `  * test <name> (0.00ms) [L#12]`, and `doctest` alike. The start
+/// line and the finished line arrive separated by a carriage return,
+/// so the text is split on both.
+pub fn ran(said: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for line in said.split(['\n', '\r']) {
+        let Some(rest) = line.trim().strip_prefix("* ") else {
+            continue;
+        };
+        // `[L#N]` closes a trace line and nothing else.
+        let Some(head) = rest.rsplit_once(" [L#") else {
+            continue;
+        };
+        let named = strip_timing(head.0);
+        let Some(name) = without_kind(named) else {
+            continue;
+        };
+        if !out.contains(&name) {
+            out.push(name);
+        }
+    }
+    out
+}
+
 /// The names ExUnit reported as failures: `  1) test it falls (ToyTest)`.
 fn failures(said: &str) -> Vec<String> {
-    said.lines()
+    said.split(['\n', '\r'])
         .filter_map(|line| {
             let trimmed = line.trim();
-            let rest = trimmed.split_once(") test ")?.1;
-            // A digit before the parenthesis is what makes it a
+            let (head, rest) = trimmed.split_once(") ")?;
+            // A number before the parenthesis is what makes it a
             // failure report rather than prose.
-            if !trimmed
-                .split(')')
-                .next()
-                .is_some_and(|head| !head.is_empty() && head.chars().all(|c| c.is_ascii_digit()))
-            {
+            if head.is_empty() || !head.chars().all(|c| c.is_ascii_digit()) {
                 return None;
             }
-            let name = rest.rsplit_once(" (")?.0;
-            Some(name.trim().to_string())
+            // The module in the last parentheses is not the name.
+            let named = rest.rsplit_once(" (")?.0;
+            without_kind(named)
         })
         .collect()
 }
 
-/// Every test a file declares, by the FULL name ExUnit gives it --
-/// a `describe` block's own name in front, because that is what
-/// `--trace` prints and what `--only` selects (measured, wave 0042).
-pub fn names_in(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut describing: Option<(String, usize)> = None;
-    let mut depth: usize = 0;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if let Some(group) = crate::tags::describe_name(trimmed) {
-            describing = Some((group, depth));
-        }
-        if trimmed.starts_with("end") {
-            if let Some((_, opened)) = &describing
-                && depth == *opened
-            {
-                describing = None;
-            }
-            depth = depth.saturating_sub(1);
-        } else if trimmed.ends_with(" do") || trimmed == "do" {
-            depth += 1;
-        }
-        if let Some(name) = crate::tags::test_name(trimmed) {
-            out.push(match &describing {
-                Some((group, _)) => format!("{group} {name}"),
-                None => name,
-            });
+/// `(0.00ms)` or `(1.2s)` at the end is the trace's timing, not part
+/// of a name -- and a doctest's own name ends in `(1)`, so only a
+/// group that reads as a duration is taken off.
+fn strip_timing(named: &str) -> &str {
+    let trimmed = named.trim_end();
+    let Some((head, tail)) = trimmed.rsplit_once(" (") else {
+        return trimmed;
+    };
+    let inside = tail.trim_end_matches(')');
+    let looks_like_time = inside.ends_with("ms") || inside.ends_with('s');
+    if looks_like_time && inside.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        head.trim_end()
+    } else {
+        trimmed
+    }
+}
+
+/// `test <name>` and `doctest <name>` are how ExUnit prints and
+/// selects them; the courts above hold the bare name, which is what a
+/// `proves:` tag carries.
+fn without_kind(named: &str) -> Option<String> {
+    let named = named.trim();
+    for kind in ["test ", "doctest ", "property "] {
+        if let Some(rest) = named.strip_prefix(kind) {
+            return Some(rest.trim().to_string());
         }
     }
-    out
+    None
 }
 
 /// What a run came to, read from how mix left and what it said.
@@ -207,12 +261,25 @@ pub fn classify(said: &str, code: i32) -> crate::adapter::Outcome {
     }
 }
 
+/// The compiler's own words, which is what the scenario promises --
+/// not the banner above them. `== Compilation error in file … ==`
+/// names the file and says nothing about what is wrong; the line
+/// after it does (review 0042 R-5), and ruby's hand already did this
+/// better.
 fn first_error(said: &str) -> String {
-    said.lines()
-        .find(|line| line.contains("Compilation error") || line.starts_with("** ("))
-        .unwrap_or("mix could not build this project")
-        .trim()
-        .to_string()
+    let lines: Vec<&str> = said.split(['\n', '\r']).map(str::trim).collect();
+    let diagnosis = lines
+        .iter()
+        .find(|line| line.starts_with("** ("))
+        .or_else(|| lines.iter().find(|line| line.contains("error:")));
+    match diagnosis {
+        Some(words) => words.to_string(),
+        None => lines
+            .iter()
+            .find(|line| line.contains("Compilation error"))
+            .map(|line| line.to_string())
+            .unwrap_or_else(|| "mix could not build this project".to_string()),
+    }
 }
 
 /// mix as a command of the system, in the project's own world.

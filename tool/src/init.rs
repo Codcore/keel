@@ -235,8 +235,19 @@ fn ignore_row(root: &Path) -> String {
             None => t("init-ignore-no-adapter"),
         };
     }
-    let dir = crate::adapter::BUILD_DIR;
-    let rule = format!("{dir}/");
+    // The rule names the directory THIS tongue builds into, asked of
+    // the adapter that already knows (review 0042 R-3): the cargo
+    // constant stood here, so an elixir project was told its build
+    // directory is `_build/` and advised to ignore `target/` -- one
+    // line contradicting itself, and following it left `_build` under
+    // git, which is the very harm this reminder exists for.
+    let rule = match crate::adapter::build_dir(root) {
+        crate::adapter::BuildDir::At(path) => format!(
+            "{}/",
+            path.file_name().unwrap_or_default().to_string_lossy()
+        ),
+        _ => format!("{}/", crate::adapter::BUILD_DIR),
+    };
     // Which directory to ask about is the adapter's answer: the
     // crate may live one level down (keel's own shape), a tongue may
     // build nothing at all, and a root the adapter cannot name is

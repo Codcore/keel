@@ -384,6 +384,8 @@ limit-hook-absent = not held by machine here: keel.toml says hooks = true, but n
 limit-ruby-border = not checked: ruby does not tell "failed" from "did not build" by its exit code -- both are 1 (§7.12). The adapter reads the text (SyntaxError, LoadError); where the text does not say, a failure is taken as a failure -- the direction that cannot turn red into green
 limit-ruby-form = not checked in essence: ruby writes no types, so the §7.6 form court compares a method name and its parameters -- and nothing more; green form here means even less about meaning than it does in a tongue with types (§7.8)
 limit-elixir-border = measured: this tongue tells "failed" from "did not build" by its exit code (0 green, 2 failed, 1 did not compile), so sec. 7.12's border about the two being alike does not stand here -- a broken build is judged a broken build, not a red test
+limit-elixir-form = not checked in essence: elixir writes no types in a `def`, so the §7.6 form court compares a name and its parameters -- and nothing more (§7.8). And a border this wave measured: a `def` written inside a `@moduledoc`/heredoc is not told from a live one -- the comment stripper cuts `#` and knows nothing of triple quotes, so a line of documentation holds the promise. Ruby does the same (BACKLOG)
+limit-elixir-unread = not checked: the adapter does not read { $file } -- ExUnit names tests *_test.exs, and a tag there was not read
 limit-ruby-unread = not checked: test/ holds { $count } .rb files this adapter does not read -- it reads minitest, that is *_test.rb ({ $files }); RSpec comes with its own wave
 limit-unpushed = not checked: this clone does not see branch "{ $branch }" in { $remote } -- whether it is really there was not asked (no network); instead: git push -u { $remote } { $branch }
 limit-ahead = not checked: branch "{ $branch }" differs from { $remote }/{ $branch } as this clone knows them -- this judges what { $remote } may not have yet; instead: git push
@@ -423,6 +425,7 @@ close-lack-review-empty = the review file keel/reviews/<wave>.md exists and is e
 close-lack-review = the review file keel/reviews/<wave>.md is not next to the wave (§9.9)
 close-price-nothing-built = the price of this court: the battery runs three times (§7.13); this language builds nothing, so the court asks for no disk
 close-price = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; it wants about { $needed } GiB free (measured: one closing leaves 1.26 GiB)
+close-price-light = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; this tongue builds small, so the court asks for no free space
 close-price-paid = price paid: { $target } weighs { $size } GiB
 close-no-room = { $free } GB free on disk, and this court wants about { $needed } GB -- better to refuse now than to die halfway through with "no space left on device"
 close-no-room-instead = free some space (rm -rf tool/target clears the previous closing's cache) or run the court where there is room

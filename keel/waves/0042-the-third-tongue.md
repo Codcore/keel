@@ -20,6 +20,8 @@ transforms:
       - tool/src/config.rs
       - tool/src/tags.rs
       - tool/src/check.rs
+      - tool/src/init.rs
+      - tool/src/close.rs
       - keel/contracts/tool-adapter-elixir.md
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl

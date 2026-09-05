@@ -149,6 +149,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     let target = adapter::build_dir(root);
     let needed = NEEDED_BYTES;
     if let adapter::BuildDir::At(target) = &target
+        && adapter::builds_heavily(root)
         && let Some(free) = free_bytes(root).filter(|free| *free < needed)
     {
         return Err(Refusal {
@@ -168,7 +169,16 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         adapter::BuildDir::At(target) => eprintln!(
             "{}",
             ta(
-                "close-price",
+                // The measured cost belongs to the tongue that pays
+                // it: keel's own cargo build wants gigabytes, and a
+                // mix project's `_build` measured 148 KiB (review
+                // 0042 R-4 -- the warning was out by four orders of
+                // magnitude, and its "measured" number was cargo's).
+                if adapter::builds_heavily(root) {
+                    "close-price"
+                } else {
+                    "close-price-light"
+                },
                 targs!(
                     "target" => target.display().to_string(),
                     "needed" => gigabytes(NEEDED_BYTES)
