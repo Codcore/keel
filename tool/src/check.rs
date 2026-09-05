@@ -123,11 +123,35 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // Limits gathered while judging, said in the verdict's own
     // margin rather than swallowed (§4.10, wave 0031).
     let mut extra_limits: Vec<String> = Vec::new();
+    // The tongue's own border, said by the tool and not only by the
+    // wave that built the adapter (review 0038 R-7): §7.12 asks for
+    // it aloud wherever the adapter cannot tell a failure from a
+    // broken build, and ruby cannot.
+    if config.language() == Some(crate::config::Language::Ruby) {
+        extra_limits.push(t("limit-ruby-border"));
+        extra_limits.push(t("limit-ruby-form"));
+        // And which files in test/ this adapter walked past (R-19).
+        let unread = crate::ruby::unread_files(root);
+        if !unread.is_empty() {
+            extra_limits.push(ta(
+                "limit-ruby-unread",
+                targs!(
+                    "count" => unread.len() as u64,
+                    "files" => unread
+                        .iter()
+                        .filter_map(|path| path.strip_prefix(root).ok())
+                        .map(|path| path.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            ));
+        }
+    }
     let mut cancelled_rows: Vec<String> = Vec::new();
     // Tags are read once and serve three floors: the tag floor, the
     // §7.15 delta, and the §5.6 narrowing through structural closure.
     let found_tags: Option<Result<Vec<tags::TestTag>, Refusal>> = config
-        .rust_adapter()
+        .adapter_known()
         .then(|| adapter::test_files(root).and_then(|files| tags::scan(&files)));
     let mut ref_rows: std::collections::BTreeSet<(String, String)> = Default::default();
     let mut refs_checked: u64 = 0;
@@ -319,6 +343,33 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             Compared::No(why) => extra_limits.push(why),
             Compared::Silent => {}
         }
+    }
+
+    // A language this release does not know is a FINDING with the
+    // list of the ones it does (wave 0038). Not a refusal: a project
+    // that named a language keel cannot lead yet still gets its
+    // documents, links, scope and revisions judged. Not silence
+    // either: before this wave an unknown name simply meant "not
+    // Rust", so a typo skipped the language-shaped courts without
+    // ever saying which -- and §4.10 calls that worse than red.
+    if let Some(named) = config.adapter.as_deref()
+        && config.language().is_none()
+    {
+        rows.push((
+            "keel.toml".to_string(),
+            Some(format!(
+                "{}\n           {}: {}",
+                ta(
+                    "config-unknown-adapter",
+                    targs!("named" => named.to_string(), "known" => crate::config::Language::known()),
+                ),
+                t("word-instead"),
+                ta(
+                    "config-unknown-adapter-instead",
+                    targs!("known" => crate::config::Language::known()),
+                ),
+            )),
+        ));
     }
 
     let generated: Vec<String> = config.generated.iter().map(|(k, _)| k.clone()).collect();
@@ -545,7 +596,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // cargo adapter is served on this rung -- anything else is a
     // skip said aloud, never a silent green.
     let mut tags_checked: u64 = 0;
-    let known = config.rust_adapter();
+    let known = config.adapter_known();
     let judged = match (&config.adapter, &found_tags) {
         (None, _) => Err(t("check-tags-skipped-no-adapter")),
         (Some(_), Some(Ok(found))) if known => {
@@ -563,7 +614,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         }
         (Some(other), _) => Err(ta(
             "check-tags-skipped-adapter",
-            targs!("name" => other.to_string()),
+            targs!("name" => other.to_string(), "known" => crate::config::Language::known()),
         )),
     };
     let tags_status = match judged {

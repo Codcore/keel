@@ -24,6 +24,74 @@ pub const AGENTS: [&str; 2] = ["claude", "cursor"];
 /// The config as read. `lang` (wave 0002) and `mode` (wave 0005)
 /// carry semantics; the other fields are read as data -- their rungs
 /// are ahead.
+/// The languages this release can lead a project in. Adding one is a
+/// module and a row here -- which is the whole point of the wave that
+/// made this an enum instead of a yes-or-no question.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Language {
+    Rust,
+    Ruby,
+}
+
+impl Language {
+    /// Every spelling this release accepts, canonical name first.
+    /// `cargo` is the old spelling of `rust`, kept and said aloud by
+    /// check (wave 0017, review R-1).
+    pub const NAMES: [(&'static str, Language); 3] = [
+        ("rust", Language::Rust),
+        ("cargo", Language::Rust),
+        ("ruby", Language::Ruby),
+    ];
+
+    pub fn named(word: &str) -> Option<Language> {
+        Self::NAMES
+            .iter()
+            .find(|(name, _)| *name == word)
+            .map(|(_, language)| *language)
+    }
+
+    /// Every spelling a refusal may suggest -- synonyms included,
+    /// because a person is told what they may write, not what the
+    /// enum is called. Review 0038 R-14: this used to filter for
+    /// repeats that `NAMES` cannot hold and call the result
+    /// canonical, which was ceremony reading as a check.
+    pub fn known() -> String {
+        Self::NAMES
+            .iter()
+            .map(|(name, _)| format!("\"{name}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// The command that runs this tongue's whole battery, as a
+    /// person would type it in a terminal. The generated workflow
+    /// asks the tongue instead of knowing cargo by heart: a ruby
+    /// project used to get a CI file with no battery step at all,
+    /// and no word about the silence (review 0038 R-9).
+    pub fn battery_command(&self) -> &'static str {
+        match self {
+            Language::Rust => "cargo test --no-fail-fast",
+            Language::Ruby => {
+                "ruby -Itest -e 'Dir.glob(\"test/**/*_test.rb\").each { |f| require File.expand_path(f) }'"
+            }
+        }
+    }
+
+    /// One name per tongue, in the order `NAMES` gives them: what
+    /// the wizard offers and what a project is asked to write.
+    pub fn choices() -> Vec<&'static str> {
+        let mut out: Vec<&'static str> = Vec::new();
+        let mut taken: Vec<Language> = Vec::new();
+        for (name, language) in Self::NAMES {
+            if !taken.contains(&language) {
+                taken.push(language);
+                out.push(name);
+            }
+        }
+        out
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     pub version: Option<String>,
@@ -84,7 +152,27 @@ impl Config {
     /// `cargo` stays an accepted synonym, said aloud by check. The
     /// courts ask here instead of comparing strings themselves.
     pub fn rust_adapter(&self) -> bool {
-        matches!(self.adapter.as_deref(), Some("rust") | Some("cargo"))
+        self.language() == Some(Language::Rust)
+    }
+
+    /// Whether this release can lead the language this project named
+    /// at all -- the question nine of the ten callers were really
+    /// asking when they asked `rust_adapter` (wave 0038): can the
+    /// tests be found and run, can a module's source be read. Only
+    /// the generated CI step still needs to know WHICH language.
+    pub fn adapter_known(&self) -> bool {
+        self.language().is_some()
+    }
+
+    /// Which language this release will judge here, by the name the
+    /// project wrote (wave 0038). `None` means the project named no
+    /// adapter at all -- the language-shaped courts do not run, and
+    /// say so. A name this release does not know never reaches here:
+    /// the config court refuses it by name, listing what it knows,
+    /// because a typo swallowed as silence is a court skipped in
+    /// silence.
+    pub fn language(&self) -> Option<Language> {
+        Language::named(self.adapter.as_deref()?)
     }
 
     /// The second question of the same home (review 0017 R-1): is

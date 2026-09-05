@@ -23,6 +23,7 @@ pub mod plan;
 pub mod refusal;
 pub mod rev;
 pub mod review;
+pub mod ruby;
 pub mod scope;
 pub mod speak;
 pub mod status;
