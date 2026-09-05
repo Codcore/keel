@@ -408,16 +408,20 @@ check` prints that border itself, next to a second one: ruby writes no types, so
 the §7.6 form court compares a method name and its parameters and nothing more.
 
 Adding a language is a module, a row in `Language::NAMES`, the dictionary in
-both tongues, and **fourteen** places where something branches on the tongue —
-counted off the source rather than guessed, because the number that stood here
-before (six, beside a list of seven) was neither:
+both tongues, and **seventeen** places where something branches on the tongue —
+counted off the source (`grep -n 'language_of(root)\|config.language()' tool/src/*.rs`)
+rather than guessed: the number that stood here before was six beside a list of
+seven, then fourteen while wave 0044 was adding three more, and review 0045
+counted seventeen:
 
 `adapter::builds_heavily`, `build_dir`, `tests_dir`, `run_line`, `test_files`,
 `run_test`, `run_all`; `config::battery_command`; `holding::comparability` (the
 module layout) and `holding::strip_comments` (the comment shape);
 `tags::scan_text` (the declaration shape), `tags::marks` and `tags::declares`
 (these three keyed by the file's extension, never by the project's config — see
-below); and `check` for the tongue's own limits.
+below); `check` for the tongue's own limits; and the three wave 0044 added —
+`adapter::battery_dir` (where the generated CI runs), and the two in
+`generated` that pick the toolchain step and the battery step.
 
 Not "one file". Wave 0042 paid exactly that price for Elixir.
 
