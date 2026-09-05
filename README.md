@@ -217,12 +217,25 @@ here rather than left for a reader to discover.
 | language | tests | one test | module source |
 |---|---|---|---|
 | `rust` | `tests/*.rs` | `cargo test --test <file> <fn> -- --exact` | `src/<name>.rs`, `src/<name>/mod.rs` |
-| `ruby` | `test/**/*_test.rb` | `ruby -Itest <file> -n <method>` | `lib/<name>.rb` for `Name`, `lib/a/b.rb` for `A::B` |
+| `ruby` | `test/**/*_test.rb` | `ruby -Itest <file> -n <method>` | `lib/<name>.rb`, `lib/<name>/init.rb`, `app/<name>.rb` — `A::B` is `a/b.rb`, and an acronym stays one word (`HTTPServer` → `http_server`) |
+
+The ruby battery reads minitest's own verbose voice, so a test file that does
+not load is a refusal aloud rather than a page of green: without a run there is
+no verdict for anyone. A `.rb` file in `test/` that is not named `*_test.rb` is
+not read, and the check says which ones those were.
 
 An honest limit of the ruby adapter, and §7.12 foresaw it: ruby does not tell
 "failed" from "did not load" by its exit code — both are 1. The adapter reads
 the text (`SyntaxError`, `LoadError`), and where the text does not say, it takes
-a failure as a failure: the direction that cannot turn red into green.
+a failure as a failure: the direction that cannot turn red into green. `keel
+check` prints that border itself, next to a second one: ruby writes no types, so
+the §7.6 form court compares a method name and its parameters and nothing more.
+
+Adding a third language is a module, a row in `Language::NAMES`, and six places
+where the dispatcher branches (test directory, one test, battery, build
+directory, the step command, the module layout and its comment marks) plus the
+dictionary in both tongues. Not "one file" — the number is measured, not
+guessed.
 
 What an adapter has to answer is small and written down:
 
