@@ -106,3 +106,45 @@ fn a_court_runs_where_the_crate_is() {
         "a crate at the root needs no directory said:\n{step}"
     );
 }
+
+/// A project that pins its toolchain, the way a repository that wants
+/// a repeatable verdict does.
+fn pinned(name: &str, version: &str) -> common::Sandbox {
+    let dir = project(name, "");
+    std::fs::write(
+        dir.join("rust-toolchain.toml"),
+        format!("[toolchain]\nchannel = \"{version}\"\n"),
+    )
+    .unwrap();
+    dir
+}
+
+/// proves: a-court-names-the-toolchain-it-judged-with@f06d72
+#[test]
+fn a_court_names_the_toolchain_it_judged_with() {
+    // A project that pins gets its own version named in the file, so
+    // the verdict is the same on every machine that runs it.
+    let dir = pinned("citoolchain", "1.94.1");
+    let (said, code) = keel(&dir, &["update"]);
+    assert_eq!(code, 0, "the workflow is written:\n{said}");
+    let flow = std::fs::read_to_string(dir.join(".github/workflows/keel.yml")).unwrap();
+    assert!(
+        flow.contains("1.94.1"),
+        "the file names the toolchain it judges with, by version:\n{flow}"
+    );
+
+    // A project that pins nothing gets the truth said aloud instead:
+    // a verdict from whatever the runner had that day is repeatable
+    // only by accident. This is the shape that made "clippy clean" a
+    // claim about one machine -- a lint that exists in the runner's
+    // 1.98 and not in the author's 1.94.
+    let dir = project("cinopin", "");
+    let (said, code) = keel(&dir, &["update"]);
+    assert_eq!(code, 0, "the workflow is written:\n{said}");
+    let flow = std::fs::read_to_string(dir.join(".github/workflows/keel.yml")).unwrap();
+    assert!(
+        flow.contains("rust-toolchain.toml"),
+        "and where nothing is pinned, the file says so and names what \
+         would fix it:\n{flow}"
+    );
+}
