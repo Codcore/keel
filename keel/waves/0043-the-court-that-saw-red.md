@@ -24,6 +24,10 @@ transforms:
       - tool/src/holding.rs
       - keel/contracts/tool-holding.md
       - tool/tests/holding_prose_test.rs
+      - tool/i18n/uk.ftl
+      - tool/i18n/en.ftl
+      - keel/contracts/tool-adapter-elixir.md
+      - tool/tests/elixir_border_test.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:

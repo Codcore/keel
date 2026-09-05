@@ -64,7 +64,11 @@ fn wave_file(dir: &Path) {
         ),
     )
     .unwrap();
-    std::fs::write(dir.join("keel/reviews/0001-a-wave.md"), "# Рецензія\n\nok\n").unwrap();
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
 }
 
 fn settle(dir: &Path) {
@@ -117,8 +121,11 @@ fn a_red_test_holds_the_wave_open() {
         std::fs::create_dir_all(dir.join("lib")).unwrap();
         std::fs::create_dir_all(dir.join("test")).unwrap();
         std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"ruby\"\n").unwrap();
-        std::fs::write(dir.join("lib/toy.rb"), "class Toy\n  def works\n    true\n  end\nend\n")
-            .unwrap();
+        std::fs::write(
+            dir.join("lib/toy.rb"),
+            "class Toy\n  def works\n    true\n  end\nend\n",
+        )
+        .unwrap();
         std::fs::write(
             dir.join("test/toy_test.rb"),
             "require \"minitest/autorun\"\n\nclass ToyTest < Minitest::Test\n  def test_nobody_claims_me\n    assert false, \"red and unclaimed\"\n  end\nend\n",
@@ -139,14 +146,21 @@ fn a_red_test_holds_the_wave_open() {
         let dir = keel_sandbox("redelixir");
         std::fs::create_dir_all(dir.join("lib")).unwrap();
         std::fs::create_dir_all(dir.join("test")).unwrap();
-        std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"elixir\"\n").unwrap();
+        std::fs::write(
+            dir.join("keel.toml"),
+            "lang = \"uk\"\nadapter = \"elixir\"\n",
+        )
+        .unwrap();
         std::fs::write(
             dir.join("mix.exs"),
             "defmodule Toy.MixProject do\n  use Mix.Project\n  def project, do: [app: :toy, version: \"0.1.0\", elixir: \"~> 1.14\"]\n  def application, do: []\nend\n",
         )
         .unwrap();
-        std::fs::write(dir.join("lib/toy.ex"), "defmodule Toy do\n  def works, do: true\nend\n")
-            .unwrap();
+        std::fs::write(
+            dir.join("lib/toy.ex"),
+            "defmodule Toy do\n  def works, do: true\nend\n",
+        )
+        .unwrap();
         std::fs::write(dir.join("test/test_helper.exs"), "ExUnit.start()\n").unwrap();
         std::fs::write(
             dir.join("test/toy_test.exs"),

@@ -239,6 +239,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         })
         .collect();
     fell.sort();
+    let red_tests = fell.len();
     for line in &fell {
         report.push_str(line);
         report.push('\n');
@@ -324,6 +325,20 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     for wave in &scan.waves {
         let state = wave_state(root, wave, &found, &legal, Some(&battery))?;
         let own = branch.as_deref() == Some(wave.slug.as_str());
+        // A wave whose own branch this is does not read as closed
+        // while the court is watching its battery fail. Waves closed
+        // in earlier generations keep their verdict: their promises
+        // were proven at their time, and today's red is not their
+        // lack -- but it IS this one's, whichever promise the red
+        // test belongs to (wave 0043).
+        if own && red_tests > 0 && !matches!(state, State::Progress(_) | State::Plan) {
+            report.push_str(&ta(
+                "close-held-by-red",
+                targs!("wave" => wave.slug.clone(), "count" => red_tests as u64),
+            ));
+            report.push('\n');
+            continue;
+        }
         match state {
             State::Closed { refs_unjudged: 0 } => {
                 report.push_str(&ta("close-closed", targs!("wave" => wave.slug.clone())));
@@ -373,6 +388,22 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     }
 
     report.push('\n');
+    // The court watched these fail with its own eyes, three runs
+    // each (§7.13), and named them above -- and then closed the wave
+    // anyway, because blockers were counted only from the promises
+    // of the branch's own wave. A red test nobody claims never became
+    // a lack, so a court that SAW red left with 0. Measured in rust,
+    // ruby and elixir alike: the hole was in this court, not in an
+    // adapter (wave 0043). A court that did not run says so and a
+    // person knows they do not know; a court that saw red and left
+    // green passes itself off as read.
+    if red_tests > 0 {
+        report.push_str(&ta(
+            "close-red-blockers",
+            targs!("count" => red_tests as u64),
+        ));
+        report.push('\n');
+    }
     if verify_blockers > 0 {
         report.push_str(&ta(
             "close-verify-blockers",
@@ -390,7 +421,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             targs!("wave" => branch.unwrap_or_default(), "count" => blockers as u64),
         ));
         report.push('\n');
-    } else if own_plan {
+    } else if own_plan && red_tests == 0 {
         // The honest footer for the plan branch (review R-2): a plan
         // PR merges as a plan (§6.6), and the old words would lie.
         report.push_str(&ta(
@@ -398,7 +429,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             targs!("wave" => branch.unwrap_or_default()),
         ));
         report.push('\n');
-    } else if verify_blockers == 0 && ci_blocker == 0 {
+    } else if verify_blockers == 0 && ci_blocker == 0 && red_tests == 0 {
         report.push_str(&t("close-no-blockers"));
         report.push('\n');
     }
@@ -415,7 +446,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         ));
         report.push('\n');
     }
-    Ok((report, blockers + verify_blockers + ci_blocker))
+    Ok((report, blockers + verify_blockers + ci_blocker + red_tests))
 }
 
 /// Runs one trusted command from the repository's files through
