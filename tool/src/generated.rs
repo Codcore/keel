@@ -182,6 +182,17 @@ const RULE_SOFT_UK: &str = r#"Два правила стоять тут попе
 
 const RULE_MANUAL_UK: &str = r#"Суд commit-ів у цьому проєкті вимкнено (`mode = "manual"`): обидва правила — народження червоним і робота лише поверх зелених тестів — тримають тут самі люди. `keel close` перед злиттям судить далі. Питай `keel next`, а не вгадуй порядок."#;
 
+/// The fourth paragraph, and the one that was missing: `mode` and
+/// `hooks` are two knobs, not one. A project that answered
+/// `hooks = false` gets no commit-msg hook -- `keel init` says so
+/// aloud in the same breath -- and yet the paragraph beside it
+/// promised a machine holding the rule through that very hook. That
+/// is the constitution's sixth point inverted, in the text an agent
+/// reads first (the audit of 2026-09-05).
+const RULE_NO_HOOK_EN: &str = r#"This project keeps no commit hook (`hooks = false`), so no commit judgement runs here at all -- the two rules, a scenario born red and work committed only over green tests, are held by people. What still judges by machine: `keel close` before a merge, and `keel check` over the documents. Ask `keel next` instead of guessing the order."#;
+
+const RULE_NO_HOOK_UK: &str = r#"Цей проєкт не тримає commit-hook-а (`hooks = false`), тож суду commit-ів тут нема зовсім — обидва правила, народження червоним і робота лише поверх зелених тестів, тримають люди. Що судить машиною далі: `keel close` перед злиттям і `keel check` над документами. Питай `keel next`, а не вгадуй порядок."#;
+
 /// The loop skill an agent reads (wave 0023): the same words as the
 /// block, shaped as a skill file, because that is what Claude Code
 /// loads. Wholly ours -- a hand's edit is refused, never overwritten.
@@ -283,15 +294,36 @@ fn cursor_hooks() -> String {
     )
 }
 
-/// The CI workflow (wave 0023): the three courts a merge needs.
-/// It calls keel as a command and does NOT install it -- the
-/// installing step arrives with the distribution rung, and the file
-/// says so itself.
+/// Where install.sh lives. One place, so the workflow and the
+/// version lamp point at the same hand (wave 0039).
+pub const INSTALLER: &str = "https://raw.githubusercontent.com/Codcore/keel/main/install.sh";
+
+/// The CI workflow (wave 0023): the three courts a merge needs, and
+/// since wave 0039 the tool that runs them. It used to call `keel`
+/// without installing it and admit so in a comment -- so a project
+/// that ran `keel init` and pushed got `keel: command not found` on
+/// its first run, from a file the frame itself had written. The step
+/// builds from source, because there is no released binary yet, and
+/// it says that about itself rather than leaving a reader to find
+/// out on a runner.
 fn workflow(config: &Config) -> String {
     // The battery step is the tongue's own, and its absence is never
     // silence (review 0038 R-9): a project whose adapter this release
     // does not lead gets a line saying so, in the file where a person
     // would otherwise look for the step and find nothing.
+    // The pin travels with the step (review 0039 R-4): a project that
+    // pins a version used to get a step installing `main`, and then a
+    // refusal from every court two lines below, because the pin and
+    // the binary differ. The generator knows the pin -- so it writes
+    // it, and the step fetches exactly what the project asked for.
+    let pin = match config.version.as_deref() {
+        Some(pin) => format!(
+            "        # keel.toml pins this version, so the step fetches it.\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}env:\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}KEEL_REF: \"{pin}\"\n"
+        ),
+        None => String::new(),
+    };
     let courts = match config.language() {
         Some(language) => format!(
             "      - name: the battery\n        run: {}\n",
@@ -306,11 +338,14 @@ fn workflow(config: &Config) -> String {
     format!(
         "# keel (generated -- do not edit; keel update rewrites this file)\n\
          #\n\
-         # This workflow calls `keel` as a command and does NOT\n\
-         # install it: the installing step arrives with the\n\
-         # distribution rung of the concept (~/.keel/versions/).\n\
-         # Until then, add a step of your own above these that puts\n\
-         # `keel` on PATH.\n\
+         # The first step installs the tool; the rest judge with it.\n\
+         # There is no released binary yet, so that step builds it from source:\n\
+         # it needs git and cargo on the runner, and it costs minutes on a\n\
+         # cold cache. If your project already puts `keel` on PATH some other\n\
+         # way, replace this step with yours -- the courts below do not care\n\
+         # how it got there. To keep an edited copy for good, delete this\n\
+         # file's line from [generated] in keel.toml as well: otherwise\n\
+         # `keel update` will keep saying it did not overwrite you.\n\
          name: keel\n\
          \n\
          on:\n\
@@ -324,6 +359,14 @@ fn workflow(config: &Config) -> String {
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- uses: actions/checkout@v4\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}fetch-depth: 0\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the tool itself\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Clones the method into ~/.keel, then builds it from source.\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# It needs git and cargo on the runner, and cargo writes\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# its own registry into CARGO_HOME while it does.\n\
+         {pin}\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: |\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}curl -fsSL {INSTALLER} | sh\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the documents judged\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# On a pull_request event actions/checkout leaves a\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# detached HEAD and git serves no branch, so the scope\n\
@@ -343,6 +386,23 @@ fn workflow(config: &Config) -> String {
 /// block and the skill, so the two never disagree.
 fn rule_for(config: &Config) -> &'static str {
     let uk = config.lang == "uk";
+    // Both knobs, not one. `mode` says how loudly the commit court
+    // speaks; `hooks` says whether it is there to speak at all, and a
+    // paragraph that reads only the first promised a hook that was
+    // never installed.
+    //
+    // What this paragraph must NOT do is read the disk (review 0039
+    // R-1 asked for that, and it would be worse): the artefacts are
+    // compared by digest across every machine that checks out the
+    // project, and git does not clone hooks -- so a text that changed
+    // with the presence of a hook would read as hand-edited on every
+    // runner and in every colleague's clone. The paragraph states the
+    // project's answer; whether a hook really stands HERE is a
+    // question about this machine, and `keel check` asks it there,
+    // aloud, on every clone that lacks one.
+    if !config.hooks {
+        return if uk { RULE_NO_HOOK_UK } else { RULE_NO_HOOK_EN };
+    }
     match (config.mode.as_str(), uk) {
         ("manual", true) => RULE_MANUAL_UK,
         ("manual", false) => RULE_MANUAL_EN,

@@ -119,7 +119,28 @@ curl -fsSL https://raw.githubusercontent.com/Codcore/keel/main/install.sh | sh
 
 That clones the repository into `~/.keel`, builds the release binary and puts
 `keel` in `~/.local/bin`. Run it again to update. `KEEL_REPO`, `KEEL_HOME` and
-`KEEL_BIN` override all three. By hand it is the same three lines:
+`KEEL_BIN` override all three.
+
+A **version** may be named — first argument or `KEEL_REF` — and then exactly
+that git ref is installed:
+
+```bash
+KEEL_REF="<tag or commit>" sh install.sh
+curl -fsSL https://raw.githubusercontent.com/Codcore/keel/main/install.sh | sh -s -- <tag or commit>
+```
+
+A ref that is not there refuses and lists what the clone knows. This is what
+`keel version` prints when `keel.toml` pins a version the running binary is
+not — the advice names the command with the pin already in it, and the border
+with it: `KEEL_REF` takes a **git ref by name**, while `version` holds a number,
+and the two are only the same word once a tag carries that name. Where
+`keel.toml` pins a version, the generated CI step carries that pin too.
+
+`cargo` writes its own registry and cache into `CARGO_HOME` (`~/.cargo` by
+default, tens of megabytes on a first build) — that is cargo's home, not keel's,
+and the installer does not move it.
+
+By hand it is the same three lines:
 
 ```bash
 git clone https://github.com/Codcore/keel ~/.keel
@@ -134,14 +155,17 @@ keel init
 ```
 
 **What is not built, said here rather than discovered later:** the concept's
-distribution rung — `~/.keel/versions/<version>`, a launcher that reads the pin
-and fetches the pinned release with a checksum — does not exist. `version` in
-`keel.toml` is a *guard*, not a fetch: if the pin and the running binary
-disagree, the courts refuse and you have to obtain that version yourself. And
-the generated CI workflow **calls** `keel` without installing it, so a project
-that pushes it unchanged gets `keel: command not found` until a step of its own
-puts `keel` on PATH. There is no `--json` output on any command either, though
-the concept promises one.
+distribution rung — `~/.keel/versions/<version>` holding several releases side
+by side, a launcher that picks one by the pin, and a verified checksum — does
+not exist. What exists is a git ref fetched **by name**: `version` in
+`keel.toml` guards, and `KEEL_REF` fetches, and nothing verifies that what
+arrived is what was published. Worse in practice today: **no published tag
+carries the current layout** — keel v1 kept the crate outside `tool/`, so
+`KEEL_REF=v0.8.9` refuses by name and only a commit or a branch works until a
+v2 release is tagged. The installer the generated CI step fetches comes from
+`main`, unpinned: a project pinned to an older keel still runs today's script.
+There is no `--json` output on any command either, though the concept promises
+one.
 
 `init` asks a handful of questions — language, adapter, mode, agents, CI command
 — and writes `keel.toml` plus the integrations below. `keel setup` changes any
@@ -271,7 +295,7 @@ so it cannot be swapped later (§7.16). Until your language has an adapter,
 | `AGENTS.md` | a keel block, appended; text above it untouched |
 | `.claude/skills/keel/SKILL.md`, `.agents/skills/keel/SKILL.md` | the skill |
 | `.claude/settings.json`, `.cursor/hooks.json` | the agent hooks |
-| `.github/workflows/keel.yml` | `keel check`, `keel close`, the battery |
+| `.github/workflows/keel.yml` | a step that installs keel, then `keel check`, `keel close`, the battery |
 | `.git/hooks/commit-msg` | the commit court (§8.4, §7.12) |
 
 Every generated file is recorded by digest. Edit one by hand and `keel update`
@@ -299,7 +323,16 @@ Two things this table used to claim and does not:
 
 The git hook is separate: it holds the commit grammar and the red birth (§8.4,
 §7.12) — and it is installed unless you answered `hooks = false`, in which case
-nothing holds those two but your own care.
+nothing holds those two but your own care. The keel block in `AGENTS.md` and
+the skill say which of the two your project **asked for**: where `hooks` is off
+they say plainly that no commit judgement runs and name what still judges
+(`keel close`, `keel check`).
+
+Whether a hook really stands on *this* machine is a different question, because
+**git does not clone hooks**: a fresh clone and a CI runner have none. The block
+cannot know that — it is compared by digest across every machine — so `keel
+check` says it instead, as a limit, on any clone whose block promises a machine
+and where no hook of ours is installed. `keel hook` puts one back.
 
 ## State
 
