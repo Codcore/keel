@@ -49,7 +49,14 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
         // `describe` names, only the block's border is INDENTATION
         // and not `end` (wave 0045).
         let python = file.extension().and_then(|e| e.to_str()) == Some("py");
-        let mut class: Option<(String, usize)> = None;
+        // A STACK of classes, because they nest: pytest names a
+        // method `TestOuter::TestInner::test_x` (review 0045 R-10).
+        let mut classes: Vec<(String, usize)> = Vec::new();
+        // A decorator may run over several lines -- black writes
+        // `@pytest.mark.parametrize(` and closes the parenthesis
+        // three lines down (review 0045 R-4). Its continuation lines
+        // stand between a tag and its `def` as the first line does.
+        let mut decorating: i32 = 0;
         let mut pending: Option<(String, String)> = None;
         let mut describing: Option<(String, usize)> = None;
         let mut depth: usize = 0;
@@ -92,6 +99,16 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 pending = Some((scenario, rev));
                 continue;
             }
+            if python {
+                if decorating > 0 {
+                    decorating += parens(trimmed);
+                    continue;
+                }
+                if trimmed.starts_with('@') {
+                    decorating = parens(trimmed).max(0);
+                    continue;
+                }
+            }
             let declared = if elixir {
                 // A `describe` opens a group whose name ExUnit puts
                 // in front of every test inside it; `end` closes the
@@ -124,21 +141,26 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
             } else if python {
                 // A class opens a group at its own indentation and
                 // holds it while the lines below sit deeper; a line
-                // back at that indentation or shallower closes it.
+                // of CODE back at that indentation or shallower
+                // closes it -- and every class opened deeper than it
+                // with it. A comment is not code: python lets one sit
+                // in column 0 inside a class, and reading it as the
+                // block's end lost the method's class (review 0045
+                // R-9).
                 let indent = line.len() - line.trim_start().len();
-                if !trimmed.is_empty()
-                    && let Some((_, opened)) = &class
-                    && indent <= *opened
-                {
-                    class = None;
+                if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                    while classes.last().is_some_and(|(_, opened)| indent <= *opened) {
+                        classes.pop();
+                    }
                 }
                 if let Some(name) = class_name(trimmed) {
-                    class = Some((name, indent));
+                    classes.push((name, indent));
                     None
                 } else {
-                    fn_name(trimmed, declares).map(|name| match &class {
-                        Some((group, _)) => format!("{group}::{name}"),
-                        None => name,
+                    fn_name(trimmed, declares).map(|name| {
+                        let mut full: Vec<&str> = classes.iter().map(|(g, _)| g.as_str()).collect();
+                        full.push(&name);
+                        full.join("::")
                     })
                 }
             } else {
@@ -206,7 +228,10 @@ const ELIXIR_MARKS: &[&str] = &["#"];
 /// its tests are not named by an identifier at all (see `test_name`).
 fn declares(file: &Path) -> &'static [&'static str] {
     match file.extension().and_then(|e| e.to_str()) {
-        Some("rb") | Some("py") => &["def "],
+        Some("rb") => &["def "],
+        // `async def test_…` is an everyday pytest form under
+        // pytest-asyncio and anyio (review 0045 R-5).
+        Some("py") => &["def ", "async def "],
         _ => &["fn "],
     }
 }
@@ -218,6 +243,12 @@ fn declares(file: &Path) -> &'static [&'static str] {
 /// and exactly as `mix test --only` selects it.
 pub fn test_name(trimmed: &str) -> Option<String> {
     quoted_after(trimmed, "test ")
+}
+
+/// Opening parentheses on this line less closing ones -- a decorator
+/// is finished when its count is back to nothing.
+fn parens(trimmed: &str) -> i32 {
+    trimmed.matches('(').count() as i32 - trimmed.matches(')').count() as i32
 }
 
 /// The name a `class Something:` line opens, for python -- the

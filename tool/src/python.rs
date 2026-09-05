@@ -88,21 +88,36 @@ pub fn unread_files(root: &Path) -> Vec<PathBuf> {
 /// in, because a project chooses and the court must not: `toy.bar`
 /// is `src/toy/bar.py` or `toy/bar.py`; the bare `toy` is a package
 /// (`…/toy/__init__.py`) or a file (`…/toy.py`), under `src/` or at
-/// the root. The name is the name: python makes no snake_case out of
-/// anything.
+/// the root. The PACKAGE comes first, because that is what python
+/// itself imports when both exist (review 0045 R-8). The name is the
+/// name: python makes no snake_case out of anything.
+///
+/// A name with an empty segment -- `.usr.share.x`, `toy..bar`,
+/// `toy.` -- is no module at all, and is not looked for: joined, it
+/// began with `/` and `Path::join` then REPLACED the root, so a
+/// contract could hold a file anywhere on the machine (review 0045
+/// R-7).
 pub fn module_paths(root: &Path, module: &str) -> Vec<PathBuf> {
-    let joined = module.split('.').collect::<Vec<_>>().join("/");
+    let segments: Vec<&str> = module.split('.').collect();
+    if segments
+        .iter()
+        .any(|part| part.is_empty() || part.contains('/') || part.contains('\\'))
+    {
+        return Vec::new();
+    }
+    let joined = segments.join("/");
     let mut out = Vec::with_capacity(4);
     for base in [root.join("src"), root.to_path_buf()] {
-        out.push(base.join(format!("{joined}.py")));
         out.push(base.join(&joined).join("__init__.py"));
+        out.push(base.join(format!("{joined}.py")));
     }
     out
 }
 
 /// Runs exactly the tagged test, by the node id pytest itself uses:
-/// `tests/test_toy.py::test_it_works`, or with the class in front
-/// for a method. The exit code alone says what came of it.
+/// `tests/test_toy.py::test_it_works`, or with the classes in front
+/// for a method. A parametrized test is selected whole by that same
+/// bare node -- pytest runs every instance under it.
 pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal> {
     let relative = tag.file.strip_prefix(root).unwrap_or(&tag.file);
     let node = format!("{}::{}", relative.display(), tag.test);
@@ -110,17 +125,26 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
     Ok(classify(&said, code))
 }
 
-/// The whole battery, verdicts per test, **in pytest's own words**:
-/// one `-v` line per test, node id and verdict on it. So the roll
-/// and the verdicts come from the runner from the first day -- the
-/// lesson ruby paid for in review 0038 and elixir walked back in
-/// review 0042, in the plan this time rather than the review.
+/// The whole battery, verdicts per test, **in pytest's own words**.
+///
+/// The roll is read from the `-rA` summary -- `PASSED <file>::<node>`
+/// one per test -- and not from the `-v` lines, because a project's
+/// own `addopts = "-q"` silences `-v` and the battery then read
+/// "0 tests" over a green run (review 0045 R-6); the summary survives
+/// any quietness. Both shapes are read, and either is enough.
+///
+/// A parametrized test is one test to a tag, whatever pytest calls
+/// its instances (`test_x[1-2]`, `test_x[3-4]`): the instances fold
+/// into the bare name, green only when every one of them passed
+/// (review 0045 R-2). A SKIPPED, XFAIL or XPASS test did not run as a
+/// proof of anything: it is not in the map at all -- not green, and
+/// not a red that would hold a wave open (review 0045 R-3, §7.12).
 ///
 /// A collection that broke (code 2) is a refusal with python's own
 /// words: without a collection there is no verdict for anyone.
 pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
-    let (said, code) = pytest(root, &["-v".to_string()])?;
-    if code == 2 {
+    let (said, code) = pytest(root, &["-vv".to_string()])?;
+    if code == 2 || (code == 4 && usage_error(&said)) {
         return Err(Refusal {
             file: root.to_path_buf(),
             reason: ta(
@@ -132,67 +156,101 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     }
     let mut out: BTreeMap<(String, String), bool> = BTreeMap::new();
     for (file, name, verdict) in ran(&said) {
-        let stem = Path::new(&file)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default()
-            .to_string();
-        // `PASSED` is green; `FAILED` and `ERROR` are not; a
-        // `SKIPPED` or `XFAIL` did not run, and a test that did not
-        // run is not a green one either.
-        out.insert((stem, name), verdict == "PASSED");
+        let green = match verdict.as_str() {
+            "PASSED" => true,
+            "FAILED" | "ERROR" => false,
+            _ => continue,
+        };
+        let key = crate::adapter::battery_key(root, &root.join(&file));
+        let name = bare_name(&name);
+        out.entry((key, name))
+            .and_modify(|was| *was = *was && green)
+            .or_insert(green);
     }
     Ok(out)
 }
 
-/// Every test pytest says it ran, from its `-v` lines:
-/// `tests/test_toy.py::TestGrouped::test_inside PASSED  [ 66%]`.
-/// The file, the name after the first `::` (class and all), and the
-/// verdict word.
+/// `test_x[1-2]` is an instance of `test_x`; the tag names the test.
+fn bare_name(name: &str) -> String {
+    match name.split_once('[') {
+        Some((head, _)) => head.to_string(),
+        None => name.to_string(),
+    }
+}
+
+/// Every test pytest says it ran, from its own lines, in both shapes
+/// it prints them: the `-rA` summary (`PASSED tests/test_toy.py::x`,
+/// `FAILED tests/test_toy.py::y - assert …`) and the `-v` progress
+/// line (`tests/test_toy.py::x PASSED [ 33%]`). The file, the node
+/// after the first `::` (classes and all), and the verdict word.
 pub fn ran(said: &str) -> Vec<(String, String, String)> {
+    const VERDICTS: [&str; 6] = ["PASSED", "FAILED", "ERROR", "SKIPPED", "XFAIL", "XPASS"];
     let mut out: Vec<(String, String, String)> = Vec::new();
+    let mut seen: std::collections::BTreeSet<(String, String)> = std::collections::BTreeSet::new();
+    let mut take = |file: &str, name: &str, verdict: &str| {
+        if !file.ends_with(".py") || name.is_empty() {
+            return;
+        }
+        if seen.insert((file.to_string(), name.to_string())) {
+            out.push((file.to_string(), name.to_string(), verdict.to_string()));
+        }
+    };
     for line in said.lines() {
         let trimmed = line.trim();
-        let Some((node, rest)) = trimmed.split_once(' ') else {
+        let mut words = trimmed.split_whitespace();
+        let (Some(first), Some(second)) = (words.next(), words.next()) else {
             continue;
         };
-        let Some((file, name)) = node.split_once("::") else {
-            continue;
-        };
-        let verdict = rest.split_whitespace().next().unwrap_or_default();
-        if !matches!(
-            verdict,
-            "PASSED" | "FAILED" | "ERROR" | "SKIPPED" | "XFAIL" | "XPASS"
-        ) {
-            continue;
+        if VERDICTS.contains(&first) {
+            // The summary shape: verdict first, node second. A
+            // SKIPPED line carries `file:line` and no node, and is
+            // left out here by its shape.
+            if let Some((file, name)) = second.split_once("::") {
+                take(file, name, first);
+            }
+        } else if VERDICTS.contains(&second)
+            && let Some((file, name)) = first.split_once("::")
+        {
+            take(file, name, second);
         }
-        if !file.ends_with(".py") || name.is_empty() {
-            continue;
-        }
-        out.push((file.to_string(), name.to_string(), verdict.to_string()));
     }
     out
 }
 
-/// What a run came to, read from how pytest left. This tongue
-/// answers with five distinct codes, measured before the plan: 0
-/// green, 1 a test failed, 2 collection broke, 4 no such node, 5
-/// nothing collected.
+/// What a run came to, read from how pytest left -- and, where a
+/// code carries more than one meaning, from what it said. Five
+/// codes, measured before the plan: 0 green, 1 a test failed, 2
+/// collection broke, 4 no such node, 5 nothing collected.
 ///
-/// The plan said the text would never be asked, and the measurement
-/// after it corrected the plan by one case: asked for ONE node in a
-/// file whose import broke, pytest leaves with 4 ("not found") and
-/// prints the SyntaxError above it -- so code 4 carries two meanings,
-/// exactly as elixir's 1 does, and the text tells them apart.
+/// The plan said the text would never be asked; the measurements
+/// after it corrected the plan twice. Code 0 is pytest's answer for
+/// a SKIPPED or XFAIL test too -- `1 skipped`, exit 0 -- and a test
+/// that did not run is not a green one, so 0 is green only where the
+/// summary says something PASSED (review 0045 R-3). And code 4 means
+/// three things: no such node; one node asked for in a file whose
+/// import broke (the SyntaxError printed above it); and a usage
+/// error, where pytest did not start at all (review 0045 R-12).
 pub fn classify(said: &str, code: i32) -> crate::adapter::Outcome {
     match code {
-        0 => crate::adapter::Outcome::Green,
+        0 if something_passed(said) => crate::adapter::Outcome::Green,
+        0 => crate::adapter::Outcome::NotRun,
         1 => crate::adapter::Outcome::Failed,
         2 => crate::adapter::Outcome::BuildBroken(first_error(said)),
-        4 if collection_broke(said) => crate::adapter::Outcome::BuildBroken(first_error(said)),
+        4 if collection_broke(said) || usage_error(said) => {
+            crate::adapter::Outcome::BuildBroken(first_error(said))
+        }
         4 | 5 => crate::adapter::Outcome::NotRun,
         _ => crate::adapter::Outcome::Failed,
     }
+}
+
+/// pytest's closing line names what happened to the tests it ran:
+/// `2 passed in 0.01s`, `1 skipped in 0.01s`, `1 xfailed in …`.
+fn something_passed(said: &str) -> bool {
+    said.lines().any(|line| {
+        let trimmed = line.trim_matches(|c: char| c == '=' || c == ' ');
+        trimmed.contains(" passed") && trimmed.contains(" in ")
+    })
 }
 
 /// pytest's traceback lines begin with `E `; one that names an error
@@ -203,33 +261,58 @@ fn collection_broke(said: &str) -> bool {
         .any(|line| line.starts_with("E ") && line.contains("Error"))
 }
 
-/// Python's own words for what broke: the `E   SyntaxError: …` line
-/// pytest prints under the traceback, with the file and line above
-/// it when they are there.
+/// `pytest: error: unrecognized arguments: …` -- pytest did not start,
+/// and code 4 is what it leaves with then too.
+fn usage_error(said: &str) -> bool {
+    said.lines()
+        .any(|line| line.trim().starts_with("pytest: error:"))
+}
+
+/// Python's own words for what broke, in this order: the `E   …Error`
+/// line pytest prints under a traceback, with the file and line above
+/// it when they are there; the `pytest: error:` line of a usage
+/// error; and, where neither stands, the `ERROR collecting <file>`
+/// banner stripped of its underscores together with the line that
+/// follows it -- which is where pytest puts words like `import file
+/// mismatch:` (review 0045 R-11).
 fn first_error(said: &str) -> String {
     let lines: Vec<&str> = said.lines().map(str::trim).collect();
-    let error = lines
+    if let Some(at) = lines
         .iter()
-        .position(|line| line.starts_with("E ") && line.contains("Error"));
-    match error {
-        Some(at) => {
-            let words = lines[at].trim_start_matches('E').trim();
-            let place = lines[..at]
-                .iter()
-                .rev()
-                .find(|line| line.starts_with("E ") && line.contains("File \""))
-                .map(|line| line.trim_start_matches('E').trim());
-            match place {
-                Some(place) => format!("{words} ({place})"),
-                None => words.to_string(),
-            }
-        }
-        None => lines
+        .position(|line| line.starts_with("E ") && line.contains("Error"))
+    {
+        let words = lines[at].trim_start_matches('E').trim();
+        let place = lines[..at]
             .iter()
-            .find(|line| line.contains("ERROR collecting") || line.contains("Interrupted"))
-            .map(|line| line.to_string())
-            .unwrap_or_else(|| "pytest could not collect this project".to_string()),
+            .rev()
+            .find(|line| line.starts_with("E ") && line.contains("File \""))
+            .map(|line| line.trim_start_matches('E').trim());
+        return match place {
+            Some(place) => format!("{words} ({place})"),
+            None => words.to_string(),
+        };
     }
+    if let Some(usage) = lines.iter().find(|line| line.starts_with("pytest: error:")) {
+        return usage.to_string();
+    }
+    if let Some(at) = lines
+        .iter()
+        .position(|line| line.contains("ERROR collecting"))
+    {
+        let banner = lines[at].trim_matches(|c: char| c == '_' || c == ' ');
+        let next = lines[at + 1..]
+            .iter()
+            .find(|line| !line.is_empty() && !line.starts_with('_') && !line.starts_with('='));
+        return match next {
+            Some(words) => format!("{banner}: {words}"),
+            None => banner.to_string(),
+        };
+    }
+    lines
+        .iter()
+        .find(|line| line.contains("Interrupted"))
+        .map(|line| line.to_string())
+        .unwrap_or_else(|| "pytest could not collect this project".to_string())
 }
 
 /// pytest as a command of the system, in the project's own world --
@@ -240,7 +323,7 @@ fn first_error(said: &str) -> String {
 fn pytest(root: &Path, args: &[String]) -> Result<(String, i32), Refusal> {
     let mut command = Command::new("pytest");
     command
-        .args(["-p", "no:cacheprovider"])
+        .args(["-p", "no:cacheprovider", "-rA"])
         .args(args)
         .env("PYTHONDONTWRITEBYTECODE", "1")
         .current_dir(root);

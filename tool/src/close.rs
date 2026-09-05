@@ -254,16 +254,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
                 found
                     .iter()
                     .filter(move |tag| tag.scenario == scenario)
-                    .map(|tag| {
-                        (
-                            tag.file
-                                .file_stem()
-                                .and_then(|s| s.to_str())
-                                .unwrap_or_default()
-                                .to_string(),
-                            tag.test.clone(),
-                        )
-                    })
+                    .map(|tag| (adapter::battery_key(root, &tag.file), tag.test.clone()))
             })
             .collect(),
         None => std::collections::BTreeSet::new(),
@@ -699,11 +690,10 @@ pub(crate) fn wave_state(
         }
         for tag in mine {
             if let Some(battery) = battery {
-                let stem = tag
-                    .file
-                    .file_stem()
-                    .map(|s| s.to_string_lossy().into_owned())
-                    .unwrap_or_default();
+                // The same key the adapter wrote, by the same hand
+                // (review 0045 R-1): a stem alone let two files of one
+                // name share an entry.
+                let stem = adapter::battery_key(root, &tag.file);
                 // Green only when green in every run (§7.13): green
                 // in some runs is a lack with its count, never a
                 // blessing by the one green run; red in all stays red.

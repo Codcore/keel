@@ -162,11 +162,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     let mut out: BTreeMap<(String, String), bool> = BTreeMap::new();
     for file in test_files(root)? {
         let relative = file.strip_prefix(root).unwrap_or(&file);
-        let stem = file
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default()
-            .to_string();
+        let stem = crate::adapter::battery_key(root, &file);
         let run = Command::new("ruby")
             .arg("-Itest")
             .arg(relative)

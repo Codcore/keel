@@ -315,3 +315,77 @@ fn what_the_ruby_adapter_does_not_read_is_named() {
         "and the verdict names the file it did not read:\n{said}"
     );
 }
+
+/// The battery key is the path from `test/` down, not the file's
+/// stem: `test/a/same_test.rb` and `test/b/same_test.rb` used to
+/// share one entry, the second overwriting the first, and a red test
+/// vanished with the wave closing over it. Found by review 0045 in
+/// python and measured in ruby the same day; the one key now serves
+/// the whole family.
+#[test]
+fn two_files_of_one_name_are_two_files() {
+    if !common::machine_has("ruby").ready() {
+        return;
+    }
+    let dir = keel_sandbox("rbstem");
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"ruby\"\n").unwrap();
+    std::fs::create_dir_all(dir.join("lib")).unwrap();
+    std::fs::write(dir.join("lib/toy.rb"), "class Toy\nend\n").unwrap();
+    for (sub, body) in [("a", "assert false, \"red\""), ("b", "assert true")] {
+        std::fs::create_dir_all(dir.join("test").join(sub)).unwrap();
+        std::fs::write(
+            dir.join("test").join(sub).join("same_test.rb"),
+            format!("require \"minitest/autorun\"\n\nclass SameTest < Minitest::Test\n  def test_same\n    {body}\n  end\nend\n"),
+        )
+        .unwrap();
+    }
+    let mut decisions = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        decisions.push_str(&format!("  {cut}: \"не про цю пісочницю\"\n"));
+    }
+    std::fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        format!("---\ntransforms:\n  work:\n    chore: \"робота без обіцянок\"\n    files:\n      - lib\n{decisions}---\n\n## transform: work\nтіло роботи\n"),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
+    let git = |args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .args(["-c", "user.email=keel@test", "-c", "user.name=keel-test"])
+            .args(args)
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "git {args:?}");
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "init"]);
+    git(&["checkout", "-q", "-b", "0001-a-wave"]);
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["close", dir.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        said.contains("батарея: 2 тестів"),
+        "two tests, as minitest ran them -- two files of one name:\n{said}"
+    );
+    assert!(
+        said.contains("червоний тест") && said.contains("a/same_test"),
+        "and the red one is named with its directory:\n{said}"
+    );
+    assert_ne!(
+        out.status.code().unwrap_or(-1),
+        0,
+        "so the wave stays open:\n{said}"
+    );
+}

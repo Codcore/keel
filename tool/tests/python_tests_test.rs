@@ -178,7 +178,10 @@ fn python_tests_are_read_and_run() {
     );
     let dir = project("pygrouped", &grouped);
     let (said, code) = keel(&dir, &["check"]);
-    assert_eq!(code, 0, "a tag over a method is read, past the docstring:\n{said}");
+    assert_eq!(
+        code, 0,
+        "a tag over a method is read, past the docstring:\n{said}"
+    );
     assert!(
         said.contains("тегів тестів звірено: 1"),
         "exactly the one tag, and the docstring's `def test_example` \
@@ -235,4 +238,257 @@ fn walk(root: &Path) -> Vec<String> {
         }
     }
     out
+}
+
+/// The shapes review 0045 found unjudged or wrong -- every one of
+/// them ordinary pytest, and every one measured with the real
+/// runner: a green close (the tag MATCHING the battery, which no
+/// probe had asserted), two files of one stem, parametrize, skip
+/// and xfail, a black-style decorator, `async def`, a project's own
+/// `addopts = "-q"`, a comment in column 0 inside a class, nested
+/// classes, `*_test.py`, a `'''` docstring, and the project left
+/// untouched after `close`.
+///
+/// proves: python-tests-are-read-and-run@e1fb34
+#[test]
+fn the_shapes_pytest_comes_in() {
+    if !common::machine_has("pytest").ready() {
+        return;
+    }
+    let rev = keel::rev::text_rev(BODY);
+    let reviewed = |dir: &Path| {
+        std::fs::write(
+            dir.join("keel/reviews/0001-a-wave.md"),
+            "# Рецензія\n\nok\n",
+        )
+        .unwrap();
+        git(dir, &["add", "-A"]);
+        git(dir, &["commit", "-q", "-m", "review"]);
+        git(dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    };
+
+    // M28: a GREEN close. The tag and the battery meet on the same
+    // key, and the wave closes -- the one thing every earlier python
+    // probe left unasserted, its only `close` being red.
+    let dir = project("pygreen", &test_file(&rev));
+    reviewed(&dir);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(code, 0, "a proven python wave closes:\n{said}");
+    assert!(
+        said.contains("0001-a-wave: закрита"),
+        "and says so:\n{said}"
+    );
+    // R-15: and after the battery ran three times, nothing was
+    // written into the project -- measured HERE, after close.
+    let written: Vec<String> = walk(&dir)
+        .into_iter()
+        .filter(|p| p.contains("__pycache__") || p.contains(".pytest_cache"))
+        .collect();
+    assert!(
+        written.is_empty(),
+        "close leaves the project as it found it: {written:?}"
+    );
+
+    // R-1: two files of one stem in two subdirectories. pytest says
+    // three tests, one failed; the court used to say two tests and
+    // close the wave -- the second file overwrote the first, and the
+    // verdict depended on collection order.
+    let dir = project("pystem", &test_file(&rev));
+    for sub in ["a", "b"] {
+        std::fs::create_dir_all(dir.join("tests").join(sub)).unwrap();
+        std::fs::write(dir.join("tests").join(sub).join("__init__.py"), "").unwrap();
+    }
+    std::fs::write(dir.join("tests/__init__.py"), "").unwrap();
+    std::fs::write(
+        dir.join("tests/a/test_x.py"),
+        "def test_same():\n    assert 1 == 2\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("tests/b/test_x.py"),
+        "def test_same():\n    assert True\n",
+    )
+    .unwrap();
+    reviewed(&dir);
+    let (said, code) = keel(&dir, &["close"]);
+    assert!(
+        said.contains("батарея: 3 тестів"),
+        "three tests, as pytest counted them -- two of one stem:\n{said}"
+    );
+    assert!(
+        said.contains("червоний тест") && said.contains("test_same") && said.contains("a/test_x"),
+        "and the red one is named with the directory that tells it \
+         from its namesake:\n{said}"
+    );
+    assert_ne!(
+        code, 0,
+        "a red test in a subdirectory holds the wave open:\n{said}"
+    );
+
+    // R-2: a parametrized test is one test to its tag. pytest names
+    // the instances `test_x[1-2]`; the tag names `test_x`; both the
+    // gate and the close must find it.
+    let dir = project(
+        "pyparam",
+        &format!(
+            "import pytest\nfrom toy import works\n\n# proves: it-works@{rev}\n@pytest.mark.parametrize(\"a,b\", [(1, 2), (3, 4)])\ndef test_it_works(a, b):\n    assert works() and a < b\n"
+        ),
+    );
+    reviewed(&dir);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(code, 0, "a parametrized test proves its scenario:\n{said}");
+    assert!(
+        said.contains("батарея: 1 тестів"),
+        "and its instances fold into the one test the tag names:\n{said}"
+    );
+
+    // R-3: a SKIPPED test did not run. The gate must not bless work
+    // over it (pytest leaves with 0, and 0 was read as green), and
+    // the close must neither call it red nor let it hold an unclaimed
+    // wave open -- it is not in the battery at all.
+    let dir = project(
+        "pyskip",
+        &format!(
+            "import pytest\nfrom toy import works\n\n# proves: it-works@{rev}\n@pytest.mark.skip(reason=\"not now\")\ndef test_it_works():\n    assert works()\n\n@pytest.mark.xfail\ndef test_expected():\n    assert False\n\ndef test_plain():\n    assert True\n"
+        ),
+    );
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let msg = dir.join("COMMIT_EDITMSG");
+    std::fs::write(&msg, "work: тіло\n").unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["gate", msg.to_str().unwrap(), dir.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_ne!(
+        out.status.code().unwrap_or(-1),
+        0,
+        "work over a SKIPPED test is not blessed -- pytest's 0 here \
+         means \"did not run\", not green:\n{said}"
+    );
+    assert!(
+        !said.contains("робота проходить"),
+        "and it does not say it passes:\n{said}"
+    );
+    // Already on the wave's branch from the gate above: the review
+    // file lands there, and the close judges it there.
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "review"]);
+    let (said, _) = keel(&dir, &["close"]);
+    assert!(
+        !said.contains("червоний тест"),
+        "a skipped or xfail test is not a RED test:\n{said}"
+    );
+    assert!(
+        said.contains("батарея: 1 тестів"),
+        "the battery holds only what ran -- the plain test:\n{said}"
+    );
+    assert!(
+        said.contains("не виконала тесту \"test_it_works\""),
+        "and the claimed, skipped test is a lack said as \"did not run\":\n{said}"
+    );
+
+    // R-4, R-5, R-9, R-10, T4: the reader and the shapes of a file.
+    // A black-style decorator over several lines; `async def`; a
+    // comment in column 0 inside a class; a nested class; a `'''`
+    // docstring holding a `def test_` of its own.
+    let shapes = format!(
+        "import pytest\nfrom toy import works\n\n'''How a test claims a promise:\n\n# proves: it-works@{rev}\ndef test_in_a_docstring():\n    pass\n'''\n\n# proves: it-works@{rev}\n@pytest.mark.parametrize(\n    \"a,b,expected\", [(1, 2, 3), (10, 20, 30), (100, 200, 300), (1000, 2000, 3000)]\n)\ndef test_it_works(a, b, expected):\n    assert works() and a + b == expected\n\nasync def test_async():\n    assert True\n\nclass TestOuter:\n# a comment in column 0, which python allows\n    class TestInner:\n        def test_deep(self):\n            assert True\n\n    def test_after_inner(self):\n        assert True\n"
+    );
+    let dir = project("pyshapes", &shapes);
+    std::fs::write(
+        dir.join("pyproject.toml"),
+        "[project]\nname = \"toy\"\nversion = \"0.1.0\"\n\n[tool.pytest.ini_options]\npythonpath = [\"src\"]\ntestpaths = [\"tests\"]\nasyncio_mode = \"auto\"\n",
+    )
+    .unwrap();
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(
+        code, 0,
+        "every one of those shapes is read, none refused:\n{said}"
+    );
+    assert!(
+        said.contains("тегів тестів звірено: 1"),
+        "exactly the one tag -- the docstring's def is text:\n{said}"
+    );
+    let tags = keel::tags::scan_text(
+        Path::new("tests/test_toy.py"),
+        &std::fs::read_to_string(dir.join("tests/test_toy.py")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(tags.len(), 1);
+    assert_eq!(
+        tags[0].test, "test_it_works",
+        "the tag rides over the whole decorator"
+    );
+    // The names the reader would give the others, checked without a
+    // tag: pytest's own names, class by class.
+    let named = |body: &str| -> Vec<String> {
+        keel::tags::scan_text(Path::new("t/test_x.py"), body)
+            .unwrap()
+            .into_iter()
+            .map(|t| t.test)
+            .collect()
+    };
+    assert_eq!(
+        named(&format!(
+            "class TestOuter:\n# comment\n    class TestInner:\n        # proves: it-works@{rev}\n        def test_deep(self):\n            pass\n"
+        )),
+        vec!["TestOuter::TestInner::test_deep".to_string()],
+        "nested classes stack, and a column-0 comment closes nothing"
+    );
+    assert_eq!(
+        named(&format!(
+            "class TestOuter:\n    class TestInner:\n        def test_deep(self):\n            pass\n\n    # proves: it-works@{rev}\n    def test_after(self):\n        pass\n"
+        )),
+        vec!["TestOuter::test_after".to_string()],
+        "a method after the inner class belongs to the outer one"
+    );
+    assert_eq!(
+        named(&format!(
+            "# proves: it-works@{rev}\nasync def test_async():\n    pass\n"
+        )),
+        vec!["test_async".to_string()],
+        "async def is a declaration"
+    );
+
+    // R-6: the project's own `addopts = "-q"` used to silence the
+    // voice the battery lives by -- "0 tests" over a green run.
+    // M3: a `*_test.py` file is read too.
+    let dir = project("pyaddq", &test_file(&rev));
+    std::fs::write(
+        dir.join("pyproject.toml"),
+        "[project]\nname = \"toy\"\nversion = \"0.1.0\"\n\n[tool.pytest.ini_options]\npythonpath = [\"src\"]\ntestpaths = [\"tests\"]\naddopts = \"-qq\"\n",
+    )
+    .unwrap();
+    // `-qq`, which even `-vv` does not outshout: only the `-rA`
+    // summary survives it. And the `*_test.py` file carries a tag of
+    // its own, so the reader's second name is judged, not only the
+    // runner's.
+    std::fs::write(
+        dir.join("tests/extra_test.py"),
+        format!("# proves: it-works@{rev}\ndef test_extra():\n    assert True\n"),
+    )
+    .unwrap();
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(code, 0, "a tag in a *_test.py file is read:\n{said}");
+    assert!(
+        said.contains("тегів тестів звірено: 2"),
+        "both names pytest collects by are read for tags:\n{said}"
+    );
+    reviewed(&dir);
+    let (said, code) = keel(&dir, &["close"]);
+    assert!(
+        said.contains("батарея: 2 тестів"),
+        "the roll survives the project's -qq, and *_test.py is in it:\n{said}"
+    );
+    assert_eq!(code, 0, "and the wave closes:\n{said}");
 }

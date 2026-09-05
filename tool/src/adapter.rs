@@ -77,6 +77,28 @@ pub enum BuildDir {
     Unknown,
 }
 
+/// The key a test has in the battery map -- and it is the SAME key
+/// on both sides: the adapters build it from what the runner said,
+/// the closing court builds it from a tag's file. The path from the
+/// tests directory down, without the extension: `a/test_x`, never
+/// the bare stem. A stem is not unique -- `tests/a/test_x.py` and
+/// `tests/b/test_x.py` collided, the second overwrote the first, and
+/// a red test vanished with the wave closing over it, the verdict
+/// depending on collection order (review 0045 R-1). The same shape
+/// stood in ruby. For rust the tests directory is flat, so this is
+/// the stem it always was.
+pub fn battery_key(root: &Path, file: &Path) -> String {
+    let base = tests_dir(root).unwrap_or_else(|_| root.to_path_buf());
+    let relative = file
+        .strip_prefix(&base)
+        .or_else(|_| file.strip_prefix(root))
+        .unwrap_or(file);
+    relative
+        .with_extension("")
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
 /// Whether this tongue's build is the kind that wants gigabytes.
 /// cargo's is; mix's `_build` measured 148 KiB on the same battery
 /// (review 0042 R-4). A warning four orders of magnitude out is not

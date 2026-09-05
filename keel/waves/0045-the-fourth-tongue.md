@@ -26,6 +26,10 @@ transforms:
       - tool/i18n/en.ftl
       - tool/tests/python_tests_test.rs
       - tool/tests/python_border_test.rs
+      - tool/tests/ruby_tests_test.rs
+      - tool/src/close.rs
+      - tool/src/ruby.rs
+      - tool/src/elixir.rs
   a-python-module-is-compared:
     implements:
       - a-python-contract-holds-its-form
@@ -66,7 +70,7 @@ decisions:
   security.resistance: "свідомо без окремої роботи: вузол тесту йде окремим аргументом pytest, не крізь шел; імʼя береться з оголошення `def`, тобто з ідентифікатора, який не може нести метасимволів"
   maintainability.modularity: "тримає a-python-contract-holds-its-form: мовне обличчя живе в адаптері мови, суди питають адаптер — зокрема `battery_dir` і `strip_comments`"
   maintainability.reusability: "тримає a-python-contract-holds-its-form: python ділить із ruby й elixir один читач коментарів — `#` і трьохлапкові docstring-и це та сама робота, що elixir-ові `\"\"\"`, а не схожа"
-  maintainability.modifiability: "свідомо без тесту, і число з README перевірене цією хвилею: мова — це модуль, рядок у NAMES, словник і чотирнадцять місць диспетчеризації; жодного нового місця ця хвиля не додає, і це міряється тим самим переліком"
+  maintainability.modifiability: "свідомо без тесту, і число з README ПЕРЕРАХОВАНЕ рецензією 0045, а не переписане: мова — це модуль, рядок у NAMES, словник і сімнадцять місць, що гілкуються за мовою (`grep language_of|config.language()` — 17; README казав чотирнадцять, бо хвиля 0044 додала три і не порахувала). Ця хвиля нового місця не додає, і додала одне спільне — `adapter::battery_key`, яке не гілкується"
   maintainability.testability: "свідомо без тесту: проби будують справжні pytest-проєкти спільною рукою 0030 і женуть справжній pytest; де його нема — зупиняються вголос рукою хвилі 0044"
   flexibility.scalability: "не застосовується"
   flexibility.installability: "не застосовується"

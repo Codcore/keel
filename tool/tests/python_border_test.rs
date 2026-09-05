@@ -187,7 +187,7 @@ fn a_tongue_with_five_answers_says_them() {
 fn what_pytest_said_by_its_code_alone() {
     use keel::adapter::Outcome;
     assert!(matches!(
-        keel::python::classify("3 passed", 0),
+        keel::python::classify("3 passed in 0.03s", 0),
         Outcome::Green
     ));
     assert!(matches!(
@@ -219,4 +219,79 @@ fn what_pytest_said_by_its_code_alone() {
         keel::python::classify("no tests ran", 5),
         Outcome::NotRun
     ));
+}
+
+/// The words python says when the collection breaks without a
+/// traceback (an `import file mismatch`), and when pytest does not
+/// start at all (a usage error) -- both refusals with python's own
+/// words, never "did not run" (review 0045 R-11, R-12, M13).
+///
+/// proves: a-tongue-with-five-answers-says-them@303382
+#[test]
+fn a_refusal_carries_pytests_own_words() {
+    if !common::machine_has("pytest").ready() {
+        return;
+    }
+    let rev = keel::rev::text_rev(BODY);
+
+    // Two `test_x.py` without `__init__.py` files: pytest refuses to
+    // collect the second with `import file mismatch`, and prints it
+    // under an underscored banner rather than an `E` line.
+    let dir = project(
+        "pymismatch",
+        &format!(
+            "from toy import works\n\n# proves: it-works@{rev}\ndef test_it_works():\n    assert works()\n"
+        ),
+    );
+    for sub in ["a", "b"] {
+        std::fs::create_dir_all(dir.join("tests").join(sub)).unwrap();
+        std::fs::write(
+            dir.join("tests").join(sub).join("test_x.py"),
+            "def test_same():\n    assert True\n",
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "more"]);
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "a collection that broke is a refusal:\n{said}");
+    assert!(
+        said.contains("import file mismatch"),
+        "with the words pytest wrote under the banner, not the banner's \
+         underscores:\n{said}"
+    );
+    assert!(
+        !said.contains("_____"),
+        "no decoration passes for a reason:\n{said}"
+    );
+
+    // A usage error: pytest did not start. Code 4, like "no such
+    // node" -- and nothing like it.
+    let dir = project(
+        "pyusage",
+        &format!(
+            "from toy import works\n\n# proves: it-works@{rev}\ndef test_it_works():\n    assert works()\n"
+        ),
+    );
+    std::fs::write(
+        dir.join("pyproject.toml"),
+        "[project]\nname = \"toy\"\nversion = \"0.1.0\"\n\n[tool.pytest.ini_options]\npythonpath = [\"src\"]\naddopts = \"--no-such-flag\"\n",
+    )
+    .unwrap();
+    let (said, code) = gate(&dir);
+    assert_ne!(
+        code, 0,
+        "work over a runner that did not start does not pass:\n{said}"
+    );
+    assert!(
+        said.contains("unrecognized arguments"),
+        "and the refusal says why in pytest's words -- not \"did not \
+         run\", which would send a person looking for a test:\n{said}"
+    );
 }
