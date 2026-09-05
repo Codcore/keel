@@ -56,6 +56,17 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
             file.extension().and_then(|e| e.to_str()),
             Some("js") | Some("mjs") | Some("cjs") | Some("ts") | Some("mts")
         );
+        // rspec names an example by its FULL DESCRIPTION: every
+        // `describe`/`context` above it, joined the way rspec joins
+        // them, then the example's own string (wave 0047). A spec
+        // file is told by its name -- `_spec.rb` -- and read with a
+        // stack of groups by `do…end` depth, elixir's mechanism with
+        // python's stack.
+        let spec = file
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.ends_with("_spec.rb"));
+        let mut groups: Vec<(SpecGroup, usize)> = Vec::new();
         // A STACK of classes, because they nest: pytest names a
         // method `TestOuter::TestInner::test_x` (review 0045 R-10).
         let mut classes: Vec<(String, usize)> = Vec::new();
@@ -116,7 +127,67 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                     continue;
                 }
             }
-            let declared = if elixir {
+            let declared = if spec {
+                // The group above, opened by `describe`/`context`
+                // (or their `x`/`f` cousins, or `shared_examples`,
+                // which is a group whose examples have no single
+                // name), closes with the `end` at its own depth --
+                // the same count elixir's describe keeps.
+                if trimmed == "end" || trimmed.starts_with("end ") || trimmed.starts_with("end.") {
+                    if let Some((_, opened)) = groups.last()
+                        && depth == *opened + 1
+                    {
+                        groups.pop();
+                    }
+                    depth = depth.saturating_sub(1);
+                    None
+                } else {
+                    // A block opens where the line ends in `do` (or
+                    // `do |x|`); a comment is not a line of code.
+                    let opens = !trimmed.starts_with('#')
+                        && (trimmed.ends_with(" do")
+                            || trimmed.contains(" do |")
+                            || trimmed == "do");
+                    if let Some(group) = spec_group(trimmed) {
+                        groups.push((group, depth));
+                        if opens {
+                            depth += 1;
+                        }
+                        None
+                    } else {
+                        let named = match spec_example(trimmed) {
+                            Some(SpecExample::Named(name)) => {
+                                match groups.iter().find(|(g, _)| matches!(g, SpecGroup::Shared)) {
+                                    Some(_) if pending.is_some() => {
+                                        let (scenario, rev) = pending.take().unwrap();
+                                        return Err(spec_refusal(
+                                            file,
+                                            "tags-spec-shared",
+                                            &scenario,
+                                            &rev,
+                                        ));
+                                    }
+                                    _ => Some(spec_full_description(&groups, &name)),
+                                }
+                            }
+                            Some(SpecExample::OneLiner) if pending.is_some() => {
+                                let (scenario, rev) = pending.take().unwrap();
+                                return Err(spec_refusal(
+                                    file,
+                                    "tags-spec-one-liner",
+                                    &scenario,
+                                    &rev,
+                                ));
+                            }
+                            _ => None,
+                        };
+                        if opens {
+                            depth += 1;
+                        }
+                        named
+                    }
+                }
+            } else if elixir {
                 // A `describe` opens a group whose name ExUnit puts
                 // in front of every test inside it; `end` closes the
                 // innermost block, and only a describe's own end
@@ -378,6 +449,219 @@ pub fn js_test_name(trimmed: &str) -> Option<String> {
     match js_call(trimmed)? {
         JsCall::Named(name) => Some(name),
         _ => None,
+    }
+}
+
+/// A group in a spec file, as rspec names it in a full description.
+enum SpecGroup {
+    /// `describe "#works"`, `context "when called"`, `RSpec.describe
+    /// Toy`, `describe Toy, "with an arg"` -- the description rspec
+    /// composes for it.
+    Named(String),
+    /// `shared_examples`/`shared_context`: examples inside have as
+    /// many names as the places that include them.
+    Shared,
+}
+
+/// An example line in a spec file.
+enum SpecExample {
+    /// `it "name" do`, `specify 'name' do`, `example "name", :meta do`
+    Named(String),
+    /// `it { … }` -- rspec names it by its location, and no tag can.
+    OneLiner,
+}
+
+/// The group a spec line opens, if it opens one. `RSpec.describe Toy
+/// do` describes the constant by its name; `describe Toy, "text" do`
+/// joins the two with a space (measured); a string is itself.
+fn spec_group(trimmed: &str) -> Option<SpecGroup> {
+    let rest = trimmed.strip_prefix("RSpec.").unwrap_or(trimmed);
+    for word in ["shared_examples_for", "shared_examples", "shared_context"] {
+        if rest.starts_with(word) && rest[word.len()..].starts_with([' ', '(']) {
+            return Some(SpecGroup::Shared);
+        }
+    }
+    let after = [
+        "describe",
+        "context",
+        "xdescribe",
+        "xcontext",
+        "fdescribe",
+        "fcontext",
+        "feature",
+    ]
+    .iter()
+    .find_map(|word| {
+        rest.strip_prefix(word)
+            .filter(|after| after.starts_with([' ', '(']))
+    })?;
+    let args = after.trim_start_matches(['(', ' ']);
+    // The arguments up to the block: each is a constant, a string, or
+    // metadata; the description is the constant and the strings.
+    let mut parts: Vec<String> = Vec::new();
+    for arg in spec_args(args) {
+        if let Some(text) = spec_string(&arg) {
+            parts.push(text);
+        } else if arg.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
+            parts.push(arg.trim_end_matches(')').to_string());
+        }
+    }
+    (!parts.is_empty()).then(|| SpecGroup::Named(parts.join(" ")))
+}
+
+/// The example a spec line declares, if it declares one.
+fn spec_example(trimmed: &str) -> Option<SpecExample> {
+    let after = [
+        "it", "specify", "example", "xit", "xspecify", "xexample", "fit", "fspecify", "fexample",
+        "scenario",
+    ]
+    .iter()
+    .find_map(|word| {
+        trimmed
+            .strip_prefix(word)
+            .filter(|after| after.starts_with([' ', '(', '{']))
+    })?;
+    let args = after.trim_start();
+    if args.starts_with('{') || args.starts_with("do") {
+        return Some(SpecExample::OneLiner);
+    }
+    let args = args.trim_start_matches(['(', ' ']);
+    let first = spec_args(args).into_iter().next()?;
+    Some(match spec_string(&first) {
+        Some(name) => SpecExample::Named(name),
+        None => SpecExample::OneLiner,
+    })
+}
+
+/// The arguments of a call, up to the block (` do` or `{`) and split
+/// on commas outside quotes; a closing parenthesis is not an
+/// argument.
+fn spec_args(args: &str) -> Vec<String> {
+    let chars: Vec<char> = args.chars().collect();
+    let mut body = String::new();
+    let mut quote: Option<char> = None;
+    let mut i = 0usize;
+    while i < chars.len() {
+        let ch = chars[i];
+        if let Some(q) = quote {
+            body.push(ch);
+            if ch == '\\' && i + 1 < chars.len() {
+                body.push(chars[i + 1]);
+                i += 2;
+                continue;
+            }
+            if ch == q {
+                quote = None;
+            }
+            i += 1;
+            continue;
+        }
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                body.push(ch);
+            }
+            '{' => break,
+            ')' => {}
+            'd' if chars.get(i + 1) == Some(&'o')
+                && (i == 0 || chars[i - 1].is_whitespace() || chars[i - 1] == ')')
+                && chars
+                    .get(i + 2)
+                    .is_none_or(|c| c.is_whitespace() || *c == '|') =>
+            {
+                break;
+            }
+            _ => body.push(ch),
+        }
+        i += 1;
+    }
+    let mut out: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut quote: Option<char> = None;
+    let mut chars = body.chars();
+    while let Some(ch) = chars.next() {
+        match quote {
+            Some(q) => {
+                current.push(ch);
+                if ch == '\\' {
+                    if let Some(next) = chars.next() {
+                        current.push(next);
+                    }
+                } else if ch == q {
+                    quote = None;
+                }
+            }
+            None => match ch {
+                '"' | '\'' => {
+                    quote = Some(ch);
+                    current.push(ch);
+                }
+                ',' => {
+                    out.push(current.trim().to_string());
+                    current.clear();
+                }
+                _ => current.push(ch),
+            },
+        }
+    }
+    if !current.trim().is_empty() {
+        out.push(current.trim().to_string());
+    }
+    out
+}
+
+/// A string argument's text, escapes read; None for anything that is
+/// not a string.
+fn spec_string(arg: &str) -> Option<String> {
+    let quote = arg.chars().next()?;
+    if !matches!(quote, '"' | '\'') {
+        return None;
+    }
+    let mut out = String::new();
+    let mut chars = arg[1..].chars();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\\' => {
+                if let Some(next) = chars.next() {
+                    out.push(next);
+                }
+            }
+            c if c == quote => return Some(out),
+            c => out.push(c),
+        }
+    }
+    None
+}
+
+/// rspec's own join: groups and the example separated by a space,
+/// except that a description starting with `#` or `.` -- a method --
+/// follows its group without one (`Toy#works`, `Toy.new`). Measured.
+fn spec_full_description(groups: &[(SpecGroup, usize)], name: &str) -> String {
+    let mut out = String::new();
+    for (group, _) in groups {
+        if let SpecGroup::Named(text) = group {
+            spec_join(&mut out, text);
+        }
+    }
+    spec_join(&mut out, name);
+    out
+}
+
+fn spec_join(out: &mut String, text: &str) {
+    if !out.is_empty() && !text.starts_with(['#', '.']) {
+        out.push(' ');
+    }
+    out.push_str(text);
+}
+
+fn spec_refusal(file: &Path, key: &str, scenario: &str, rev: &str) -> Refusal {
+    Refusal {
+        file: file.to_path_buf(),
+        reason: ta(
+            key,
+            targs!("scenario" => scenario.to_string(), "rev" => rev.to_string()),
+        ),
+        instead: t(&format!("{key}-instead")),
     }
 }
 
