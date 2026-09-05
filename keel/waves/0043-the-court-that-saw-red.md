@@ -28,6 +28,7 @@ transforms:
       - tool/i18n/en.ftl
       - keel/contracts/tool-adapter-elixir.md
       - tool/tests/elixir_border_test.rs
+      - tool/examples/corpus.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:
@@ -50,7 +51,7 @@ decisions:
   interaction.user-engagement: "не застосовується"
   interaction.inclusivity: "не застосовується"
   interaction.self-descriptiveness: "тримає a-red-test-holds-the-wave-open: вирок називає не лише ЩО червоне, а й що саме через це не закривається — рядок про червоний тест перестає бути тільки прозою"
-  interaction.user-assistance: "свідомо без тесту: нова відмова несе «натомість» — суд слів проти коду (хвиля 0035) тримає підставлення"
+  interaction.user-assistance: "свідомо без окремої роботи, і сказано точно: нові рядки суду закриття — це ВИРОК, а не відмова, тож «натомість» вони не несуть (рецензія 0043 R-13 упіймала протилежне твердження). Що робити, каже сам рядок: імена червоних стоять вище нього"
   reliability.fault-tolerance: "тримає a-red-test-holds-the-wave-open: суд, який бачив червоне і закрив, — гірший за суд, який не біг; напрям виправлення не робить із червоного зеленого ніде"
   reliability.availability: "не застосовується"
   reliability.recoverability: "не застосовується"
@@ -64,7 +65,7 @@ decisions:
   maintainability.reusability: "тримає a-promise-alive-only-in-prose-does-not-hold: одна рука на rust, ruby й elixir, бо ховати код у тексті всі три вміють однаково"
   maintainability.modifiability: "не застосовується"
   maintainability.analysability: "тримає a-red-test-holds-the-wave-open: хто читає вирок, бачить причину незакриття поруч із її іменем"
-  maintainability.testability: "свідомо без тесту: проби будують справжні проєкти спільною рукою 0030 і жеуть справжні бігуни"
+  maintainability.testability: "свідомо без тесту: проби будують справжні проєкти спільною рукою 0030 і женуть справжні бігуни"
   flexibility.scalability: "не застосовується"
   flexibility.installability: "не застосовується"
   flexibility.replaceability: "не застосовується"
@@ -72,7 +73,7 @@ decisions:
   safety.operational-constraints: "не застосовується"
   safety.risk-identification: "свідомо без окремої роботи: ризик названий числом — обидві вади зміряно в УСІХ трьох мовах, тобто це не мовна дірка, а дірка суду"
   safety.hazard-warning: "тримає a-red-test-holds-the-wave-open: попередження, за яким нічого не стоїть, — це не попередження"
-  safety.safe-integration: "тримає a-promise-alive-only-in-prose-does-not-hold: наявні контракти keel судяться так само — 103 сигнатури мусять лишитись зеленими, і батарея це міряє"
+  safety.safe-integration: "тримає a-promise-alive-only-in-prose-does-not-hold: суворіший суд не сміє відмовляти живому коду. Міряє це не батарея keel (вона свої 103 сигнатури не жене окремою пробою — це робить keel.yml на CI), а проба, що ставить ЖИВЕ оголошення в кожну з трьох мов у кожній формі тексту, плюс прохід читача по 3419 файлах реєстру cargo і 1488 файлах бібліотеки ruby: втрат — нуль (рецензія 0043 R-10, R-13)"
 ---
 
 ## Why

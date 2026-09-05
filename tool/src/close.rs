@@ -239,7 +239,39 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         })
         .collect();
     fell.sort();
-    let red_tests = fell.len();
+    // Counted ONCE (review 0043 R-5). A red test that a scenario of
+    // this branch's own wave claims is already a lack under that
+    // wave, named there with its scenario; adding it here again made
+    // `blockers` say two where one test fell. So the tally below
+    // counts only the reds nobody's promise was already holding.
+    let claimed: std::collections::BTreeSet<(String, String)> = match &branch {
+        Some(slug) => scan
+            .waves
+            .iter()
+            .filter(|wave| &wave.slug == slug)
+            .flat_map(|wave| wave.scenarios.iter().map(|(name, _)| name.clone()))
+            .flat_map(|scenario| {
+                found
+                    .iter()
+                    .filter(move |tag| tag.scenario == scenario)
+                    .map(|tag| {
+                        (
+                            tag.file
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or_default()
+                                .to_string(),
+                            tag.test.clone(),
+                        )
+                    })
+            })
+            .collect(),
+        None => std::collections::BTreeSet::new(),
+    };
+    let red_tests = battery
+        .iter()
+        .filter(|(key, runs)| runs.iter().any(|green| !green) && !claimed.contains(*key))
+        .count();
     for line in &fell {
         report.push_str(line);
         report.push('\n');
@@ -331,7 +363,18 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         // were proven at their time, and today's red is not their
         // lack -- but it IS this one's, whichever promise the red
         // test belongs to (wave 0043).
-        if own && red_tests > 0 && !matches!(state, State::Progress(_) | State::Plan) {
+        // A wave that was CANCELLED has nothing to prove, and its
+        // reason is the whole point of the line (review 0043 R-6);
+        // a wave still in work names its own lacks, and a plan has
+        // no tests yet. None of those is "closed", so none of them
+        // is what this rule is for.
+        if own
+            && red_tests > 0
+            && !matches!(
+                state,
+                State::Progress(_) | State::Plan | State::Cancelled(_)
+            )
+        {
             report.push_str(&ta(
                 "close-held-by-red",
                 targs!("wave" => wave.slug.clone(), "count" => red_tests as u64),
@@ -421,7 +464,13 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             targs!("wave" => branch.unwrap_or_default(), "count" => blockers as u64),
         ));
         report.push('\n');
-    } else if own_plan && red_tests == 0 {
+    } else if own_plan {
+        // The honest plan footer stays honest under a red tree
+        // (review 0043 R-7): a plan PR merges as a plan (§6.6), and
+        // sec. 8.3's own words are that a gate always shut stops
+        // being read. The reds are counted above and carry the exit
+        // code themselves -- this line says what KIND of PR this is,
+        // not that all is well.
         // The honest footer for the plan branch (review R-2): a plan
         // PR merges as a plan (§6.6), and the old words would lie.
         report.push_str(&ta(

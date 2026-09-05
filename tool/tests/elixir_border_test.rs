@@ -412,9 +412,15 @@ fn the_battery_believes_mix_and_not_the_source() {
         "and the finding names the file it looked in:\n{said}"
     );
     assert!(
+        said.contains("сигнатур звірено: 1"),
+        "the form court DID compare it -- the refusal is a verdict, \
+         not a court that skipped (review 0043 R-14: this assertion \
+         was dropped when the case was turned round):\n{said}"
+    );
+    assert!(
         said.contains("не пише типів"),
-        "the border that DOES stand is still said: elixir writes no \
-         types, so green form is less than meaning:\n{said}"
+        "and the border that DOES stand is still said: elixir writes \
+         no types, so green form is less than meaning:\n{said}"
     );
 
     // The reviewer's mutation list, and its sharp reading: "every
