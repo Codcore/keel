@@ -18,8 +18,6 @@ transforms:
       - tool/Cargo.toml
       - tool/src/lib.rs
       - keel/contracts/tool-json.md
-      - tool/i18n/uk.ftl
-      - tool/i18n/en.ftl
       - tool/tests/one_envelope_test.rs
   every-court-fills-it:
     implements:
@@ -27,8 +25,6 @@ transforms:
     files:
       - tool/src/main.rs
       - tool/src/check.rs
-      - tool/src/close.rs
-      - tool/src/version.rs
       - tool/tests/json_out_test.rs
   the-frame-takes-flags:
     implements:
