@@ -67,6 +67,7 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
             .and_then(|n| n.to_str())
             .is_some_and(|n| n.ends_with("_spec.rb"));
         let mut groups: Vec<(SpecGroup, usize)> = Vec::new();
+        let mut heredoc_end: Option<String> = None;
         // A STACK of classes, because they nest: pytest names a
         // method `TestOuter::TestInner::test_x` (review 0045 R-10).
         let mut classes: Vec<(String, usize)> = Vec::new();
@@ -90,6 +91,14 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
             // file `mix test` runs green was refused). Counted, not
             // flagged, because a heredoc may open and close on one
             // line.
+            if spec && let Some(terminator) = &heredoc_end {
+                // Inside a heredoc: the terminator closes it, and
+                // nothing in between is code (review 0047 R-2).
+                if trimmed == terminator {
+                    heredoc_end = None;
+                }
+                continue;
+            }
             if elixir || python {
                 let fences = trimmed.matches("\"\"\"").count() + trimmed.matches("'''").count();
                 let was = heredoc;
@@ -128,65 +137,65 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 }
             }
             let declared = if spec {
-                // The group above, opened by `describe`/`context`
-                // (or their `x`/`f` cousins, or `shared_examples`,
-                // which is a group whose examples have no single
-                // name), closes with the `end` at its own depth --
-                // the same count elixir's describe keeps.
-                if trimmed == "end" || trimmed.starts_with("end ") || trimmed.starts_with("end.") {
-                    if let Some((_, opened)) = groups.last()
-                        && depth == *opened + 1
-                    {
-                        groups.pop();
-                    }
-                    depth = depth.saturating_sub(1);
-                    None
-                } else {
-                    // A block opens where the line ends in `do` (or
-                    // `do |x|`); a comment is not a line of code.
-                    let opens = !trimmed.starts_with('#')
-                        && (trimmed.ends_with(" do")
-                            || trimmed.contains(" do |")
-                            || trimmed == "do");
-                    if let Some(group) = spec_group(trimmed) {
-                        groups.push((group, depth));
-                        if opens {
-                            depth += 1;
-                        }
-                        None
-                    } else {
-                        let named = match spec_example(trimmed) {
-                            Some(SpecExample::Named(name)) => {
-                                match groups.iter().find(|(g, _)| matches!(g, SpecGroup::Shared)) {
-                                    Some(_) if pending.is_some() => {
-                                        let (scenario, rev) = pending.take().unwrap();
-                                        return Err(spec_refusal(
-                                            file,
-                                            "tags-spec-shared",
-                                            &scenario,
-                                            &rev,
-                                        ));
-                                    }
-                                    _ => Some(spec_full_description(&groups, &name)),
-                                }
+                // The line's CODE: a trailing `# …` outside quotes is
+                // not code, and a `do` in it opens nothing (review
+                // 0047 R-2).
+                let code = ruby_code(trimmed);
+                // A heredoc's body is text, and its `end`s are words
+                // of the text: skip to the terminator.
+                if let Some(terminator) = ruby_heredoc(&code) {
+                    heredoc_end = Some(terminator);
+                }
+                let (opens, ends) = ruby_depth(&code);
+                let mut named: Option<String> = None;
+                if let Some(group) = spec_group(&code, &groups) {
+                    groups.push((group, depth));
+                } else if pending.is_some() {
+                    match spec_example(&code) {
+                        Some(SpecExample::Named(name)) => {
+                            let (scenario, rev) = pending.clone().unwrap();
+                            if let Some((bad, what)) = groups.iter().find_map(|(g, _)| match g {
+                                SpecGroup::Shared => Some(("tags-spec-shared", String::new())),
+                                SpecGroup::Named {
+                                    fault: Some(what), ..
+                                } => Some(("tags-spec-nonliteral", what.clone())),
+                                _ => None,
+                            }) {
+                                return Err(spec_refusal(file, bad, &scenario, &rev, &what));
                             }
-                            Some(SpecExample::OneLiner) if pending.is_some() => {
-                                let (scenario, rev) = pending.take().unwrap();
-                                return Err(spec_refusal(
-                                    file,
-                                    "tags-spec-one-liner",
-                                    &scenario,
-                                    &rev,
-                                ));
-                            }
-                            _ => None,
-                        };
-                        if opens {
-                            depth += 1;
+                            named = Some(spec_full_description(&groups, &name));
                         }
-                        named
+                        Some(SpecExample::Dynamic) => {
+                            let (scenario, rev) = pending.take().unwrap();
+                            return Err(spec_refusal(
+                                file,
+                                "tags-spec-dynamic",
+                                &scenario,
+                                &rev,
+                                "",
+                            ));
+                        }
+                        Some(SpecExample::NoName) => {
+                            let (scenario, rev) = pending.take().unwrap();
+                            return Err(spec_refusal(
+                                file,
+                                "tags-spec-one-liner",
+                                &scenario,
+                                &rev,
+                                "",
+                            ));
+                        }
+                        None => {}
                     }
                 }
+                // Depth after this line: what it opened, less what it
+                // closed -- and every group opened at or above the new
+                // depth is closed with it.
+                depth = (depth + opens).saturating_sub(ends);
+                while groups.last().is_some_and(|(_, opened)| *opened >= depth) {
+                    groups.pop();
+                }
+                named
             } else if elixir {
                 // A `describe` opens a group whose name ExUnit puts
                 // in front of every test inside it; `end` closes the
@@ -455,9 +464,17 @@ pub fn js_test_name(trimmed: &str) -> Option<String> {
 /// A group in a spec file, as rspec names it in a full description.
 enum SpecGroup {
     /// `describe "#works"`, `context "when called"`, `RSpec.describe
-    /// Toy`, `describe Toy, "with an arg"` -- the description rspec
-    /// composes for it.
-    Named(String),
+    /// Toy`, `describe Toy, "with an arg"` -- with the description rspec
+    /// composes for it, whether its LAST argument is a module (the
+    /// join rule below asks), the module it names if any (for a
+    /// `described_class` below it), and the argument the reader could
+    /// not read, if one was there.
+    Named {
+        text: String,
+        last_is_module: bool,
+        module: Option<String>,
+        fault: Option<String>,
+    },
     /// `shared_examples`/`shared_context`: examples inside have as
     /// many names as the places that include them.
     Shared,
@@ -467,15 +484,133 @@ enum SpecGroup {
 enum SpecExample {
     /// `it "name" do`, `specify 'name' do`, `example "name", :meta do`
     Named(String),
-    /// `it { … }` -- rspec names it by its location, and no tag can.
-    OneLiner,
+    /// `it "works #{value}"`: a name rspec builds at run time.
+    Dynamic,
+    /// `it { … }` or `it do … end` -- rspec names it by its location,
+    /// and no tag can.
+    NoName,
 }
 
-/// The group a spec line opens, if it opens one. `RSpec.describe Toy
-/// do` describes the constant by its name; `describe Toy, "text" do`
-/// joins the two with a space (measured); a string is itself.
-fn spec_group(trimmed: &str) -> Option<SpecGroup> {
-    let rest = trimmed.strip_prefix("RSpec.").unwrap_or(trimmed);
+/// One argument of `describe`/`it`, as rspec would read it.
+enum SpecArg {
+    /// A string, or a symbol -- text as rspec prints it.
+    Text(String),
+    /// A constant that names a module or a class: `Toy`, `Toy::Inner`.
+    Module(String),
+    /// `described_class`: the nearest module a group above named.
+    DescribedClass,
+    /// Metadata (`:slow`, `focus: true`) after the description.
+    Meta,
+    /// A string with `#{…}` in it.
+    Dynamic,
+    /// Anything the reader cannot know the text of: a variable, a
+    /// method, a constant whose value is not its name (`Toy::VERSION`).
+    Unknown(String),
+}
+
+/// The line's code: a trailing `# comment` outside quotes is not
+/// code. `#{…}` inside a double-quoted string is not a comment either.
+fn ruby_code(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut quote: Option<char> = None;
+    let mut chars = line.chars().peekable();
+    while let Some(ch) = chars.next() {
+        match quote {
+            Some(q) => {
+                out.push(ch);
+                if ch == '\\' {
+                    if let Some(next) = chars.next() {
+                        out.push(next);
+                    }
+                } else if ch == q {
+                    quote = None;
+                }
+            }
+            None => match ch {
+                '"' | '\'' => {
+                    quote = Some(ch);
+                    out.push(ch);
+                }
+                '#' => break,
+                _ => out.push(ch),
+            },
+        }
+    }
+    out.trim_end().to_string()
+}
+
+/// The terminator of a heredoc this line opens (`<<~TXT`, `<<-TXT`,
+/// `<<TXT`, quoted or not), if it opens one.
+fn ruby_heredoc(code: &str) -> Option<String> {
+    let at = code.find("<<")?;
+    let rest = code[at + 2..].trim_start_matches(['~', '-']);
+    let rest = rest.trim_start_matches(['\'', '"']);
+    let word: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || *c == '_')
+        .collect();
+    (!word.is_empty() && word.chars().next().is_some_and(|c| c.is_ascii_uppercase()))
+        .then_some(word)
+}
+
+/// What a line of ruby opens and closes: a block `do` (or `do |x|`) at
+/// its end, a `def`/`if`/`unless`/`case`/`begin`/`while`/`until`/
+/// `class`/`module`/`for` as its first word (or right after `=`), and
+/// every `end` word in it. Ruby closes all of these with `end`, and a
+/// reader that opened on `do` alone lost a group at every `def` in a
+/// spec (review 0047 R-2). An endless `def x = …` opens nothing.
+fn ruby_depth(code: &str) -> (usize, usize) {
+    let words: Vec<&str> = code
+        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .filter(|w| !w.is_empty())
+        .collect();
+    let ends = words.iter().filter(|w| **w == "end").count();
+    let mut opens = 0usize;
+    let block = code.ends_with(" do") || code == "do" || code.contains(" do |");
+    if block {
+        opens += 1;
+    }
+    const OPENERS: [&str; 10] = [
+        "def", "if", "unless", "case", "begin", "while", "until", "class", "module", "for",
+    ];
+    let first = words.first().copied().unwrap_or("");
+    let after_assign = code
+        .split_once('=')
+        .map(|(_, rest)| rest.trim_start())
+        .and_then(|rest| rest.split_whitespace().next())
+        .filter(|word| OPENERS.contains(word) && !block);
+    if OPENERS.contains(&first) {
+        let endless = first == "def" && {
+            let after = code["def".len()..].trim_start();
+            let after = match after.find('(') {
+                Some(open) => after[open..]
+                    .trim_start_matches(|c| c != ')')
+                    .trim_start_matches(')'),
+                None => after.trim_start_matches(|c: char| {
+                    c.is_alphanumeric() || c == '_' || c == '.' || c == '?' || c == '!'
+                }),
+            };
+            after.trim_start().starts_with('=') && !after.trim_start().starts_with("==")
+        };
+        // `while … do` and `for … in … do` open once, not twice.
+        let loop_with_do = block && matches!(first, "while" | "until" | "for");
+        if !(endless || loop_with_do) {
+            opens += 1;
+        }
+    } else if after_assign.is_some() && !code.starts_with("expect") {
+        opens += 1;
+    }
+    (opens, ends)
+}
+
+/// The group a spec line opens, if it opens one. Its description is
+/// rspec's: the arguments joined by rspec's rule (a module followed by
+/// `#…`, `::…` or `.…` -- no space; anything else -- a space);
+/// symbols after the first argument and `key: value` pairs are
+/// metadata, not description. `described_class` is the nearest module
+/// a group above named.
+fn spec_group(code: &str, groups: &[(SpecGroup, usize)]) -> Option<SpecGroup> {
+    let rest = code.strip_prefix("RSpec.").unwrap_or(code);
     for word in ["shared_examples_for", "shared_examples", "shared_context"] {
         if rest.starts_with(word) && rest[word.len()..].starts_with([' ', '(']) {
             return Some(SpecGroup::Shared);
@@ -496,41 +631,129 @@ fn spec_group(trimmed: &str) -> Option<SpecGroup> {
             .filter(|after| after.starts_with([' ', '(']))
     })?;
     let args = after.trim_start_matches(['(', ' ']);
-    // The arguments up to the block: each is a constant, a string, or
-    // metadata; the description is the constant and the strings.
-    let mut parts: Vec<String> = Vec::new();
-    for arg in spec_args(args) {
-        if let Some(text) = spec_string(&arg) {
-            parts.push(text);
-        } else if arg.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
-            parts.push(arg.trim_end_matches(')').to_string());
+    let mut text = String::new();
+    let mut last_is_module = false;
+    let mut module: Option<String> = None;
+    let mut fault: Option<String> = None;
+    for (at, arg) in spec_args(args).into_iter().enumerate() {
+        let (part, is_module) = match spec_arg(&arg, at) {
+            SpecArg::Text(t) => (t, false),
+            SpecArg::Module(name) => {
+                module = Some(name.clone());
+                (name, true)
+            }
+            SpecArg::DescribedClass => match groups.iter().rev().find_map(|(g, _)| match g {
+                SpecGroup::Named {
+                    module: Some(m), ..
+                } => Some(m.clone()),
+                _ => None,
+            }) {
+                Some(name) => (name, true),
+                None => {
+                    fault.get_or_insert(arg.clone());
+                    continue;
+                }
+            },
+            SpecArg::Meta => continue,
+            SpecArg::Dynamic => {
+                fault.get_or_insert(arg.clone());
+                continue;
+            }
+            SpecArg::Unknown(what) => {
+                fault.get_or_insert(what);
+                continue;
+            }
+        };
+        if text.is_empty() {
+            text = part;
+        } else {
+            let method_like = part.starts_with(['#', '.']) || part.starts_with("::");
+            if !(last_is_module && method_like) {
+                text.push(' ');
+            }
+            text.push_str(&part);
         }
+        last_is_module = is_module;
     }
-    (!parts.is_empty()).then(|| SpecGroup::Named(parts.join(" ")))
+    if text.is_empty() && fault.is_none() {
+        return None;
+    }
+    Some(SpecGroup::Named {
+        text,
+        last_is_module,
+        module,
+        fault,
+    })
 }
 
 /// The example a spec line declares, if it declares one.
-fn spec_example(trimmed: &str) -> Option<SpecExample> {
+fn spec_example(code: &str) -> Option<SpecExample> {
     let after = [
         "it", "specify", "example", "xit", "xspecify", "xexample", "fit", "fspecify", "fexample",
         "scenario",
     ]
     .iter()
     .find_map(|word| {
-        trimmed
-            .strip_prefix(word)
+        code.strip_prefix(word)
             .filter(|after| after.starts_with([' ', '(', '{']))
     })?;
     let args = after.trim_start();
-    if args.starts_with('{') || args.starts_with("do") {
-        return Some(SpecExample::OneLiner);
+    if args.starts_with('{') || args == "do" || args.starts_with("do ") {
+        return Some(SpecExample::NoName);
     }
     let args = args.trim_start_matches(['(', ' ']);
     let first = spec_args(args).into_iter().next()?;
-    Some(match spec_string(&first) {
-        Some(name) => SpecExample::Named(name),
-        None => SpecExample::OneLiner,
+    Some(match spec_arg(&first, 0) {
+        SpecArg::Text(name) => SpecExample::Named(name),
+        SpecArg::Dynamic => SpecExample::Dynamic,
+        _ => SpecExample::NoName,
     })
+}
+
+/// One argument, read as rspec would: the first is always part of the
+/// description; a symbol or a `key: value` after it is metadata.
+fn spec_arg(arg: &str, at: usize) -> SpecArg {
+    if let Some(text) = spec_string(arg) {
+        return if text.contains("#{") {
+            SpecArg::Dynamic
+        } else {
+            SpecArg::Text(text)
+        };
+    }
+    if let Some(symbol) = arg.strip_prefix(':') {
+        if at > 0 {
+            return SpecArg::Meta;
+        }
+        let symbol = symbol.trim_matches(['"', '\'']);
+        return SpecArg::Text(symbol.to_string());
+    }
+    if at > 0 && arg.contains(": ") {
+        return SpecArg::Meta;
+    }
+    if arg == "described_class" {
+        return SpecArg::DescribedClass;
+    }
+    let path = arg.trim_end_matches(')');
+    let is_constant = path.split("::").all(|seg| {
+        !seg.is_empty()
+            && seg.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+            && seg.chars().all(|c| c.is_alphanumeric() || c == '_')
+    });
+    if is_constant {
+        // `Toy::VERSION` is a value, not a module: rspec prints what
+        // it holds, which no reader of the source knows.
+        let last = path.rsplit("::").next().unwrap_or(path);
+        let all_caps = last
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+            && last.len() > 1;
+        return if all_caps {
+            SpecArg::Unknown(arg.to_string())
+        } else {
+            SpecArg::Module(path.to_string())
+        };
+    }
+    SpecArg::Unknown(arg.to_string())
 }
 
 /// The arguments of a call, up to the block (` do` or `{`) and split
@@ -633,33 +856,50 @@ fn spec_string(arg: &str) -> Option<String> {
     None
 }
 
-/// rspec's own join: groups and the example separated by a space,
-/// except that a description starting with `#` or `.` -- a method --
-/// follows its group without one (`Toy#works`, `Toy.new`). Measured.
+/// rspec's own join (`Metadata#description_separator`, measured): a
+/// group after a group whose LAST argument is a module, when its own
+/// description starts with `#`, `::` or `.`, joins without a space
+/// (`Toy#works`, `Toy::VERSION`); every other join, the example's own
+/// name included, takes a space -- `RSpec.describe "Toy"` then
+/// `describe "#works"` is `Toy #works`, and `it "#works"` under `Toy`
+/// is `Toy #works` (review 0047 R-1: the first cut dropped the space
+/// before every `#…`, and the gate said "did not run" over ordinary
+/// files).
 fn spec_full_description(groups: &[(SpecGroup, usize)], name: &str) -> String {
     let mut out = String::new();
+    let mut last_is_module = false;
     for (group, _) in groups {
-        if let SpecGroup::Named(text) = group {
-            spec_join(&mut out, text);
+        if let SpecGroup::Named {
+            text,
+            last_is_module: module_last,
+            ..
+        } = group
+        {
+            if text.is_empty() {
+                continue;
+            }
+            if !out.is_empty()
+                && !(last_is_module && (text.starts_with(['#', '.']) || text.starts_with("::")))
+            {
+                out.push(' ');
+            }
+            out.push_str(text);
+            last_is_module = *module_last;
         }
     }
-    spec_join(&mut out, name);
+    if !out.is_empty() {
+        out.push(' ');
+    }
+    out.push_str(name);
     out
 }
 
-fn spec_join(out: &mut String, text: &str) {
-    if !out.is_empty() && !text.starts_with(['#', '.']) {
-        out.push(' ');
-    }
-    out.push_str(text);
-}
-
-fn spec_refusal(file: &Path, key: &str, scenario: &str, rev: &str) -> Refusal {
+fn spec_refusal(file: &Path, key: &str, scenario: &str, rev: &str, what: &str) -> Refusal {
     Refusal {
         file: file.to_path_buf(),
         reason: ta(
             key,
-            targs!("scenario" => scenario.to_string(), "rev" => rev.to_string()),
+            targs!("scenario" => scenario.to_string(), "rev" => rev.to_string(), "what" => what.to_string()),
         ),
         instead: t(&format!("{key}-instead")),
     }
