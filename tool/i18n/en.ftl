@@ -106,8 +106,8 @@ rev-dup-transform = the body carries the "## transform: { $name }" section more 
 rev-dup-transform-instead = keep one section: the methodology will not guess which body carries the work's words (§2.10)
 
 rev-write-title = keel rev --write — the drifted records (NEW-CONCEPT)
-rev-write-needs-adapter = the rewriting hand needs the rust adapter named in keel.toml (old spelling cargo accepted): closedness is judged by tags
-rev-write-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
+rev-write-needs-adapter = the rewriting hand needs an adapter this release leads, named in keel.toml: closedness is judged by tags
+rev-write-needs-adapter-instead = set adapter = one of the names this release knows: { $known } (NEW-CONCEPT, Config)
 rev-write-rewritten = { "  " }{ $wave }: { $contract }@{ $old } → { $contract }@{ $new } — the record now holds the current revision
 rev-write-kept = { "  " }{ $wave }: closed — leaving its records to history's court (§5.6)
 rev-write-stopped = the writing hand stopped: { $count } { $count ->
@@ -201,7 +201,7 @@ check-holding-uncompared = { $contract } — no one compared the form: { $why } 
 config-unknown-adapter = adapter = "{ $named }" -- this release leads no language of that name; it knows: { $known }
 config-unknown-adapter-instead = name one of those ({ $known }), or drop the field entirely: without an adapter the documents, links, scope and revisions are still judged, and the language-shaped courts are skipped -- with the verdict naming which
 holding-why-no-adapter = no adapter named in keel.toml
-holding-why-unknown-adapter = the named adapter is not of this release (it serves "rust")
+holding-why-unknown-adapter = the named adapter is not of this release (it leads { $known })
 holding-module-missing = contract { $contract } names module "{ $module }", which is not in the code -- looked for { $looked } (§2.7, §7.6)
 holding-module-missing-instead = put the module where it is named, or rewrite the module field to match what exists; until then this contract's signatures are not compared
 holding-module-outside = contract { $contract } names module "{ $module }", and that is not a module of this crate: the name leads outside it (§2.7, §7.6)
@@ -248,6 +248,8 @@ review-protocol-report = the report lands as keel/reviews/{ $wave }.md next to t
 ## adapter module
 adapter-ruby-failed = ruby did not start: { $error }
 adapter-ruby-failed-instead = put ruby on PATH -- the adapter calls it exactly as a person would in a terminal
+adapter-ruby-broken = the test file { $error }
+adapter-ruby-broken-instead = ruby builds nothing ahead: a file that did not load gives no verdict for any test in it -- mend it and run again
 adapter-no-crate = no Cargo.toml at the root and none exactly one level down
 adapter-no-crate-instead = the cargo adapter needs a crate: put Cargo.toml at the root or in one first-level directory
 adapter-many-crates = several first-level crates: { $found }
@@ -284,7 +286,7 @@ gate-case = "{ $head }" wears capitals -- red: and slugs are written lowercase (
 gate-work-vacuum = transform "{ $transform }": no live scenario left to judge -- the withdrawn are outside the judgement (§2.12), passing with this word
 gate-soft = mode: soft -- the same words, a warning only
 gate-hook-installed = the commit-msg hook now calls keel gate -- written to { $path }
-gate-adapter-unjudged = the adapter "{ $name }" is not of this release (it serves "rust") — the commit is not judged: the word stands aloud, the judgement waits for its adapter's wave
+gate-adapter-unjudged = the adapter "{ $name }" is not of this release (it leads { $known }) — the commit is not judged: the word stands aloud, the judgement waits for its adapter's wave
 gate-adapter-absent-name = not named
 init-hook-off-foreign = the git hook here is not ours and is not touched (§9.7); this project answered hooks = false, so keel installs none of its own
 init-hook-off = the git hook is not installed: this project answered hooks = false, and the answer holds for it too (§9.3)
@@ -317,7 +319,7 @@ check-trust-ci-none = ; ci is a refusal aloud: none
 check-trust-ci-absent = ; ci is not declared
 check-trust-skipped-broken = commands verify/ci not judged: a broken document may hide the very command -- fix the named files first
 check-tags-skipped-no-adapter = test tags not compared: no adapter named in keel.toml -- said aloud, not painted green
-check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not of this release — it serves "rust" (old spelling "cargo"); said aloud, not painted green
+check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not of this release — it leads { $known }; said aloud, not painted green
 check-tags-skipped-refused = test tags not compared: the adapter refused mid-way -- its refusal stands among the findings
 check-scope-compared = scope: branch "{ $branch }" is the wave -- compared against { $base }
 check-scope-base-main = the merge-base with main @ { $sha }
@@ -374,6 +376,9 @@ limit-shallow = not checked: the history is shallow -- { $skipped ->
     }, and how many of them this depth COULD have run is not counted; instead: git fetch --unshallow
 limit-base-stale = not checked: local { $trunk } is { $behind } behind { $base } as of the last fetch (this clone knows nothing newer) -- scope was judged against a stale base; instead: git fetch
 limit-base-local-only = not checked: this clone knows no remote { $trunk } -- the base of comparison is local and its freshness cannot be checked
+limit-ruby-border = not checked: ruby does not tell "failed" from "did not build" by its exit code -- both are 1 (§7.12). The adapter reads the text (SyntaxError, LoadError); where the text does not say, a failure is taken as a failure -- the direction that cannot turn red into green
+limit-ruby-form = not checked in essence: ruby writes no types, so the §7.6 form court compares a method name and its parameters -- and nothing more; green form here means even less about meaning than it does in a tongue with types (§7.8)
+limit-ruby-unread = not checked: test/ holds { $count } .rb files this adapter does not read -- it reads minitest, that is *_test.rb ({ $files }); RSpec comes with its own wave
 limit-unpushed = not checked: this clone does not see branch "{ $branch }" in { $remote } -- whether it is really there was not asked (no network); instead: git push -u { $remote } { $branch }
 limit-ahead = not checked: branch "{ $branch }" differs from { $remote }/{ $branch } as this clone knows them -- this judges what { $remote } may not have yet; instead: git push
 
@@ -415,8 +420,8 @@ close-price = the price of this court: the battery runs three times (§7.13) int
 close-price-paid = price paid: { $target } weighs { $size } GiB
 close-no-room = { $free } GB free on disk, and this court wants about { $needed } GB -- better to refuse now than to die halfway through with "no space left on device"
 close-no-room-instead = free some space (rm -rf tool/target clears the previous closing's cache) or run the court where there is room
-close-needs-adapter = the closure court needs the rust adapter named in keel.toml (old spelling cargo accepted)
-close-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
+close-needs-adapter = the closure court needs an adapter this release leads, named in keel.toml
+close-needs-adapter-instead = set adapter = one of the names this release knows: { $known } (NEW-CONCEPT, Config)
 close-blockers = blockers of this branch's wave { $wave }: { $count } -- a full wave does not merge unproven (§6.5, §9.9)
 close-no-blockers = no blockers: this branch is named as no unclosed wave -- the states above inform
 close-verify-count = verify commands judged: { $count }
@@ -442,7 +447,7 @@ map-covered = closed: "{ $scenario }" -- { $proof }
 map-proof-proven = proven (the tag matches, §6.3; the test's green is keel close's court)
 map-proof-unproven = not yet proven (no matching tag)
 map-proof-unread = proof not read (no adapter named in keel.toml)
-map-proof-unknown = proof not read (the named adapter is not of this release — it serves "rust")
+map-proof-unknown = proof not read (the named adapter is not of this release — it leads { $known })
 map-decided = decided: "{ $reason }"
 map-unanswered = no answer -- the silence court is keel check (§10.3)
 map-older = older answers: { $count }
@@ -464,13 +469,13 @@ status-awaiting = { "  " }awaits its start: the wave { $wave } — the branch "{
 status-counts = counted: closed { $closed }, in progress { $working }, plans { $plans }
 status-no-battery = the stage here is structural (tags, references, the review) — the battery was not run: green tests are judged by close and the hook (§9.2)
 status-next = onwards — keel next
-status-needs-adapter = the stage eye needs the rust adapter named in keel.toml (old spelling cargo accepted): tags are the memory of stages
-status-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
+status-needs-adapter = the stage eye needs an adapter this release leads, named in keel.toml: tags are the memory of stages
+status-needs-adapter-instead = set adapter = one of the names this release knows: { $known } (NEW-CONCEPT, Config)
 
 ## next command (§9.2, §9.10, §8.4)
 next-title = keel next -- one step (§9.2)
-next-needs-adapter = the step hand needs the rust adapter named in keel.toml (old spelling cargo accepted): without tags the stage would be a guess
-next-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
+next-needs-adapter = the step hand needs an adapter this release leads, named in keel.toml: without tags the stage would be a guess
+next-needs-adapter-instead = set adapter = one of the names this release knows: { $known } (NEW-CONCEPT, Config)
 next-step-fix = the step: mend the document { $file } — { $reason }; instead: { $instead }
 next-step-fix-more = { "  " }and { $count } more { $count ->
         [one] refusal
@@ -479,7 +484,7 @@ next-step-fix-more = { "  " }and { $count } more { $count ->
 next-step-red = the step: write the test of scenario "{ $scenario }" and commit `red: { $scenario }` — it must fail; the hook lets only a red one through (§7.12, §8.4)
 next-body-label = { "  " }the body of the scenario (@{ $rev }), verbatim:
 next-tag-line = { "  " }the tag in the test: /// proves: { $scenario }@{ $rev }
-next-tests-dir = { "  " }the cargo adapter reads tests in { $dir }
+next-tests-dir = { "  " }the { $adapter } adapter reads tests in { $dir }
 next-step-stale = the step: the revision of scenario "{ $scenario }" drifted — the tag records { $recorded }, the body now gives { $actual }; update the test to the new body and rewrite the tag (§5.5)
 next-step-transform = the step: transform "{ $name }" — work exactly in the named files, then commit `{ $name }: <words>`; the hook lets it through only green (§8.4)
 next-step-chore = the step: chore "{ $name }" ({ $reason }) — work exactly in the named files, then commit `{ $name }: <words>` (§2.11, §8.4)
@@ -510,6 +515,7 @@ init-ignore-stands = ignore rules: the build directory ({ $path }) stands ignore
 init-ignore-exclude-only = ignore rules: { $path } is ignored only by { $source }, which does not travel with the repository — add exactly this line to .gitignore: { $rule }
 init-ignore-no-crate = ignore rules: the adapter found no crate to name a build directory by ({ $error })
 init-ignore-no-adapter = ignore rules: no adapter of this release is named in keel.toml, so there is no build directory to name
+init-ignore-nothing-built = ignore rules: this language builds nothing, so there is no build directory worth ignoring
 init-ignore-unknown-adapter = ignore rules: the adapter is named "{ $name }", and this release does not serve it — its own wave will bring its build directory
 init-ignore-unjudged = ignore rules: git said nothing here ({ $error }) — the rule is not judged
 init-eight-seven = §8.7: turn squash and rebase merging off in the repository settings — the rule is held by the disabled button, not by memory

@@ -132,3 +132,186 @@ fn ruby_tests_are_read_and_run() {
         "and the green one is not dragged in with it:\n{said}"
     );
 }
+
+/// The battery's verdicts come from minitest's own voice, not from
+/// the file's text (review 0038 R-1, R-2, R-6, R-20).
+#[test]
+fn the_ruby_battery_believes_only_what_ran() {
+    let rev = keel::rev::text_rev(BODY);
+
+    // R-1: a test file that does not parse is not a green file. The
+    // adapter refuses aloud, exactly as the cargo one does over
+    // "could not compile" -- without a run there is no verdict.
+    let broken = format!(
+        "require \"minitest/autorun\"\nrequire_relative \"../lib/toy\"\n\nclass ToyTest < Minitest::Test\n  # proves: it-works@{rev}\n  def test_it_works\n    assert Toy.works\n  end\n"
+    );
+    let dir = project("rubybroken", BODY, &broken);
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "a file that does not parse never closes a wave:\n{said}"
+    );
+    assert!(
+        !said.contains("закрита"),
+        "and the verdict does not read as closure:\n{said}"
+    );
+
+    // R-6: one test name is a prefix of another. Only the one that
+    // truly failed is named.
+    let pair = format!(
+        "require \"minitest/autorun\"\nrequire_relative \"../lib/toy\"\n\nclass ToyTest < Minitest::Test\n  # proves: it-works@{rev}\n  def test_it_works\n    assert Toy.works\n  end\n\n  def test_it_works_more\n    flunk \"навмисно\"\n  end\nend\n"
+    );
+    let dir = project("rubyprefix", BODY, &pair);
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let (said, _) = keel(&dir, &["close"]);
+    assert!(
+        said.contains("test_it_works_more"),
+        "the failing test is named:\n{said}"
+    );
+    assert!(
+        !said
+            .lines()
+            .any(|line| line.contains("test_it_works") && !line.contains("test_it_works_more")),
+        "and the green one whose name it merely begins with is not \
+         dragged in with it (review 0038 R-6):\n{said}"
+    );
+
+    // R-20: a `def test...` in a class minitest never runs is not a
+    // test, and the battery's count does not swell with it.
+    let helpers = format!(
+        "require \"minitest/autorun\"\nrequire_relative \"../lib/toy\"\n\nclass Helper\n  def testify\n    1\n  end\nend\n\nclass ToyTest < Minitest::Test\n  # proves: it-works@{rev}\n  def test_it_works\n    assert Toy.works\n  end\nend\n"
+    );
+    let dir = project("rubycount", BODY, &helpers);
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let (said, _) = keel(&dir, &["close"]);
+    assert!(
+        said.contains("батарея: 1 тестів"),
+        "the battery counts what minitest ran, not what looked like a \
+         test in the file (review 0038 R-20):\n{said}"
+    );
+}
+
+/// A tag over a method minitest never runs is "not run", not "work
+/// passes" (review 0038 R-2): minitest leaves with 0 over an unknown
+/// -n, so the courts must read its words and not its exit code.
+#[test]
+fn a_tag_over_a_non_test_is_not_a_green_run() {
+    let rev = keel::rev::text_rev(BODY);
+    let body = format!(
+        "require \"minitest/autorun\"\nrequire_relative \"../lib/toy\"\n\nclass ToyTest < Minitest::Test\n  # proves: it-works@{rev}\n  def helper_is_not_a_test\n    assert Toy.works\n  end\nend\n"
+    );
+    let dir = project("rubynotrun", BODY, &body);
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let msg = dir.join("COMMIT_EDITMSG");
+    std::fs::write(&msg, "work: тіло\n").unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["gate", msg.to_str().unwrap(), dir.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_ne!(
+        out.status.code().unwrap_or(-1),
+        0,
+        "work over a test that never ran does not pass the gate:\n{said}"
+    );
+    assert!(
+        !said.contains("робота проходить"),
+        "and the gate does not say it did:\n{said}"
+    );
+}
+
+/// The border §7.12 names is said by the tool, not only by the wave
+/// (review 0038 R-7).
+#[test]
+fn the_ruby_border_is_said_aloud() {
+    let rev = keel::rev::text_rev(BODY);
+    let dir = project("rubyborder", BODY, &test_file(&rev));
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(code, 0, "a whole ruby project is judged:\n{said}");
+    assert!(
+        said.contains("ruby") && said.contains("не зібрався"),
+        "the check names the tongue's own border -- failed and did not \
+         build are not told apart by an exit code here (§7.12):\n{said}"
+    );
+}
+
+/// The shapes `classify` must tell apart, played without a project
+/// on disk (review 0038 R-10): the function was made public for
+/// exactly this probe and the probe was never written, so three
+/// mutations of it -- "never BuildBroken", "never NotRun", and the
+/// whole body replaced by Green -- left the battery green.
+#[test]
+fn what_ruby_said_is_read_before_how_it_left() {
+    use keel::adapter::Outcome;
+
+    // Nothing loaded: a broken build is not a failure (journal A3),
+    // whatever the exit code says.
+    assert!(matches!(
+        keel::ruby::classify("test.rb:4: syntax error, SyntaxError", false),
+        Outcome::BuildBroken(_)
+    ));
+    assert!(matches!(
+        keel::ruby::classify("cannot load such file -- lib/gone (LoadError)", false),
+        Outcome::BuildBroken(_)
+    ));
+
+    // Minitest leaves with 0 over an unknown -n. Asking the exit
+    // code first turned that into green and let work through a gate.
+    assert!(matches!(
+        keel::ruby::classify("0 runs, 0 assertions, 0 failures, 0 errors, 0 skips", true),
+        Outcome::NotRun
+    ));
+
+    // The two plain answers.
+    assert!(matches!(
+        keel::ruby::classify("1 runs, 1 assertions, 0 failures, 0 errors, 0 skips", true),
+        Outcome::Green
+    ));
+    assert!(matches!(
+        keel::ruby::classify("1 runs, 1 assertions, 1 failures, 0 errors, 0 skips", false),
+        Outcome::Failed
+    ));
+
+    // And where ruby's words do not say which it was, the failure is
+    // taken as a failure -- the direction that cannot turn red into
+    // green (§7.12).
+    assert!(matches!(
+        keel::ruby::classify("some words ruby chose not to explain", false),
+        Outcome::Failed
+    ));
+}
+
+/// A `.rb` file in test/ that this adapter walks past is named, not
+/// skipped in silence (review 0038 R-19).
+#[test]
+fn what_the_ruby_adapter_does_not_read_is_named() {
+    let rev = keel::rev::text_rev(BODY);
+    let dir = project("rubyspec", BODY, &test_file(&rev));
+    std::fs::write(dir.join("test/toy_spec.rb"), "RSpec.describe Toy do\nend\n").unwrap();
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(code, 0, "an unread file is a limit, not a finding:\n{said}");
+    assert!(
+        said.contains("toy_spec.rb") && said.contains("не перевірено"),
+        "and the verdict names the file it did not read:\n{said}"
+    );
+}

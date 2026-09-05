@@ -123,6 +123,30 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // Limits gathered while judging, said in the verdict's own
     // margin rather than swallowed (§4.10, wave 0031).
     let mut extra_limits: Vec<String> = Vec::new();
+    // The tongue's own border, said by the tool and not only by the
+    // wave that built the adapter (review 0038 R-7): §7.12 asks for
+    // it aloud wherever the adapter cannot tell a failure from a
+    // broken build, and ruby cannot.
+    if config.language() == Some(crate::config::Language::Ruby) {
+        extra_limits.push(t("limit-ruby-border"));
+        extra_limits.push(t("limit-ruby-form"));
+        // And which files in test/ this adapter walked past (R-19).
+        let unread = crate::ruby::unread_files(root);
+        if !unread.is_empty() {
+            extra_limits.push(ta(
+                "limit-ruby-unread",
+                targs!(
+                    "count" => unread.len() as u64,
+                    "files" => unread
+                        .iter()
+                        .filter_map(|path| path.strip_prefix(root).ok())
+                        .map(|path| path.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            ));
+        }
+    }
     let mut cancelled_rows: Vec<String> = Vec::new();
     // Tags are read once and serve three floors: the tag floor, the
     // §7.15 delta, and the §5.6 narrowing through structural closure.
@@ -590,7 +614,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         }
         (Some(other), _) => Err(ta(
             "check-tags-skipped-adapter",
-            targs!("name" => other.to_string()),
+            targs!("name" => other.to_string(), "known" => crate::config::Language::known()),
         )),
     };
     let tags_status = match judged {
