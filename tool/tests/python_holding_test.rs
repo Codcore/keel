@@ -31,7 +31,11 @@ fn keel(dir: &Path, args: &[&str]) -> (String, i32) {
 
 fn sandbox(name: &str, module: &str, export: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
-    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"python\"\n").unwrap();
+    std::fs::write(
+        dir.join("keel.toml"),
+        "lang = \"uk\"\nadapter = \"python\"\n",
+    )
+    .unwrap();
     std::fs::write(
         dir.join("keel/contracts/toy.md"),
         format!("---\nmodule: {module}\nexports:\n  - \"{export}\"\n---\n\nТіло контракту.\n"),
@@ -54,7 +58,10 @@ fn a_python_contract_holds_its_form() {
     .unwrap();
     let (said, code) = keel(&dir, &["check"]);
     assert_eq!(code, 0, "a signature found in the module holds:\n{said}");
-    assert!(said.contains("сигнатур звірено: 1"), "and was compared:\n{said}");
+    assert!(
+        said.contains("сигнатур звірено: 1"),
+        "and was compared:\n{said}"
+    );
 
     // Every layout python keeps a module in, each one found.
     for (name, layout, module) in [
@@ -68,7 +75,10 @@ fn a_python_contract_holds_its_form() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(&path, "def works() -> bool:\n    return True\n").unwrap();
         let (said, code) = keel(&dir, &["check"]);
-        assert_eq!(code, 0, "{name}: the layout {layout} is python's own:\n{said}");
+        assert_eq!(
+            code, 0,
+            "{name}: the layout {layout} is python's own:\n{said}"
+        );
     }
 
     // A ghost alive only in a docstring does not hold, in this
@@ -89,7 +99,11 @@ fn a_python_contract_holds_its_form() {
 
     // Diverged: the name is there and the signature is not.
     let dir = sandbox("pydiverged", "toy", "def works(a: int) -> bool");
-    std::fs::write(dir.join("toy.py"), "def works(a: str) -> bool:\n    return True\n").unwrap();
+    std::fs::write(
+        dir.join("toy.py"),
+        "def works(a: str) -> bool:\n    return True\n",
+    )
+    .unwrap();
     let (said, code) = keel(&dir, &["check"]);
     assert_ne!(code, 0, "a diverged signature does not hold:\n{said}");
     assert!(

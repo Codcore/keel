@@ -265,10 +265,11 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
     // layout by heart.
     if matches!(
         config.language(),
-        Some(Language::Ruby) | Some(Language::Elixir)
+        Some(Language::Ruby) | Some(Language::Elixir) | Some(Language::Python)
     ) {
         let looked = match config.language() {
             Some(Language::Elixir) => crate::elixir::module_paths(root, module),
+            Some(Language::Python) => crate::python::module_paths(root, module),
             _ => crate::ruby::module_paths(root, module),
         };
         for path in &looked {
@@ -397,7 +398,10 @@ fn found_bounded(haystack: &str, needle: &str) -> bool {
 fn strip_comments(source: &str, tongue: Option<Language>) -> String {
     match tongue {
         Some(Language::Ruby) => strip_ruby(source, false),
-        Some(Language::Elixir) => strip_ruby(source, true),
+        // A docstring is elixir's fence and `#` is ruby's mark: the
+        // fourth tongue is the third member of that family, and one
+        // reader serves all three (wave 0045).
+        Some(Language::Elixir) | Some(Language::Python) => strip_ruby(source, true),
         _ => strip_rust(source),
     }
 }
@@ -412,6 +416,7 @@ pub fn strip_for_test(source: &str, tongue: &str) -> String {
         match tongue {
             "ruby" => Some(Language::Ruby),
             "elixir" => Some(Language::Elixir),
+            "python" => Some(Language::Python),
             _ => Some(Language::Rust),
         },
     )
