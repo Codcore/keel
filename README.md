@@ -270,6 +270,22 @@ could **not** judge rather than painting green over it:
 `keel close` is the heavier one: it runs the project's battery three times in
 its own target directory, because an inherited cache shifts verdicts.
 
+**A test it watched fail holds the wave open** — whoever claims it. That reads
+obvious and was not true until wave 0043: blockers were counted only from the
+uncovered promises of the branch's own wave, so a red test no scenario named
+was printed by name and then closed over, with exit 0. Measured that way in
+rust, ruby and elixir alike, which is why the fix is in the court and not in
+any adapter. A flaky test blocks the same way: three runs exist precisely so
+flakiness is visible, and a flaky test is not a green one. Waves closed in
+earlier generations keep their verdict — their promises were proven at their
+time, and today's red is not their lack.
+
+The same wave took a second false green out of `keel check`: a declaration
+written inside a multi-line text — an elixir `@moduledoc`, a ruby heredoc, a
+rust `r#"..."#` — used to hold a contract's `exports` as if it were live code.
+Comments were already not code; text is not code either, in all three tongues,
+and the finding now names the file it looked in.
+
 ## Two languages
 
 `lang` in `keel.toml` picks the tool's own language — `uk` or `en`. It decides
@@ -315,11 +331,9 @@ left unsaid. Two smaller things measured there: an ExUnit test is named by a
 so the tool builds the full name rather than calling it a limit.
 
 The border Elixir does share with Ruby is named too: neither writes types in a
-`def`, so §7.6 compares a name and its parameters and nothing more — and a `def`
-written inside a `@moduledoc` (or a ruby heredoc) is not yet told from a live
-one, because the comment stripper cuts `#` and knows nothing of triple quotes.
-Measured in both tongues in wave 0042, said aloud by `keel check`, and queued in
-`BACKLOG.md` rather than left for a reader to find.
+`def`, so §7.6 compares a name and its parameters and nothing more. The other
+half of that border is gone — a `def` written inside a `@moduledoc` used to pass
+for a live one, and wave 0043 took it away in all three tongues at once.
 
 An honest limit of the ruby adapter, and §7.12 foresaw it: ruby does not tell
 "failed" from "did not load" by its exit code — both are 1. The adapter reads
