@@ -281,7 +281,7 @@ one records the revision it was translated from, and a stale record is a finding
 
 Three adapters exist: **`rust`** (`"cargo"` accepted), **`ruby`** (minitest) and
 **`elixir`** (`"mix"` accepted, ExUnit).
-Both run the language-shaped courts — the `proves:` tags are read from the
+All three run the language-shaped courts — the `proves:` tags are read from the
 project's test files, and a contract's `exports` are compared against the
 module's own source, wherever that language keeps it.
 
@@ -314,6 +314,13 @@ left unsaid. Two smaller things measured there: an ExUnit test is named by a
 *string*, and inside a `describe` block ExUnit puts the block's name in front,
 so the tool builds the full name rather than calling it a limit.
 
+The border Elixir does share with Ruby is named too: neither writes types in a
+`def`, so §7.6 compares a name and its parameters and nothing more — and a `def`
+written inside a `@moduledoc` (or a ruby heredoc) is not yet told from a live
+one, because the comment stripper cuts `#` and knows nothing of triple quotes.
+Measured in both tongues in wave 0042, said aloud by `keel check`, and queued in
+`BACKLOG.md` rather than left for a reader to find.
+
 An honest limit of the ruby adapter, and §7.12 foresaw it: ruby does not tell
 "failed" from "did not load" by its exit code — both are 1. The adapter reads
 the text (`SyntaxError`, `LoadError`), and where the text does not say, it takes
@@ -321,11 +328,19 @@ a failure as a failure: the direction that cannot turn red into green. `keel
 check` prints that border itself, next to a second one: ruby writes no types, so
 the §7.6 form court compares a method name and its parameters and nothing more.
 
-Adding a language is a module, a row in `Language::NAMES`, and six places where
-the dispatcher branches (test directory, one test, battery, build directory,
-the step command, the module layout and its comment marks) plus the dictionary
-in both tongues. Not "one file" — and wave 0042 paid exactly that price for
-Elixir, so the number is measured twice now rather than guessed.
+Adding a language is a module, a row in `Language::NAMES`, the dictionary in
+both tongues, and **fourteen** places where something branches on the tongue —
+counted off the source rather than guessed, because the number that stood here
+before (six, beside a list of seven) was neither:
+
+`adapter::builds_heavily`, `build_dir`, `tests_dir`, `run_line`, `test_files`,
+`run_test`, `run_all`; `config::battery_command`; `holding::comparability` (the
+module layout) and `holding::strip_comments` (the comment shape);
+`tags::scan_text` (the declaration shape), `tags::marks` and `tags::declares`
+(these three keyed by the file's extension, never by the project's config — see
+below); and `check` for the tongue's own limits.
+
+Not "one file". Wave 0042 paid exactly that price for Elixir.
 
 What an adapter has to answer is small and written down:
 
