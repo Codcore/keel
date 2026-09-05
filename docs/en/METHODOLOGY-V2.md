@@ -14,7 +14,7 @@
 > follows them. Where the two disagree, the Ukrainian one is right —
 > and the disagreement is a defect to report, not a choice to make.
 >
-> `translated_from: a026e4` — the revision of the Ukrainian text this
+> `translated_from: 0c7f42` — the revision of the Ukrainian text this
 > translation was made from (constitution, rule 4: whoever leans on a
 > text holds its revision). `keel check` compares it with the
 > Ukrainian methodology as it now stands: change the original and the
@@ -338,10 +338,15 @@ file's disappearance.
 **§4.13.** Research lives on `spike/*` branches — outside the
 methodology, and that is said outright: hooks are silent there, the
 checks do not judge the branch. But merging such a branch into main is
-always forbidden, and the ban is held by machinery: the check on a PR
-from `spike/*` is red with the explanation "research is not merged;
-bring the finding back as a wave". The trace of research is the Why
-section of the wave that grew out of it.
+always forbidden, and the ban is held by machinery: **the closing
+court `keel close` refuses on `spike/*`** with the explanation
+"research is not merged; bring the finding back as a wave". It is
+named by its own name because `keel check` is green there: it says a
+word about the branch and does not judge its documents, while the one
+that judges a merge is the one that refuses. So a CI that runs only
+`check` does not hold the ban — both courts belong in the workflow.
+The trace of research is the Why section of the wave that grew out of
+it.
 
 ---
 

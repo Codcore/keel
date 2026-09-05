@@ -182,6 +182,17 @@ const RULE_SOFT_UK: &str = r#"Два правила стоять тут попе
 
 const RULE_MANUAL_UK: &str = r#"Суд commit-ів у цьому проєкті вимкнено (`mode = "manual"`): обидва правила — народження червоним і робота лише поверх зелених тестів — тримають тут самі люди. `keel close` перед злиттям судить далі. Питай `keel next`, а не вгадуй порядок."#;
 
+/// The fourth paragraph, and the one that was missing: `mode` and
+/// `hooks` are two knobs, not one. A project that answered
+/// `hooks = false` gets no commit-msg hook -- `keel init` says so
+/// aloud in the same breath -- and yet the paragraph beside it
+/// promised a machine holding the rule through that very hook. That
+/// is the constitution's sixth point inverted, in the text an agent
+/// reads first (the audit of 2026-09-05).
+const RULE_NO_HOOK_EN: &str = r#"This project keeps no commit hook (`hooks = false`), so no commit judgement runs here at all -- the two rules, a scenario born red and work committed only over green tests, are held by people. What still judges by machine: `keel close` before a merge, and `keel check` over the documents. Ask `keel next` instead of guessing the order."#;
+
+const RULE_NO_HOOK_UK: &str = r#"Цей проєкт не тримає commit-hook-а (`hooks = false`), тож суду commit-ів тут нема зовсім — обидва правила, народження червоним і робота лише поверх зелених тестів, тримають люди. Що судить машиною далі: `keel close` перед злиттям і `keel check` над документами. Питай `keel next`, а не вгадуй порядок."#;
+
 /// The loop skill an agent reads (wave 0023): the same words as the
 /// block, shaped as a skill file, because that is what Claude Code
 /// loads. Wholly ours -- a hand's edit is refused, never overwritten.
@@ -343,6 +354,13 @@ fn workflow(config: &Config) -> String {
 /// block and the skill, so the two never disagree.
 fn rule_for(config: &Config) -> &'static str {
     let uk = config.lang == "uk";
+    // Both knobs, not one. `mode` says how loudly the commit court
+    // speaks; `hooks` says whether it is there to speak at all, and a
+    // paragraph that reads only the first promises a hook that was
+    // never installed.
+    if !config.hooks {
+        return if uk { RULE_NO_HOOK_UK } else { RULE_NO_HOOK_EN };
+    }
     match (config.mode.as_str(), uk) {
         ("manual", true) => RULE_MANUAL_UK,
         ("manual", false) => RULE_MANUAL_EN,

@@ -395,7 +395,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: a contract naming a module that does not exist must be a finding off the plan branch, not advice (review 0022 R-13)
+check-next-rung = next step: all green -- plan the next wave (sec. 6.6), or work the current one: keel next
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)

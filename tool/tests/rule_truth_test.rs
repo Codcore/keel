@@ -152,20 +152,18 @@ fn what_keel_says_in_a_stranger_s_project_is_about_that_project() {
         "the verdict does not hand a stranger keel's own backlog:\n{said}"
     );
 
-    // The norm names the court that really holds the ban.
-    let uk = fs::read_to_string("../keel/docs/uk/METHODOLOGY-V2.md")
-        .or_else(|_| fs::read_to_string("docs/uk/METHODOLOGY-V2.md"))
-        .unwrap();
-    let paragraph = uk
-        .split("**§4.13.**")
-        .nth(1)
-        .expect("sec. 4.13 exists")
-        .split("**§")
-        .next()
-        .unwrap()
-        .to_string();
+    // The norm names the court that really holds the ban -- asked of
+    // the binary itself (`keel method`), not of a path on disk: a
+    // probe that reads a file beside it judges whatever tree it was
+    // run from, which is not this one.
+    let (paragraph, code) = keel(&["method", "§4.13", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the paragraph is served:\n{paragraph}");
     assert!(
         paragraph.contains("keel close"),
         "sec. 4.13 names the court that refuses the merge:\n{paragraph}"
+    );
+    assert!(
+        !paragraph.contains("the check on a PR"),
+        "and no longer credits the court that stays green there:\n{paragraph}"
     );
 }
