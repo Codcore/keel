@@ -1,0 +1,14 @@
+# The toolchain this repository's courts judge with.
+#
+# Pinned by wave 0044, and the reason is measured: `tool-ci.yml` used
+# to do `rustup update stable`, so the runner judged with 1.98 while
+# the author's machine had 1.94 -- and `clippy --all-targets -- -D
+# warnings` was clean here and red there, on the same tree, because a
+# lint had been added in between. A verdict that depends on what day
+# it ran is not a verdict.
+#
+# Bumping this is a deliberate act: raise the channel, run the courts,
+# fix what the newer lints find, and record it in the wave that did it.
+[toolchain]
+channel = "1.94.1"
+components = ["clippy", "rustfmt"]

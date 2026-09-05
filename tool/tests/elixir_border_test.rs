@@ -45,13 +45,6 @@ fn keel(dir: &Path, args: &[&str]) -> (String, i32) {
     )
 }
 
-fn have_mix() -> bool {
-    Command::new("mix")
-        .arg("--version")
-        .output()
-        .is_ok_and(|out| out.status.success())
-}
-
 const BODY: &str = "тіло обіцянки\n\n";
 
 /// A mix project: mix.exs, a module, and a test file as given.
@@ -113,7 +106,9 @@ fn test_file(rev: &str) -> String {
 /// along would be as untrue as leaving one unsaid.
 #[test]
 fn a_tongue_that_tells_the_two_apart_says_so() {
-    assert!(have_mix(), "this probe runs a real mix; it is not on PATH");
+    if !common::machine_has("mix").ready() {
+        return;
+    }
     let rev = keel::rev::text_rev(BODY);
 
     // A file that does not compile is a refusal aloud, not a red test
@@ -262,7 +257,9 @@ fn what_mix_said_and_how_it_left() {
 /// an unread `.exs`, and the compiler's own words in a refusal.
 #[test]
 fn the_battery_believes_mix_and_not_the_source() {
-    assert!(have_mix(), "this probe runs a real mix; it is not on PATH");
+    if !common::machine_has("mix").ready() {
+        return;
+    }
     let rev = keel::rev::text_rev(BODY);
 
     let closing = |dir: &Path| {

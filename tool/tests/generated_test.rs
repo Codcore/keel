@@ -559,14 +559,14 @@ fn front_matter(text: &str) -> Vec<(String, String)> {
             saphyr_parser::Event::MappingEnd | saphyr_parser::Event::SequenceEnd => {
                 depth = depth.saturating_sub(1);
             }
-            saphyr_parser::Event::Scalar(value, ..) => {
-                if depth == 1 {
-                    match pending.take() {
-                        None => pending = Some(value.to_string()),
-                        Some(key) => keys.push((key, value.to_string())),
-                    }
-                }
-            }
+            // Collapsed into the arm's own guard: clippy on a newer
+            // stable than the author's says so, and this file was
+            // green here and red on the runner for exactly that
+            // (wave 0044).
+            saphyr_parser::Event::Scalar(value, ..) if depth == 1 => match pending.take() {
+                None => pending = Some(value.to_string()),
+                Some(key) => keys.push((key, value.to_string())),
+            },
             _ => {}
         }
     }

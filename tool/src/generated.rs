@@ -8,7 +8,8 @@
 //! by a byte, and an artefact a hand has touched is refused aloud,
 //! never overwritten.
 
-use crate::config::Config;
+use crate::adapter;
+use crate::config::{Config, Language};
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::targs;
@@ -60,7 +61,7 @@ enum Owner {
 /// vendor-neutral home of the Agent Skills standard, which is what
 /// Cursor reads (and Codex, whose option waits for its own wave --
 /// a fact about the directory, not a promise of this release).
-fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
+fn artefacts(root: &Path, config: &Config) -> Vec<(&'static str, Kind, String)> {
     let named = config.agents();
     let skill = skill(config);
     let rows: Vec<(&'static str, Kind, Owner, String)> = vec![
@@ -99,7 +100,7 @@ fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
             ".github/workflows/keel.yml",
             Kind::Whole,
             Owner::Any,
-            workflow(config),
+            workflow(root, config),
         ),
     ];
     rows.into_iter()
@@ -306,7 +307,111 @@ pub const INSTALLER: &str = "https://raw.githubusercontent.com/Codcore/keel/main
 /// builds from source, because there is no released binary yet, and
 /// it says that about itself rather than leaving a reader to find
 /// out on a runner.
-fn workflow(config: &Config) -> String {
+/// Where the tongue's own root lies, said as a person would say it:
+/// relative to the repository root, or `None` when the two are the
+/// same. A crate in a subdirectory is an ordinary shape -- keel
+/// itself is one -- and the step that judges it must run there
+/// (wave 0044). Before this, the generated battery step was
+/// `cargo test` at the repository root, and this repository's own CI
+/// answered `could not find Cargo.toml` on every run.
+enum Where {
+    /// The battery runs at the repository root: nothing to say.
+    Root,
+    /// It runs in this directory, named as a person would name it.
+    Inside(String),
+    /// The adapter cannot say where -- and a step written over that
+    /// silence would fail on a runner without saying why.
+    Unknown,
+}
+
+/// Where the generated battery step must run, asked of the ADAPTER
+/// and not worked out here (review 0044 R-2, R-5): the first cut of
+/// this looked for `Gemfile` and `mix.exs` itself, and those two
+/// tongues are run from the repository root by their own adapters --
+/// so a directory taken from a marker sent CI to run a different
+/// battery from the one the courts judge, and a red tree came out
+/// green.
+fn tongue_root(root: &Path, config: &Config) -> Where {
+    if config.language().is_none() {
+        return Where::Root;
+    }
+    let Some(found) = adapter::battery_dir(root) else {
+        return Where::Unknown;
+    };
+    match found.strip_prefix(root).ok().and_then(|rest| rest.to_str()) {
+        Some(shown) if !shown.is_empty() => Where::Inside(shown.to_string()),
+        Some(_) => Where::Root,
+        None => Where::Unknown,
+    }
+}
+
+/// The toolchain this project pins, if it pins one -- and only when
+/// what it pins is a NAME.
+///
+/// Read with the TOML reader this crate already carries, not by
+/// hand: the hand-written first cut of this took the text after
+/// `channel` and dropped it straight into a `run:` line, so
+/// `channel = "1.94.1 && curl … | sh #"` wrote that command into the
+/// generated workflow, and a legal inline comment
+/// (`channel = "1.75.0" # my pin`) leaked a stray quote into the
+/// step (review 0044 R-1, R-3, R-7). A value this release cannot
+/// vouch for is treated as no pin at all: the workflow then says
+/// aloud that nothing is named, which is true and harmless, where
+/// writing it would have been neither.
+///
+/// The shape allowed is rustup's own vocabulary for a channel --
+/// `stable`, `1.94.1`, `nightly-2026-03-25`,
+/// `1.94.1-x86_64-unknown-linux-gnu` -- letters, digits, dot, dash,
+/// underscore. Nothing that a shell reads as anything.
+fn pinned_toolchain(root: &Path, where_crate: Option<&str>) -> Option<String> {
+    let mut looked = vec![
+        root.join("rust-toolchain.toml"),
+        root.join("rust-toolchain"),
+    ];
+    if let Some(dir) = where_crate {
+        looked.insert(0, root.join(dir).join("rust-toolchain.toml"));
+        looked.insert(1, root.join(dir).join("rust-toolchain"));
+    }
+    for path in looked {
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let found = match toml::from_str::<toml::Value>(&text) {
+            Ok(value) => value
+                .get("toolchain")
+                .and_then(|table| table.get("channel"))
+                .and_then(|channel| channel.as_str())
+                .map(str::to_string),
+            // `rust-toolchain` without an extension is the bare
+            // channel and no TOML at all, which is why the parse
+            // failing is not itself an answer.
+            Err(_) if path.extension().is_none() => Some(text.trim().to_string()),
+            Err(_) => None,
+        };
+        match found {
+            Some(channel) if channel_named(&channel) => return Some(channel),
+            // Something is written there and this release cannot
+            // vouch for it. Saying "no pin" is true; passing it on
+            // would not be.
+            Some(_) => return None,
+            None => continue,
+        }
+    }
+    None
+}
+
+/// Is this a channel NAME, and nothing a shell would read as more
+/// than one? The whole of the value must be it -- a prefix that
+/// looks right is exactly how the injection above got in.
+fn channel_named(channel: &str) -> bool {
+    !channel.is_empty()
+        && channel.len() <= 64
+        && channel
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_'))
+}
+
+fn workflow(root: &Path, config: &Config) -> String {
     // The battery step is the tongue's own, and its absence is never
     // silence (review 0038 R-9): a project whose adapter this release
     // does not lead gets a line saying so, in the file where a person
@@ -324,9 +429,54 @@ fn workflow(config: &Config) -> String {
         ),
         None => String::new(),
     };
+    // Where the battery runs, ASKED OF THE ADAPTER (wave 0044): a
+    // step at the repository root cannot run in a project whose
+    // crate sits in a subdirectory -- and that is an ordinary shape,
+    // keel's own among them.
+    let where_battery = tongue_root(root, config);
+    let inside = match &where_battery {
+        Where::Inside(dir) => format!("        working-directory: {dir}\n"),
+        Where::Root => String::new(),
+        // Not a step written over a silence: the runner would fail
+        // and say only `could not find Cargo.toml`, which is the very
+        // thing this wave exists to stop (review 0044 R-6).
+        Where::Unknown => "        # This release could not tell where the crate of this project\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# is: it found none, or more than one, at the root and one\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# level down. The step below therefore runs where this file\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# does. If that is not where your battery lives, add a\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# working-directory here; `keel close` judges from the root.\n"
+            .to_string(),
+    };
+    let where_crate = match &where_battery {
+        Where::Inside(dir) => Some(dir.clone()),
+        _ => None,
+    };
+    // And which toolchain judged, for a tongue that has one. A
+    // verdict from whatever the runner had that day is repeatable
+    // only by accident; where the project pins nothing -- or pins
+    // something this release will not vouch for -- the file says so.
+    let toolchain = match config.language() {
+        Some(Language::Rust) => match pinned_toolchain(root, where_crate.as_deref()) {
+            Some(channel) => format!(
+                "      - name: the toolchain this project pins\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# rust-toolchain.toml names {channel}; rustup honours it on\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# its own, and this line says aloud WHICH one judged, so a\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# verdict here is the same verdict on any other machine.\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: rustup toolchain install {channel} --profile minimal\n"
+            ),
+            None => "      # No toolchain named: this project pins none this release can\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# read as a channel NAME, so the courts below judge with\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# whatever the runner has today. A lint added to a newer stable\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# turns this file red on a tree that did not change -- a verdict\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# repeatable only by accident. Add a rust-toolchain.toml with a\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# plain channel name, and bump it deliberately.\n"
+                .to_string(),
+        },
+        _ => String::new(),
+    };
     let courts = match config.language() {
         Some(language) => format!(
-            "      - name: the battery\n        run: {}\n",
+            "{toolchain}      - name: the battery\n        run: {}\n{inside}",
             language.battery_command()
         ),
         None => "      # No battery step: keel.toml names no adapter this\n\
@@ -448,7 +598,7 @@ pub fn write(root: &Path, config: &Config) -> (String, usize) {
     }
     let mut report = String::new();
     let mut lacked = 0usize;
-    for (path, kind, fresh) in artefacts(config) {
+    for (path, kind, fresh) in artefacts(root, config) {
         // A project that answered "no hooks" gets none written -- a
         // question whose answer changes nothing is not a question
         // (wave 0026). But silence belongs only where we never were:

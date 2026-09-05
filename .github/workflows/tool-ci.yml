@@ -21,7 +21,12 @@ jobs:
           # clone shallow too, and the probe fails for the wrong
           # reason (review 0033 R-3).
           fetch-depth: 0
-      - run: rustup update stable && rustup default stable
+      # The toolchain is the one rust-toolchain.toml names, not
+      # whatever stable is today: a lint added to a newer stable
+      # turned this file red on a tree that had not changed, while
+      # the author's machine stayed green (wave 0044). rustup reads
+      # the pin by itself; this line only makes it visible in the log.
+      - run: rustup show active-toolchain || rustup toolchain install
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test

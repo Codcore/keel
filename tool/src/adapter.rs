@@ -86,6 +86,29 @@ pub fn builds_heavily(root: &Path) -> bool {
     matches!(language_of(root), None | Some(Language::Rust))
 }
 
+/// Where the project's battery actually runs -- the directory this
+/// release's own adapter uses as its working directory, and so the
+/// only directory a generated CI step may name.
+///
+/// `None` means the adapter cannot say: two crates on the first
+/// level, or one deeper than it looks. A step written under that
+/// silence would fail on a runner without ever saying why, so the
+/// generator says it instead (review 0044 R-6).
+///
+/// Ruby and Elixir answer with the ROOT, always. Their adapters run
+/// from there (`ruby -Itest <file>`, `mix test`, both
+/// `.current_dir(root)`), and `tests_dir` looks in `root/test`. A
+/// generated step that went to a `Gemfile`'s own directory would run
+/// a DIFFERENT battery from the one the courts judge -- measured by
+/// review 0044 R-2 turning a red tree green, which is the exact
+/// shape this whole wave exists to stop.
+pub fn battery_dir(root: &Path) -> Option<PathBuf> {
+    match language_of(root) {
+        Some(Language::Ruby) | Some(Language::Elixir) => Some(root.to_path_buf()),
+        _ => crate_root(root).ok(),
+    }
+}
+
 pub fn build_dir(root: &Path) -> BuildDir {
     match language_of(root) {
         Some(Language::Ruby) => BuildDir::Nothing,
