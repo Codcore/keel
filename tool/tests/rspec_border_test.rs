@@ -222,6 +222,61 @@ fn minitest_and_rspec_live_in_one_project() {
         said.contains("it {"),
         "and the example no tag can name is named as the border:\n{said}"
     );
+    let unread = said
+        .lines()
+        .find(|line| line.contains("адаптер не читає"))
+        .unwrap_or_default();
+    assert!(
+        unread.contains("spec/support/helper.rb") && !unread.contains("spec_helper.rb"),
+        "the helper rspec requires itself is not called unread (review 0047 \
+         R-8, mutation M14):\n{unread}"
+    );
+
+    // A SyntaxError in the SPEC FILE itself: ruby paints it, rspec's
+    // `messages` carry the paint, and the refusal shows a person
+    // plain words -- no escape codes (review 0047 R-3).
+    let dir = project(
+        "rspainted",
+        None,
+        Some(
+            "RSpec.describe Toy do\n  # proves: it-works@aaaaaa\n  it \"works\" do\n    expect(Toy.works).to be(true\n  end\nend\n",
+        ),
+    );
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "a spec that does not parse does not close:\n{said}"
+    );
+    assert!(
+        said.contains("SyntaxError") || said.contains("syntax error"),
+        "and the refusal carries ruby's words:\n{said}"
+    );
+    assert!(
+        !said.contains('\u{1b}'),
+        "with no colour codes in them:\n{}",
+        said.replace('\u{1b}', "<ESC>")
+    );
+
+    // minitest's own speed line: `995.6450 runs/s`, and one run in ten
+    // `1000.0000 runs/s` -- a substring `0 runs` read that as "nothing
+    // ran" and the gate refused a green test one time in ten (review
+    // 0047 R-4). Only the summary line says how many ran.
+    let fast = "Run options: -n test_it_works --seed 1\n\n# Running:\n\n.\n\nFinished in 0.001000s, 1000.0000 runs/s, 1000.0000 assertions/s.\n\n1 runs, 1 assertions, 0 failures, 0 errors, 0 skips\n";
+    assert!(
+        matches!(
+            keel::ruby::classify(fast, true),
+            keel::adapter::Outcome::Green
+        ),
+        "a green run that happened to be fast is green"
+    );
+    let none = "Run options: -n test_nothing --seed 1\n\n# Running:\n\n\n\nFinished in 0.000500s, 0.0000 runs/s, 0.0000 assertions/s.\n\n0 runs, 0 assertions, 0 failures, 0 errors, 0 skips\n";
+    assert!(
+        matches!(
+            keel::ruby::classify(none, true),
+            keel::adapter::Outcome::NotRun
+        ),
+        "and a run of nothing is still nothing"
+    );
 
     // `keel next` speaks rspec to a spec: the directory the project
     // keeps its examples in, and the line a person would type --
@@ -235,7 +290,30 @@ fn minitest_and_rspec_live_in_one_project() {
         "next hands rspec's own run line for a spec:\n{said}"
     );
     assert!(
+        said.contains("підрядк"),
+        "and says beside it that -e is a substring match (review 0047 \
+         R-7):\n{said}"
+    );
+    assert!(
         !said.contains("ruby -Itest"),
         "and not minitest's for an example:\n{said}"
+    );
+
+    // And a project of spec/ alone, with no tag yet, is told the
+    // directory it keeps its examples in (review 0047 R-8, N1).
+    let dir = project(
+        "rsnextdir",
+        None,
+        Some("RSpec.describe Toy do\n  it \"untagged\" do\n  end\nend\n"),
+    );
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let (said, _) = keel(&dir, &["next"]);
+    assert!(
+        said.contains("читає тести в spec/"),
+        "the hint names spec/ where that is what exists:\n{said}"
+    );
+    assert!(
+        said.contains("# proves: it-works@"),
+        "and writes the tag in ruby's own mark:\n{said}"
     );
 }

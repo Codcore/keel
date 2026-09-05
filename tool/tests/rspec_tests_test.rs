@@ -319,6 +319,40 @@ fn rspec_examples_are_read_and_run() {
         "close leaves the project as it found it: {written:?}"
     );
 
+    // Two examples of ONE full description under the GATE, the red
+    // one first: the court reads every id the dry run named, and a
+    // red among them is red -- the rule review 0046 R-2 asked to be
+    // one in both courts (review 0047 R-5 found no probe held it
+    // here).
+    let dir = project(
+        "rstwice",
+        &format!(
+            "RSpec.describe Toy do\n  # proves: it-works@{rev}\n  it \"works\" do\n    expect(1).to eq(2)\n  end\n\n  it \"works\" do\n    expect(1).to eq(1)\n  end\nend\n"
+        ),
+    );
+    let (said, code) = gate(&dir);
+    assert_ne!(
+        code, 0,
+        "a red among two examples of one name is red:\n{said}"
+    );
+    assert!(said.contains("падає"), "and said so:\n{said}");
+
+    // rspec that STARTED and left without its JSON -- an `abort` in
+    // spec_helper -- is not rspec being absent: the refusal carries
+    // what it said, not "put rspec on PATH" (review 0047 R-9).
+    let dir = project("rsabort", &spec_file(&rev));
+    std::fs::write(
+        dir.join("spec/spec_helper.rb"),
+        "abort \"no database here\"\n",
+    )
+    .unwrap();
+    let (said, code) = gate(&dir);
+    assert_ne!(code, 0, "a helper that aborts proves nothing:\n{said}");
+    assert!(
+        said.contains("no database here") && !said.contains("PATH"),
+        "and the refusal carries rspec's own words, not advice about PATH:\n{said}"
+    );
+
     // The battery: the roll AND the verdicts from rspec's JSON. A
     // second example the reader did not tag still exists for the
     // court, together with its failure, named by rspec's full
@@ -368,12 +402,14 @@ fn what_rspec_is_handed() {
     std::fs::create_dir_all(&bin).unwrap();
     let log = dir.join("argv.log");
     // The shim: log argv (one line per run), find the `--out` path,
-    // and write the JSON a dry run or a run would -- one example,
-    // id `./spec/toy_spec.rb[1:1]`, description `Toy works`.
+    // and write the JSON a dry run would -- TWO examples, so that the
+    // run of "exactly the id" is a claim with teeth (review 0047 R-5,
+    // mutation M1: running every id of the file passed a shim of one)
+    // -- and the JSON a run would: whatever was asked for, passed.
     std::fs::write(
         bin.join("rspec"),
         format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nout=''\nprev=''\nfor a in \"$@\"; do\n  if [ \"$prev\" = \"--out\" ]; then out=\"$a\"; fi\n  prev=\"$a\"\ndone\nprintf '%s' '{{\"examples\":[{{\"id\":\"./spec/toy_spec.rb[1:1]\",\"description\":\"works\",\"full_description\":\"Toy works\",\"status\":\"passed\",\"file_path\":\"./spec/toy_spec.rb\",\"line_number\":3}}],\"summary\":{{\"example_count\":1,\"failure_count\":0,\"pending_count\":0,\"errors_outside_of_examples_count\":0}},\"summary_line\":\"1 example, 0 failures\"}}' > \"$out\"\n",
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nout=''\nprev=''\ndry=''\nfor a in \"$@\"; do\n  if [ \"$prev\" = \"--out\" ]; then out=\"$a\"; fi\n  if [ \"$a\" = \"--dry-run\" ]; then dry=yes; fi\n  prev=\"$a\"\ndone\nif [ -n \"$dry\" ]; then\n  printf '%s' '{{\"examples\":[{{\"id\":\"./spec/toy_spec.rb[1:1]\",\"description\":\"works\",\"full_description\":\"Toy works\",\"status\":\"passed\"}},{{\"id\":\"./spec/toy_spec.rb[1:2]\",\"description\":\"other\",\"full_description\":\"Toy other\",\"status\":\"passed\"}}],\"summary\":{{\"example_count\":2,\"failure_count\":0,\"pending_count\":0,\"errors_outside_of_examples_count\":0}},\"summary_line\":\"2 examples, 0 failures\"}}' > \"$out\"\nelse\n  printf '%s' '{{\"examples\":[{{\"id\":\"./spec/toy_spec.rb[1:1]\",\"description\":\"works\",\"full_description\":\"Toy works\",\"status\":\"passed\"}}],\"summary\":{{\"example_count\":1,\"failure_count\":0,\"pending_count\":0,\"errors_outside_of_examples_count\":0}},\"summary_line\":\"1 example, 0 failures\"}}' > \"$out\"\nfi\n",
             log = log.display()
         ),
     )
@@ -404,8 +440,11 @@ fn what_rspec_is_handed() {
         "the name never goes into a command as a string:\n{logged}"
     );
     assert!(
-        runs[1].ends_with("spec/toy_spec.rb[1:1]") && !runs[1].contains("--dry-run"),
-        "the run is of exactly the id the dry run named:\n{logged}"
+        runs[1].ends_with("spec/toy_spec.rb[1:1]")
+            && !runs[1].contains("[1:2]")
+            && !runs[1].contains("--dry-run"),
+        "the run is of exactly the id the dry run named for the tag, and not \
+         the other example of the file:\n{logged}"
     );
     let out_path = runs[0]
         .split_whitespace()

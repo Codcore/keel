@@ -314,8 +314,16 @@ pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
                 .to_string(),
         );
     }
-    // Minitest ran and named nothing: the method does not exist.
-    if said.contains("0 runs") {
+    // Minitest ran and named nothing: the method does not exist. The
+    // SUMMARY line says it -- `0 runs, 0 assertions, …` -- and only
+    // that line: minitest also prints its speed, `995.6450 runs/s`,
+    // and one run in ten ends in `0 runs/s`, which a substring match
+    // read as "nothing ran" and the gate refused a green test
+    // (review 0047 R-4; the flaw was wave 0038's).
+    if said
+        .lines()
+        .any(|line| line.trim_start().starts_with("0 runs,"))
+    {
         return crate::adapter::Outcome::NotRun;
     }
     if success {
@@ -427,13 +435,16 @@ fn load_error(json: &str, voice: &str) -> Option<String> {
     if errors == 0 {
         return None;
     }
-    let mut text = strip_ansi(voice);
+    let mut text = voice.to_string();
     if let Some(messages) = parsed["messages"].as_array() {
         for message in messages.iter().filter_map(|m| m.as_str()) {
             text.push('\n');
             text.push_str(message);
         }
     }
+    // Colour out of BOTH voices: ruby paints the syntax error inside
+    // rspec's `messages` as well as on stdout (review 0047 R-3).
+    let text = strip_ansi(&text);
     let lines: Vec<&str> = text
         .lines()
         .map(str::trim)
@@ -532,13 +543,17 @@ fn rspec(root: &Path, args: &[String]) -> Result<Said, Refusal> {
     );
     match json {
         Ok(json) => Ok(Said { json, voice }),
+        // rspec started and left without its JSON: an `abort` in
+        // spec_helper, an `exit` in a config -- its own words say
+        // which, and "put rspec on PATH" is not the answer (review
+        // 0047 R-9).
         Err(_) => Err(Refusal {
             file: root.to_path_buf(),
             reason: ta(
-                "adapter-rspec-failed",
+                "adapter-rspec-silent",
                 targs!("error" => strip_ansi(voice.trim())),
             ),
-            instead: t("adapter-rspec-failed-instead"),
+            instead: t("adapter-rspec-silent-instead"),
         }),
     }
 }
