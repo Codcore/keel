@@ -13,7 +13,7 @@ transforms:
   the-adapter-is-a-choice:
     implements:
       - the-adapter-is-chosen-by-name
-    contracts: [tool-adapter-cargo@e2f46f]
+    contracts: [tool-adapter-cargo@b0e68e]
     files:
       - tool/src/adapter.rs
       - tool/src/config.rs
