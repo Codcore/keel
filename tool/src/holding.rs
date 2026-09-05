@@ -274,11 +274,15 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
     // layout by heart.
     if matches!(
         config.language(),
-        Some(Language::Ruby) | Some(Language::Elixir) | Some(Language::Python)
+        Some(Language::Ruby)
+            | Some(Language::Elixir)
+            | Some(Language::Python)
+            | Some(Language::JavaScript)
     ) {
         let looked = match config.language() {
             Some(Language::Elixir) => crate::elixir::module_paths(root, module),
             Some(Language::Python) => crate::python::module_paths(root, module),
+            Some(Language::JavaScript) => crate::javascript::module_paths(root, module),
             _ => crate::ruby::module_paths(root, module),
         };
         for path in &looked {
@@ -411,6 +415,11 @@ fn strip_comments(source: &str, tongue: Option<Language>) -> String {
         // fourth tongue is the third member of that family, and one
         // reader serves all three (wave 0045).
         Some(Language::Elixir) | Some(Language::Python) => strip_ruby(source, true),
+        // A fourth reader, and said so: `//` and `/* */` as rust, but
+        // `'…'` is a string here and not a lifetime, and a template
+        // literal in backticks runs over lines. Neither the rust
+        // reader nor the `#` family reads that right (wave 0046).
+        Some(Language::JavaScript) => strip_js(source),
         _ => strip_rust(source),
     }
 }
@@ -426,6 +435,7 @@ pub fn strip_for_test(source: &str, tongue: &str) -> String {
             "ruby" => Some(Language::Ruby),
             "elixir" => Some(Language::Elixir),
             "python" => Some(Language::Python),
+            "javascript" => Some(Language::JavaScript),
             _ => Some(Language::Rust),
         },
     )
@@ -779,6 +789,67 @@ fn blank_text_lines(source: &str, elixir: bool) -> String {
     }
     let mut out = kept.join("\n");
     out.push('\n');
+    out
+}
+
+/// JavaScript and TypeScript, read as the language reads them: `//`
+/// to the end of the line, `/* … */` (not nested), and three kinds of
+/// text -- `"…"`, `'…'`, and the template literal in backticks that
+/// runs over lines -- each with `\` escapes. Newlines are kept so a
+/// line number still counts from the top. Regular-expression
+/// literals are not read: a `/…/` holding a quote is a named border.
+fn strip_js(source: &str) -> String {
+    let chars: Vec<char> = source.chars().collect();
+    let n = chars.len();
+    let mut out = String::with_capacity(source.len());
+    let mut i = 0usize;
+    while i < n {
+        let ch = chars[i];
+        if ch == '/' && chars.get(i + 1) == Some(&'/') {
+            let from = i;
+            while i < n && chars[i] != '\n' {
+                i += 1;
+            }
+            only_newlines(&mut out, &chars, from, i);
+            continue;
+        }
+        if ch == '/' && chars.get(i + 1) == Some(&'*') {
+            let from = i;
+            i += 2;
+            while i < n && !(chars[i] == '*' && chars.get(i + 1) == Some(&'/')) {
+                i += 1;
+            }
+            i = (i + 2).min(n);
+            only_newlines(&mut out, &chars, from, i);
+            out.push(' ');
+            continue;
+        }
+        if matches!(ch, '"' | '\'' | '`') {
+            let from = i;
+            i += 1;
+            while i < n {
+                if chars[i] == '\\' {
+                    i += 2;
+                    continue;
+                }
+                if chars[i] == ch {
+                    i += 1;
+                    break;
+                }
+                // A plain string does not run over a line; where one
+                // seems to, the quote was something else (an
+                // apostrophe in a regex, say) and the line is code.
+                if chars[i] == '\n' && ch != '`' {
+                    break;
+                }
+                i += 1;
+            }
+            only_newlines(&mut out, &chars, from, i);
+            continue;
+        }
+        out.push(ch);
+        i += 1;
+    }
     out
 }
 

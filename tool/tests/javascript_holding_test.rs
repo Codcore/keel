@@ -32,7 +32,11 @@ fn keel(dir: &Path, args: &[&str]) -> (String, i32) {
 
 fn sandbox(name: &str, module: &str, export: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
-    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"javascript\"\n").unwrap();
+    std::fs::write(
+        dir.join("keel.toml"),
+        "lang = \"uk\"\nadapter = \"javascript\"\n",
+    )
+    .unwrap();
     std::fs::write(
         dir.join("keel/contracts/toy.md"),
         format!("---\nmodule: {module}\nexports:\n  - \"{export}\"\n---\n\nТіло контракту.\n"),
@@ -47,7 +51,11 @@ fn a_javascript_contract_holds_its_form() {
     // TypeScript in the src layout, with the ghosts a JS file can
     // hold: a template literal across lines, a block comment, a `'…'`
     // string.
-    let dir = sandbox("jshold", "toy.bar", "export function works(a: number, b: number): number");
+    let dir = sandbox(
+        "jshold",
+        "toy.bar",
+        "export function works(a: number, b: number): number",
+    );
     std::fs::create_dir_all(dir.join("src/toy")).unwrap();
     std::fs::write(
         dir.join("src/toy/bar.ts"),
@@ -56,7 +64,10 @@ fn a_javascript_contract_holds_its_form() {
     .unwrap();
     let (said, code) = keel(&dir, &["check"]);
     assert_eq!(code, 0, "a signature found in the module holds:\n{said}");
-    assert!(said.contains("сигнатур звірено: 1"), "and was compared:\n{said}");
+    assert!(
+        said.contains("сигнатур звірено: 1"),
+        "and was compared:\n{said}"
+    );
 
     // Every layout node keeps a module in, each one found.
     for (name, layout, module) in [
@@ -71,22 +82,40 @@ fn a_javascript_contract_holds_its_form() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(&path, "export function works() {\n  return true;\n}\n").unwrap();
         let (said, code) = keel(&dir, &["check"]);
-        assert_eq!(code, 0, "{name}: the layout {layout} is node's own:\n{said}");
+        assert_eq!(
+            code, 0,
+            "{name}: the layout {layout} is node's own:\n{said}"
+        );
     }
 
     // Ghosts do not hold, in each shape of text.
     for (name, source) in [
-        ("jsghost1", "const doc = `\n  export function ghost(a)\n`;\nexport function works() {}\n"),
-        ("jsghost2", "/*\n  export function ghost(a)\n*/\nexport function works() {}\n"),
-        ("jsghost3", "// export function ghost(a)\nexport function works() {}\n"),
-        ("jsghost4", "const s = 'export function ghost(a)';\nexport function works() {}\n"),
+        (
+            "jsghost1",
+            "const doc = `\n  export function ghost(a)\n`;\nexport function works() {}\n",
+        ),
+        (
+            "jsghost2",
+            "/*\n  export function ghost(a)\n*/\nexport function works() {}\n",
+        ),
+        (
+            "jsghost3",
+            "// export function ghost(a)\nexport function works() {}\n",
+        ),
+        (
+            "jsghost4",
+            "const s = 'export function ghost(a)';\nexport function works() {}\n",
+        ),
     ] {
         let dir = sandbox(name, "toy", "export function ghost(a)");
         std::fs::create_dir_all(dir.join("src")).unwrap();
         std::fs::write(dir.join("src/toy.js"), source).unwrap();
         let (said, code) = keel(&dir, &["check"]);
         assert_ne!(code, 0, "{name}: text is not source:\n{said}");
-        assert!(said.contains("src/toy.js"), "{name}: and the finding names where it looked:\n{said}");
+        assert!(
+            said.contains("src/toy.js"),
+            "{name}: and the finding names where it looked:\n{said}"
+        );
     }
 
     // A live declaration beside an apostrophe in a comment or a
@@ -96,11 +125,14 @@ fn a_javascript_contract_holds_its_form() {
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::write(
         dir.join("src/toy.js"),
-        "// don't worry\nconst greeting = \"it's fine\";\nexport function works() {\n  return 'yes';\n}\n",
+        "// don't worry\nconst greeting = \"it's fine\";\nconst re = /don't/;\nexport function works() {\n  return 'yes';\n}\n",
     )
     .unwrap();
     let (said, code) = keel(&dir, &["check"]);
-    assert_eq!(code, 0, "an apostrophe does not eat the declaration after it:\n{said}");
+    assert_eq!(
+        code, 0,
+        "an apostrophe does not eat the declaration after it:\n{said}"
+    );
 
     // Missing: every path that was tried is named.
     let dir = sandbox("jsmissing", "toy.gone", "export function works()");
