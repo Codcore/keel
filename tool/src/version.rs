@@ -52,15 +52,17 @@ pub fn report(root: &Path) -> String {
     };
     out.push_str(&pin_row);
     out.push('\n');
-    for standing in installed() {
-        out.push_str(&ta(
-            "version-installed",
-            targs!("version" => standing.version, "ref" => standing.named),
-        ));
+    // One read, not two (review 0041 R-17).
+    let standing = installed();
+    if standing.is_empty() {
+        out.push_str(&t("version-installed-none"));
         out.push('\n');
     }
-    if installed().is_empty() {
-        out.push_str(&t("version-installed-none"));
+    for one in standing {
+        out.push_str(&ta(
+            "version-installed",
+            targs!("version" => one.version, "ref" => one.named),
+        ));
         out.push('\n');
     }
     out
@@ -96,9 +98,15 @@ pub fn installed() -> Vec<Standing> {
         .flatten()
         .filter_map(|entry| {
             let version = std::fs::read_to_string(entry.path().join(".keel-version")).ok()?;
+            // The ref as it was asked for, not the encoded directory
+            // name: a ref may carry a slash, and the home encodes it
+            // (review 0041 R-4).
+            let named = std::fs::read_to_string(entry.path().join(".keel-ref"))
+                .map(|named| named.trim().to_string())
+                .unwrap_or_else(|_| entry.file_name().to_string_lossy().into_owned());
             Some(Standing {
                 version: version.trim().to_string(),
-                named: entry.file_name().to_string_lossy().into_owned(),
+                named,
             })
         })
         .collect();

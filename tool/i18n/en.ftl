@@ -560,7 +560,7 @@ version-pin-hand = { "  " }to take exactly that one: KEEL_REF="{ $pin }" sh inst
 version-pin-hand-border = { "  " }the border: KEEL_REF takes a git ref (a tag or a commit) of this repository BY NAME -- not a verified checksum, and not the number in keel.toml by itself. Where no tag carries that name, install.sh refuses with the list of the ones that do; no v1 tag builds at all, the crate having lived outside tool/ back then
 version-pin-none = the version field is not set -- no pin; the concept advises one: version = "{ $version }"
 version-installed = { "  " }standing here: { $version }  (ref { $ref })
-version-installed-none = { "  " }no version stands here -- this binary was not run through the launcher
+version-installed-none = { "  " }no version stands here (~/.keel/versions/ is empty)
 version-no-file = keel.toml is absent -- no pin, the binary above runs
 version-unread = keel.toml not read ({ $reason }) -- the pin unknown; the config court says the refusal in full
 

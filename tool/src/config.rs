@@ -204,10 +204,21 @@ impl Config {
     /// string equality, ranges are not of this generation. Some is
     /// the pinned name to say aloud beside the running one; None
     /// means the pin holds or none is set.
+    /// A pin may name the crate version OR the git ref this binary
+    /// was installed under (wave 0041, review R-1). On keel itself
+    /// every ref answers `0.1.0` -- the crate version has not moved
+    /// in 495 commits -- so a pin that could only name the version
+    /// could not tell two installed releases apart at all. The ref is
+    /// what the launcher knows and the binary does not, so the
+    /// launcher says it in KEEL_RUNNING_REF.
     pub fn pin_mismatch(&self, running: &str) -> Option<&str> {
-        match self.version.as_deref() {
-            Some(pin) if pin != running => Some(pin),
-            _ => None,
+        let pin = self.version.as_deref()?;
+        if pin == running {
+            return None;
+        }
+        match std::env::var("KEEL_RUNNING_REF") {
+            Ok(named) if named.trim() == pin => None,
+            _ => Some(pin),
         }
     }
 }

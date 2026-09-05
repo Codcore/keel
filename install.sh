@@ -24,9 +24,15 @@
 # binary is not. Named because the courts refuse while the two differ, and
 # advice with no hand behind it is not advice.
 #
-# The border, said rather than hidden: this fetches a git ref BY NAME. It is
-# not a verified checksum, and there is no ~/.keel/versions/ holding several
-# releases side by side -- that rung of the concept is not built.
+# Each version gets a home of its own under ~/.keel/versions/, and the `keel`
+# put on PATH is a LAUNCHER: it reads the version a project pins and runs
+# exactly that one. Two projects on two pins work at the same time.
+#
+# The border, said rather than hidden: this fetches a git ref BY NAME, and the
+# sha it records proves which tree arrived -- not that the ref is worth
+# trusting. A signed, published release with a checksum of its own is not
+# built, and the launcher does not fetch a missing version by itself: it
+# refuses with the command.
 #
 # Override with KEEL_REPO, KEEL_HOME, KEEL_BIN, KEEL_REF.
 set -eu
@@ -60,84 +66,172 @@ checksum() {
 # and hands over to that version (NEW-CONCEPT, "Distribution"). The
 # operator's line is kept: there is no shim inside a project.
 install_launcher() {
-    cat > "$1" <<'LAUNCHER'
-#!/bin/sh
-# keel launcher -- written by install.sh, do not edit.
+    # The home this installer used is baked in as the default, so a
+    # person who moved KEEL_HOME does not have to export it forever
+    # (review 0041 R-8).
+    printf '%s\n' "#!/bin/sh" > "$1"
+    printf '%s\n' "# keel launcher -- written by install.sh, do not edit." >> "$1"
+    printf '%s\n' "KEEL_HOME=\"\${KEEL_HOME:-$KEEL_HOME}\"" >> "$1"
+    cat >> "$1" <<'LAUNCHER'
 #
 # It reads the `version` a project pins in keel.toml and runs exactly
-# that version out of ~/.keel/versions/. It NEVER runs a different
+# that version out of $KEEL_HOME/versions/. It NEVER runs a different
 # one: the wrong binary in silence is worse than a refusal.
 set -eu
 
-KEEL_HOME="${KEEL_HOME:-$HOME/.keel}"
 VERSIONS="$KEEL_HOME/versions"
 
-# Where the project is: `-C <dir>` if it was given, else here. The
-# launcher must find the same project the tool will judge.
+# Where the project is. `-C <dir>` if it was given -- the FIRST one,
+# which is the one the tool itself takes -- else a plain argument that
+# is a directory, else here. Review 0041 R-5: a positional path is the
+# form keel's own probes use, and the launcher used to ignore it, so
+# it could hand over a version the tool would then refuse.
+#
+# It does not have to be perfect: where the launcher picks wrong, the
+# tool's own pin court refuses aloud. What it must never do is pick
+# wrong in silence.
 where="$PWD"
 prev=""
+found_c=""
 for word in "$@"; do
+    if [ -n "$found_c" ]; then break; fi
     if [ "$prev" = "-C" ]; then
         where="$word"
-        break
+        found_c="yes"
     fi
     prev="$word"
 done
+if [ -z "$found_c" ]; then
+    for word in "$@"; do
+        case "$word" in
+            -*) ;;
+            *) if [ -d "$word" ]; then where="$word"; fi ;;
+        esac
+    done
+fi
 
 # The pin, from the nearest keel.toml at or above that directory.
+# Both TOML string forms, because both are legal and the tool reads
+# both: reading only one made a pin in single quotes look like no pin
+# at all, and the launcher then ran another version in silence
+# (review 0041 R-2).
 pin=""
+pinned_line=""
 dir="$(cd "$where" 2>/dev/null && pwd || echo "$PWD")"
 while :; do
     if [ -f "$dir/keel.toml" ]; then
-        pin="$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$dir/keel.toml" | head -1)"
+        pinned_line="$(grep -E '^[[:space:]]*version[[:space:]]*=' "$dir/keel.toml" | head -1 || true)"
+        pin="$(printf '%s' "$pinned_line" | sed -n "s/^[[:space:]]*version[[:space:]]*=[[:space:]]*[\"']\([^\"']*\)[\"'].*/\1/p")"
         break
     fi
     [ "$dir" = "/" ] && break
     dir="$(dirname "$dir")"
 done
 
+# A `version` line that is there and cannot be read is a refusal, not
+# a shrug: silently treating it as "no pin" is how R-2 ran the wrong
+# version.
+if [ -n "$pinned_line" ] && [ -z "$pin" ]; then
+    echo "keel: $dir/keel.toml has a version line the launcher cannot read:" >&2
+    echo "keel:   $pinned_line" >&2
+    echo "keel: instead: write it as version = \"<the version or ref>\"" >&2
+    exit 2
+fi
+
+# Every version standing here, deepest first: a ref may carry a slash
+# (`plan/0041-...` is a branch of this very repository), and the home
+# is named by an encoded form of it. Review 0041 R-4: a flat glob saw
+# none of those and told a person nothing was installed.
+homes() {
+    find "$VERSIONS" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort
+}
+
+name_of() {
+    if [ -f "$1/.keel-ref" ]; then cat "$1/.keel-ref"; else basename "$1"; fi
+}
+
+say_installed() {
+    for home in $(homes); do
+        [ -f "$home/.keel-version" ] || continue
+        echo "keel:   $(cat "$home/.keel-version")  (ref $(name_of "$home"))" >&2
+    done
+}
+
 run() {
     home="$1"
     shift
-    # The integrity check, before handing over: a binary that is not
-    # the one that was installed is named, never run.
-    if [ -f "$home/.keel-sum" ]; then
-        want="$(cat "$home/.keel-sum")"
-        if [ -n "$want" ]; then
-            if command -v sha256sum >/dev/null 2>&1; then
-                have="$(sha256sum "$home/keel" | cut -d' ' -f1)"
-            elif command -v shasum >/dev/null 2>&1; then
-                have="$(shasum -a 256 "$home/keel" | cut -d' ' -f1)"
-            else
-                have="$want"
-            fi
-            if [ "$have" != "$want" ]; then
-                echo "keel: the binary at $home/keel is not the one that was installed" >&2
-                echo "keel:   recorded $want" >&2
-                echo "keel:   found    $have" >&2
-                echo "keel: instead: reinstall that version, or delete $home" >&2
-                exit 2
-            fi
+    # The integrity check, before handing over. A recorded checksum
+    # that is empty, or a record that is gone, is NOT a pass: on a
+    # machine with no sha256 tool the installer wrote an empty file
+    # and the check quietly turned off (review 0041 R-3).
+    if [ ! -f "$home/.keel-sum" ]; then
+        echo "keel: $home has no recorded checksum -- it was not installed by this installer" >&2
+        echo "keel: instead: reinstall that version, or delete $home" >&2
+        exit 2
+    fi
+    want="$(cat "$home/.keel-sum")"
+    if [ "$want" = "none" ]; then
+        echo "keel: warning: $(name_of "$home") was installed on a machine with no sha256 tool," >&2
+        echo "keel: warning: so the binary is run unchecked" >&2
+    else
+        if command -v sha256sum >/dev/null 2>&1; then
+            have="$(sha256sum "$home/keel" | cut -d' ' -f1)"
+        elif command -v shasum >/dev/null 2>&1; then
+            have="$(shasum -a 256 "$home/keel" | cut -d' ' -f1)"
+        else
+            have=""
+        fi
+        if [ -z "$have" ]; then
+            echo "keel: warning: no sha256 tool here, so the binary is run unchecked" >&2
+        elif [ "$have" != "$want" ]; then
+            echo "keel: the binary at $home/keel is not the one that was installed" >&2
+            echo "keel:   recorded $want" >&2
+            echo "keel:   found    $have" >&2
+            echo "keel: instead: reinstall that version, or delete $home" >&2
+            exit 2
         fi
     fi
+    # The binary knows its crate version and not the ref it was built
+    # from; the launcher does, and tells it, so a pin may name either.
+    KEEL_RUNNING_REF="$(name_of "$home")" export KEEL_RUNNING_REF
     exec "$home/keel" "$@"
 }
 
 if [ -n "$pin" ]; then
-    for home in "$VERSIONS"/*; do
+    # A pin may name the ref or the version. Two homes can answer for
+    # one crate version -- on keel itself EVERY ref answers 0.1.0 --
+    # and picking one of them by glob order is exactly the silent
+    # wrong binary this launcher exists to prevent (review 0041 R-1).
+    matched=""
+    count=0
+    for home in $(homes); do
         [ -f "$home/.keel-version" ] || continue
+        if [ "$(name_of "$home")" = "$pin" ]; then
+            matched="$home"
+            count=1
+            break
+        fi
         if [ "$(cat "$home/.keel-version")" = "$pin" ]; then
-            run "$home" "$@"
+            matched="$home"
+            count=$((count + 1))
         fi
     done
-    echo "keel: keel.toml pins version \"$pin\", and it is not installed here" >&2
+    if [ "$count" -gt 1 ]; then
+        echo "keel: keel.toml pins \"$pin\", and more than one version here answers to it:" >&2
+        say_installed
+        echo "keel: instead: pin the ref instead of the version -- it is unique," >&2
+        echo "keel:   and the refs are named above" >&2
+        exit 2
+    fi
+    if [ -n "$matched" ]; then
+        run "$matched" "$@"
+    fi
+    echo "keel: keel.toml pins \"$pin\", and it is not installed here" >&2
     echo "keel: installed:" >&2
-    for home in "$VERSIONS"/*; do
-        [ -f "$home/.keel-version" ] || continue
-        echo "keel:   $(cat "$home/.keel-version")  ($(basename "$home"))" >&2
-    done
-    echo "keel: instead: install exactly that version --" >&2
-    echo "keel:   KEEL_REF=\"<the tag or commit of $pin>\" sh install.sh" >&2
+    say_installed
+    echo "keel: instead: install exactly that one --" >&2
+    echo "keel:   KEEL_REF=\"$pin\" sh install.sh" >&2
+    echo "keel:   curl -fsSL https://raw.githubusercontent.com/Codcore/keel/main/install.sh | sh -s -- \"$pin\"" >&2
     exit 2
 fi
 
@@ -146,8 +240,17 @@ current=""
 if [ -n "$current" ] && [ -x "$VERSIONS/$current/keel" ]; then
     run "$VERSIONS/$current" "$@"
 fi
-echo "keel: no version is installed in $VERSIONS" >&2
-echo "keel: instead: sh install.sh" >&2
+# Nothing to run -- and which of the two reasons it is, said plainly.
+# Review 0041 R-10: this refusal claimed the whole directory was empty
+# while two versions stood in it.
+if [ -n "$(homes)" ]; then
+    echo "keel: no version is marked current in $KEEL_HOME, though these stand here:" >&2
+    say_installed
+    echo "keel: instead: reinstall the one you want -- it becomes current" >&2
+else
+    echo "keel: no version is installed in $VERSIONS" >&2
+    echo "keel: instead: sh install.sh" >&2
+fi
 exit 2
 LAUNCHER
     chmod +x "$1"
@@ -214,7 +317,13 @@ name="$KEEL_REF"
 if [ -z "$name" ]; then
     name="$(git -C "$SOURCE" symbolic-ref --short -q HEAD 2>/dev/null || echo main)"
 fi
-home="$VERSIONS/$name"
+# A ref may carry a slash -- `plan/0041-...` is a branch of this very
+# repository -- and a home named with one is a directory a level
+# deeper that neither the launcher nor the lamp could see (review 0041
+# R-4). The home is named by an encoded form; the true ref is written
+# beside it and is what a person and a pin see.
+encoded="$(printf '%s' "$name" | tr '/' '~')"
+home="$VERSIONS/$encoded"
 sha="$(git -C "$SOURCE" rev-parse HEAD)"
 
 echo "keel: building the tool (cargo, release)"
@@ -234,12 +343,35 @@ chmod +x "$home/keel"
 # the one the ref named, NOT that the ref is worth trusting.
 version="$("$home/keel" --version | head -1 | awk '{print $2}')"
 printf '%s\n' "$version" > "$home/.keel-version"
+printf '%s\n' "$name" > "$home/.keel-ref"
 printf '%s\n' "$sha" > "$home/.keel-sha"
-printf '%s\n' "$(checksum "$home/keel")" > "$home/.keel-sum"
-printf '%s\n' "$name" > "$KEEL_HOME/.keel-current"
+# A checksum this machine cannot compute is recorded as "none", not as
+# an empty line: an empty record read as "nothing to check" and the
+# integrity gate turned itself off in silence (review 0041 R-3).
+sum="$(checksum "$home/keel")"
+if [ -z "$sum" ]; then
+    sum="none"
+    echo "keel: this machine has neither sha256sum nor shasum, so no checksum" >&2
+    echo "keel: was recorded -- the launcher will say so on every run" >&2
+fi
+printf '%s\n' "$sum" > "$home/.keel-sum"
+printf '%s\n' "$encoded" > "$KEEL_HOME/.keel-current"
 
 mkdir -p "$KEEL_BIN"
+# A keel that is not ours is said aloud before it is replaced (review
+# 0041 R-7: the decision claimed it was never written over).
+if [ -f "$KEEL_BIN/keel" ] && ! head -2 "$KEEL_BIN/keel" | grep -q "keel launcher"; then
+    echo "keel: $KEEL_BIN/keel is not this launcher; replacing it" >&2
+    echo "keel: (a copy is kept at $KEEL_BIN/keel.before-launcher)" >&2
+    cp "$KEEL_BIN/keel" "$KEEL_BIN/keel.before-launcher"
+fi
 install_launcher "$KEEL_BIN/keel"
+
+if [ -d "$KEEL_HOME/.git" ]; then
+    echo "keel: $KEEL_HOME/.git is the old single-tree layout, left from an" >&2
+    echo "keel: earlier release -- nothing here uses it now; you may delete" >&2
+    echo "keel: $KEEL_HOME/.git and $KEEL_HOME/tool" >&2
+fi
 
 echo "keel: keel $version installed at $home"
 echo "keel: the launcher at $KEEL_BIN/keel runs the version a project pins"

@@ -87,4 +87,17 @@ fn the_lamp_shows_what_stands_here() {
         Some(0),
         "nothing standing is an empty list, not a missing field:\n{said}"
     );
+    // And the prose says so too, rather than leaving a person to read
+    // an absence (review 0041 R-14: the row was held by nothing).
+    let (said, _) = keel(&empty, &["version", project.to_str().unwrap()]);
+    assert!(
+        said.contains("не стоїть жодної версії") || said.contains("no version stands here"),
+        "the prose names the empty shelf:\n{said}"
+    );
+    // And it does NOT guess why: a version can stand and still not be
+    // reached, which is a different sentence.
+    assert!(
+        !said.contains("launcher"),
+        "without inventing a cause it did not measure:\n{said}"
+    );
 }

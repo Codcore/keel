@@ -16,12 +16,14 @@ transforms:
       - the-launcher-runs-what-the-project-pinned
     files:
       - install.sh
-      - keel/contracts/tool-launcher.md
       - tool/tests/common/mod.rs
       - one new in tool/tests/common/
       - keel.toml
+      - tool/src/config.rs
+      - keel/contracts/tool-launcher.md
       - tool/tests/versions_test.rs
       - tool/tests/launcher_test.rs
+      - tool/tests/pin_hand_test.rs
   the-lamp-counts-them:
     implements:
       - the-lamp-shows-what-stands-here
@@ -30,8 +32,9 @@ transforms:
       - tool/src/main.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
+      - keel/contracts/tool-version.md
+      - keel/contracts/tool-json.md
       - tool/tests/installed_test.rs
-      - tool/tests/pin_hand_test.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:
@@ -43,8 +46,8 @@ transforms:
 decisions:
   functional.completeness: "тримає the-launcher-runs-what-the-project-pinned: щабель закривається тим, що є під рукою — git-ref і його sha; докачування релізних бінарників GitHub не входить, і це сказано в межах"
   functional.appropriateness: "тримає versions-live-side-by-side: два проєкти на різних пінах — це щоденна робота, а не куток; сьогодні другий перетирає першого"
-  performance.time-behaviour: "свідомо без тесту, і ціна названа: launcher — це один exec на команду; вимірювати мілісекунди тут нема сенсу, а приховувати їх — нечесно"
-  performance.capacity: "свідомо без тесту: кожна версія — власне дерево і власний target; місце росте лінійно, і lamp показує, скільки їх"
+  performance.time-behaviour: "свідомо без тесту, і ціна названа числом: близько +12 мс на команду (3.2 → 15.2 мс) — sh, sha256 бінарника на 3.4 МіБ і exec. Це не «один exec», і keel кличуть із git-hook-а на кожен коміт (зміряла рецензія 0041 R-7)"
+  performance.capacity: "свідомо без тесту: клон і target **один на всі** версії, а власний у кожної — лише бінарник; місце росте бінарниками, і lamp показує, скільки їх (рецензія 0041 R-7 виміряла, що «власне дерево на версію» було неправдою)"
   performance.resource-utilisation: "не застосовується"
   compatibility.interoperability: "тримає versions-live-side-by-side: домовляється рівно з git і cargo, як і досі"
   interaction.appropriateness-recognisability: "свідомо без тесту: імена тек — самі версії, тож ls ~/.keel/versions читається без пояснень"
@@ -59,21 +62,21 @@ decisions:
   reliability.availability: "не застосовується"
   reliability.recoverability: "свідомо без тесту: зіпсовану версію лікує видалення її теки — вона нічия, крім своєї"
   security.confidentiality: "не застосовується"
-  security.integrity: "тримає the-launcher-runs-what-the-project-pinned: sha коміта записується при постановці і звіряється перед бігом — дерево, яке зрушили руками, launcher називає вголос"
+  security.integrity: "тримає the-launcher-runs-what-the-project-pinned: перед бігом звіряється sha256 **самого бінарника**, і запис, якого нема або який порожній, — відмова, а не пропуск. sha **коміта** записується і НЕ звіряється: дерева версії не тримають, тож звіряти нема з чим — це походження, і сказано так (рецензія 0041 R-3, R-13)"
   security.non-repudiation: "не застосовується"
   security.accountability: "не застосовується"
   security.authenticity: "свідомо без окремої роботи, і межа названа гостро: sha доводить, що дерево — те саме, яке назвав ref; він НЕ доводить, що ref гідний довіри. Підпис і checksum релізу — рядок черги"
   security.resistance: "не застосовується"
-  maintainability.modularity: "тримає the-lamp-shows-what-stands-here: розкладка версій — знання одного місця, і lamp питає його, а не вгадує шляхи"
+  maintainability.modularity: "свідомо без тесту, і число назване чесно: розкладку знають **три** місця — install.sh, вбудований launcher і version.rs, — бо перше два з них shell, а третє Rust; контракт tool-launcher тримає їх в одному описі (рецензія 0041 R-7)"
   maintainability.reusability: "не застосовується"
   maintainability.modifiability: "свідомо без тесту: launcher — десяток рядків shell; змінити розкладку — змінити одну змінну в ньому й у lamp"
   maintainability.testability: "свідомо без тесту: проби жени справжній install.sh проти справжнього git-репозиторію зі стабом cargo — школа рецензії 0039 R-5"
   flexibility.scalability: "не застосовується"
-  flexibility.adaptability: "тримає versions-live-side-by-side: KEEL_HOME, KEEL_BIN, KEEL_REPO лишаються переставними, і launcher їх шанує"
-  flexibility.replaceability: "свідомо без тесту: проєкт, що ставить keel інакше, лишає власний бінарник на PATH — launcher не встановлюється поверх чужого"
+  flexibility.adaptability: "тримає versions-live-side-by-side: KEEL_HOME, KEEL_BIN, KEEL_REPO переставні, і той KEEL_HOME, яким ставили, вшивається в launcher типовим — інакше людина мусила б експортувати змінну назавжди (рецензія 0041 R-8)"
+  flexibility.replaceability: "свідомо без тесту: інсталятор **перезаписує** чужий keel на PATH — інакше він не поставив би нічого, — але каже про це вголос і лишає копію keel.before-launcher (рецензія 0041 R-7: попереднє формулювання просто не було правдою)"
   safety.operational-constraints: "не застосовується"
   safety.risk-identification: "свідомо без окремої роботи: ризик названий числом — сьогодні друга версія перетирає першу, тож два проєкти на різних пінах не працюють разом узагалі"
-  safety.hazard-warning: "тримає the-lamp-shows-what-stands-here: lamp показує, що стоїть тут, тож розбіжність піна видно раніше, ніж суд відмовить"
+  safety.hazard-warning: "тримає the-lamp-shows-what-stands-here: lamp показує кожну версію її справжнім ref-ом, а порожню полицю — окремим рядком, який не вгадує причини (рецензія 0041 R-4, R-14)"
   safety.safe-integration: "тримає versions-live-side-by-side: проєкт без піна працює як досі — launcher жене ту версію, що стоїть, і нічого не питає"
 ---
 
