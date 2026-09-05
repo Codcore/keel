@@ -270,6 +270,42 @@ could **not** judge rather than painting green over it:
 `keel close` is the heavier one: it runs the project's battery three times in
 its own target directory, because an inherited cache shifts verdicts.
 
+**A test it watched fail holds the wave open** — whoever claims it. That reads
+obvious and was not true until wave 0043: blockers were counted only from the
+uncovered promises of the branch's own wave, so a red test no scenario named
+was printed by name and then closed over, with exit 0. Measured that way in
+rust, ruby and elixir alike, which is why the fix is in the court and not in
+any adapter. A flaky test blocks the same way: three runs exist precisely so
+flakiness is visible, and a flaky test is not a green one. Waves closed in
+earlier generations keep their verdict — their promises were proven at their
+time, and today's red is not their lack.
+
+The same wave took a second false green out of `keel check`: a declaration
+written inside a multi-line text — an elixir `@moduledoc`, a ruby heredoc, a
+rust `r#"..."#` — used to hold a contract's `exports` as if it were live code.
+Comments were already not code; text is not code either, in all three tongues,
+and the finding now names the file it looked in.
+
+That rule is a **reader per tongue, not a rule per mark** — and the first cut of
+it, which was three passes over three marks, is why the reviewer sent the wave
+back. Rust is read in one pass the way rustc reads it (nested `/* */`, raw
+strings with their hash count, ordinary strings with their escapes, a char
+literal told from a lifetime); before that, `ident.strip_prefix("r#")` in `syn`
+opened a raw string that was never open and **17 of the 3419 crates** in the
+local registry lost a live declaration — with the same trap already standing in
+keel's own source. Ruby and Elixir are read **line by line, deliberately**:
+ruby writes `$'` for the post-match and `?'` for a character, and carrying quote
+state across lines to catch a multi-line string cost **513 live `def`s across 87
+files** of ruby's own library. A heredoc opens only when its word really stands
+alone on a line below, so a shovel, an example inside a string, and any heredoc
+shape this reader does not know all leave the file alone.
+
+The direction is chosen and stated: this court may let a ghost through and say
+so — the borders are listed in `BACKLOG.md` — but it must not refuse a promise
+that is alive. A court that refuses live code is not a stricter court; it is a
+broken one. Measured after the rewrite: zero live declarations lost across both
+corpora.
+
 ## Two languages
 
 `lang` in `keel.toml` picks the tool's own language — `uk` or `en`. It decides
@@ -315,11 +351,9 @@ left unsaid. Two smaller things measured there: an ExUnit test is named by a
 so the tool builds the full name rather than calling it a limit.
 
 The border Elixir does share with Ruby is named too: neither writes types in a
-`def`, so §7.6 compares a name and its parameters and nothing more — and a `def`
-written inside a `@moduledoc` (or a ruby heredoc) is not yet told from a live
-one, because the comment stripper cuts `#` and knows nothing of triple quotes.
-Measured in both tongues in wave 0042, said aloud by `keel check`, and queued in
-`BACKLOG.md` rather than left for a reader to find.
+`def`, so §7.6 compares a name and its parameters and nothing more. The other
+half of that border is gone — a `def` written inside a `@moduledoc` used to pass
+for a live one, and wave 0043 took it away in all three tongues at once.
 
 An honest limit of the ruby adapter, and §7.12 foresaw it: ruby does not tell
 "failed" from "did not load" by its exit code — both are 1. The adapter reads

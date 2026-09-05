@@ -402,15 +402,25 @@ fn the_battery_believes_mix_and_not_the_source() {
     )
     .unwrap();
     let (said, code) = keel(&dir, &["check"]);
-    assert_eq!(code, 0, "the ghost holds today -- that is the bug:\n{said}");
+    // Wave 0042 measured this holding and named the border; wave 0043
+    // took the border away -- what lives only inside a `@moduledoc`
+    // is not source in any tongue. The case stays here because it is
+    // elixir's shape of it, and a court once wrong is worth watching.
+    assert_ne!(code, 0, "the ghost does not hold:\n{said}");
     assert!(
-        said.contains("сигнатур звірено: 1"),
-        "the form court did compare it:\n{said}"
+        said.contains("lib/toy.ex"),
+        "and the finding names the file it looked in:\n{said}"
     );
     assert!(
-        said.contains("@moduledoc") && said.contains("не пише типів"),
-        "and the verdict names the border it did not cross, so the \
-         green above is not read as meaning:\n{said}"
+        said.contains("сигнатур звірено: 1"),
+        "the form court DID compare it -- the refusal is a verdict, \
+         not a court that skipped (review 0043 R-14: this assertion \
+         was dropped when the case was turned round):\n{said}"
+    );
+    assert!(
+        said.contains("не пише типів"),
+        "and the border that DOES stand is still said: elixir writes \
+         no types, so green form is less than meaning:\n{said}"
     );
 
     // The reviewer's mutation list, and its sharp reading: "every
