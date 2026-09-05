@@ -227,7 +227,7 @@ fn ignore_row(root: &Path) -> String {
         Ok(config) => config,
         Err(refusal) => return ta("init-ignore-unjudged", targs!("error" => refusal.reason)),
     };
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         // A named adapter is called by its name; "not named" belongs
         // to the absent one (review 0020 R-8; the 0017 R-3 school).
         return match config.adapter {

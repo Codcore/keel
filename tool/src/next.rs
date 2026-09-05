@@ -98,7 +98,7 @@ fn unknown_agent(root: &Path, agent: &str) -> Refusal {
 
 pub fn step(root: &Path) -> Result<String, Refusal> {
     let config = config::read(root)?;
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("next-needs-adapter"),

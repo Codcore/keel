@@ -239,7 +239,7 @@ fn judged(contract: &Contract) -> Option<(&str, String)> {
 /// directories and the file (the bare crate itself is src/lib.rs),
 /// and `src/a/mod.rs` is looked for wherever `src/a.rs` is.
 fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         return Comparability::NoAdapter;
     }
     // A name that reaches outside the crate is not a module of it,

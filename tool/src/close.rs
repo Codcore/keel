@@ -113,7 +113,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         });
     }
     let config = config::read(root)?;
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("close-needs-adapter"),
@@ -140,9 +140,14 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // root's own target: on a project whose Cargo.toml is at the
     // root, the refusal named a directory that does not exist and
     // the instead swept nothing.
-    let target = adapter::crate_root(root)?.join("target");
+    // A language that builds nothing costs no disk, and this court
+    // stops demanding a crate of it (wave 0038): ruby has no build
+    // directory to measure, to warn about or to sweep.
+    let target = adapter::build_dir(root);
     let needed = NEEDED_BYTES;
-    if let Some(free) = free_bytes(root).filter(|free| *free < needed) {
+    if let Some(target) = target.clone()
+        && let Some(free) = free_bytes(root).filter(|free| *free < needed)
+    {
         return Err(Refusal {
             file: target,
             reason: ta(
@@ -156,16 +161,19 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // review 0031 R-1 measured the whole report, price line included,
     // appearing 101 seconds in -- after the target was already built.
     // A warning that arrives with the bill is not a warning.
-    eprintln!(
-        "{}",
-        ta(
-            "close-price",
-            targs!(
-                "target" => target.display().to_string(),
-                "needed" => gigabytes(NEEDED_BYTES)
+    match &target {
+        Some(target) => eprintln!(
+            "{}",
+            ta(
+                "close-price",
+                targs!(
+                    "target" => target.display().to_string(),
+                    "needed" => gigabytes(NEEDED_BYTES)
+                )
             )
-        )
-    );
+        ),
+        None => eprintln!("{}", t("close-price-nothing-built")),
+    }
     let found = tags::scan(&adapter::test_files(root)?)?;
     // The battery runs several times before green is believed
     // (§7.13): the adapter keeps its word -- one battery, one cargo
@@ -381,14 +389,16 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // And what the price actually came to (review 0031 R-6: the
     // scenario promised this sentence and the first cut of the work
     // simply did not carry it).
-    report.push_str(&ta(
-        "close-price-paid",
-        targs!(
-            "target" => target.display().to_string(),
-            "size" => tenths_of_gigabyte(directory_bytes(&target))
-        ),
-    ));
-    report.push('\n');
+    if let Some(target) = &target {
+        report.push_str(&ta(
+            "close-price-paid",
+            targs!(
+                "target" => target.display().to_string(),
+                "size" => tenths_of_gigabyte(directory_bytes(target))
+            ),
+        ));
+        report.push('\n');
+    }
     Ok((report, blockers + verify_blockers + ci_blocker))
 }
 

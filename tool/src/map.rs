@@ -26,7 +26,7 @@ pub fn draw(root: &Path) -> Result<String, Refusal> {
         // check names every broken file -- fix them first.
         return Err(refusal);
     }
-    let found: Option<Vec<TestTag>> = if config.rust_adapter() {
+    let found: Option<Vec<TestTag>> = if config.adapter_known() {
         Some(tags::scan(&adapter::test_files(root)?)?)
     } else {
         None

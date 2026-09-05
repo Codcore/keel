@@ -246,6 +246,8 @@ review-protocol-questions = above the lists, four judgement questions: what did 
 review-protocol-report = the report lands as keel/reviews/{ $wave }.md next to the wave — keel close holds the wave open until it does
 
 ## adapter module
+adapter-ruby-failed = ruby did not start: { $error }
+adapter-ruby-failed-instead = put ruby on PATH -- the adapter calls it exactly as a person would in a terminal
 adapter-no-crate = no Cargo.toml at the root and none exactly one level down
 adapter-no-crate-instead = the cargo adapter needs a crate: put Cargo.toml at the root or in one first-level directory
 adapter-many-crates = several first-level crates: { $found }
@@ -408,6 +410,7 @@ close-lack-flaky = scenario "{ $scenario }": the test "{ $test }" is green in { 
 close-lack-ref = the reference { $contract }@{ $recorded } does not converge (§6.4)
 close-lack-review-empty = the review file keel/reviews/<wave>.md exists and is empty -- an empty file is not a review (§9.9)
 close-lack-review = the review file keel/reviews/<wave>.md is not next to the wave (§9.9)
+close-price-nothing-built = the price of this court: the battery runs three times (§7.13); this language builds nothing, so the court asks for no disk
 close-price = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; it wants about { $needed } GiB free (measured: one closing leaves 1.26 GiB)
 close-price-paid = price paid: { $target } weighs { $size } GiB
 close-no-room = { $free } GB free on disk, and this court wants about { $needed } GB -- better to refuse now than to die halfway through with "no space left on device"

@@ -125,6 +125,15 @@ impl Config {
         self.language() == Some(Language::Rust)
     }
 
+    /// Whether this release can lead the language this project named
+    /// at all -- the question nine of the ten callers were really
+    /// asking when they asked `rust_adapter` (wave 0038): can the
+    /// tests be found and run, can a module's source be read. Only
+    /// the generated CI step still needs to know WHICH language.
+    pub fn adapter_known(&self) -> bool {
+        self.language().is_some()
+    }
+
     /// Which language this release will judge here, by the name the
     /// project wrote (wave 0038). `None` means the project named no
     /// adapter at all -- the language-shaped courts do not run, and

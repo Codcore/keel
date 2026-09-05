@@ -41,11 +41,7 @@ fn keel(dir: &Path, args: &[&str]) -> (String, i32) {
 /// tag, and a second test that fails on purpose.
 fn project(name: &str, body: &str, test_body: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
-    std::fs::write(
-        dir.join("keel.toml"),
-        "lang = \"uk\"\nadapter = \"ruby\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"ruby\"\n").unwrap();
     std::fs::create_dir_all(dir.join("lib")).unwrap();
     std::fs::create_dir_all(dir.join("test")).unwrap();
     std::fs::write(
@@ -81,7 +77,7 @@ fn test_file(rev: &str) -> String {
     )
 }
 
-/// proves: ruby-tests-are-read-and-run@141c65 -- the concept named
+/// proves: ruby-tests-are-read-and-run@efd41a -- the concept named
 /// four starting adapters, the operator's own decision, and none was
 /// built: the two language-shaped courts ran for Rust alone. Ruby is
 /// the second tongue, chosen by the operator on 2026-09-05.
@@ -127,7 +123,12 @@ fn ruby_tests_are_read_and_run() {
         "the closing court names the ruby test it watched fail:\n{said}"
     );
     assert!(
-        said.contains("ToyTest"),
-        "by the name ruby gives it -- Class#method:\n{said}"
+        said.contains("toy_test"),
+        "with the file it lives in -- the same shape the rust courts \
+         get, since nothing above the adapter knows the language:\n{said}"
+    );
+    assert!(
+        !said.contains("test_it_works"),
+        "and the green one is not dragged in with it:\n{said}"
     );
 }

@@ -3,6 +3,7 @@
 //! a single test. Other languages will get their own waves next to
 //! this file.
 
+use crate::config::Language;
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::tags::TestTag;
@@ -59,9 +60,31 @@ pub fn crate_root(root: &Path) -> Result<PathBuf, Refusal> {
     }
 }
 
+/// Where this language builds, if it builds at all. Ruby compiles
+/// nothing, so there is no directory to measure or to warn about --
+/// and the closing court's price line says so rather than naming a
+/// path that will never exist (wave 0038).
+pub fn build_dir(root: &Path) -> Option<PathBuf> {
+    match language_of(root) {
+        Some(Language::Ruby) => None,
+        _ => crate_root(root).ok().map(|dir| dir.join(BUILD_DIR)),
+    }
+}
+
+/// Which language leads this project, read from its config. The
+/// courts above call these hands without carrying the config along,
+/// so the question is asked here -- one file read, and the answer
+/// decides whose hand runs (wave 0038).
+fn language_of(root: &Path) -> Option<Language> {
+    crate::config::read_unpinned(root).ok()?.language()
+}
+
 /// The crate's `tests/*.rs` -- where the proves tags live. A crate
 /// without a tests directory has none, and that is not a refusal.
 pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
+    if language_of(root) == Some(Language::Ruby) {
+        return crate::ruby::test_files(root);
+    }
     let dir = crate_root(root)?.join("tests");
     if !dir.is_dir() {
         return Ok(Vec::new());
@@ -96,6 +119,9 @@ pub enum Outcome {
 /// --exact`) and classifies the consequence. cargo is called as a
 /// command of the system; its refusal to start is a refusal aloud.
 pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
+    if language_of(root) == Some(Language::Ruby) {
+        return crate::ruby::run_test(root, tag);
+    }
     let crate_dir = crate_root(root)?;
     let stem = tag
         .file
@@ -161,6 +187,9 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
 /// once. A build that does not build is a refusal aloud with the
 /// compiler's words: without a build there is no verdict for anyone.
 pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
+    if language_of(root) == Some(Language::Ruby) {
+        return crate::ruby::run_all(root);
+    }
     let crate_dir = crate_root(root)?;
     let mut command = Command::new("cargo");
     command

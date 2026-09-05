@@ -248,6 +248,8 @@ review-protocol-questions = понад списками — чотири пит�
 review-protocol-report = звіт лягає файлом keel/reviews/{ $wave }.md поруч із хвилею — keel close тримає хвилю відкритою, доки його нема
 
 ## модуль adapter
+adapter-ruby-failed = ruby не запустився: { $error }
+adapter-ruby-failed-instead = постав ruby на PATH — адаптер кличе його так само, як людина в терміналі
 adapter-no-crate = Cargo.toml нема ні в корені, ні рівно одного на першому рівні тек
 adapter-no-crate-instead = адаптеру cargo потрібен крейт: поклади Cargo.toml у корінь або в одну теку першого рівня
 adapter-many-crates = крейтів першого рівня кілька: { $found }
@@ -416,6 +418,7 @@ close-lack-flaky = сценарій "{ $scenario }": тест "{ $test }" зел
 close-lack-ref = посилання { $contract }@{ $recorded } не сходиться (§6.4)
 close-lack-review-empty = файл звіту рецензії keel/reviews/<хвиля>.md є, але він порожній — порожній файл не рецензія (§9.9)
 close-lack-review = звіту рецензії keel/reviews/<хвиля>.md поруч із хвилею нема (§9.9)
+close-price-nothing-built = ціна цього суду: батарея жене тричі (§7.13); ця мова нічого не збирає, тож місця на диску суд не потребує
 close-price = ціна цього суду: батарея жене тричі (§7.13) у ВЛАСНИЙ { $target } — успадкований кеш зсуває вироки (§6.7), тож це рішення, а не вада; місця треба ~{ $needed } ГіБ (зміряно: одне закриття лишає 1,26 ГіБ)
 close-price-paid = ціна сплачена: { $target } важить { $size } ГіБ
 close-no-room = на диску вільно { $free } ГБ, а цьому судові треба ~{ $needed } ГБ — краще відмовитись зараз, ніж померти на півдорозі з «no space left on device»

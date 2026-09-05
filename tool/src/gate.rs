@@ -69,7 +69,7 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
     // first (review 0017 R-4): an adapter this release does not
     // serve -- or none at all -- is a word aloud and a pass, never a
     // blind cargo run over a foreign language.
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         let name = config
             .adapter
             .clone()

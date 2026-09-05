@@ -127,7 +127,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // Tags are read once and serve three floors: the tag floor, the
     // §7.15 delta, and the §5.6 narrowing through structural closure.
     let found_tags: Option<Result<Vec<tags::TestTag>, Refusal>> = config
-        .rust_adapter()
+        .adapter_known()
         .then(|| adapter::test_files(root).and_then(|files| tags::scan(&files)));
     let mut ref_rows: std::collections::BTreeSet<(String, String)> = Default::default();
     let mut refs_checked: u64 = 0;
@@ -572,7 +572,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // cargo adapter is served on this rung -- anything else is a
     // skip said aloud, never a silent green.
     let mut tags_checked: u64 = 0;
-    let known = config.rust_adapter();
+    let known = config.adapter_known();
     let judged = match (&config.adapter, &found_tags) {
         (None, _) => Err(t("check-tags-skipped-no-adapter")),
         (Some(_), Some(Ok(found))) if known => {

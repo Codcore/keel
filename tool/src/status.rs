@@ -21,7 +21,7 @@ use std::path::Path;
 /// the refusal school, and the exit is red only over them.
 pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
     let config = config::read(root)?;
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("status-needs-adapter"),

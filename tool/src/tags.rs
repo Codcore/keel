@@ -71,7 +71,7 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 && !trimmed.is_empty()
                 && !trimmed.starts_with("///")
                 && !trimmed.starts_with("//")
-                && !trimmed.starts_with("#[")
+                && !trimmed.starts_with("#")
             {
                 let (scenario, rev) = pending.take().unwrap();
                 return Err(dangling(file, &scenario, &rev));
@@ -87,10 +87,14 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
 /// `proves: <scenario>@<rev>` inside a comment line; words after the
 /// record are the author's -- only the record is read.
 fn tag_in(trimmed: &str) -> Option<(String, String)> {
+    // Both tongues' comment marks (wave 0038). `#[test]` is not a
+    // comment in Rust, and it never becomes one here: what follows
+    // must read `proves: `, and an attribute does not.
     let comment = trimmed
         .strip_prefix("///")
         .or_else(|| trimmed.strip_prefix("//!"))
-        .or_else(|| trimmed.strip_prefix("//"))?;
+        .or_else(|| trimmed.strip_prefix("//"))
+        .or_else(|| trimmed.strip_prefix("#"))?;
     let rest = comment.trim_start().strip_prefix("proves: ")?;
     let token = rest.split_whitespace().next()?;
     let (scenario, rev) = token.split_once('@')?;
@@ -101,8 +105,10 @@ fn tag_in(trimmed: &str) -> Option<(String, String)> {
 }
 
 fn fn_name(trimmed: &str) -> Option<String> {
+    // `fn` in Rust, `def` in Ruby (wave 0038).
     let after = trimmed
         .strip_prefix("fn ")
+        .or_else(|| trimmed.strip_prefix("def "))
         .or_else(|| trimmed.find(" fn ").map(|i| &trimmed[i + " fn ".len()..]))?;
     let name: String = after
         .chars()
