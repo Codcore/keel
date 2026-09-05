@@ -25,6 +25,8 @@ transforms:
       - tests/test_yamlish.py
       - README.md
       - BACKLOG.md
+      - docs/uk/README.md
+      - .gitignore
       - keel/reviews/0049-the-first-implementation-leaves-the-root.md
 
 decisions:
@@ -44,7 +46,7 @@ decisions:
   interaction.inclusivity: "не застосовується"
   interaction.user-assistance: "не застосовується"
   interaction.self-descriptiveness: "свідомо без тесту: README і BACKLOG кажуть, що перша реалізація вийшла з кореня і де її шукати — у git до цієї хвилі"
-  reliability.faultlessness: "свідомо без тесту: батарея крейта не читає tests/ кореня — 177 зелених до і після, і це міряє сама батарея"
+  reliability.faultlessness: "свідомо без тесту: батарея крейта не читає tests/ кореня — 173 зелених до і 173 після на базі a5f0cf9, зміряно рецензентом і автором; це міряє сама батарея"
   reliability.fault-tolerance: "не застосовується"
   reliability.availability: "не застосовується"
   reliability.recoverability: "не застосовується"
@@ -67,7 +69,7 @@ decisions:
   safety.risk-identification: "не застосовується"
   safety.fail-safe: "не застосовується"
   safety.hazard-warning: "не застосовується"
-  safety.safe-integration: "свідомо без тесту: жоден workflow, hook чи скрипт не кличе keel.py (grep по .yml/.sh/.toml/.rs — нуль згадок поза документами); docs/uk/README.md і NOTES-ROZBIR згадують його як історію, і лишаються"
+  safety.safe-integration: "свідомо без тесту: жоден workflow, hook чи скрипт не кличе keel.py (grep по .yml/.sh/.toml/.rs — нуль згадок поза документами); NEW-CONCEPT, NOTES-ROZBIR і журнал V2-PROCESS згадують його як історію і лишаються; docs/uk/README.md — README першої реалізації, і після рецензії (R-1) він каже це сам першим рядком"
 ---
 
 ## Why
@@ -87,6 +89,14 @@ Python-тестами у `tests/` (17 файлів), і крейт `tool/`, як
 
 Легка хвиля (§6.8): одна chore-трансформа, контрактів не чіпає, нічого
 не знімає — одна гілка, один merge. Видалення — код, не документи.
+
+Після рецензії (§9.9, чотири легкі): `docs/uk/README.md` — README
+першої реалізації без позначки, і його команда `python3 -m unittest`
+після хвилі не виконується — дістає позначку v1 першим рядком;
+кореневий `.gitignore` тримав лише `__pycache__/` і `*.pyc` — єдиний
+слід Python у репозиторії без жодного `.py` — знято; число батареї
+— 173, не 177 (177 — це гілка 0047, не ця база). Два файли дописано
+у scope після першого коміту — розширення видиме (§4.6), і сказане тут.
 
 ## transform: the-first-implementation-leaves-the-root
 
