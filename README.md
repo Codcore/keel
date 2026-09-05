@@ -164,8 +164,36 @@ carries the current layout** — keel v1 kept the crate outside `tool/`, so
 `KEEL_REF=v0.8.9` refuses by name and only a commit or a branch works until a
 v2 release is tagged. The installer the generated CI step fetches comes from
 `main`, unpinned: a project pinned to an older keel still runs today's script.
-There is no `--json` output on any command either, though the concept promises
-one.
+
+## For scripts
+
+Every command takes `-C <dir>` (where to work) and `--branch <name>` (which
+branch to believe **where git does not know it** — a CI checkout with a detached
+HEAD; it never overrules git, which is the fact where git has one).
+
+The reading commands — `check`, `close`, `status`, `next`, `map`, `review`,
+`version`, `cuts`, `rev` — also take `--json`, and then print one JSON object
+and nothing else:
+
+```json
+{"keel":1,"command":"check","ok":false,"exit":1,"root":"…","lang":"uk",
+ "structured":true,
+ "findings":[{"file":"keel/waves/0001-a-wave.md","reason":"…"}],
+ "limits":["…"],"summary":{"documents":62,"findings":1,"limits":1},
+ "report":"…the whole prose verdict…"}
+```
+
+A refusal is the same envelope with `refusal` carrying `file`, `reason` and
+`instead`. Without the flag the output is byte-for-byte what it always was.
+
+Two borders, said here rather than found later: the package carries the
+structure the courts already computed and the whole prose in `report` — it does
+not turn every sentence into a typed field, and `structured` says so. And the
+commands that *write* (`init`, `setup`, `plan`, `new`, `update`, `gate`,
+`hook`) have no `--json`: they tell a person what they did, and a harness that
+wants the outcome asks `check` afterwards.
+
+## What `init` asks
 
 `init` asks a handful of questions — language, adapter, mode, agents, CI command
 — and writes `keel.toml` plus the integrations below. `keel setup` changes any

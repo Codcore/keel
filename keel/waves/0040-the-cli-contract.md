@@ -33,6 +33,7 @@ transforms:
       - tool/src/main.rs
       - tool/src/check.rs
       - keel/contracts/tool-cli.md
+      - keel.toml
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/frame_flags_test.rs
