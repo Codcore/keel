@@ -16,6 +16,7 @@ transforms:
     contracts: [tool-generated@15c5dd]
     files:
       - tool/src/generated.rs
+      - tool/src/check.rs
       - keel/contracts/tool-generated.md
       - docs/uk/METHODOLOGY-V2.md
       - docs/en/METHODOLOGY-V2.md
