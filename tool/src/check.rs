@@ -21,6 +21,15 @@ use std::path::Path;
 pub struct Outcome {
     pub report: String,
     pub findings: usize,
+    /// The very rows the report was rendered from -- a file, and the
+    /// reason it is red where there is one. Kept beside the prose so
+    /// the machine road (wave 0040) reads structure instead of
+    /// splitting sentences that come in two languages.
+    pub rows: Vec<(String, Option<String>)>,
+    /// What was not judged, and why, as the margin says it.
+    pub limits: Vec<String>,
+    /// How many documents this floor walked.
+    pub documents: usize,
 }
 
 /// Walks the documents under the root and reports on every file:
@@ -832,7 +841,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     };
     writeln!(report, "{next}").unwrap();
 
-    Ok(Outcome { report, findings })
+    Ok(Outcome {
+        report,
+        findings,
+        rows,
+        limits,
+        documents,
+    })
 }
 
 /// Whether the wave's own plan branch exists and already carries its

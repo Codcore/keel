@@ -17,7 +17,10 @@ fn one_path(args: &[String]) -> (PathBuf, bool) {
     let mut root = PathBuf::from(".");
     let mut seen = false;
     let mut extra = false;
-    for word in args.iter().skip(1) {
+    // Flags are not paths. The frame's own guard has already refused
+    // any this command does not take, so what is left is one it does
+    // (wave 0040: `--json` reached here and read as a directory).
+    for word in args.iter().skip(1).filter(|word| !word.starts_with('-')) {
         if seen {
             extra = true;
             break;
@@ -38,20 +41,85 @@ fn one_path(args: &[String]) -> (PathBuf, bool) {
 /// junk`, `keel plan slug dir junk` and `keel new contract slug dir
 /// junk` still swallowed the typo -- the very swallowing this wave
 /// exists to end.
+/// The directory to work in: the first word that is not a flag.
+/// `args.get(1)` stood here in every command but `rev`, and a flag in
+/// front of the path read as the path -- the very shape review 0035
+/// R-7 caught once and left in seventeen other places (wave 0040).
+fn root_of(args: &[String]) -> PathBuf {
+    args.iter()
+        .skip(1)
+        .find(|word| !word.starts_with('-'))
+        .map_or_else(|| PathBuf::from("."), PathBuf::from)
+}
+
+/// Whether this call asked for the machine's road out.
+fn asked_json(args: &[String]) -> bool {
+    args.iter().skip(1).any(|word| word == "--json")
+}
+
+/// What a command came to: the prose it would print, the code it
+/// leaves with, and whatever of it a harness can use as fields.
+type Answer = Result<(String, i32, Vec<(&'static str, serde_json::Value)>), keel::refusal::Refusal>;
+
+/// One answer, on the road the caller asked for. The prose road is
+/// byte-for-byte what it always was; the machine road is one JSON
+/// object on stdout and nothing else, refusals included (NEW-CONCEPT,
+/// the CLI contract).
+fn deliver(
+    command: &'static str,
+    root: &std::path::Path,
+    lang: &str,
+    json: bool,
+    said: Answer,
+) -> ExitCode {
+    match said {
+        Ok((report, code, fields)) => {
+            if json {
+                let mut package = keel::json::Package::new(command, root, lang)
+                    .report(report)
+                    .exit(code);
+                for (key, value) in fields {
+                    package = package.field(key, value);
+                }
+                package.print();
+            } else {
+                print!("{report}");
+            }
+            ExitCode::from(u8::try_from(code).unwrap_or(2))
+        }
+        Err(refusal) => {
+            if json {
+                keel::json::Package::new(command, root, lang)
+                    .exit(2)
+                    .refused(&refusal)
+                    .print();
+            } else {
+                eprintln!("{refusal}");
+            }
+            ExitCode::from(2)
+        }
+    }
+}
+
 const SHAPES: [(&str, usize, &[&str]); 16] = [
-    ("check", 0, &[]),
-    ("close", 0, &[]),
-    ("map", 0, &[]),
-    ("review", 0, &[]),
-    ("status", 0, &[]),
+    // The reading commands take `--json` (NEW-CONCEPT, the CLI
+    // contract). The commands that WRITE do not: `init`, `setup`,
+    // `plan`, `new`, `update`, `gate` and `hook` answer a person
+    // about what they did, and a harness that wants their outcome
+    // asks `check` afterwards. That border is named in the wave.
+    ("check", 0, &["--json"]),
+    ("close", 0, &["--json"]),
+    ("map", 0, &["--json"]),
+    ("review", 0, &["--json"]),
+    ("status", 0, &["--json"]),
     ("trust", 0, &[]),
     ("hook", 0, &[]),
-    ("cuts", 0, &[]),
+    ("cuts", 0, &["--json"]),
     ("concept", 0, &[]),
-    ("version", 0, &[]),
+    ("version", 0, &["--json"]),
     ("update", 0, &[]),
-    ("rev", 0, &["--write"]),
-    ("next", 0, &["--for"]),
+    ("rev", 0, &["--write", "--json"]),
+    ("next", 0, &["--for", "--json"]),
     ("gate", 1, &[]),
     ("plan", 1, &[]),
     ("new", 2, &[]),
@@ -147,31 +215,32 @@ fn main() -> ExitCode {
 
     match args.first().map(String::as_str) {
         Some("check") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_of(&args);
+            let json = asked_json(&args);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    eprintln!("{refusal}");
-                    return ExitCode::from(2);
+                    return deliver("check", &root, "", json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
-            match keel::check::run(&root, &config) {
-                Ok(outcome) => {
-                    print!("{}", outcome.report);
-                    if outcome.findings == 0 {
-                        ExitCode::SUCCESS
-                    } else {
-                        ExitCode::from(1)
-                    }
-                }
-                Err(refusal) => {
-                    eprintln!("{refusal}");
-                    ExitCode::from(2)
-                }
-            }
+            let said = keel::check::run(&root, &config).map(|outcome| {
+                let code = i32::from(outcome.findings > 0);
+                let fields: Vec<(&'static str, serde_json::Value)> = vec![
+                    ("findings", keel::json::findings(&outcome.rows)),
+                    ("limits", keel::json::limits(&outcome.limits)),
+                    (
+                        "summary",
+                        serde_json::json!({
+                            "documents": outcome.documents,
+                            "findings": outcome.findings,
+                            "limits": outcome.limits.len(),
+                        }),
+                    ),
+                ];
+                (outcome.report, code, fields)
+            });
+            deliver("check", &root, &config.lang, json, said)
         }
         Some("rev") => {
             // A flag is a flag wherever it stands. Review 0035 R-7:
@@ -187,45 +256,33 @@ fn main() -> ExitCode {
                 .skip(1)
                 .find(|word| !word.starts_with('-'))
                 .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let json = asked_json(&args);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    eprintln!("{refusal}");
-                    return ExitCode::from(2);
+                    return deliver("rev", &root, "", json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
-            if write_mode {
-                return match keel::rev::write(&root) {
-                    Ok((report, _, findings)) => {
-                        print!("{report}");
-                        // The code says what the words say (B5).
-                        if findings == 0 {
-                            ExitCode::SUCCESS
-                        } else {
-                            ExitCode::from(1)
-                        }
-                    }
-                    Err(refusal) => {
-                        eprintln!("{refusal}");
-                        ExitCode::from(2)
-                    }
-                };
-            }
-            match keel::rev::report(&root, &config) {
-                Ok((report, findings)) => {
-                    print!("{report}");
-                    if findings == 0 {
-                        ExitCode::SUCCESS
-                    } else {
-                        ExitCode::from(1)
-                    }
-                }
-                Err(refusal) => {
-                    eprintln!("{refusal}");
-                    ExitCode::from(2)
-                }
-            }
+            let said = if write_mode {
+                keel::rev::write(&root).map(|(report, rewritten, findings)| {
+                    // The code says what the words say (B5).
+                    let code = i32::from(findings > 0);
+                    let fields: Vec<(&'static str, serde_json::Value)> = vec![
+                        ("rewritten", serde_json::json!(rewritten)),
+                        ("findings", serde_json::json!(findings)),
+                    ];
+                    (report, code, fields)
+                })
+            } else {
+                keel::rev::report(&root, &config).map(|(report, findings)| {
+                    let code = i32::from(findings > 0);
+                    let fields: Vec<(&'static str, serde_json::Value)> =
+                        vec![("findings", serde_json::json!(findings))];
+                    (report, code, fields)
+                })
+            };
+            deliver("rev", &root, &config.lang, json, said)
         }
         Some("gate") => {
             let Some(message_file) = args.get(1).map(PathBuf::from) else {
@@ -260,77 +317,48 @@ fn main() -> ExitCode {
             }
         }
         Some("map") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_of(&args);
+            let json = asked_json(&args);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    eprintln!("{refusal}");
-                    return ExitCode::from(2);
+                    return deliver("map", &root, "", json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
-            match keel::map::draw(&root) {
-                Ok(report) => {
-                    print!("{report}");
-                    ExitCode::SUCCESS
-                }
-                Err(refusal) => {
-                    eprintln!("{refusal}");
-                    ExitCode::from(2)
-                }
-            }
+            let said = keel::map::draw(&root).map(|report| (report, 0, Vec::new()));
+            deliver("map", &root, &config.lang, json, said)
         }
         Some("close") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_of(&args);
+            let json = asked_json(&args);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    eprintln!("{refusal}");
-                    return ExitCode::from(2);
+                    return deliver("close", &root, "", json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
-            match keel::close::judge(&root) {
-                Ok((report, blockers)) => {
-                    print!("{report}");
-                    if blockers == 0 {
-                        ExitCode::SUCCESS
-                    } else {
-                        ExitCode::from(1)
-                    }
-                }
-                Err(refusal) => {
-                    eprintln!("{refusal}");
-                    ExitCode::from(2)
-                }
-            }
+            let said = keel::close::judge(&root).map(|(report, blockers)| {
+                let code = i32::from(blockers > 0);
+                let fields: Vec<(&'static str, serde_json::Value)> =
+                    vec![("blockers", serde_json::json!(blockers))];
+                (report, code, fields)
+            });
+            deliver("close", &root, &config.lang, json, said)
         }
         Some("review") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_of(&args);
+            let json = asked_json(&args);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    eprintln!("{refusal}");
-                    return ExitCode::from(2);
+                    return deliver("review", &root, "", json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
-            match keel::review::package(&root) {
-                Ok(report) => {
-                    print!("{report}");
-                    ExitCode::SUCCESS
-                }
-                Err(refusal) => {
-                    eprintln!("{refusal}");
-                    ExitCode::from(2)
-                }
-            }
+            let said = keel::review::package(&root).map(|report| (report, 0, Vec::new()));
+            deliver("review", &root, &config.lang, json, said)
         }
         // setup is init on a project that already has answers: the
         // same wizard, the same flags, the current config as the
@@ -571,31 +599,22 @@ fn main() -> ExitCode {
             }
         }
         Some("status") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_of(&args);
+            let json = asked_json(&args);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    eprintln!("{refusal}");
-                    return ExitCode::from(2);
+                    return deliver("status", &root, "", json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
-            match keel::status::report(&root) {
-                Ok((report, refusals)) => {
-                    print!("{report}");
-                    if refusals == 0 {
-                        ExitCode::SUCCESS
-                    } else {
-                        ExitCode::from(1)
-                    }
-                }
-                Err(refusal) => {
-                    eprintln!("{refusal}");
-                    ExitCode::from(2)
-                }
-            }
+            let said = keel::status::report(&root).map(|(report, refusals)| {
+                let code = i32::from(refusals > 0);
+                let fields: Vec<(&'static str, serde_json::Value)> =
+                    vec![("refusals", serde_json::json!(refusals))];
+                (report, code, fields)
+            });
+            deliver("status", &root, &config.lang, json, said)
         }
         Some("next") => {
             // --for <agent> asks for the step in that agent's own
@@ -621,6 +640,10 @@ fn main() -> ExitCode {
                     other if other.starts_with("--for=") => {
                         agent = Some(other["--for=".len()..].to_string());
                     }
+                    // The machine's road, read here too: this command
+                    // parses its own words, so the frame's guard is
+                    // not enough (wave 0040).
+                    "--json" => {}
                     other if other.starts_with('-') => {
                         eprintln!("{}", t("main-usage"));
                         return ExitCode::from(2);
@@ -664,16 +687,28 @@ fn main() -> ExitCode {
                 Some(named) => keel::next::step_for(&root, named),
                 None => keel::next::step(&root),
             };
-            match said {
-                Ok(report) => {
-                    print!("{report}");
-                    ExitCode::SUCCESS
-                }
-                Err(refusal) => {
-                    eprintln!("{refusal}");
-                    ExitCode::from(2)
-                }
+            // The agent shapes carry their own envelope already, and
+            // wrapping one in another would hand a hook two: --json
+            // is the plain step's road out.
+            if agent.is_some() {
+                return match said {
+                    Ok(report) => {
+                        print!("{report}");
+                        ExitCode::SUCCESS
+                    }
+                    Err(refusal) => {
+                        eprintln!("{refusal}");
+                        ExitCode::from(2)
+                    }
+                };
             }
+            deliver(
+                "next",
+                &root,
+                &config.lang,
+                asked_json(&args),
+                said.map(|report| (report, 0, Vec::new())),
+            )
         }
         Some("trust") => {
             let root = args
@@ -788,23 +823,39 @@ fn main() -> ExitCode {
             // language code is uk, the domain is ua) silently handed
             // a Ukrainian project forty English questions (review
             // 0028 R-5).
+            let json = asked_json(&args);
             let lang = match keel::config::read_unpinned(&root) {
                 Ok(config) => config.lang,
                 Err(refusal) => {
-                    eprintln!("{refusal}");
-                    return ExitCode::from(2);
+                    return deliver("cuts", &root, "", json, Err(refusal));
                 }
             };
             keel::i18n::init(&lang);
             match keel::speak::cuts_report(&lang) {
                 Ok(said) => {
-                    print!("{said}");
-                    ExitCode::SUCCESS
+                    let fields: Vec<(&'static str, serde_json::Value)> = vec![(
+                        "cuts",
+                        serde_json::Value::Array(
+                            keel::graph::cuts()
+                                .iter()
+                                .map(|cut| serde_json::json!(cut))
+                                .collect(),
+                        ),
+                    )];
+                    deliver("cuts", &root, &lang, json, Ok((said, 0, fields)))
                 }
                 Err(refusal) => {
                     // The judged list and the read list drifted: that
-                    // is a finding, not a quiet difference.
-                    eprintln!("{refusal}");
+                    // is a finding, not a quiet difference -- and the
+                    // code stays 1, not the frame's 2.
+                    if json {
+                        keel::json::Package::new("cuts", &root, &lang)
+                            .exit(1)
+                            .refused(&refusal)
+                            .print();
+                    } else {
+                        eprintln!("{refusal}");
+                    }
                     ExitCode::from(1)
                 }
             }
@@ -865,9 +916,7 @@ fn main() -> ExitCode {
             }
         }
         Some("version") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_of(&args);
             // The lamp looks with the unpinned eye (tool-version):
             // it must answer exactly where the courts refuse, and a
             // broken config never steers it silently -- its row
@@ -876,8 +925,24 @@ fn main() -> ExitCode {
                 .map(|config| config.lang)
                 .unwrap_or_default();
             keel::i18n::init(&lang);
-            print!("{}", keel::version::report(&root));
-            ExitCode::SUCCESS
+            let report = keel::version::report(&root);
+            let fields: Vec<(&'static str, serde_json::Value)> = vec![
+                ("running", serde_json::json!(env!("CARGO_PKG_VERSION"))),
+                (
+                    "pin",
+                    keel::config::read_unpinned(&root)
+                        .ok()
+                        .and_then(|config| config.version)
+                        .map_or(serde_json::Value::Null, |pin| serde_json::json!(pin)),
+                ),
+            ];
+            deliver(
+                "version",
+                &root,
+                &lang,
+                asked_json(&args),
+                Ok((report, 0, fields)),
+            )
         }
         Some(other) => {
             eprintln!(
