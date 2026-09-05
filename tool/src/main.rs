@@ -197,9 +197,14 @@ fn main() -> ExitCode {
             keel::i18n::init(&config.lang);
             if write_mode {
                 return match keel::rev::write(&root) {
-                    Ok((report, _)) => {
+                    Ok((report, _, findings)) => {
                         print!("{report}");
-                        ExitCode::SUCCESS
+                        // The code says what the words say (B5).
+                        if findings == 0 {
+                            ExitCode::SUCCESS
+                        } else {
+                            ExitCode::from(1)
+                        }
                     }
                     Err(refusal) => {
                         eprintln!("{refusal}");

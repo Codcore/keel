@@ -30,6 +30,8 @@ transforms:
       - tool/tests/reviewer_test.rs
       - tool/tests/next_test.rs
       - tool/tests/status_test.rs
+      - tool/tests/close_test.rs
+      - keel/reviews/0015-one-home.md
   a-green-birth-carries-its-mutant:
     implements:
       - a-green-birth-is-named-and-proved
@@ -53,17 +55,24 @@ transforms:
       - tool/src/check.rs
       - tool/src/close.rs
       - tool/src/status.rs
+      - tool/src/graph.rs
+      - tool/src/holding.rs
+      - tool/src/gate.rs
+      - tool/src/next.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/called_off_test.rs
   the-write-tells-the-truth:
     implements:
       - a-write-that-lies-is-red
+    contracts: [tool-rev@899a40]
     files:
+      - keel/contracts/tool-rev.md
       - tool/src/rev.rs
       - tool/src/main.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
+      - tool/tests/write_truth_test.rs
       - tool/tests/rev_write_test.rs
   the-closing-names-the-red-test:
     implements:
@@ -87,8 +96,6 @@ transforms:
       - docs/uk/METHODOLOGY-V2.md
       - docs/en/METHODOLOGY-V2.md
       - METHODOLOGY.md
-      - docs/uk/QUALITY.md
-      - QUALITY.md
   the-first-implementation-is-buried:
     chore: "перша реалізація (keel.py, tests/ на Python, install.sh, що кличе python3) лежить поруч із чинною і не має жодного суду: два інструменти в одному репозиторії, і жоден не каже, який чинний"
     files:
@@ -97,10 +104,8 @@ transforms:
   the-briefing-pays-its-debt:
     chore: "борг доручення рецензентові: дванадцять рядків, названих рецензіями 0033 і 0034, не дописані двічі"
     files:
-      - tool/src/review.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
-      - tool/tests/briefing_test.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:
@@ -229,18 +234,26 @@ decisions:
 
 **Дано** `keel rev --write` на проєкті, де редакції розійшлися,
 **коли** команда відпрацювала,
-**тоді** код виходу каже те саме, що й текст: нуль лише тоді, коли
-писати не було чого або запис удався цілком; будь-яка знахідка — не
-нуль. Слова «нічого не дрейфує» не друкуються там, де щойно надруковано
-червоне.
+**тоді** її звіт не суперечить сам собі: слова «нічого не дрейфує» не
+друкуються там, де вище стоїть «залишено» (§5.6) або червоне. І код
+виходу каже те саме, що й текст: знахідка, яка спинила руку, — не
+нуль.
+
+Випадок, коли сама хірургія відмовляє (тека, куди рука не може
+писати), грається пробою від імені `nobody`: від root права не
+тримають, і саме тому перша спроба назвати це «незміряним» була
+неправдою (рецензія R-5). Де `setpriv` недоступний, проба каже про
+пропуск уголос, а не вдає, що зміряла.
 
 ## scenario: the-closing-says-what-failed
 
 **Дано** проєкт, чия батарея червона,
 **коли** `keel close` жене її,
-**тоді** він називає **кожен** упалий тест поіменно і каже, з якого
-біга — не «батарея червона», а що саме. Те, що суд уже бачив, він не
-ховає від людини.
+**тоді** він називає **кожен** упалий тест поіменно і розрізняє
+стало-червоний від хиткого — не «батарея червона», а що саме і чи
+падало воно в кожному бігу. Те, що суд уже бачив, він не ховає від
+людини. Межа: суд каже, **в скількох** бігах тест падав, а не в
+котрому саме — номера біга він не тримає.
 
 ## scenario: the-answers-are-obeyed
 

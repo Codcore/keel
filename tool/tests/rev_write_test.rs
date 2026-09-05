@@ -105,14 +105,19 @@ fn stale_refs_rewritten() {
         "the closed wave gets the leaving word, never a byte:\n{out}"
     );
 
-    // The rewritten file still reads strictly, and a second run
-    // finds nothing drifted.
+    // The rewritten file still reads strictly, and a second run has
+    // nothing left to rewrite. Wave 0037 made the closing line
+    // truthful: the closed wave's record HAS drifted and §5.6 is why
+    // it stays, so "nothing has drifted" is no longer said over it
+    // (bug audit B5 -- a report contradicting itself two lines
+    // apart). The open waves are what the flat word speaks of.
     let (out, err, code) = keel(&["rev", "--write", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "the second run is green:\n{out}");
     assert!(
-        out.contains("nothing has drifted"),
-        "the second run says nothing has drifted:\n{out}"
+        out.contains("nothing to rewrite") && out.contains("§5.6"),
+        "the second run has nothing left to rewrite, and says why the \
+         one drifted record stays:\n{out}"
     );
     let (out, err, _) = keel(&["rev", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");

@@ -2,7 +2,8 @@
 
 > This is the English text of the methodology **this release of the tool
 > carries** — `keel method` serves it, and every refusal the tool prints
-> cites a paragraph of it.
+> cites a paragraph of it. It is the methodology **in force**: the draft
+> mark came off by the operator's decision of 2026-09-04.
 >
 > The methodology is written in Ukrainian, and the Ukrainian text is the
 > source of truth (§1.8): `docs/uk/METHODOLOGY-V2.md`. Where the two
@@ -412,6 +413,31 @@ reads commit messages: on main, closing is judged by consequences
 4. **withdrawn** — the `withdrawn` mark (§2.12); a withdrawn scenario
    is outside judgement.
 
+**The named exception** (the operator's decision of 2026-09-04). A
+court over **our own battery or tooling** cannot be seen failing
+without breaking the very thing it guards. Such a promise **may be
+born green**, if the commit message records the mutant: a line
+`mutant: <what was broken> -> <how the probe named it>`. The guarantee
+survives -- proving that the test can fail is still required; what
+changes is whose eye sees it: the reviewer's, not the hook's. The
+exception is narrow and costs work, because the cheap way out is one
+and it is worse -- rename the work `chore` and lose the promise
+altogether. **The honest limit: the machine does not check that the
+mutant is real.** It takes the author's word, says so aloud on its own
+line in the verdict, and leaves the rest to the reviewer's eye.
+
+**§6.3-a. Calling off a started wave** (the operator's decision of
+2026-09-04). A wave begun and then dropped dies by a mark in its
+header: `cancelled: <reason>`. A cancelled wave is outside judgement
+-- neither its promises nor its scope are judged, and `keel close` no
+longer calls it unclosed; instead every court names it aloud with its
+reason, since silence would look like a wave nobody wrote. The reason
+is required: a cancellation without one is not a cancellation. The
+file stays in the repository: deleting a document is always red
+(§4.12), and a cancelled wave is memory too, exactly as a withdrawn
+promise is (§2.12). Rolling back a **merged** wave, and a fast path
+for an urgent fix, are not covered by this paragraph.
+
 **§6.4.** A contract holds when its promise is confirmed — the
 signatures are in place, or the `verify` command passed — and the
 recorded revisions of those who lean on it match the text (with the
@@ -443,9 +469,12 @@ wave is **light** when all of these hold at once: it has one transform,
 it neither creates nor changes contracts, and it withdraws nothing
 (`withdrawn`). Otherwise the wave is **full**. A light one travels on
 one branch and one PR; a full one keeps the plan apart from the work
-(chapter 8). The ceremony scales with the risk: a new contract or the
-death of a promise is risk, and it gets two human looks; one transform
-without them does not.
+(chapter 8). Weight decides the NUMBER OF PULL REQUESTS and nothing
+else: every wave has its reviewer (§9.9, the operator's decision of
+2026-09-04). The ceremony scales with the risk in how many times the
+work passes through human hands: a new contract or the death of a
+promise rides two pull requests, one transform without them rides
+one.
 
 ---
 
@@ -652,9 +681,12 @@ of two things: a fix, or a refusal said aloud in a line of the PR —
 there is no third state. The reviewer's report is kept as a file,
 `keel/reviews/<wave>.md`, beside the wave: the evidence that a review
 happened travels in the repository rather than staying in a chat, and
-a full wave without that file is not merged — a barrier that
-machinery (a check in the tool) will come to hold, and until it does
-a textual rule, honestly marked as one. The honest limit: machinery does not prove the
+**no wave** without that file is merged — a barrier machinery holds
+(`keel close` does not call the wave closed, and `keel next` leads to
+the reviewer). Weight (§6.8) decides the number of pull requests and
+nothing else: the operator's decision of 2026-09-04 is a reviewer for
+every wave, since "one transform" does not make work safe, only
+small. The honest limit: machinery does not prove the
 reviewer's context was clean; the visible trace of that cleanliness is
 the report itself, and the findings and refusals in it.
 

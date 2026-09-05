@@ -123,6 +123,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // Limits gathered while judging, said in the verdict's own
     // margin rather than swallowed (§4.10, wave 0031).
     let mut extra_limits: Vec<String> = Vec::new();
+    let mut cancelled_rows: Vec<String> = Vec::new();
     // Tags are read once and serve three floors: the tag floor, the
     // §7.15 delta, and the §5.6 narrowing through structural closure.
     let found_tags: Option<Result<Vec<tags::TestTag>, Refusal>> = config
@@ -135,6 +136,14 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let mut refs_no_history: u64 = 0;
     let mut historic_items: Vec<String> = Vec::new();
     for wave in &scan.waves {
+        // A wave called off is outside judgement whole (§6.3-a):
+        // review 0037 R-1 measured this court and the §7.7 one below
+        // still judging it, so the report said "not judged" and gave
+        // a finding two lines apart -- the very self-contradiction
+        // this wave came to end elsewhere.
+        if wave.cancelled.is_some() {
+            continue;
+        }
         // The history blessing belongs to the structurally closed
         // wave only (§5.6 narrowed; review 0005, R-9): an open wave
         // updates its references deliberately (§5.1).
@@ -223,6 +232,14 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // both ways, an orphan section does not live in silence.
     let tags_judged = matches!(&found_tags, Some(Ok(_)));
     for wave in &scan.waves {
+        // Called off: outside judgement, and said so once, below.
+        if wave.cancelled.is_some() {
+            cancelled_rows.push(ta(
+                "check-wave-cancelled",
+                targs!("wave" => wave.slug.clone(), "why" => wave.cancelled.clone().unwrap_or_default()),
+            ));
+            continue;
+        }
         let wave_path = format!("keel/waves/{}.md", wave.slug);
         // The scenario side of §7.7 runs adapter-free too (review
         // 0011 R-2): where the tag floor did not read the file's
@@ -377,6 +394,17 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         }
         Some(branch) => match scope::branch_wave(root, &scan.waves) {
             None => ta("check-scope-skipped-not-wave", targs!("branch" => branch)),
+            Some(slug)
+                if scan
+                    .waves
+                    .iter()
+                    .any(|w| w.slug == slug && w.cancelled.is_some()) =>
+            {
+                ta(
+                    "check-scope-cancelled",
+                    targs!("branch" => branch, "wave" => slug),
+                )
+            }
             Some(slug) => {
                 let wave_path = format!("keel/waves/{slug}.md");
                 let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
@@ -454,6 +482,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                         // has work commits and no tag at all was red
                         // nowhere (conformance audit ВАЖКА-7) -- only
                         // `keel close` saw it, and only afterwards.
+                        // The named exception of §6.3 said aloud:
+                        // a green birth is lawful when its commit
+                        // records the mutant, and the machine does
+                        // NOT check the mutant is real -- so the
+                        // verdict names it and hands it to the
+                        // reviewer instead of swallowing it.
+                        extra_limits.extend(mutant_births(root, &sha));
                         for (scenario, instead) in untested_scenarios(
                             root,
                             wave,
@@ -696,6 +731,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     }
     let mut limits = verdict_limits(root, refs_unjudged);
     limits.extend(extra_limits);
+    limits.extend(cancelled_rows);
     for limit in &limits {
         writeln!(report, "{limit}").unwrap();
     }
@@ -868,6 +904,45 @@ fn verdict_limits(root: &Path, refs_unjudged: u64) -> Vec<String> {
     }
 
     limits
+}
+
+/// The green births of §6.3's named exception on this branch: every
+/// `red:` commit whose message carries a mutant line. Said aloud as a
+/// limit of the verdict, because that is exactly what it is -- the
+/// machine took the author's word.
+fn mutant_births(root: &Path, base: &str) -> Vec<String> {
+    let Some(log) = git_line(
+        root,
+        &["log", "--format=%s%x1f%b%x1e", &format!("{base}..HEAD")],
+    ) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for entry in log.split('\u{1e}') {
+        let Some((subject, body)) = entry.split_once('\u{1f}') else {
+            continue;
+        };
+        let subject = subject.trim();
+        // The same prefix the gate reads, space and all (review
+        // 0037 R-8): `red:` without it matched `red:x` too.
+        let Some(rest) = subject.strip_prefix("red: ") else {
+            continue;
+        };
+        let Some(scenario) = rest.split_whitespace().next() else {
+            continue;
+        };
+        if let Some((broke, named)) = crate::gate::mutant_line(body) {
+            out.push(ta(
+                "check-red-mutant",
+                targs!(
+                    "scenario" => scenario.to_string(),
+                    "broke" => broke,
+                    "named" => named
+                ),
+            ));
+        }
+    }
+    out
 }
 
 /// §7.5 judged by the BRANCH: a wave whose branch carries work
@@ -1079,7 +1154,10 @@ fn tag_rows(
     // and the verdict said nothing. A name is withdrawn only where
     // no wave still holds it alive.
     let mut revs: std::collections::BTreeMap<String, Vec<String>> = Default::default();
-    for wave in waves {
+    // A wave called off is outside judgement whole (§6.3-a) -- its
+    // half-written body is not read, and its refusal is not this
+    // court's row (review 0037 R-1).
+    for wave in waves.iter().filter(|w| w.cancelled.is_none()) {
         let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
         for (name, revision) in rev::scenario_revs(&path)? {
             let entry = wave.scenarios.iter().find(|(n, _)| *n == name);
