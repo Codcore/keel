@@ -133,6 +133,16 @@ Then, in the project you want to work in:
 keel init
 ```
 
+**What is not built, said here rather than discovered later:** the concept's
+distribution rung — `~/.keel/versions/<version>`, a launcher that reads the pin
+and fetches the pinned release with a checksum — does not exist. `version` in
+`keel.toml` is a *guard*, not a fetch: if the pin and the running binary
+disagree, the courts refuse and you have to obtain that version yourself. And
+the generated CI workflow **calls** `keel` without installing it, so a project
+that pushes it unchanged gets `keel: command not found` until a step of its own
+puts `keel` on PATH. There is no `--json` output on any command either, though
+the concept promises one.
+
 `init` asks a handful of questions — language, adapter, mode, agents, CI command
 — and writes `keel.toml` plus the integrations below. `keel setup` changes any
 answer later; `keel update` refreshes what a newer release generates.
@@ -242,18 +252,27 @@ refuses to overwrite it, saying so — it never touches what it did not write.
 
 ## Modes
 
-`keel init --mode` answers who may start a procedure and whether anything
-watches while it runs:
+`keel init --mode` answers **who may start a procedure**, and nothing else:
 
-| mode | who starts a procedure | agent hooks |
-|---|---|---|
-| `strict` (default) | the agent, on its own judgement | installed |
-| `soft` | the agent, on its own judgement | none |
-| `manual` | only you, by typing the slash command | none |
+| mode | who starts a procedure |
+|---|---|
+| `strict` (default) | the agent, on its own judgement |
+| `soft` | the agent, on its own judgement, and the commit court is advisory |
+| `manual` | only you, by typing the slash command |
 
-The agent hooks read what the agent is about to write and refuse a file the
-current wave does not declare. The git hook is separate and is always installed:
-it holds the commit grammar and the red birth.
+Two things this table used to claim and does not:
+
+- **The agent hooks are not switched by `--mode`.** They are written whenever
+  `hooks` is on, in every mode; `--no-hooks` (or `hooks = false`) is the switch,
+  and it turns off the git hook too.
+- **The agent hooks do not read what the agent is about to write.** What is
+  generated today is a *session-start* hook that runs `keel next` and puts the
+  current step into the agent's context. A hook that judges a write before it
+  happens is not built.
+
+The git hook is separate: it holds the commit grammar and the red birth (§8.4,
+§7.12) — and it is installed unless you answered `hooks = false`, in which case
+nothing holds those two but your own care.
 
 ## State
 
@@ -266,5 +285,7 @@ and cannot be edited. A session that dies loses nothing: the next agent runs
 
 A green check means *the test exists, its revision matches, and it passes* — not
 that the promise is proven in essence. No mechanism closes that gap; a fresh
-reviewer does, with the four questions of §9.9. The tool says this in its own
-verdict rather than letting a green line imply more than it holds (§7.8).
+reviewer does, with the four questions of §9.9. `keel check` prints that border
+in its own verdict rather than letting a green line imply more than it holds
+(§7.8) — `keel close`, the heavier court, does not yet, and says "every live
+scenario proven" where it means the same narrower thing.
