@@ -376,6 +376,7 @@ limit-shallow = not checked: the history is shallow -- { $skipped ->
     }, and how many of them this depth COULD have run is not counted; instead: git fetch --unshallow
 limit-base-stale = not checked: local { $trunk } is { $behind } behind { $base } as of the last fetch (this clone knows nothing newer) -- scope was judged against a stale base; instead: git fetch
 limit-base-local-only = not checked: this clone knows no remote { $trunk } -- the base of comparison is local and its freshness cannot be checked
+limit-hook-absent = not held by machine here: keel.toml says hooks = true, but no commit-msg hook of ours stands in this clone -- git does not clone hooks, so the block in AGENTS.md promises a machine that is not on this one: here both rules (sec. 8.4, sec. 7.12) are held by people; instead: keel hook
 limit-ruby-border = not checked: ruby does not tell "failed" from "did not build" by its exit code -- both are 1 (§7.12). The adapter reads the text (SyntaxError, LoadError); where the text does not say, a failure is taken as a failure -- the direction that cannot turn red into green
 limit-ruby-form = not checked in essence: ruby writes no types, so the §7.6 form court compares a method name and its parameters -- and nothing more; green form here means even less about meaning than it does in a tongue with types (§7.8)
 limit-ruby-unread = not checked: test/ holds { $count } .rb files this adapter does not read -- it reads minitest, that is *_test.rb ({ $files }); RSpec comes with its own wave
@@ -556,6 +557,7 @@ version-running = keel { $version } -- the binary answering
 version-pin-held = pin keel.toml: "{ $pin }" -- held; the courts judge with this very binary
 version-pin-mismatch = pin keel.toml: "{ $pin }" -- NOT this binary: the courts refuse until the pin and the binary meet
 version-pin-hand = { "  " }to take exactly that one: KEEL_REF="{ $pin }" sh install.sh -- or curl -fsSL { $installer } | sh -s -- { $pin }
+version-pin-hand-border = { "  " }the border: KEEL_REF takes a git ref (a tag or a commit) of this repository BY NAME -- not a verified checksum, and not the number in keel.toml by itself. Where no tag carries that name, install.sh refuses with the list of the ones that do; no v1 tag builds at all, the crate having lived outside tool/ back then
 version-pin-none = the version field is not set -- no pin; the concept advises one: version = "{ $version }"
 version-no-file = keel.toml is absent -- no pin, the binary above runs
 version-unread = keel.toml not read ({ $reason }) -- the pin unknown; the config court says the refusal in full

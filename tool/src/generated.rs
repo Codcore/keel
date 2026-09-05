@@ -311,6 +311,19 @@ fn workflow(config: &Config) -> String {
     // silence (review 0038 R-9): a project whose adapter this release
     // does not lead gets a line saying so, in the file where a person
     // would otherwise look for the step and find nothing.
+    // The pin travels with the step (review 0039 R-4): a project that
+    // pins a version used to get a step installing `main`, and then a
+    // refusal from every court two lines below, because the pin and
+    // the binary differ. The generator knows the pin -- so it writes
+    // it, and the step fetches exactly what the project asked for.
+    let pin = match config.version.as_deref() {
+        Some(pin) => format!(
+            "        # keel.toml pins this version, so the step fetches it.\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}env:\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}KEEL_REF: \"{pin}\"\n"
+        ),
+        None => String::new(),
+    };
     let courts = match config.language() {
         Some(language) => format!(
             "      - name: the battery\n        run: {}\n",
@@ -330,7 +343,9 @@ fn workflow(config: &Config) -> String {
          # it needs git and cargo on the runner, and it costs minutes on a\n\
          # cold cache. If your project already puts `keel` on PATH some other\n\
          # way, replace this step with yours -- the courts below do not care\n\
-         # how it got there.\n\
+         # how it got there. To keep an edited copy for good, delete this\n\
+         # file's line from [generated] in keel.toml as well: otherwise\n\
+         # `keel update` will keep saying it did not overwrite you.\n\
          name: keel\n\
          \n\
          on:\n\
@@ -346,9 +361,9 @@ fn workflow(config: &Config) -> String {
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}fetch-depth: 0\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the tool itself\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Clones the method into ~/.keel, then builds it from source.\n\
-         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# It needs git and cargo on the runner. Where keel.toml\n\
-         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# pins a version, set KEEL_REF to that tag here: the\n\
-         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# courts refuse while the pin and the binary differ.\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# It needs git and cargo on the runner, and cargo writes\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# its own registry into CARGO_HOME while it does.\n\
+         {pin}\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: |\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}curl -fsSL {INSTALLER} | sh\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n\
@@ -373,8 +388,18 @@ fn rule_for(config: &Config) -> &'static str {
     let uk = config.lang == "uk";
     // Both knobs, not one. `mode` says how loudly the commit court
     // speaks; `hooks` says whether it is there to speak at all, and a
-    // paragraph that reads only the first promises a hook that was
+    // paragraph that reads only the first promised a hook that was
     // never installed.
+    //
+    // What this paragraph must NOT do is read the disk (review 0039
+    // R-1 asked for that, and it would be worse): the artefacts are
+    // compared by digest across every machine that checks out the
+    // project, and git does not clone hooks -- so a text that changed
+    // with the presence of a hook would read as hand-edited on every
+    // runner and in every colleague's clone. The paragraph states the
+    // project's answer; whether a hook really stands HERE is a
+    // question about this machine, and `keel check` asks it there,
+    // aloud, on every clone that lacks one.
     if !config.hooks {
         return if uk { RULE_NO_HOOK_UK } else { RULE_NO_HOOK_EN };
     }

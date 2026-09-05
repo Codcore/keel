@@ -13,7 +13,7 @@ transforms:
   the-rule-is-the-machinery:
     implements:
       - the-block-names-what-holds-it
-    contracts: [tool-generated@28c67d]
+    contracts: [tool-generated@15c5dd]
     files:
       - tool/src/generated.rs
       - keel/contracts/tool-generated.md
@@ -53,7 +53,7 @@ decisions:
   performance.time-behaviour: "не застосовується"
   performance.capacity: "не застосовується"
   performance.resource-utilisation: "свідомо без тесту: крок постановки в CI будує keel із сирців — це хвилини і мегабайти чужого раннера, і воно сказане в самому файлі, а не приховане"
-  compatibility.co-existence: "тримає the-generated-ci-runs-where-it-is-born: крок постановки не чіпає нічого поза ~/.keel і ~/.local/bin, і жоден наявний крок проєкту не переписується"
+  compatibility.co-existence: "тримає the-generated-ci-runs-where-it-is-born: жоден наявний крок проєкту не переписується — §9.7 не пише поверх руки, і файл каже, як лишити свою редакцію назавжди. Про CARGO_HOME див. security.integrity: воно поза названими теками, і це сказано вголос, а не приховано"
   compatibility.interoperability: "тримає the-pin-has-a-hand: install.sh домовляється рівно з git і cargo — і відмовляє вголос, коли їх нема"
   interaction.appropriateness-recognisability: "свідомо без тесту: назви кроків у workflow лишаються тими самими словами, якими їх зве норма"
   interaction.learnability: "свідомо без тесту: команд не додається — install.sh той самий, лише вміє версію"
@@ -61,14 +61,14 @@ decisions:
   interaction.user-error-protection: "тримає the-pin-has-a-hand: пін на ref, якого нема, — відмова install.sh із тим самим ім'ям, а не мовчазний білд main"
   interaction.user-engagement: "не застосовується"
   interaction.inclusivity: "не застосовується"
-  reliability.faultlessness: "тримає the-block-names-what-holds-it: mode і hooks — дві незалежні ручки, і всі чотири їхні поєднання дають правдивий абзац"
+  reliability.faultlessness: "тримає the-block-names-what-holds-it: mode і hooks — дві незалежні ручки, тобто **шість** поєднань (три режими × дві ручки), і проба грає всі шість. «Чотири» стояло тут і було підгонкою норми під зроблене (рецензія 0039 R-11)"
   reliability.fault-tolerance: "свідомо без тесту: мережі нема — install.sh відмовляє словами git, і суди від цього не змінюються"
   reliability.recoverability: "не застосовується"
   security.confidentiality: "не застосовується"
-  security.integrity: "свідомо без тесту: install.sh пише лише в ~/.keel і ~/.local/bin, обидва названі й переставні змінними"
+  security.integrity: "свідомо без тесту, і межа названа чесно: install.sh сам пише лише в ~/.keel і ~/.local/bin, обидва переставні змінними, — але cargo, якого він кличе, пише свій реєстр і кеш у CARGO_HOME (типово ~/.cargo, десятки мегабайт на першій збірці). Це домівка cargo, не keel-а; скрипт її не рухає і каже про неї в шапці (рецензія 0039 R-9)"
   security.non-repudiation: "не застосовується"
   security.accountability: "не застосовується"
-  security.authenticity: "свідомо без окремої роботи, і межа названа: постановка тягне git-ref за іменем, а не перевірений checksum — checksum концепту лишається в черзі окремим рядком, і version про це каже вголос"
+  security.authenticity: "свідомо без окремої роботи, і межа названа двічі: постановка тягне git-ref **за іменем**, а не перевірений checksum, і сам install.sh CI тягне з рухомої гілки main — тобто проєкт, приколотий до старого keel, виконає сьогоднішній скрипт. Обидва — рядки черги, і `keel version` про перше каже вголос (рецензія 0039 R-3, R-13)"
   security.resistance: "не застосовується"
   maintainability.modularity: "тримає the-block-names-what-holds-it: правило народжується з однієї руки для блока і для skill-а, і ця рука питає обидві ручки"
   maintainability.reusability: "не застосовується"
@@ -82,7 +82,7 @@ decisions:
   safety.risk-identification: "свідомо без окремої роботи: ризик названий числом — щабель дистрибуції з концепту (~/.keel/versions/, докачування, checksum) цією хвилею НЕ закривається; закривається лише те, щоб порада «візьми приколоту версію» мала руку"
   safety.fail-safe: "тримає the-block-names-what-holds-it: там, де машина не тримає нічого, абзац каже «тримають люди», а не мовчить — небезпечний бік брехні тут саме той, що правило подане як гарантоване"
   safety.hazard-warning: "тримає the-generated-ci-runs-where-it-is-born: файл сам каже, що крок постановки будує з сирців і скільки це коштує"
-  safety.safe-integration: "свідомо без окремої роботи: проєкт, що вже поклав власний крок постановки, не дістає другого — межа сказана в самому файлі"
+  safety.safe-integration: "тримає the-generated-ci-runs-where-it-is-born: проєкт, що вже поклав власний крок, другого не дістає — §9.7 не переписує руку, — і файл несе повний рецепт, як лишити свою редакцію без вічного докору keel update (рецензія 0039 R-10)"
 ---
 
 ## Why
@@ -157,8 +157,11 @@ decisions:
 **тоді** `keel` є на PATH, бо workflow ставить його сам — окремим
 названим кроком, який каже, що будує з сирців і чого це коштує.
 Провал постановки — провал **свого** кроку з власним ім'ям, а не
-`command not found` посеред судового. Проєкт, який уже має власний
-крок постановки, другого не дістає.
+`command not found` посеред судового. Де `keel.toml` несе `version`,
+крок везе **той самий пін**: інакше проєкт дістає крок, що ставить
+`main`, і відмову кожного суду двома рядками нижче. Проєкт, який
+поклав власний крок постановки, другого не дістає — §9.7 не пише
+поверх руки, — і файл несе рецепт, як лишити свою редакцію назавжди.
 
 ## scenario: the-pin-has-a-hand
 
@@ -182,8 +185,10 @@ decisions:
 ## transform: the-workflow-brings-its-own-tool
 
 Згенерований workflow дістає крок постановки перед судовими. Він
-каже про себе все: що будує з сирців, що потребує git і cargo, і що
-проєкт може замінити його своїм.
+каже про себе все: що будує з сирців, що потребує git і cargo, куди
+пише поза власними теками (`CARGO_HOME`), і як проєкт замінює його
+своїм — разом із рядком у `[generated]`, без якого `keel update`
+докорятиме вічно. Де конфіг несе пін, крок везе `KEEL_REF` із ним.
 
 ## transform: journal
 
@@ -196,4 +201,8 @@ decisions:
 
 `install.sh` приймає версію — аргументом і змінною — і ставить рівно
 її. `version` на розбіжності називає цю команду з підставленою
-версією замість поради без руки.
+версією замість поради без руки — і **межу разом із нею**: `KEEL_REF`
+бере git ref за іменем, а поле `version` несе число, і це не одне
+слово. Звичайне оновлення (другий біг без версії) вертається з
+приколотого стану на гілку сам: `checkout -` цього не вміє в клоні,
+який ніколи не рухали.

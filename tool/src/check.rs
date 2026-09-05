@@ -127,6 +127,24 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // wave that built the adapter (review 0038 R-7): §7.12 asks for
     // it aloud wherever the adapter cannot tell a failure from a
     // broken build, and ruby cannot.
+    // The block promises a machine; this machine may not have one
+    // (review 0039 R-1). git does not clone hooks, so every colleague
+    // and every CI runner reads a guarantee that stayed behind on
+    // the machine `keel init` ran on -- and nothing said so. Said as
+    // a limit and not a finding: a runner has no commits to judge,
+    // and the commit court did its work before the push.
+    // Only where a block of ours really stands and really claims the
+    // machine: a project that keel never wrote to promises nothing,
+    // and a row about a promise nobody made is noise.
+    let claims_a_machine = config.mode != "manual"
+        && config.hooks
+        && config.generated.iter().any(|(key, _)| key == "AGENTS.md");
+    if claims_a_machine
+        && !crate::gate::hook_path(root)
+            .is_some_and(|path| path.is_file() && crate::gate::hook_is_ours(&path))
+    {
+        extra_limits.push(t("limit-hook-absent"));
+    }
     if config.language() == Some(crate::config::Language::Ruby) {
         extra_limits.push(t("limit-ruby-border"));
         extra_limits.push(t("limit-ruby-form"));
