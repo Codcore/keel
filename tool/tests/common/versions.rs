@@ -69,7 +69,7 @@ pub fn world(dir: &Path) -> World {
          version=$(grep '^version' \"$root/tool/Cargo.toml\" | head -1 | cut -d'\"' -f2)\n\
          out=\"$root/tool/target/release\"\n\
          mkdir -p \"$out\"\n\
-         printf '#!/bin/sh\\nif [ \"$1\" = \"--version\" ]; then echo \"keel %s\"; else echo \"ran %s: $*\"; fi\\n' \"$version\" \"$version\" > \"$out/keel\"\n\
+         printf '#!/bin/sh\\necho \"keel %s\"\\necho \"args: $*\"\\n' \"$version\" > \"$out/keel\"\n\
          chmod +x \"$out/keel\"\n";
     fs::write(stub.join("cargo"), script).unwrap();
     #[cfg(unix)]
