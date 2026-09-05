@@ -422,20 +422,25 @@ check` prints that border itself, next to a second one: ruby writes no types, so
 the §7.6 form court compares a method name and its parameters and nothing more.
 
 Adding a language is a module, a row in `Language::NAMES`, the dictionary in
-both tongues, and **seventeen** places where something branches on the tongue —
-counted off the source (`grep -n 'language_of(root)\|config.language()' tool/src/*.rs`)
-rather than guessed: the number that stood here before was six beside a list of
-seven, then fourteen while wave 0044 was adding three more, and review 0045
-counted seventeen:
+both tongues, and **nineteen** places where something branches on the tongue —
+counted off the source rather than guessed: the number that stood here before
+was six beside a list of seven, then fourteen while wave 0044 was adding three
+more, seventeen by review 0045, and review 0046 found the grep
+(`grep -n 'language_of(root)\|config.language()' tool/src/*.rs`) giving more
+lines than the hand count, because `check` asks once per tongue for the
+tongue's own limits — so the list is the count, and the grep (twenty lines
+today) is how to find what the list missed:
 
 `adapter::builds_heavily`, `build_dir`, `tests_dir`, `run_line`, `test_files`,
 `run_test`, `run_all`; `config::battery_command`; `holding::comparability` (the
 module layout) and `holding::strip_comments` (the comment shape);
 `tags::scan_text` (the declaration shape), `tags::marks` and `tags::declares`
 (these three keyed by the file's extension, never by the project's config — see
-below); `check` for the tongue's own limits; and the three wave 0044 added —
+below); `check` for the tongue's own limits; the three wave 0044 added —
 `adapter::battery_dir` (where the generated CI runs), and the two in
-`generated` that pick the toolchain step and the battery step.
+`generated` that pick the toolchain step and the battery step; and the two
+review 0046 added in `next` — the comment mark the hint writes the tag in, and
+the directory it says the tests live in.
 
 Not "one file". Wave 0042 paid exactly that price for Elixir.
 
