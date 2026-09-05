@@ -45,6 +45,21 @@ fn no_generated_file_is_edited_by_hand() {
     // release writes it.
     let dir = keel_sandbox("generated");
     std::fs::write(dir.join("keel.toml"), &config).unwrap();
+    // The generated CI now reads the project's LAYOUT as well as its
+    // config -- where the crate is, and which toolchain the project
+    // pins (wave 0044). A copy carrying only keel.toml would be a
+    // world thinner than the one it judges, and the probe would
+    // report drift that is only its own fixture's (the lesson of
+    // review 0041). So the markers travel with it.
+    for marker in ["Cargo.toml", "tool/Cargo.toml", "rust-toolchain.toml"] {
+        let from = repo.join(marker);
+        if !from.is_file() {
+            continue;
+        }
+        let to = dir.join(marker);
+        std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+        std::fs::copy(&from, &to).unwrap();
+    }
     for name in &names {
         let from = repo.join(name);
         assert!(from.is_file(), "{name} is recorded as generated and exists");

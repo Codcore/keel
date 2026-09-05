@@ -21,6 +21,15 @@ use std::path::Path;
 pub struct Outcome {
     pub report: String,
     pub findings: usize,
+    /// The very rows the report was rendered from -- a file, and the
+    /// reason it is red where there is one. Kept beside the prose so
+    /// the machine road (wave 0040) reads structure instead of
+    /// splitting sentences that come in two languages.
+    pub rows: Vec<(String, Option<String>)>,
+    /// What was not judged, and why, as the margin says it.
+    pub limits: Vec<String>,
+    /// How many documents this floor walked.
+    pub documents: usize,
 }
 
 /// Walks the documents under the root and reports on every file:
@@ -123,11 +132,78 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // Limits gathered while judging, said in the verdict's own
     // margin rather than swallowed (§4.10, wave 0031).
     let mut extra_limits: Vec<String> = Vec::new();
+    // The tongue's own border, said by the tool and not only by the
+    // wave that built the adapter (review 0038 R-7): §7.12 asks for
+    // it aloud wherever the adapter cannot tell a failure from a
+    // broken build, and ruby cannot.
+    // The block promises a machine; this machine may not have one
+    // (review 0039 R-1). git does not clone hooks, so every colleague
+    // and every CI runner reads a guarantee that stayed behind on
+    // the machine `keel init` ran on -- and nothing said so. Said as
+    // a limit and not a finding: a runner has no commits to judge,
+    // and the commit court did its work before the push.
+    // Only where a block of ours really stands and really claims the
+    // machine: a project that keel never wrote to promises nothing,
+    // and a row about a promise nobody made is noise.
+    let claims_a_machine = config.mode != "manual"
+        && config.hooks
+        && config.generated.iter().any(|(key, _)| key == "AGENTS.md");
+    if claims_a_machine
+        && !crate::gate::hook_path(root)
+            .is_some_and(|path| path.is_file() && crate::gate::hook_is_ours(&path))
+    {
+        extra_limits.push(t("limit-hook-absent"));
+    }
+    // The border that is true of THIS tongue, and only it. Ruby
+    // cannot tell a failure from a broken build; elixir can, and
+    // saying ruby's sentence over an elixir project would be as
+    // untrue as saying nothing (wave 0042).
+    // Said in the margin, but NOT counted among the things left
+    // unchecked (review 0042 R-8): this row is a measurement, and
+    // counting it inflated "not checked" by one on every elixir
+    // project -- with the very sentence the wave is proud of.
+    let mut measured: Vec<String> = Vec::new();
+    if config.language() == Some(crate::config::Language::Elixir) {
+        measured.push(t("limit-elixir-border"));
+        // A measured border is a boast; this one is a limit, and it
+        // goes where limits go (review 0042 R-16). Elixir writes no
+        // types either, and the ghost inside a `@moduledoc` heredoc
+        // was measured passing for a live `def` -- in both tongues.
+        extra_limits.push(t("limit-elixir-form"));
+        for path in crate::elixir::unread_files(root) {
+            let shown = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .display()
+                .to_string();
+            extra_limits.push(ta("limit-elixir-unread", targs!("file" => shown)));
+        }
+    }
+    if config.language() == Some(crate::config::Language::Ruby) {
+        extra_limits.push(t("limit-ruby-border"));
+        extra_limits.push(t("limit-ruby-form"));
+        // And which files in test/ this adapter walked past (R-19).
+        let unread = crate::ruby::unread_files(root);
+        if !unread.is_empty() {
+            extra_limits.push(ta(
+                "limit-ruby-unread",
+                targs!(
+                    "count" => unread.len() as u64,
+                    "files" => unread
+                        .iter()
+                        .filter_map(|path| path.strip_prefix(root).ok())
+                        .map(|path| path.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            ));
+        }
+    }
     let mut cancelled_rows: Vec<String> = Vec::new();
     // Tags are read once and serve three floors: the tag floor, the
     // §7.15 delta, and the §5.6 narrowing through structural closure.
     let found_tags: Option<Result<Vec<tags::TestTag>, Refusal>> = config
-        .rust_adapter()
+        .adapter_known()
         .then(|| adapter::test_files(root).and_then(|files| tags::scan(&files)));
     let mut ref_rows: std::collections::BTreeSet<(String, String)> = Default::default();
     let mut refs_checked: u64 = 0;
@@ -319,6 +395,33 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             Compared::No(why) => extra_limits.push(why),
             Compared::Silent => {}
         }
+    }
+
+    // A language this release does not know is a FINDING with the
+    // list of the ones it does (wave 0038). Not a refusal: a project
+    // that named a language keel cannot lead yet still gets its
+    // documents, links, scope and revisions judged. Not silence
+    // either: before this wave an unknown name simply meant "not
+    // Rust", so a typo skipped the language-shaped courts without
+    // ever saying which -- and §4.10 calls that worse than red.
+    if let Some(named) = config.adapter.as_deref()
+        && config.language().is_none()
+    {
+        rows.push((
+            "keel.toml".to_string(),
+            Some(format!(
+                "{}\n           {}: {}",
+                ta(
+                    "config-unknown-adapter",
+                    targs!("named" => named.to_string(), "known" => crate::config::Language::known()),
+                ),
+                t("word-instead"),
+                ta(
+                    "config-unknown-adapter-instead",
+                    targs!("known" => crate::config::Language::known()),
+                ),
+            )),
+        ));
     }
 
     let generated: Vec<String> = config.generated.iter().map(|(k, _)| k.clone()).collect();
@@ -545,7 +648,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // cargo adapter is served on this rung -- anything else is a
     // skip said aloud, never a silent green.
     let mut tags_checked: u64 = 0;
-    let known = config.rust_adapter();
+    let known = config.adapter_known();
     let judged = match (&config.adapter, &found_tags) {
         (None, _) => Err(t("check-tags-skipped-no-adapter")),
         (Some(_), Some(Ok(found))) if known => {
@@ -563,7 +666,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         }
         (Some(other), _) => Err(ta(
             "check-tags-skipped-adapter",
-            targs!("name" => other.to_string()),
+            targs!("name" => other.to_string(), "known" => crate::config::Language::known()),
         )),
     };
     let tags_status = match judged {
@@ -732,6 +835,9 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let mut limits = verdict_limits(root, refs_unjudged);
     limits.extend(extra_limits);
     limits.extend(cancelled_rows);
+    for row in &measured {
+        writeln!(report, "{row}").unwrap();
+    }
     for limit in &limits {
         writeln!(report, "{limit}").unwrap();
     }
@@ -763,7 +869,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     };
     writeln!(report, "{next}").unwrap();
 
-    Ok(Outcome { report, findings })
+    Ok(Outcome {
+        report,
+        findings,
+        rows,
+        limits,
+        documents,
+    })
 }
 
 /// Whether the wave's own plan branch exists and already carries its
@@ -1107,6 +1219,12 @@ fn git_line(root: &Path, args: &[&str]) -> Option<String> {
 /// A refusal rendered as a report row, the school of every floor.
 fn push_refusal_row(rows: &mut Vec<(String, Option<String>)>, root: &Path, refusal: &Refusal) {
     let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
+    // The prose keeps its own shape, to the byte (review 0040 R-1):
+    // this hand once wrote "." here for a refusal about the project
+    // itself, and the wave promised in the same breath that the plain
+    // road had not moved. An empty name IS useless as a field, so the
+    // machine road fills it there -- where a change costs nobody a
+    // diff -- and the prose stays as every existing script sees it.
     rows.push((
         shown.display().to_string(),
         Some(format!(

@@ -7,6 +7,10 @@ edition = "2024"
 fluent-bundle = "0.16.0"
 saphyr-parser = "0.0.12"
 serde = { version = "1.0.229", features = ["derive"] }
+# The machine's road out (wave 0040): the package is built by a real
+# serializer, never by concatenation -- a path with a quote or a
+# backslash in it is escaped, not mangled.
+serde_json = "1.0"
 sha2 = "0.11.0"
 toml = "1.1.4"
 unic-langid = "0.9.6"

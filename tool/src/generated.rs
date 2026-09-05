@@ -8,7 +8,8 @@
 //! by a byte, and an artefact a hand has touched is refused aloud,
 //! never overwritten.
 
-use crate::config::Config;
+use crate::adapter;
+use crate::config::{Config, Language};
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::targs;
@@ -60,7 +61,7 @@ enum Owner {
 /// vendor-neutral home of the Agent Skills standard, which is what
 /// Cursor reads (and Codex, whose option waits for its own wave --
 /// a fact about the directory, not a promise of this release).
-fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
+fn artefacts(root: &Path, config: &Config) -> Vec<(&'static str, Kind, String)> {
     let named = config.agents();
     let skill = skill(config);
     let rows: Vec<(&'static str, Kind, Owner, String)> = vec![
@@ -99,7 +100,7 @@ fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
             ".github/workflows/keel.yml",
             Kind::Whole,
             Owner::Any,
-            workflow(config),
+            workflow(root, config),
         ),
     ];
     rows.into_iter()
@@ -181,6 +182,17 @@ const RULE_STRICT_UK: &str = r#"Два правила тримає тут маш
 const RULE_SOFT_UK: &str = r#"Два правила стоять тут попередженням (`mode = "soft"`): сценарій народжується червоним — commit `red: <сценарій>` судиться, і незароблене кажеться вголос, але не заслоняє commit, — те саме для робочого commit-а `<трансформа>: <слова>`. Слова — машинні, тримати їх — твоє. Питай `keel next`, а не вгадуй порядок."#;
 
 const RULE_MANUAL_UK: &str = r#"Суд commit-ів у цьому проєкті вимкнено (`mode = "manual"`): обидва правила — народження червоним і робота лише поверх зелених тестів — тримають тут самі люди. `keel close` перед злиттям судить далі. Питай `keel next`, а не вгадуй порядок."#;
+
+/// The fourth paragraph, and the one that was missing: `mode` and
+/// `hooks` are two knobs, not one. A project that answered
+/// `hooks = false` gets no commit-msg hook -- `keel init` says so
+/// aloud in the same breath -- and yet the paragraph beside it
+/// promised a machine holding the rule through that very hook. That
+/// is the constitution's sixth point inverted, in the text an agent
+/// reads first (the audit of 2026-09-05).
+const RULE_NO_HOOK_EN: &str = r#"This project keeps no commit hook (`hooks = false`), so no commit judgement runs here at all -- the two rules, a scenario born red and work committed only over green tests, are held by people. What still judges by machine: `keel close` before a merge, and `keel check` over the documents. Ask `keel next` instead of guessing the order."#;
+
+const RULE_NO_HOOK_UK: &str = r#"Цей проєкт не тримає commit-hook-а (`hooks = false`), тож суду commit-ів тут нема зовсім — обидва правила, народження червоним і робота лише поверх зелених тестів, тримають люди. Що судить машиною далі: `keel close` перед злиттям і `keel check` над документами. Питай `keel next`, а не вгадуй порядок."#;
 
 /// The loop skill an agent reads (wave 0023): the same words as the
 /// block, shaped as a skill file, because that is what Claude Code
@@ -283,24 +295,207 @@ fn cursor_hooks() -> String {
     )
 }
 
-/// The CI workflow (wave 0023): the three courts a merge needs.
-/// It calls keel as a command and does NOT install it -- the
-/// installing step arrives with the distribution rung, and the file
-/// says so itself.
-fn workflow(config: &Config) -> String {
-    let courts = if config.rust_adapter() {
-        "      - name: the battery\n        run: cargo test --no-fail-fast\n"
-    } else {
-        ""
+/// Where install.sh lives. One place, so the workflow and the
+/// version lamp point at the same hand (wave 0039).
+pub const INSTALLER: &str = "https://raw.githubusercontent.com/Codcore/keel/main/install.sh";
+
+/// The CI workflow (wave 0023): the three courts a merge needs, and
+/// since wave 0039 the tool that runs them. It used to call `keel`
+/// without installing it and admit so in a comment -- so a project
+/// that ran `keel init` and pushed got `keel: command not found` on
+/// its first run, from a file the frame itself had written. The step
+/// builds from source, because there is no released binary yet, and
+/// it says that about itself rather than leaving a reader to find
+/// out on a runner.
+/// Where the tongue's own root lies, said as a person would say it:
+/// relative to the repository root, or `None` when the two are the
+/// same. A crate in a subdirectory is an ordinary shape -- keel
+/// itself is one -- and the step that judges it must run there
+/// (wave 0044). Before this, the generated battery step was
+/// `cargo test` at the repository root, and this repository's own CI
+/// answered `could not find Cargo.toml` on every run.
+enum Where {
+    /// The battery runs at the repository root: nothing to say.
+    Root,
+    /// It runs in this directory, named as a person would name it.
+    Inside(String),
+    /// The adapter cannot say where -- and a step written over that
+    /// silence would fail on a runner without saying why.
+    Unknown,
+}
+
+/// Where the generated battery step must run, asked of the ADAPTER
+/// and not worked out here (review 0044 R-2, R-5): the first cut of
+/// this looked for `Gemfile` and `mix.exs` itself, and those two
+/// tongues are run from the repository root by their own adapters --
+/// so a directory taken from a marker sent CI to run a different
+/// battery from the one the courts judge, and a red tree came out
+/// green.
+fn tongue_root(root: &Path, config: &Config) -> Where {
+    if config.language().is_none() {
+        return Where::Root;
+    }
+    let Some(found) = adapter::battery_dir(root) else {
+        return Where::Unknown;
+    };
+    match found.strip_prefix(root).ok().and_then(|rest| rest.to_str()) {
+        Some(shown) if !shown.is_empty() => Where::Inside(shown.to_string()),
+        Some(_) => Where::Root,
+        None => Where::Unknown,
+    }
+}
+
+/// The toolchain this project pins, if it pins one -- and only when
+/// what it pins is a NAME.
+///
+/// Read with the TOML reader this crate already carries, not by
+/// hand: the hand-written first cut of this took the text after
+/// `channel` and dropped it straight into a `run:` line, so
+/// `channel = "1.94.1 && curl … | sh #"` wrote that command into the
+/// generated workflow, and a legal inline comment
+/// (`channel = "1.75.0" # my pin`) leaked a stray quote into the
+/// step (review 0044 R-1, R-3, R-7). A value this release cannot
+/// vouch for is treated as no pin at all: the workflow then says
+/// aloud that nothing is named, which is true and harmless, where
+/// writing it would have been neither.
+///
+/// The shape allowed is rustup's own vocabulary for a channel --
+/// `stable`, `1.94.1`, `nightly-2026-03-25`,
+/// `1.94.1-x86_64-unknown-linux-gnu` -- letters, digits, dot, dash,
+/// underscore. Nothing that a shell reads as anything.
+fn pinned_toolchain(root: &Path, where_crate: Option<&str>) -> Option<String> {
+    let mut looked = vec![
+        root.join("rust-toolchain.toml"),
+        root.join("rust-toolchain"),
+    ];
+    if let Some(dir) = where_crate {
+        looked.insert(0, root.join(dir).join("rust-toolchain.toml"));
+        looked.insert(1, root.join(dir).join("rust-toolchain"));
+    }
+    for path in looked {
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let found = match toml::from_str::<toml::Value>(&text) {
+            Ok(value) => value
+                .get("toolchain")
+                .and_then(|table| table.get("channel"))
+                .and_then(|channel| channel.as_str())
+                .map(str::to_string),
+            // `rust-toolchain` without an extension is the bare
+            // channel and no TOML at all, which is why the parse
+            // failing is not itself an answer.
+            Err(_) if path.extension().is_none() => Some(text.trim().to_string()),
+            Err(_) => None,
+        };
+        match found {
+            Some(channel) if channel_named(&channel) => return Some(channel),
+            // Something is written there and this release cannot
+            // vouch for it. Saying "no pin" is true; passing it on
+            // would not be.
+            Some(_) => return None,
+            None => continue,
+        }
+    }
+    None
+}
+
+/// Is this a channel NAME, and nothing a shell would read as more
+/// than one? The whole of the value must be it -- a prefix that
+/// looks right is exactly how the injection above got in.
+fn channel_named(channel: &str) -> bool {
+    !channel.is_empty()
+        && channel.len() <= 64
+        && channel
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_'))
+}
+
+fn workflow(root: &Path, config: &Config) -> String {
+    // The battery step is the tongue's own, and its absence is never
+    // silence (review 0038 R-9): a project whose adapter this release
+    // does not lead gets a line saying so, in the file where a person
+    // would otherwise look for the step and find nothing.
+    // The pin travels with the step (review 0039 R-4): a project that
+    // pins a version used to get a step installing `main`, and then a
+    // refusal from every court two lines below, because the pin and
+    // the binary differ. The generator knows the pin -- so it writes
+    // it, and the step fetches exactly what the project asked for.
+    let pin = match config.version.as_deref() {
+        Some(pin) => format!(
+            "        # keel.toml pins this version, so the step fetches it.\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}env:\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}KEEL_REF: \"{pin}\"\n"
+        ),
+        None => String::new(),
+    };
+    // Where the battery runs, ASKED OF THE ADAPTER (wave 0044): a
+    // step at the repository root cannot run in a project whose
+    // crate sits in a subdirectory -- and that is an ordinary shape,
+    // keel's own among them.
+    let where_battery = tongue_root(root, config);
+    let inside = match &where_battery {
+        Where::Inside(dir) => format!("        working-directory: {dir}\n"),
+        Where::Root => String::new(),
+        // Not a step written over a silence: the runner would fail
+        // and say only `could not find Cargo.toml`, which is the very
+        // thing this wave exists to stop (review 0044 R-6).
+        Where::Unknown => "        # This release could not tell where the crate of this project\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# is: it found none, or more than one, at the root and one\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# level down. The step below therefore runs where this file\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# does. If that is not where your battery lives, add a\n\
+                           \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# working-directory here; `keel close` judges from the root.\n"
+            .to_string(),
+    };
+    let where_crate = match &where_battery {
+        Where::Inside(dir) => Some(dir.clone()),
+        _ => None,
+    };
+    // And which toolchain judged, for a tongue that has one. A
+    // verdict from whatever the runner had that day is repeatable
+    // only by accident; where the project pins nothing -- or pins
+    // something this release will not vouch for -- the file says so.
+    let toolchain = match config.language() {
+        Some(Language::Rust) => match pinned_toolchain(root, where_crate.as_deref()) {
+            Some(channel) => format!(
+                "      - name: the toolchain this project pins\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# rust-toolchain.toml names {channel}; rustup honours it on\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# its own, and this line says aloud WHICH one judged, so a\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# verdict here is the same verdict on any other machine.\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: rustup toolchain install {channel} --profile minimal\n"
+            ),
+            None => "      # No toolchain named: this project pins none this release can\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# read as a channel NAME, so the courts below judge with\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# whatever the runner has today. A lint added to a newer stable\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# turns this file red on a tree that did not change -- a verdict\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# repeatable only by accident. Add a rust-toolchain.toml with a\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# plain channel name, and bump it deliberately.\n"
+                .to_string(),
+        },
+        _ => String::new(),
+    };
+    let courts = match config.language() {
+        Some(language) => format!(
+            "{toolchain}      - name: the battery\n        run: {}\n{inside}",
+            language.battery_command()
+        ),
+        None => "      # No battery step: keel.toml names no adapter this\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# release leads, so it does not know how this project\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# runs its tests. `keel close` still runs the battery\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# where it can; add your own step here otherwise.\n"
+            .to_string(),
     };
     format!(
         "# keel (generated -- do not edit; keel update rewrites this file)\n\
          #\n\
-         # This workflow calls `keel` as a command and does NOT\n\
-         # install it: the installing step arrives with the\n\
-         # distribution rung of the concept (~/.keel/versions/).\n\
-         # Until then, add a step of your own above these that puts\n\
-         # `keel` on PATH.\n\
+         # The first step installs the tool; the rest judge with it.\n\
+         # There is no released binary yet, so that step builds it from source:\n\
+         # it needs git and cargo on the runner, and it costs minutes on a\n\
+         # cold cache. If your project already puts `keel` on PATH some other\n\
+         # way, replace this step with yours -- the courts below do not care\n\
+         # how it got there. To keep an edited copy for good, delete this\n\
+         # file's line from [generated] in keel.toml as well: otherwise\n\
+         # `keel update` will keep saying it did not overwrite you.\n\
          name: keel\n\
          \n\
          on:\n\
@@ -314,6 +509,14 @@ fn workflow(config: &Config) -> String {
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- uses: actions/checkout@v4\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}fetch-depth: 0\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the tool itself\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Clones the method into ~/.keel, then builds it from source.\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# It needs git and cargo on the runner, and cargo writes\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# its own registry into CARGO_HOME while it does.\n\
+         {pin}\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: |\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}curl -fsSL {INSTALLER} | sh\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the documents judged\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# On a pull_request event actions/checkout leaves a\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# detached HEAD and git serves no branch, so the scope\n\
@@ -333,6 +536,23 @@ fn workflow(config: &Config) -> String {
 /// block and the skill, so the two never disagree.
 fn rule_for(config: &Config) -> &'static str {
     let uk = config.lang == "uk";
+    // Both knobs, not one. `mode` says how loudly the commit court
+    // speaks; `hooks` says whether it is there to speak at all, and a
+    // paragraph that reads only the first promised a hook that was
+    // never installed.
+    //
+    // What this paragraph must NOT do is read the disk (review 0039
+    // R-1 asked for that, and it would be worse): the artefacts are
+    // compared by digest across every machine that checks out the
+    // project, and git does not clone hooks -- so a text that changed
+    // with the presence of a hook would read as hand-edited on every
+    // runner and in every colleague's clone. The paragraph states the
+    // project's answer; whether a hook really stands HERE is a
+    // question about this machine, and `keel check` asks it there,
+    // aloud, on every clone that lacks one.
+    if !config.hooks {
+        return if uk { RULE_NO_HOOK_UK } else { RULE_NO_HOOK_EN };
+    }
     match (config.mode.as_str(), uk) {
         ("manual", true) => RULE_MANUAL_UK,
         ("manual", false) => RULE_MANUAL_EN,
@@ -378,7 +598,7 @@ pub fn write(root: &Path, config: &Config) -> (String, usize) {
     }
     let mut report = String::new();
     let mut lacked = 0usize;
-    for (path, kind, fresh) in artefacts(config) {
+    for (path, kind, fresh) in artefacts(root, config) {
         // A project that answered "no hooks" gets none written -- a
         // question whose answer changes nothing is not a question
         // (wave 0026). But silence belongs only where we never were:

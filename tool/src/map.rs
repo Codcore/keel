@@ -26,7 +26,7 @@ pub fn draw(root: &Path) -> Result<String, Refusal> {
         // check names every broken file -- fix them first.
         return Err(refusal);
     }
-    let found: Option<Vec<TestTag>> = if config.rust_adapter() {
+    let found: Option<Vec<TestTag>> = if config.adapter_known() {
         Some(tags::scan(&adapter::test_files(root)?)?)
     } else {
         None
@@ -34,7 +34,10 @@ pub fn draw(root: &Path) -> Result<String, Refusal> {
     // The honest unread word (review 0017 R-3): a named yet unknown
     // adapter is not painted absent.
     let unread = if config.adapter.is_some() {
-        t("map-proof-unknown")
+        ta(
+            "map-proof-unknown",
+            targs!("known" => crate::config::Language::known()),
+        )
     } else {
         t("map-proof-unread")
     };

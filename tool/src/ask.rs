@@ -83,12 +83,18 @@ pub fn questions() -> Vec<Question> {
         },
         Question {
             field: "adapter",
-            choices: vec!["rust"],
+            // Every tongue this release leads, asked of the release
+            // itself (review 0038 R-5): the list stood at one name
+            // for a wave after the second adapter was built, so
+            // `keel init --adapter ruby` refused what the courts
+            // already understood.
+            choices: crate::config::Language::choices(),
             default: None,
             many: false,
             at_least_one: false,
-            // A project of another tongue is not refused: it leaves
-            // the field unwritten and waits for its own wave.
+            // A project of a tongue this release does not lead is
+            // not refused: it leaves the field unwritten, and the
+            // check says which courts did not run.
             skippable: true,
         },
         Question {
@@ -477,10 +483,20 @@ fn config_body(answers: &Answers) -> String {
         answers.adapter.as_ref().map(|v| format!("\"{v}\"")),
         "\"rust\"",
     ));
+    // The suggestion follows the tongue that was named: a ruby
+    // project offered `cargo test` as its own gate is a cargo-ism in
+    // a file that has nothing to do with cargo (review 0038 R-8's
+    // family).
+    let ci_suggested = answers
+        .adapter
+        .as_deref()
+        .and_then(crate::config::Language::named)
+        .map(|language| format!("\"{}\"", language.battery_command()))
+        .unwrap_or_else(|| "\"cargo test\"".to_string());
     text.push_str(&line(
         "ci",
         answers.ci.as_ref().map(|v| format!("\"{v}\"")),
-        "\"cargo test\"",
+        &ci_suggested,
     ));
     text.push_str(&line(
         "mode",

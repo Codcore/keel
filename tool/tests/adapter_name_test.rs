@@ -3,6 +3,10 @@
 //! rust is canonical, cargo an accepted synonym said aloud.
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
+//!
+//! The fixture's "a language this release does not lead" was `elixir`
+//! until wave 0042 built it. It is `kotlin` now -- the name moved,
+//! not one assertion of these courts.
 
 mod common;
 
@@ -107,7 +111,7 @@ fn adapter_named_by_language() {
 
     // An unknown adapter refuses with the canonical name to reach for.
     let dir = keel_sandbox("unknown");
-    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"elixir\"\n");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"kotlin\"\n");
     crate_files(&dir);
     let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
@@ -143,7 +147,7 @@ fn adapter_named_by_language_second_birth() {
     // the truth: check points at rust, the form court and the map
     // say "not of this release", never "not named".
     let dir = keel_sandbox("namedunknown");
-    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"elixir\"\n");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"kotlin\"\n");
     crate_files(&dir);
     write(
         &dir,
@@ -164,7 +168,7 @@ fn adapter_named_by_language_second_birth() {
     // R-4: gate asks the home -- an unknown adapter passes with a
     // word, cargo is never run blindly for a foreign language.
     let dir = keel_sandbox("gatehome");
-    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"elixir\"\n");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"kotlin\"\n");
     crate_files(&dir);
     write(
         &dir,
@@ -181,7 +185,7 @@ fn adapter_named_by_language_second_birth() {
         "gate passes with a word instead of judging blind (R-4):\n{out}"
     );
     assert!(
-        out.contains("not judged") && out.contains("\"elixir\""),
+        out.contains("not judged") && out.contains("\"kotlin\""),
         "the unjudged verdict is a word aloud with the adapter's name (R-4, §9.7):\n{out}"
     );
 

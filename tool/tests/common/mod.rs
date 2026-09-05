@@ -97,3 +97,54 @@ impl Drop for Sandbox {
         let _ = std::fs::remove_dir_all(&self.path);
     }
 }
+
+pub mod versions;
+
+/// Whether this machine can judge a case at all -- and, when it
+/// cannot, what it lacked, in words a person reads in a log.
+///
+/// Wave 0044: three probes carried `assert!(have_mix(), ...)` while
+/// the head of their own file said they "say so and stop rather than
+/// pretending". An assert is a failure, not a stop -- so on a runner
+/// with no elixir the battery went red and `keel close` called two
+/// proven scenarios unproven. A probe that has judged NOTHING must
+/// not report that it judged and found fault.
+pub enum Machine {
+    Has,
+    Lacks(String),
+}
+
+impl Machine {
+    /// Can this case be judged here? Where it cannot, the reason is
+    /// said aloud first -- to stderr, which is where `cargo test`
+    /// shows it and where a runner's log keeps it -- and the caller
+    /// returns having judged nothing, which is not the same as
+    /// having judged and found nothing wrong.
+    pub fn ready(self) -> bool {
+        match self {
+            Machine::Has => true,
+            Machine::Lacks(why) => {
+                eprintln!("skipped, and said aloud: {why}");
+                false
+            }
+        }
+    }
+}
+
+/// Is this runner on the machine? Asked by running it, not by
+/// looking for a file: a binary on PATH that cannot start is not a
+/// runner this probe can use.
+pub fn machine_has(tool: &str) -> Machine {
+    match std::process::Command::new(tool).arg("--version").output() {
+        Ok(out) if out.status.success() => Machine::Has,
+        Ok(out) => Machine::Lacks(format!(
+            "`{tool} --version` left with {} -- the tool is on PATH and \
+             will not run, so this probe judged nothing",
+            out.status.code().unwrap_or(-1)
+        )),
+        Err(why) => Machine::Lacks(format!(
+            "`{tool}` is not on this machine ({why}) -- this probe \
+             judged nothing"
+        )),
+    }
+}

@@ -3,6 +3,7 @@
 //! a single test. Other languages will get their own waves next to
 //! this file.
 
+use crate::config::Language;
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::tags::TestTag;
@@ -59,9 +60,110 @@ pub fn crate_root(root: &Path) -> Result<PathBuf, Refusal> {
     }
 }
 
+/// Where this language builds, if it builds at all.
+pub enum BuildDir {
+    /// It builds, and here.
+    At(PathBuf),
+    /// It builds nothing at all -- ruby compiles ahead of nothing,
+    /// so there is no directory to measure or to warn about, and the
+    /// closing court's price line says so rather than naming a path
+    /// that will never exist (wave 0038).
+    Nothing,
+    /// It builds, but where could not be told: the adapter has its
+    /// own refusal to give, and that refusal is not "builds nothing"
+    /// (review 0038 R-18 -- a Rust project with no Cargo.toml was
+    /// told its tongue compiles nothing, one line above the refusal
+    /// that it has no crate).
+    Unknown,
+}
+
+/// Whether this tongue's build is the kind that wants gigabytes.
+/// cargo's is; mix's `_build` measured 148 KiB on the same battery
+/// (review 0042 R-4). A warning four orders of magnitude out is not
+/// a warning, and a refusal over free space it does not need is
+/// worse.
+pub fn builds_heavily(root: &Path) -> bool {
+    matches!(language_of(root), None | Some(Language::Rust))
+}
+
+/// Where the project's battery actually runs -- the directory this
+/// release's own adapter uses as its working directory, and so the
+/// only directory a generated CI step may name.
+///
+/// `None` means the adapter cannot say: two crates on the first
+/// level, or one deeper than it looks. A step written under that
+/// silence would fail on a runner without ever saying why, so the
+/// generator says it instead (review 0044 R-6).
+///
+/// Ruby and Elixir answer with the ROOT, always. Their adapters run
+/// from there (`ruby -Itest <file>`, `mix test`, both
+/// `.current_dir(root)`), and `tests_dir` looks in `root/test`. A
+/// generated step that went to a `Gemfile`'s own directory would run
+/// a DIFFERENT battery from the one the courts judge -- measured by
+/// review 0044 R-2 turning a red tree green, which is the exact
+/// shape this whole wave exists to stop.
+pub fn battery_dir(root: &Path) -> Option<PathBuf> {
+    match language_of(root) {
+        Some(Language::Ruby) | Some(Language::Elixir) => Some(root.to_path_buf()),
+        _ => crate_root(root).ok(),
+    }
+}
+
+pub fn build_dir(root: &Path) -> BuildDir {
+    match language_of(root) {
+        Some(Language::Ruby) => BuildDir::Nothing,
+        Some(Language::Elixir) => BuildDir::At(root.join(crate::elixir::BUILD_DIR)),
+        _ => match crate_root(root) {
+            Ok(dir) => BuildDir::At(dir.join(BUILD_DIR)),
+            Err(_) => BuildDir::Unknown,
+        },
+    }
+}
+
+/// Where this tongue keeps its test files, said as a person would
+/// say it. The hand of §9.2 used to name `tests/` of a crate to a
+/// ruby project and refuse over a missing Cargo.toml (review 0038
+/// R-5): the courts above must not know one language's layout.
+pub fn tests_dir(root: &Path) -> Result<PathBuf, Refusal> {
+    match language_of(root) {
+        Some(Language::Ruby) | Some(Language::Elixir) => Ok(root.join("test")),
+        _ => Ok(crate_root(root)?.join("tests")),
+    }
+}
+
+/// The command a person would type to run exactly this one test --
+/// the very one `run_test` runs, in the tongue's own words.
+pub fn run_line(root: &Path, file: &Path, test: &str) -> String {
+    let relative = file.strip_prefix(root).unwrap_or(file);
+    match language_of(root) {
+        Some(Language::Elixir) => format!("mix test --only 'test:test {test}'"),
+        Some(Language::Ruby) => format!("ruby -Itest {} -n {test}", relative.display()),
+        _ => {
+            let stem = file
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            format!("cargo test --test {stem} {test} -- --exact")
+        }
+    }
+}
+
+/// Which language leads this project, read from its config. The
+/// courts above call these hands without carrying the config along,
+/// so the question is asked here -- one file read, and the answer
+/// decides whose hand runs (wave 0038).
+fn language_of(root: &Path) -> Option<Language> {
+    crate::config::read_unpinned(root).ok()?.language()
+}
+
 /// The crate's `tests/*.rs` -- where the proves tags live. A crate
 /// without a tests directory has none, and that is not a refusal.
 pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
+    match language_of(root) {
+        Some(Language::Ruby) => return crate::ruby::test_files(root),
+        Some(Language::Elixir) => return crate::elixir::test_files(root),
+        _ => {}
+    }
     let dir = crate_root(root)?.join("tests");
     if !dir.is_dir() {
         return Ok(Vec::new());
@@ -96,6 +198,11 @@ pub enum Outcome {
 /// --exact`) and classifies the consequence. cargo is called as a
 /// command of the system; its refusal to start is a refusal aloud.
 pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
+    match language_of(root) {
+        Some(Language::Ruby) => return crate::ruby::run_test(root, tag),
+        Some(Language::Elixir) => return crate::elixir::run_test(root, tag),
+        _ => {}
+    }
     let crate_dir = crate_root(root)?;
     let stem = tag
         .file
@@ -161,6 +268,11 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
 /// once. A build that does not build is a refusal aloud with the
 /// compiler's words: without a build there is no verdict for anyone.
 pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
+    match language_of(root) {
+        Some(Language::Ruby) => return crate::ruby::run_all(root),
+        Some(Language::Elixir) => return crate::elixir::run_all(root),
+        _ => {}
+    }
     let crate_dir = crate_root(root)?;
     let mut command = Command::new("cargo");
     command

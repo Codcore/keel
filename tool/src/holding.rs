@@ -6,7 +6,7 @@
 //! nothing, builds nothing, writes nothing (§7.10).
 
 use crate::adapter;
-use crate::config::Config;
+use crate::config::{Config, Language};
 use crate::docs::{Contract, Wave};
 use crate::i18n::{t, ta};
 use crate::tags::TestTag;
@@ -14,7 +14,12 @@ use crate::targs;
 use std::path::Path;
 
 enum Comparability {
-    Source(String),
+    /// The module's source, and the file it was read from: a finding
+    /// that says a promise is not in the module must say WHICH file
+    /// it looked in, or a person has to guess the layout (wave 0043,
+    /// the same lesson review 0038 R-16 taught for a module that is
+    /// not there at all).
+    Source(String, String),
     NoAdapter,
     /// Not a module name of this crate at all: it carries a slash or
     /// a `..`, so it points somewhere outside. Review 0035 R-2:
@@ -47,8 +52,8 @@ pub fn court(
         let Some((module, place)) = judged(contract) else {
             continue;
         };
-        let source = match comparability(root, config, module) {
-            Comparability::Source(source) => source,
+        let (source, read) = match comparability(root, config, module) {
+            Comparability::Source(source, read) => (source, read),
             // Named and not there: a finding, not a margin note
             // (wave 0035).
             Comparability::Missing(looked) => {
@@ -79,7 +84,7 @@ pub fn court(
         };
         // Comments are not code (0010 review R-3): a promise that
         // survives only in a comment has vanished.
-        let bare = strip_comments(&source);
+        let bare = strip_comments(&source, config.language());
         let flat_source = collapse(&bare);
         for signature in &contract.exports {
             if found_bounded(&flat_source, &collapse(signature)) {
@@ -100,7 +105,7 @@ pub fn court(
                     place.clone(),
                     ta(
                         "holding-vanished",
-                        targs!("contract" => contract.slug.clone(), "name" => name),
+                        targs!("contract" => contract.slug.clone(), "name" => name, "file" => read.clone()),
                     ),
                     t("holding-vanished-instead"),
                 ));
@@ -121,7 +126,7 @@ pub(crate) fn survey(root: &Path, config: &Config, contracts: &[Contract]) -> (u
             continue;
         };
         let why = match comparability(root, config, module) {
-            Comparability::Source(_) => {
+            Comparability::Source(..) => {
                 checked += contract.exports.len() as u64;
                 continue;
             }
@@ -129,7 +134,10 @@ pub(crate) fn survey(root: &Path, config: &Config, contracts: &[Contract]) -> (u
                 // A named yet unknown adapter is not painted absent
                 // (review 0017 R-3): the words tell which it is.
                 if config.adapter.is_some() {
-                    t("holding-why-unknown-adapter")
+                    ta(
+                        "holding-why-unknown-adapter",
+                        targs!("known" => Language::known()),
+                    )
                 } else {
                     t("holding-why-no-adapter")
                 }
@@ -239,7 +247,7 @@ fn judged(contract: &Contract) -> Option<(&str, String)> {
 /// directories and the file (the bare crate itself is src/lib.rs),
 /// and `src/a/mod.rs` is looked for wherever `src/a.rs` is.
 fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         return Comparability::NoAdapter;
     }
     // A name that reaches outside the crate is not a module of it,
@@ -250,6 +258,38 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
             .any(|part| part == ".." || part.contains('/'))
     {
         return Comparability::Outside;
+    }
+    // Ruby keeps a constant's source where ruby keeps it (wave
+    // 0038): `Toy::Bar` in `lib/toy/bar.rb`. The court asks the
+    // adapter where to look instead of knowing one language's
+    // layout by heart.
+    if matches!(
+        config.language(),
+        Some(Language::Ruby) | Some(Language::Elixir)
+    ) {
+        let looked = match config.language() {
+            Some(Language::Elixir) => crate::elixir::module_paths(root, module),
+            _ => crate::ruby::module_paths(root, module),
+        };
+        for path in &looked {
+            if let Ok(source) = std::fs::read_to_string(path) {
+                return Comparability::Source(source, shown_path(root, path));
+            }
+        }
+        // Every path that was tried, not the first of them (review
+        // 0038 R-16): the scenario promises "the path it looked
+        // along", and three were walked.
+        let shown = looked
+            .iter()
+            .filter_map(|path| path.strip_prefix(root).ok())
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Comparability::Missing(if shown.is_empty() {
+            module.to_string()
+        } else {
+            shown
+        });
     }
     let segments: Vec<&str> = module.split("::").collect();
     let Ok(crate_dir) = adapter::crate_root(root) else {
@@ -309,8 +349,8 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
             return Comparability::Missing(format!("src/{}.rs", inner.join("/")));
         }
     };
-    match std::fs::read_to_string(path) {
-        Ok(source) => Comparability::Source(source),
+    match std::fs::read_to_string(&path) {
+        Ok(source) => Comparability::Source(source, shown_path(root, &path)),
         Err(_) => Comparability::NoFile,
     }
 }
@@ -338,36 +378,404 @@ fn found_bounded(haystack: &str, needle: &str) -> bool {
     false
 }
 
-/// Line and block comments cut out; string literals stay text --
-/// that limit is named by the contract.
-fn strip_comments(source: &str) -> String {
-    let mut out = String::with_capacity(source.len());
-    let mut rest = source;
-    loop {
-        let line = rest.find("//");
-        let block = rest.find("/*");
-        match (line, block) {
-            (None, None) => {
-                out.push_str(rest);
-                return out;
-            }
-            (Some(l), None) => {
-                out.push_str(&rest[..l]);
-                rest = rest[l..].split_once('\n').map_or("", |(_, tail)| tail);
-                out.push('\n');
-            }
-            (Some(l), Some(b)) if l < b => {
-                out.push_str(&rest[..l]);
-                rest = rest[l..].split_once('\n').map_or("", |(_, tail)| tail);
-                out.push('\n');
-            }
-            (_, Some(b)) => {
-                out.push_str(&rest[..b]);
-                rest = rest[b..].split_once("*/").map_or("", |(_, tail)| tail);
-                out.push(' ');
-            }
+/// What a person reads as CODE in this file, and nothing else.
+///
+/// Comments were never code (review 0010 R-3), and neither is text
+/// (wave 0043). The first cut of that second rule read the two as
+/// separate passes over separate marks -- and review 0043 measured
+/// what that costs on real source: `ident.strip_prefix("r#")` in
+/// `syn` opened a raw string that was never open, `"…\r"` did the
+/// same, and 17 of 3419 crates in the local registry lost a live
+/// declaration. In ruby, `<<-End` was read as waiting for a line
+/// saying `E`, so `net/protocol.rb` hid 35 of its 36 methods.
+///
+/// So this is ONE reader per tongue family, and it reads the file
+/// the way the language does: a string is a string wherever it
+/// starts, an escape is an escape, and a mark inside either is
+/// neither. Newlines are kept through everything so a line number
+/// still counts from the top.
+fn strip_comments(source: &str, tongue: Option<Language>) -> String {
+    match tongue {
+        Some(Language::Ruby) => strip_ruby(source, false),
+        Some(Language::Elixir) => strip_ruby(source, true),
+        _ => strip_rust(source),
+    }
+}
+
+/// The reader, opened for a corpus sweep: review 0043 measured this
+/// hand against ruby's own library and the local cargo registry, and
+/// a rule of this size is not judged by hand-written examples alone.
+#[doc(hidden)]
+pub fn strip_for_test(source: &str, tongue: &str) -> String {
+    strip_comments(
+        source,
+        match tongue {
+            "ruby" => Some(Language::Ruby),
+            "elixir" => Some(Language::Elixir),
+            _ => Some(Language::Rust),
+        },
+    )
+}
+
+fn is_word(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_'
+}
+
+/// Every newline in `chars[from..to]`, and nothing else: what a
+/// blanked stretch leaves behind.
+fn only_newlines(out: &mut String, chars: &[char], from: usize, to: usize) {
+    for ch in &chars[from..to.min(chars.len())] {
+        if *ch == '\n' {
+            out.push('\n');
         }
     }
+}
+
+/// A raw string opening at `i`: `r"`, `r#"`, `br##"`, `cr"` … The
+/// prefix must start a token, or `expr"…"` and `for r in …` would
+/// each open one that is not there (review 0043 R-1).
+fn raw_open(chars: &[char], i: usize) -> Option<(usize, usize)> {
+    if i > 0 && is_word(chars[i - 1]) {
+        return None;
+    }
+    let mut j = i;
+    if matches!(chars.get(j), Some('b') | Some('c')) {
+        j += 1;
+    }
+    if chars.get(j) != Some(&'r') {
+        return None;
+    }
+    j += 1;
+    let mut hashes = 0usize;
+    while chars.get(j) == Some(&'#') {
+        hashes += 1;
+        j += 1;
+    }
+    (chars.get(j) == Some(&'"')).then_some((hashes, j + 1))
+}
+
+/// An ordinary string opening at `i`, byte and C prefixes included.
+fn quote_open(chars: &[char], i: usize) -> Option<usize> {
+    if chars[i] == '"' {
+        return Some(i + 1);
+    }
+    if matches!(chars[i], 'b' | 'c')
+        && chars.get(i + 1) == Some(&'"')
+        && !(i > 0 && is_word(chars[i - 1]))
+    {
+        return Some(i + 2);
+    }
+    None
+}
+
+/// A char literal at `i`, told from a lifetime: `'a` in `&'a str` is
+/// not a literal, and `'\r'` is. The difference is whether a closing
+/// quote stands where one must.
+fn char_literal(chars: &[char], i: usize) -> Option<usize> {
+    match chars.get(i + 1) {
+        Some('\\') => {
+            let mut j = i + 2;
+            match chars.get(j) {
+                Some('u') => {
+                    while j < chars.len() && chars[j] != '\'' && chars[j] != '\n' {
+                        j += 1;
+                    }
+                }
+                Some('x') => j += 3,
+                Some(_) => j += 1,
+                None => return None,
+            }
+            (chars.get(j) == Some(&'\'')).then_some(j + 1)
+        }
+        Some(_) => (chars.get(i + 2) == Some(&'\'')).then_some(i + 3),
+        None => None,
+    }
+}
+
+/// Rust, read as rust reads it: nested block comments, raw strings
+/// with their hash count, ordinary strings with their escapes, and
+/// char literals told from lifetimes.
+fn strip_rust(source: &str) -> String {
+    let chars: Vec<char> = source.chars().collect();
+    let n = chars.len();
+    let mut out = String::with_capacity(source.len());
+    let mut i = 0usize;
+    while i < n {
+        let ch = chars[i];
+        if ch == '/' && chars.get(i + 1) == Some(&'/') {
+            let from = i;
+            while i < n && chars[i] != '\n' {
+                i += 1;
+            }
+            only_newlines(&mut out, &chars, from, i);
+            continue;
+        }
+        if ch == '/' && chars.get(i + 1) == Some(&'*') {
+            // Rust's block comments NEST, and a `/*` inside a string
+            // is not one -- which is why this reader is one pass and
+            // not two.
+            let from = i;
+            let mut depth = 1usize;
+            i += 2;
+            while i < n && depth > 0 {
+                if chars[i] == '/' && chars.get(i + 1) == Some(&'*') {
+                    depth += 1;
+                    i += 2;
+                } else if chars[i] == '*' && chars.get(i + 1) == Some(&'/') {
+                    depth -= 1;
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            only_newlines(&mut out, &chars, from, i);
+            out.push(' ');
+            continue;
+        }
+        if let Some((hashes, after)) = raw_open(&chars, i) {
+            let from = i;
+            i = after;
+            while i < n {
+                if chars[i] == '"' {
+                    let mut j = i + 1;
+                    let mut seen = 0usize;
+                    while seen < hashes && chars.get(j) == Some(&'#') {
+                        seen += 1;
+                        j += 1;
+                    }
+                    if seen == hashes {
+                        i = j;
+                        break;
+                    }
+                }
+                i += 1;
+            }
+            only_newlines(&mut out, &chars, from, i);
+            continue;
+        }
+        if let Some(after) = quote_open(&chars, i) {
+            let from = i;
+            i = after;
+            while i < n {
+                if chars[i] == '\\' {
+                    i += 2;
+                    continue;
+                }
+                if chars[i] == '"' {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            only_newlines(&mut out, &chars, from, i);
+            continue;
+        }
+        if ch == '\''
+            && let Some(after) = char_literal(&chars, i)
+        {
+            i = after;
+            continue;
+        }
+        out.push(ch);
+        i += 1;
+    }
+    out
+}
+
+/// The terminator a ruby heredoc opened here waits for -- the WHOLE
+/// word, upper or lower, quoted or bare. Cutting it at the first
+/// non-uppercase letter made `<<-End` wait for a line saying `E`,
+/// and 26 files of ruby's own library lost a live method that way
+/// (review 0043 R-2).
+///
+/// `a << b` is a shovel: a heredoc's word begins where the `<<` ends,
+/// with no space between. And `class <<self` is ruby's singleton
+/// class, not a heredoc waiting for a line saying `self` -- measured
+/// on `rbs/test.rb`, which really does have such a line below.
+fn heredoc_word(line: &str) -> Option<String> {
+    let mut from = 0usize;
+    while let Some(at) = line[from..].find("<<") {
+        let at = from + at;
+        from = at + 2;
+        let rest = &line[at + 2..];
+        let rest = rest
+            .strip_prefix('~')
+            .or_else(|| rest.strip_prefix('-'))
+            .unwrap_or(rest);
+        let rest = match rest.chars().next() {
+            Some(quote @ ('\'' | '"')) => match rest.strip_prefix(quote) {
+                Some(inner) => inner,
+                None => continue,
+            },
+            _ => rest,
+        };
+        let word: String = rest
+            .chars()
+            .take_while(|c| is_word(*c) && !c.is_ascii_digit() || *c == '_' || c.is_ascii_digit())
+            .collect();
+        if word == "self" || line[..at].trim_end().ends_with("class") {
+            continue;
+        }
+        match word.chars().next() {
+            Some(first) if first.is_alphabetic() || first == '_' => return Some(word),
+            _ => continue,
+        }
+    }
+    None
+}
+
+/// Ruby and Elixir: comments first, then the longer texts.
+///
+/// The two passes are in this order because a `<<~TEXT` written
+/// inside a comment must not open anything, and because the comment
+/// reader below is line-scoped on purpose -- see its own words.
+fn strip_ruby(source: &str, elixir: bool) -> String {
+    blank_text_lines(&strip_ruby_comments(source), elixir)
+}
+
+/// `#` opens a comment in ruby unless it stands inside a string --
+/// and `#{...}` interpolation is inside one by definition. Quotes
+/// are read rather than guessed at, which is why a URL keeps its
+/// fragment.
+///
+/// **A quote is read within its own line, and that is a decision.**
+/// Ruby writes `$'` for the post-match, `?'` for a character, `/…/`
+/// for a pattern and `%w[]` for a list -- each of them an unbalanced
+/// quote that no reader short of ruby's own lexer tells from a
+/// string. Carrying the quote state across lines to catch a
+/// multi-line string cost far more than it bought: measured over
+/// ruby's own library (1488 files), it hid 513 live `def`s across 87
+/// files, `bundler/settings.rb` alone losing 39 to one `repos[$']`.
+/// A quote that does not close on its line is therefore not a
+/// string, and the line is read as code.
+///
+/// The direction is chosen, not stumbled into: this court may let a
+/// ghost through and say so (a promise living inside a multi-line
+/// plain string is a named border, below), but it must not refuse a
+/// promise that is ALIVE. A court that refuses live code is not a
+/// stricter court; it is a broken one (review 0043 R-2).
+fn strip_ruby_comments(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    for line in source.lines() {
+        let mut quote: Option<char> = None;
+        let mut escaped = false;
+        let mut cut = line.len();
+        for (at, ch) in line.char_indices() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            match ch {
+                '\\' => escaped = true,
+                '"' | '\'' => match quote {
+                    None => quote = Some(ch),
+                    Some(open) if open == ch => quote = None,
+                    _ => {}
+                },
+                '#' if quote.is_none() => {
+                    cut = at;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        out.push_str(&line[..cut]);
+        out.push('\n');
+    }
+    out
+}
+
+/// The longer texts, blanked line by line: ruby's heredocs and
+/// `=begin` block, elixir's `"""` and `'''` fences.
+///
+/// A heredoc is opened ONLY when its word really stands alone on a
+/// line below. That one rule is what keeps `list << Item`, a shovel
+/// inside a string, and any heredoc shape this reader does not know
+/// from swallowing the rest of the file -- which is exactly what the
+/// first cut of this wave did to `net/protocol.rb` (35 of its 36
+/// methods) and `openssl/ssl.rb` (all 30).
+///
+/// Blanked as empty LINES, so every line number still counts from
+/// the top of the file.
+fn blank_text_lines(source: &str, elixir: bool) -> String {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut kept: Vec<&str> = Vec::with_capacity(lines.len());
+    let mut fence: Option<&str> = None;
+    let mut heredoc: Option<String> = None;
+    let mut block = false;
+    for (at, line) in lines.iter().enumerate() {
+        if let Some(word) = &heredoc {
+            if line.trim() == word.as_str() {
+                heredoc = None;
+            }
+            kept.push("");
+            continue;
+        }
+        if let Some(mark) = fence {
+            if line.contains(mark) {
+                fence = None;
+            }
+            kept.push("");
+            continue;
+        }
+        if elixir {
+            // A fence may open and close on one line (`@doc """x"""`),
+            // so the marks are counted: an odd number turns the state
+            // over, an even one leaves it -- and the line is text
+            // either way.
+            let mut opened = false;
+            for mark in ["\"\"\"", "'''"] {
+                let marks = line.matches(mark).count();
+                if marks > 0 {
+                    if marks % 2 == 1 {
+                        fence = Some(mark);
+                    }
+                    opened = true;
+                    break;
+                }
+            }
+            if opened {
+                kept.push("");
+                continue;
+            }
+        } else {
+            // `=begin`/`=end` is ruby's block comment, and it counts
+            // only at the very start of a line.
+            if block {
+                if line.starts_with("=end") {
+                    block = false;
+                }
+                kept.push("");
+                continue;
+            }
+            if line.starts_with("=begin") {
+                block = true;
+                kept.push("");
+                continue;
+            }
+            if let Some(word) = heredoc_word(line)
+                && lines[at + 1..].iter().any(|below| below.trim() == word)
+            {
+                heredoc = Some(word);
+                kept.push("");
+                continue;
+            }
+        }
+        kept.push(line);
+    }
+    let mut out = kept.join("\n");
+    out.push('\n');
+    out
+}
+
+/// A path as a person would name it: relative to the project root,
+/// because an absolute path in a verdict is a machine talking to
+/// itself.
+fn shown_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .display()
+        .to_string()
 }
 
 fn collapse(text: &str) -> String {
@@ -384,6 +792,12 @@ fn collapse(text: &str) -> String {
         .replace(", )", ")")
         .replace(" )", ")")
         .replace(", }", " }")
+        // Ruby writes no types, so the space after a comma is
+        // formatting there exactly as rustfmt's wrapping is here --
+        // and `def f(a, b)` against `def f(a,b)` was a finding
+        // (review 0038, the fourth commitment). Both sides pass
+        // through this hand, so the comparison stays honest.
+        .replace(", ", ",")
 }
 
 /// The unit a signature promises: the word after the language's

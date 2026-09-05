@@ -113,11 +113,14 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         });
     }
     let config = config::read(root)?;
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("close-needs-adapter"),
-            instead: t("close-needs-adapter-instead"),
+            instead: ta(
+                "close-needs-adapter-instead",
+                targs!("known" => crate::config::Language::known()),
+            ),
         });
     }
     let scan = docs::scan(root)?;
@@ -140,11 +143,17 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // root's own target: on a project whose Cargo.toml is at the
     // root, the refusal named a directory that does not exist and
     // the instead swept nothing.
-    let target = adapter::crate_root(root)?.join("target");
+    // A language that builds nothing costs no disk, and this court
+    // stops demanding a crate of it (wave 0038): ruby has no build
+    // directory to measure, to warn about or to sweep.
+    let target = adapter::build_dir(root);
     let needed = NEEDED_BYTES;
-    if let Some(free) = free_bytes(root).filter(|free| *free < needed) {
+    if let adapter::BuildDir::At(target) = &target
+        && adapter::builds_heavily(root)
+        && let Some(free) = free_bytes(root).filter(|free| *free < needed)
+    {
         return Err(Refusal {
-            file: target,
+            file: target.clone(),
             reason: ta(
                 "close-no-room",
                 targs!("free" => gigabytes(free), "needed" => gigabytes(needed)),
@@ -156,16 +165,31 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // review 0031 R-1 measured the whole report, price line included,
     // appearing 101 seconds in -- after the target was already built.
     // A warning that arrives with the bill is not a warning.
-    eprintln!(
-        "{}",
-        ta(
-            "close-price",
-            targs!(
-                "target" => target.display().to_string(),
-                "needed" => gigabytes(NEEDED_BYTES)
+    match &target {
+        adapter::BuildDir::At(target) => eprintln!(
+            "{}",
+            ta(
+                // The measured cost belongs to the tongue that pays
+                // it: keel's own cargo build wants gigabytes, and a
+                // mix project's `_build` measured 148 KiB (review
+                // 0042 R-4 -- the warning was out by four orders of
+                // magnitude, and its "measured" number was cargo's).
+                if adapter::builds_heavily(root) {
+                    "close-price"
+                } else {
+                    "close-price-light"
+                },
+                targs!(
+                    "target" => target.display().to_string(),
+                    "needed" => gigabytes(NEEDED_BYTES)
+                )
             )
-        )
-    );
+        ),
+        adapter::BuildDir::Nothing => eprintln!("{}", t("close-price-nothing-built")),
+        // The adapter could not say where, and will say why itself a
+        // breath later: no price line is honester than a wrong one.
+        adapter::BuildDir::Unknown => {}
+    }
     let found = tags::scan(&adapter::test_files(root)?)?;
     // The battery runs several times before green is believed
     // (§7.13): the adapter keeps its word -- one battery, one cargo
@@ -215,6 +239,39 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         })
         .collect();
     fell.sort();
+    // Counted ONCE (review 0043 R-5). A red test that a scenario of
+    // this branch's own wave claims is already a lack under that
+    // wave, named there with its scenario; adding it here again made
+    // `blockers` say two where one test fell. So the tally below
+    // counts only the reds nobody's promise was already holding.
+    let claimed: std::collections::BTreeSet<(String, String)> = match &branch {
+        Some(slug) => scan
+            .waves
+            .iter()
+            .filter(|wave| &wave.slug == slug)
+            .flat_map(|wave| wave.scenarios.iter().map(|(name, _)| name.clone()))
+            .flat_map(|scenario| {
+                found
+                    .iter()
+                    .filter(move |tag| tag.scenario == scenario)
+                    .map(|tag| {
+                        (
+                            tag.file
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or_default()
+                                .to_string(),
+                            tag.test.clone(),
+                        )
+                    })
+            })
+            .collect(),
+        None => std::collections::BTreeSet::new(),
+    };
+    let red_tests = battery
+        .iter()
+        .filter(|(key, runs)| runs.iter().any(|green| !green) && !claimed.contains(*key))
+        .count();
     for line in &fell {
         report.push_str(line);
         report.push('\n');
@@ -300,6 +357,31 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     for wave in &scan.waves {
         let state = wave_state(root, wave, &found, &legal, Some(&battery))?;
         let own = branch.as_deref() == Some(wave.slug.as_str());
+        // A wave whose own branch this is does not read as closed
+        // while the court is watching its battery fail. Waves closed
+        // in earlier generations keep their verdict: their promises
+        // were proven at their time, and today's red is not their
+        // lack -- but it IS this one's, whichever promise the red
+        // test belongs to (wave 0043).
+        // A wave that was CANCELLED has nothing to prove, and its
+        // reason is the whole point of the line (review 0043 R-6);
+        // a wave still in work names its own lacks, and a plan has
+        // no tests yet. None of those is "closed", so none of them
+        // is what this rule is for.
+        if own
+            && red_tests > 0
+            && !matches!(
+                state,
+                State::Progress(_) | State::Plan | State::Cancelled(_)
+            )
+        {
+            report.push_str(&ta(
+                "close-held-by-red",
+                targs!("wave" => wave.slug.clone(), "count" => red_tests as u64),
+            ));
+            report.push('\n');
+            continue;
+        }
         match state {
             State::Closed { refs_unjudged: 0 } => {
                 report.push_str(&ta("close-closed", targs!("wave" => wave.slug.clone())));
@@ -349,6 +431,22 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     }
 
     report.push('\n');
+    // The court watched these fail with its own eyes, three runs
+    // each (§7.13), and named them above -- and then closed the wave
+    // anyway, because blockers were counted only from the promises
+    // of the branch's own wave. A red test nobody claims never became
+    // a lack, so a court that SAW red left with 0. Measured in rust,
+    // ruby and elixir alike: the hole was in this court, not in an
+    // adapter (wave 0043). A court that did not run says so and a
+    // person knows they do not know; a court that saw red and left
+    // green passes itself off as read.
+    if red_tests > 0 {
+        report.push_str(&ta(
+            "close-red-blockers",
+            targs!("count" => red_tests as u64),
+        ));
+        report.push('\n');
+    }
     if verify_blockers > 0 {
         report.push_str(&ta(
             "close-verify-blockers",
@@ -367,6 +465,12 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         ));
         report.push('\n');
     } else if own_plan {
+        // The honest plan footer stays honest under a red tree
+        // (review 0043 R-7): a plan PR merges as a plan (§6.6), and
+        // sec. 8.3's own words are that a gate always shut stops
+        // being read. The reds are counted above and carry the exit
+        // code themselves -- this line says what KIND of PR this is,
+        // not that all is well.
         // The honest footer for the plan branch (review R-2): a plan
         // PR merges as a plan (§6.6), and the old words would lie.
         report.push_str(&ta(
@@ -374,22 +478,24 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             targs!("wave" => branch.unwrap_or_default()),
         ));
         report.push('\n');
-    } else if verify_blockers == 0 && ci_blocker == 0 {
+    } else if verify_blockers == 0 && ci_blocker == 0 && red_tests == 0 {
         report.push_str(&t("close-no-blockers"));
         report.push('\n');
     }
     // And what the price actually came to (review 0031 R-6: the
     // scenario promised this sentence and the first cut of the work
     // simply did not carry it).
-    report.push_str(&ta(
-        "close-price-paid",
-        targs!(
-            "target" => target.display().to_string(),
-            "size" => tenths_of_gigabyte(directory_bytes(&target))
-        ),
-    ));
-    report.push('\n');
-    Ok((report, blockers + verify_blockers + ci_blocker))
+    if let adapter::BuildDir::At(target) = &target {
+        report.push_str(&ta(
+            "close-price-paid",
+            targs!(
+                "target" => target.display().to_string(),
+                "size" => tenths_of_gigabyte(directory_bytes(target))
+            ),
+        ));
+        report.push('\n');
+    }
+    Ok((report, blockers + verify_blockers + ci_blocker + red_tests))
 }
 
 /// Runs one trusted command from the repository's files through

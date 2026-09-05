@@ -106,8 +106,8 @@ rev-dup-transform = секція "## transform: { $name }" стоїть у ті�
 rev-dup-transform-instead = лиши одну секцію: методика не вгадує, котре тіло несе слова роботи (§2.10)
 
 rev-write-title = keel rev --write — розійшлі записи (NEW-CONCEPT)
-rev-write-needs-adapter = рука перепису потребує адаптера rust, названого в keel.toml (старе написання cargo приймається): закритість судиться тегами
-rev-write-needs-adapter-instead = постав adapter = "rust" — імʼям мови; "cargo" — прийнятий синонім (NEW-CONCEPT, Config); інші мови приїдуть своїми хвилями
+rev-write-needs-adapter = рука перепису потребує адаптера, який веде цей реліз, названого в keel.toml: закритість судиться тегами
+rev-write-needs-adapter-instead = постав adapter = одним із тих, що реліз знає: { $known } (NEW-CONCEPT, Config)
 rev-write-rewritten = { "  " }{ $wave }: { $contract }@{ $old } → { $contract }@{ $new } — запис тепер тримає чинну редакцію
 rev-write-kept = { "  " }{ $wave }: закрита — лишаю її записи судові історії (§5.6)
 rev-write-stopped = рука перепису спинилась: { $count } { $count ->
@@ -196,12 +196,14 @@ trust-surgery-broken-instead = наведи лад у блоці [trust] рук�
 # -- holding: суд форми контрактів (§7.6, §2.9) ---------------------
 holding-diverged = контракт "{ $contract }" обіцяє "{ $signature }" — "{ $name }" у коді з нею не сходиться (§2.9)
 holding-diverged-instead = вирівняй код або обіцянку; зміна триманого контракту — повна хвиля зі списком впливу (§5.7)
-holding-vanished = контракт "{ $contract }" обіцяє "{ $name }" — такої одиниці у файлі модуля нема (§7.6)
+holding-vanished = контракт "{ $contract }" обіцяє "{ $name }" — такої одиниці у { $file } нема (§7.6); те, що живе лише в коментарі чи в багаторядковому тексті, не рахується сирцем
 holding-vanished-instead = поверни одиницю або зміни/зніми контракт вголос (§2.12, §5.7)
 check-holding-count = сигнатур звірено: { $count }
 check-holding-uncompared = { $contract } — форму ніхто не порівнював: { $why } (§7.6)
+config-unknown-adapter = adapter = "{ $named }" — мови з таким імʼям цей реліз не веде; він знає: { $known }
+config-unknown-adapter-instead = постав одну з названих ({ $known }) або прибери поле зовсім: без адаптера судяться документи, звʼязки, scope і редакції, а мовні суди пропускаються — і вирок каже, які саме
 holding-why-no-adapter = адаптер у keel.toml не названий
-holding-why-unknown-adapter = названий адаптер не цього релізу (реліз обслуговує "rust")
+holding-why-unknown-adapter = названий адаптер не цього релізу (реліз веде { $known })
 holding-module-missing = контракт { $contract } називає модуль "{ $module }", якого в коді нема — шукали { $looked } (§2.7, §7.6)
 holding-module-missing-instead = або поклади модуль там, де він названий, або перепиши поле module під те, що є; сигнатури цього контракту доти не звіряються
 holding-module-outside = контракт { $contract } називає модуль "{ $module }", а це не модуль цього crate: ім'я веде за його межі (§2.7, §7.6)
@@ -246,6 +248,14 @@ review-protocol-questions = понад списками — чотири пит�
 review-protocol-report = звіт лягає файлом keel/reviews/{ $wave }.md поруч із хвилею — keel close тримає хвилю відкритою, доки його нема
 
 ## модуль adapter
+adapter-ruby-failed = ruby не запустився: { $error }
+adapter-ruby-failed-instead = постав ruby на PATH — адаптер кличе його так само, як людина в терміналі
+adapter-ruby-broken = тестовий файл { $error }
+adapter-ruby-broken-instead = ruby не збирає наперед: файл, який не завантажився, не дає вироку жодному тесту — полагодь його і повтори
+adapter-elixir-failed = mix не запустився: { $error }
+adapter-elixir-failed-instead = постав elixir і mix на PATH — адаптер кличе mix так само, як людина в терміналі
+adapter-elixir-broken = проєкт не компілюється: { $error }
+adapter-elixir-broken-instead = mix каже це кодом виходу 1, а падіння — кодом 2; без збірки вироку нема нікому — полагодь і повтори
 adapter-no-crate = Cargo.toml нема ні в корені, ні рівно одного на першому рівні тек
 adapter-no-crate-instead = адаптеру cargo потрібен крейт: поклади Cargo.toml у корінь або в одну теку першого рівня
 adapter-many-crates = крейтів першого рівня кілька: { $found }
@@ -282,7 +292,7 @@ gate-case = "{ $head }" носить великі літери — red: і сл�
 gate-work-vacuum = трансформа "{ $transform }": живих сценаріїв судити не лишилось — зняті поза судом (§2.12), пропуск із цим словом
 gate-soft = mode: soft — ті самі слова, лише попередженням
 gate-hook-installed = commit-msg hook тепер кличе keel gate — записано в { $path }
-gate-adapter-unjudged = адаптер "{ $name }" не цього релізу (реліз обслуговує "rust") — комміт не суджений: слово стоїть уголос, суд чекає хвилі свого адаптера
+gate-adapter-unjudged = адаптер "{ $name }" не цього релізу (реліз веде { $known }) — комміт не суджений: слово стоїть уголос, суд чекає хвилі свого адаптера
 gate-adapter-absent-name = не названий
 init-hook-off-foreign = git-гачок тут не наш і не чіпається (§9.7); цей проєкт відповів hooks = false, тож keel свого не ставить
 init-hook-off = git-гачок не ставлю: проєкт відповів hooks = false — відповідь чинна і для нього (§9.3)
@@ -315,7 +325,7 @@ check-trust-ci-none = ; ci — відмова вголос: none
 check-trust-ci-absent = ; ci не оголошений
 check-trust-skipped-broken = команди verify/ci не суджено: битий документ може ховати саму команду — спершу полагодь названі файли
 check-tags-skipped-no-adapter = теги тестів не звірялись: adapter у keel.toml не названий — названо вголос, зеленим не замальовано
-check-tags-skipped-adapter = теги тестів не звірялись: адаптер "{ $name }" не цього релізу — реліз обслуговує "rust" (старе написання "cargo"); названо вголос, зеленим не замальовано
+check-tags-skipped-adapter = теги тестів не звірялись: адаптер "{ $name }" не цього релізу — реліз веде { $known }; названо вголос, зеленим не замальовано
 check-tags-skipped-refused = теги тестів не звірялись: адаптер відмовив посеред роботи — його відмова стоїть серед знахідок
 check-scope-compared = scope: гілка "{ $branch }" і є хвиля — порівняно з { $base }
 check-scope-base-main = merge-base з main @ { $sha }
@@ -375,6 +385,13 @@ limit-shallow = не перевірено: історія обрізана (shal
     }, і скільки з них МОГЛА б зробити ця глибина — не рахується; натомість: git fetch --unshallow
 limit-base-stale = не перевірено: локальний { $trunk } відстає від { $base } на { $behind } станом на останній fetch (свіжішого цей клон не знає) — scope судився проти несвіжої бази; натомість: git fetch
 limit-base-local-only = не перевірено: віддаленого { $trunk } цей клон не знає — базу порівняння взято локальну, її свіжість не звірити
+limit-hook-absent = не перевірено машиною: keel.toml каже hooks = true, але в цьому клоні нашого commit-msg hook-а нема — git hook-ів не клонує, тож блок в AGENTS.md обіцяє машину, якої тут нема: тут обидва правила (§8.4, §7.12) тримають люди; натомість: keel hook
+limit-ruby-border = не перевірено: ruby не відрізняє «впав» від «не зібрався» кодом виходу — обидва 1 (§7.12). Адаптер читає текст (SyntaxError, LoadError); де тексту не досить, падіння приймається падінням — напрям, який не робить із червоного зеленого
+limit-ruby-form = не перевірено по суті: ruby не пише типів, тож суд форми §7.6 звіряє імʼя методу і його параметри — і тільки; зелена форма тут ще менше означає сенс, ніж у мові з типами (§7.8)
+limit-elixir-border = зміряно: ця мова відрізняє «впав» від «не зібрався» кодом виходу (0 зелене, 2 падіння, 1 не скомпілювалось), тож межа §7.12 про нерозрізненність тут не стоїть — суд бере злам збірки зламом, а не червоним тестом
+limit-elixir-form = не перевірено по суті: elixir не пише типів у `def`, тож суд форми §7.6 звіряє імʼя і параметри — і тільки; зелена форма тут ще менше означає сенс, ніж у мові з типами (§7.8)
+limit-elixir-unread = не перевірено: { $file } адаптер не читає — ExUnit зве тести *_test.exs, і тег звідти не прочитано
+limit-ruby-unread = не перевірено: у test/ лежить { $count } .rb-файлів, які адаптер не читає — він читає minitest, тобто *_test.rb ({ $files }); RSpec приїде своєю хвилею
 limit-unpushed = не перевірено: гілки "{ $branch }" цей клон у { $remote } не бачить — чи є вона там насправді, суд не питав (у мережу не ходить); натомість: git push -u { $remote } { $branch }
 limit-ahead = не перевірено: гілка "{ $branch }" розходиться з { $remote }/{ $branch }, як їх знає цей клон — вирок про те, чого в { $remote } може ще не бути; натомість: git push
 
@@ -394,7 +411,7 @@ check-summary = підсумок: { $docs ->
     }
 check-next-fix = наступний крок: полагодь названі файли і повтори keel check
 check-next-first-wave = наступний крок: створи першу хвилю в keel/waves/
-check-next-rung = наступний крок: контракт, що називає неіснуючий модуль, має бути знахідкою поза план-гілкою, а не порадою (R-13 рецензії 0022)
+check-next-rung = наступний крок: усе зелене — план наступної хвилі (§6.6) або робота за поточною: keel next
 
 ## команда close (§6.5)
 close-title = keel close — суд закриття (§6.5)
@@ -404,6 +421,7 @@ close-battery = батарея: { $count } тестів × { $runs } біги (�
 close-closed = { $wave }: закрита — кожен живий сценарій доведений, посилання сходяться, файл звіту рецензії лежить поруч (машина його не читала: що в ньому написано — слово рецензента, і його читає людина)
 close-closed-unjudged = { $wave }: закрита — кожен живий сценарій доведений, звіт рецензії поруч; посилань не звірено: { $count } — історія тут не свідчить (§5.6)
 close-closed-light = { $wave }: закрита (легка) — самі chore, закрита фактом merge
+close-held-by-red = { $wave }: НЕ закривається — батарея цього дерева червона ({ $count }), а закриття означає «проходить» (§7.8); імена вище
 close-plan = { $wave }: затверджена, ще не почата — план без тестів не червоне (§6.5)
 close-progress = { $wave }: в роботі — нестачі поіменно:
 close-lack-untagged = сценарій "{ $scenario }": тега proves у тестах нема (§5.5)
@@ -414,18 +432,21 @@ close-lack-flaky = сценарій "{ $scenario }": тест "{ $test }" зел
 close-lack-ref = посилання { $contract }@{ $recorded } не сходиться (§6.4)
 close-lack-review-empty = файл звіту рецензії keel/reviews/<хвиля>.md є, але він порожній — порожній файл не рецензія (§9.9)
 close-lack-review = звіту рецензії keel/reviews/<хвиля>.md поруч із хвилею нема (§9.9)
+close-price-nothing-built = ціна цього суду: батарея жене тричі (§7.13); ця мова нічого не збирає, тож місця на диску суд не потребує
 close-price = ціна цього суду: батарея жене тричі (§7.13) у ВЛАСНИЙ { $target } — успадкований кеш зсуває вироки (§6.7), тож це рішення, а не вада; місця треба ~{ $needed } ГіБ (зміряно: одне закриття лишає 1,26 ГіБ)
+close-price-light = ціна цього суду: батарея жене тричі (§7.13) у власну теку { $target } — успадкований кеш зсуває вироки (§6.7), тож це рішення, а не вада; ця мова збирає дрібно, тож вільного місця суд не вимагає
 close-price-paid = ціна сплачена: { $target } важить { $size } ГіБ
 close-no-room = на диску вільно { $free } ГБ, а цьому судові треба ~{ $needed } ГБ — краще відмовитись зараз, ніж померти на півдорозі з «no space left on device»
 close-no-room-instead = звільни місце (rm -rf tool/target прибирає кеш попереднього закриття) або жени суд там, де місце є
-close-needs-adapter = судові закриття потрібен адаптер cargo, названий у keel.toml
-close-needs-adapter-instead = постав adapter = "cargo" (NEW-CONCEPT, «Конфіг»); інші адаптери прийдуть своїми хвилями
+close-needs-adapter = судові закриття потрібен адаптер, який веде цей реліз, названий у keel.toml
+close-needs-adapter-instead = постав adapter = одним із тих, що реліз знає: { $known } (NEW-CONCEPT, «Конфіг»)
 close-blockers = блокери хвилі цієї гілки { $wave }: { $count } — повна хвиля не зливається недоведеною (§6.5, §9.9)
 close-no-blockers = блокерів нема: гілка не зветься як незакрита хвиля — стани вище інформують
 close-verify-count = verify-команд суджено: { $count }
 close-verify-passed = verify "{ $command }" контракту { $contract } — пройшла
 close-verify-failed = verify "{ $command }" контракту { $contract } — ВПАЛА ({ $words }) — зламана чужа обіцянка не зливається (§2.8)
 close-verify-untrusted = verify "{ $command }" контракту { $contract } — не бігала: недовірена (§7.16); той вирок тримає check
+close-red-blockers = батарея бачила червоне: { $count } — доки суд дивився, вони падали, тож хвиля не закривається; це не про те, чи заявляє їх сценарій: суд, який бачив червоне і закрив, гірший за суд, який не біг
 close-verify-blockers = зламаних чужих обіцянок: { $count } — вихід червоний
 close-verify-no-words = команда не лишила слів
 close-ci-passed = ci "{ $command }" — пройшов: власний gate проєкту зелений
@@ -445,7 +466,7 @@ map-covered = закрито: "{ $scenario }" — { $proof }
 map-proof-proven = доведений (тег збіжний, §6.3; зелень тесту — суд keel close)
 map-proof-unproven = ще не доведений (збіжного тега нема)
 map-proof-unread = доведеність не читалась (адаптер у keel.toml не названий)
-map-proof-unknown = доведеність не читалась (названий адаптер не цього релізу — реліз обслуговує "rust")
+map-proof-unknown = доказ не прочитано (названий адаптер не цього релізу — реліз веде { $known })
 map-decided = вирішено: "{ $reason }"
 map-unanswered = без відповіді — суд тиші в keel check (§10.3)
 map-older = давніших відповідей: { $count }
@@ -467,13 +488,13 @@ status-awaiting = { "  " }чекає старту: хвиля { $wave } — гі
 status-counts = пораховано: закритих { $closed }, у роботі { $working }, планів { $plans }
 status-no-battery = стадія тут — структурна (теги, посилання, звіт) — батарея не бігла: зелень тестів судять close і hook (§9.2)
 status-next = далі — keel next
-status-needs-adapter = око стадій потребує адаптера rust, названого в keel.toml (старе написання cargo приймається): теги — памʼять стадій
-status-needs-adapter-instead = постав adapter = "rust" — імʼям мови; "cargo" — прийнятий синонім (NEW-CONCEPT, Config); інші мови приїдуть своїми хвилями
+status-needs-adapter = око стадій потребує адаптера, який веде цей реліз, названого в keel.toml: теги — памʼять стадій
+status-needs-adapter-instead = постав adapter = одним із тих, що реліз знає: { $known } (NEW-CONCEPT, Config)
 
 ## команда next (§9.2, §9.10, §8.4)
 next-title = keel next — один крок (§9.2)
-next-needs-adapter = рука кроку потребує адаптера rust, названого в keel.toml (старе написання cargo приймається): без тегів стадія була б здогадом
-next-needs-adapter-instead = постав adapter = "rust" — імʼям мови; "cargo" — прийнятий синонім (NEW-CONCEPT, Config); інші мови приїдуть своїми хвилями
+next-needs-adapter = рука кроку потребує адаптера, який веде цей реліз, названого в keel.toml: без тегів стадія була б здогадом
+next-needs-adapter-instead = постав adapter = одним із тих, що реліз знає: { $known } (NEW-CONCEPT, Config)
 next-step-fix = крок: полагодь документ { $file } — { $reason }; натомість: { $instead }
 next-step-fix-more = { "  " }і ще { $count ->
         [one] { $count } відмова
@@ -483,7 +504,7 @@ next-step-fix-more = { "  " }і ще { $count ->
 next-step-red = крок: напиши тест сценарію "{ $scenario }" і закоммить `red: { $scenario }` — він мусить упасти; хук пустить лише червоний (§7.12, §8.4)
 next-body-label = { "  " }тіло сценарію (@{ $rev }), дослівно:
 next-tag-line = { "  " }тег у тесті: /// proves: { $scenario }@{ $rev }
-next-tests-dir = { "  " }адаптер cargo читає тести в { $dir }
+next-tests-dir = { "  " }адаптер { $adapter } читає тести в { $dir }
 next-step-stale = крок: редакція сценарію "{ $scenario }" розійшлась — тег тримає { $recorded }, тіло тепер дає { $actual }; онови тест під нове тіло і перепиши тег (§5.5)
 next-step-transform = крок: трансформа "{ $name }" — працюй рівно в названих файлах, тоді закоммить `{ $name }: <слова>`; хук пустить лише зелений (§8.4)
 next-step-chore = крок: chore "{ $name }" ({ $reason }) — працюй рівно в названих файлах, тоді закоммить `{ $name }: <слова>` (§2.11, §8.4)
@@ -514,6 +535,7 @@ init-ignore-stands = правила ignore: тека збірки ({ $path }) і
 init-ignore-exclude-only = правила ignore: { $path } ігнорує лише { $source }, а він з репозиторієм не їде — допиши в .gitignore рівно цей рядок: { $rule }
 init-ignore-no-crate = правила ignore: адаптер не знайшов крейта, щоб назвати теку збірки ({ $error })
 init-ignore-no-adapter = правила ignore: адаптера цього релізу в keel.toml не названо, тож і теки збірки нема кому назвати
+init-ignore-nothing-built = правила ігнорування: ця мова нічого не збирає, тож теки збірки, яку варто було б ігнорувати, нема
 init-ignore-unknown-adapter = правила ignore: адаптер названий — "{ $name }", — і цей реліз його не веде: свою теку збірки він принесе своєю хвилею
 init-ignore-unjudged = правила ignore: git тут нічого не сказав ({ $error }) — правило не суджено
 init-eight-seven = §8.7: вимкни squash і rebase у налаштуваннях репозиторію — правило тримає вимкнена кнопка, не памʼять
@@ -552,8 +574,12 @@ newc-skel-body = чиїм словам цей контракт дає переж
 ## команда version (NEW-CONCEPT, таблиця команд; хвиля 0018)
 version-running = keel { $version } — бінарник, що відповідає
 version-pin-held = пін keel.toml: "{ $pin }" — тримається; суди судять саме цим бінарником
-version-pin-mismatch = пін keel.toml: "{ $pin }" — НЕ цей бінарник: суди відмовляють, поки пін і бінарник не зійдуться
+version-pin-mismatch = пін keel.toml: "{ $pin }" — не цей бінарник: суди відмовляють, доки пін і бінарник не зійдуться
+version-pin-hand = { "  " }взяти саме її: KEEL_REF="{ $pin }" sh install.sh — або curl -fsSL { $installer } | sh -s -- { $pin }
+version-pin-hand-border = { "  " }межа: KEEL_REF бере git ref (tag або коміт) цього репозиторію за іменем — не перевірений checksum і не число з keel.toml саме собою. Якщо теґа з таким іменем нема, install.sh відмовляє переліком тих, що є; жоден теґ v1 не збереться, бо крейт тоді жив поза tool/
 version-pin-none = поле version не задано — піна нема; концепт радить пін: version = "{ $version }"
+version-installed = { "  " }стоїть тут: { $version }  (ref { $ref })
+version-installed-none = { "  " }тут не стоїть жодної версії (у ~/.keel/versions/ порожньо)
 version-no-file = keel.toml нема — піна нема, біжить бінарник вище
 version-unread = keel.toml не прочитано ({ $reason }) — пін невідомий; відмову повністю скаже суд config
 
@@ -618,7 +644,16 @@ main-help = keel — інструмент методики. Команди:
     keel new contract <слаг> [тека] — риштування контракту
     keel update [тека] — оновити згенеровані інтеграції
     keel version [тека] — версія і що вона тримає
-main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <команда>] [--trust yes|no] [--no-ask] [тека] | keel setup [ті самі прапорці] [тека] | keel concept [тека] | keel trust [тека] | keel hook [тека] | keel cuts [тека] | keel method [§N.M | розділ] [тека] | keel version [тека] | keel update [тека]
+{"  "}
+{"  "}Кожна команда бере ще:
+    -C <тека> — де працювати, замість поточної
+    --branch <імʼя> — яку гілку вважати, де git її не знає (§4.10)
+{"  "}Читальні команди — check, close, status, next, map, review,
+{"  "}version, cuts, rev, concept, method — беруть ще:
+    --json — один JSON-пакет на stdout, для скриптів і harness-ів
+main-usage = натомість (кожна команда бере ще -C <тека>, --branch <імʼя>, а читальні — --json): keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <команда>] [--trust yes|no] [--no-ask] [тека] | keel setup [ті самі прапорці] [тека] | keel concept [тека] | keel trust [тека] | keel hook [тека] | keel cuts [тека] | keel method [§N.M | розділ] [тека] | keel version [тека] | keel update [тека]
+main-usage-command = натомість, ця команда бере: { $shape }
+main-branch-ignored = --branch не вжито: git знає гілку "{ $branch }", і git тут факт — прапорець чинний лише там, де git гілки не знає (§4.10)
 
 # The settings wizard (wave 0026)
 ask-lang = Which human language does this project speak? / Якою людською мовою говорить цей проєкт?

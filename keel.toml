@@ -16,6 +16,8 @@ ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
 
 [trust]
 "cargo fmt --manifest-path tool/Cargo.toml --check" = "668c699a0a59"
+"cargo test --manifest-path tool/Cargo.toml --test frame_flags_test" = "0530ad5ea5c5"
+"cargo test --manifest-path tool/Cargo.toml --test launcher_test --test versions_test" = "d3dadca33fa6"
 
 [generated]
 "AGENTS.md" = "4baf7dd8b4d7"
@@ -23,4 +25,4 @@ ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
 ".agents/skills/keel/SKILL.md" = "64cf79a82114"
 ".claude/settings.json" = "344054776a92"
 ".cursor/hooks.json" = "181fd6a6effd"
-".github/workflows/keel.yml" = "d10c238cb2fd"
+".github/workflows/keel.yml" = "e2913345062c"

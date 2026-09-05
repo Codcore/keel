@@ -281,11 +281,14 @@ pub fn body_court(path: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Ref
 /// where the words said failure.
 pub fn write(root: &Path) -> Result<(String, usize, usize), Refusal> {
     let config = crate::config::read(root)?;
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("rev-write-needs-adapter"),
-            instead: t("rev-write-needs-adapter-instead"),
+            instead: ta(
+                "rev-write-needs-adapter-instead",
+                targs!("known" => crate::config::Language::known()),
+            ),
         });
     }
     let scan = docs::scan(root)?;
