@@ -623,7 +623,16 @@ main-help = keel -- the methodology's tool. Commands:
     keel new contract <slug> [dir] -- a contract's scaffolding
     keel update [dir] -- refresh the generated integrations
     keel version [dir] -- the version and what it holds
+{"  "}
+{"  "}Every command also takes:
+    -C <dir> -- where to work, instead of the current directory
+    --branch <name> -- which branch to believe where git knows none (sec. 4.10)
+{"  "}The reading commands -- check, close, status, next, map, review,
+{"  "}version, cuts, rev, concept, method -- also take:
+    --json -- one JSON package on stdout, for scripts and harnesses
 main-usage = instead (every command also takes -C <dir>, --branch <name>, and the reading ones --json): keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [--lang <l>] [--adapter <a>] [--mode <m>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <command>] [--trust yes|no] [--no-ask] [dir] | keel setup [the same flags] [dir] | keel concept [dir] | keel trust [dir] | keel hook [dir] | keel cuts [dir] | keel method [§N.M | chapter] [dir] | keel version [dir] | keel update [dir]
+main-usage-command = instead, this command takes: { $shape }
+main-branch-ignored = --branch not used: git knows the branch "{ $branch }", and git is the fact here -- the flag answers only where git knows no branch (sec. 4.10)
 
 # The settings wizard (wave 0026)
 ask-lang = Which human language does this project speak? / Якою людською мовою говорить цей проєкт?

@@ -120,13 +120,39 @@ impl Package {
 }
 
 /// The findings a court gathered, as a harness wants them: the file
-/// that is wrong and why, rather than a line of prose to split.
+/// that is wrong, why, and what to do instead -- each apart.
+///
+/// Review 0040 R-5: `reason` used to carry the whole rendered row,
+/// "instead" glued into it behind a newline, eleven spaces of prose
+/// indent and a word that changes with the tongue. A harness reading
+/// that would be splitting prose in two languages, which is the very
+/// thing the machine road exists to end.
+///
+/// Review 0040 R-1: a refusal about the project itself strips down to
+/// an empty name. It is filled in here, where changing it costs
+/// nobody a diff, and NOT in the prose, which promised not to move.
 pub fn findings(rows: &[(String, Option<String>)]) -> Value {
     Value::Array(
         rows.iter()
             .filter_map(|(file, said)| {
-                said.as_ref()
-                    .map(|reason| json!({"file": file, "reason": reason}))
+                let said = said.as_ref()?;
+                let file = if file.is_empty() { "." } else { file.as_str() };
+                // The row is rendered as `<reason>\n<indent><word>: <instead>`
+                // by every hand that makes one; where it is not, the
+                // whole row is the reason and there is no instead.
+                let (reason, instead) = match said.split_once('\n') {
+                    Some((reason, tail)) => (
+                        reason.trim().to_string(),
+                        tail.trim()
+                            .split_once(": ")
+                            .map(|(_, instead)| instead.trim().to_string()),
+                    ),
+                    None => (said.trim().to_string(), None),
+                };
+                Some(match instead {
+                    Some(instead) => json!({"file": file, "reason": reason, "instead": instead}),
+                    None => json!({"file": file, "reason": reason}),
+                })
             })
             .collect(),
     )

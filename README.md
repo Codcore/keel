@@ -169,7 +169,9 @@ v2 release is tagged. The installer the generated CI step fetches comes from
 
 Every command takes `-C <dir>` (where to work) and `--branch <name>` (which
 branch to believe **where git does not know it** — a CI checkout with a detached
-HEAD; it never overrules git, which is the fact where git has one).
+HEAD). `--branch` never overrules git: where git has a branch, git is the fact,
+and the tool says aloud that the flag was not used rather than dropping the word
+in silence.
 
 The reading commands — `check`, `close`, `status`, `next`, `map`, `review`,
 `version`, `cuts`, `rev` — also take `--json`, and then print one JSON object
@@ -178,9 +180,9 @@ and nothing else:
 ```json
 {"keel":1,"command":"check","ok":false,"exit":1,"root":"…","lang":"uk",
  "structured":true,
- "findings":[{"file":"keel/waves/0001-a-wave.md","reason":"…"}],
+ "findings":[{"file":"keel/waves/0001-a-wave.md","reason":"…","instead":"…"}],
  "limits":["…"],"summary":{"documents":62,"findings":1,"limits":1},
- "report":"…the whole prose verdict…"}
+ "report":"…the prose verdict, byte for byte…"}
 ```
 
 A refusal is the same envelope with `refusal` carrying `file`, `reason` and
@@ -190,8 +192,13 @@ Two borders, said here rather than found later: the package carries the
 structure the courts already computed and the whole prose in `report` — it does
 not turn every sentence into a typed field, and `structured` says so. And the
 commands that *write* (`init`, `setup`, `plan`, `new`, `update`, `gate`,
-`hook`) have no `--json`: they tell a person what they did, and a harness that
-wants the outcome asks `check` afterwards.
+`hook`, `trust`) have no `--json`: they tell a person what they did in their
+project, and a harness that wants the outcome asks `check` afterwards.
+`concept` and `method` do take it — they write nothing, they read the norm.
+
+`report` is what a person sees on stdout, to the byte. One thing is not in it:
+the price line `keel close` prints on **stderr before** it starts work, which is
+a warning ahead of the verdict rather than part of it.
 
 ## What `init` asks
 

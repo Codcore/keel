@@ -14,21 +14,12 @@ use std::process::ExitCode;
 /// The single optional directory of a reading command, and whether
 /// anything else was typed beside it.
 fn one_path(args: &[String]) -> (PathBuf, bool) {
-    let mut root = PathBuf::from(".");
-    let mut seen = false;
-    let mut extra = false;
-    // Flags are not paths. The frame's own guard has already refused
-    // any this command does not take, so what is left is one it does
-    // (wave 0040: `--json` reached here and read as a directory).
-    for word in args.iter().skip(1).filter(|word| !word.starts_with('-')) {
-        if seen {
-            extra = true;
-            break;
-        }
-        seen = true;
-        root = PathBuf::from(word);
-    }
-    (root, extra)
+    // Flags are not paths, and neither are the words they take
+    // (review 0040 R-2: filtering only the flags left `--branch x`
+    // handing "x" over as a directory). `-C` wins over a plain word,
+    // as it does everywhere.
+    let plain = plain_words(args);
+    (root_after(args, 0), plain.len() > 1)
 }
 
 /// The shape of a command line: the command, how many words it takes
@@ -48,36 +39,58 @@ fn one_path(args: &[String]) -> (PathBuf, bool) {
 /// front of the path read as the path -- the very shape review 0035
 /// R-7 caught once and left in seventeen other places (wave 0040).
 fn root_of(args: &[String]) -> PathBuf {
+    root_after(args, 0)
+}
+
+/// The command's own plain words, in order, with flags and the words
+/// they take stepped over.
+fn plain_words(args: &[String]) -> Vec<&String> {
+    let mut out = Vec::new();
     let mut rest = args.iter().skip(1);
-    let mut plain: Option<&String> = None;
     while let Some(word) = rest.next() {
-        match word.as_str() {
-            "-C" => {
-                if let Some(named) = rest.next() {
-                    return PathBuf::from(named);
-                }
-            }
-            "--branch" | "--for" => {
-                rest.next();
-            }
-            other if other.starts_with('-') => {}
-            other => {
-                if plain.is_none() {
-                    plain = Some(word);
-                }
-                let _ = other;
-            }
+        if word == "--for" || FRAME_FLAGS.contains(&word.as_str()) {
+            rest.next();
+        } else if !word.starts_with('-') {
+            out.push(word);
         }
     }
-    plain.map_or_else(|| PathBuf::from("."), PathBuf::from)
+    out
+}
+
+/// The directory a command works in: `-C <dir>` if it was given, else
+/// the plain word that comes after the command's own `words`.
+///
+/// Review 0040 R-2 and R-8: six commands still read `args.get(N)`, so
+/// `keel plan -C <dir> <slug>` took "-C" for the slug and `keel trust
+/// --branch x` looked for a project in a directory called "--branch".
+/// The frame declared both flags for them and then let the command
+/// read them as words.
+fn root_after(args: &[String], words: usize) -> PathBuf {
+    let mut rest = args.iter().skip(1);
+    while let Some(word) = rest.next() {
+        if word == "-C" {
+            if let Some(named) = rest.next() {
+                return PathBuf::from(named);
+            }
+        } else if word == "--branch" || word == "--for" {
+            rest.next();
+        }
+    }
+    plain_words(args)
+        .get(words)
+        .map_or_else(|| PathBuf::from("."), PathBuf::from)
 }
 
 /// `--branch <name>` names the branch where git does not know it --
 /// a CI checkout with a detached HEAD (sec. 4.10 forbids skipping the
-/// comparison in silence there). It is the same answer KEEL_BRANCH
-/// gives, so the frame writes it into the environment and the one
-/// place that reads a branch stays one place; a flag a person typed
-/// beats a variable a hook left behind.
+/// comparison in silence there). A flag a person typed beats the
+/// KEEL_BRANCH variable a hook left behind.
+///
+/// It is held in this process and NOT written into the environment
+/// (review 0040 R-3): written there it was inherited by every child,
+/// and `keel close` starts the project's whole battery -- whose own
+/// probes then judged themselves on a branch nobody was on, turning
+/// three closed waves red.
 ///
 /// It does NOT beat git. Where git knows the branch, git is the fact,
 /// and a flag that could overrule it would let a person tell the
@@ -88,10 +101,20 @@ fn take_branch(args: &[String]) {
         if word == "--branch"
             && let Some(named) = rest.next()
         {
-            unsafe { std::env::set_var("KEEL_BRANCH", named) };
+            keel::scope::name_the_branch(named);
             return;
         }
     }
+}
+
+/// The tongue of a project whose config the courts refused: the
+/// unpinned eye still reads `lang`, and a package that says the
+/// tongue is "" says something untrue about a project that named one
+/// (review 0040 R-13).
+fn tongue_of(root: &std::path::Path) -> String {
+    keel::config::read_unpinned(root)
+        .map(|config| config.lang)
+        .unwrap_or_default()
 }
 
 /// Whether this call asked for the machine's road out.
@@ -157,7 +180,7 @@ const SHAPES: [(&str, usize, &[&str]); 16] = [
     ("trust", 0, &["-C", "--branch"]),
     ("hook", 0, &["-C", "--branch"]),
     ("cuts", 0, &["--json", "-C", "--branch"]),
-    ("concept", 0, &["-C", "--branch"]),
+    ("concept", 0, &["--json", "-C", "--branch"]),
     ("version", 0, &["--json", "-C", "--branch"]),
     ("update", 0, &["-C", "--branch"]),
     ("rev", 0, &["--write", "--json", "-C", "--branch"]),
@@ -171,6 +194,39 @@ const SHAPES: [(&str, usize, &[&str]); 16] = [
 /// which branch to believe where git is silent (NEW-CONCEPT, "rules
 /// for all commands"). Both take a word.
 const FRAME_FLAGS: [&str; 2] = ["-C", "--branch"];
+
+/// What THIS command takes, said in its own refusal (review 0040
+/// R-6): every wrong flag used to print one global line listing every
+/// command in the release, so `keel version --jsonn` was answered
+/// with `--write`, `--adapter` and `--no-ask` -- none of which
+/// `version` takes. The table existed and was never shown.
+fn usage_for(command: &str) -> String {
+    let Some((_, words, flags)) = SHAPES.iter().find(|(name, _, _)| *name == command) else {
+        return keel::i18n::t("main-usage");
+    };
+    let mut shape = format!("keel {command}");
+    for _ in 0..*words {
+        shape.push_str(" <word>");
+    }
+    for flag in *flags {
+        shape.push(' ');
+        shape.push('[');
+        shape.push_str(flag);
+        match *flag {
+            "-C" => shape.push_str(" <dir>"),
+            "--branch" => shape.push_str(" <name>"),
+            "--for" => shape.push_str(" <agent>"),
+            _ => {}
+        }
+        shape.push(']');
+    }
+    shape.push_str(" [dir]");
+    format!(
+        "{}\n{}",
+        ta("main-usage-command", targs!("shape" => shape)),
+        keel::i18n::t("main-usage")
+    )
+}
 
 /// The tongue the CLI frame speaks in. Its refusals used to be
 /// English always, "the project language is not known yet" -- but
@@ -238,37 +294,60 @@ fn main() -> ExitCode {
         let mut plain = 0;
         let mut rest = args.iter().skip(1);
         let mut bad = false;
+        let mut named_root = false;
         while let Some(word) = rest.next() {
             if word.starts_with('-') {
                 if !flags.contains(&word.as_str()) {
                     bad = true;
                     break;
                 }
+                if *word == "-C" {
+                    named_root = true;
+                }
                 // A flag that takes a word takes it here -- and a
                 // flag left without its word is a refusal, not a
-                // silent nothing.
-                if (*word == "--for" || FRAME_FLAGS.contains(&word.as_str()))
-                    && rest.next().is_none()
-                {
-                    bad = true;
-                    break;
+                // silent nothing. Nor may it eat another flag: review
+                // 0040 R-14 measured `--branch --json` naming a
+                // branch called "--json".
+                if *word == "--for" || FRAME_FLAGS.contains(&word.as_str()) {
+                    match rest.next() {
+                        Some(given) if !given.starts_with('-') => {}
+                        _ => {
+                            bad = true;
+                            break;
+                        }
+                    }
                 }
             } else {
                 plain += 1;
             }
         }
-        // The command's own words, then at most one directory.
-        if bad || plain > words + 1 {
+        // The command's own words, then at most one directory -- and
+        // `-C` IS that directory, so a plain word beside it is a
+        // second one (review 0040 R-12: with `-C` given, an extra
+        // path was silently thrown away where without it the same
+        // typo refused).
+        let allowed = if named_root { *words } else { words + 1 };
+        if bad || plain > allowed {
             frame_tongue(&args);
-            eprintln!("{}", keel::i18n::t("main-usage"));
+            eprintln!("{}", usage_for(args[0].as_str()));
             return ExitCode::from(2);
         }
     }
 
-    // The frame's own branch flag, before any command looks: the one
-    // place that reads a branch reads the environment, so the flag is
-    // written there and nothing else has to learn about it.
+    // The frame's own branch flag, before any command looks.
     take_branch(&args);
+    // And said aloud where it changes nothing (review 0040 R-9): the
+    // flag answers only the case sec. 4.10 named, a checkout where
+    // git knows no branch. Where git knows one, git is the fact --
+    // but a word a person typed and the tool threw away in silence is
+    // the very shape this release refuses everywhere else.
+    if keel::scope::branch_was_named()
+        && let Some(known) = keel::scope::branch_by_git_public(&root_of(&args))
+    {
+        frame_tongue(&args);
+        eprintln!("{}", ta("main-branch-ignored", targs!("branch" => known)));
+    }
 
     match args.first().map(String::as_str) {
         Some("check") => {
@@ -277,7 +356,7 @@ fn main() -> ExitCode {
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    return deliver("check", &root, "", json, Err(refusal));
+                    return deliver("check", &root, &tongue_of(&root), json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
@@ -308,16 +387,12 @@ fn main() -> ExitCode {
             // ignored, by the very wave that set out to end silent
             // swallowing.
             let write_mode = args.iter().skip(1).any(|word| word == "--write");
-            let root = args
-                .iter()
-                .skip(1)
-                .find(|word| !word.starts_with('-'))
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_of(&args);
             let json = asked_json(&args);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    return deliver("rev", &root, "", json, Err(refusal));
+                    return deliver("rev", &root, &tongue_of(&root), json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
@@ -342,7 +417,7 @@ fn main() -> ExitCode {
             deliver("rev", &root, &config.lang, json, said)
         }
         Some("gate") => {
-            let Some(message_file) = args.get(1).map(PathBuf::from) else {
+            let Some(message_file) = plain_words(&args).first().map(PathBuf::from) else {
                 eprintln!(
                     "{}\n  {}\n  {}",
                     t("main-gate-no-message"),
@@ -351,9 +426,7 @@ fn main() -> ExitCode {
                 );
                 return ExitCode::from(2);
             };
-            let root = args
-                .get(2)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_after(&args, 1);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
@@ -379,7 +452,7 @@ fn main() -> ExitCode {
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    return deliver("map", &root, "", json, Err(refusal));
+                    return deliver("map", &root, &tongue_of(&root), json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
@@ -392,7 +465,7 @@ fn main() -> ExitCode {
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    return deliver("close", &root, "", json, Err(refusal));
+                    return deliver("close", &root, &tongue_of(&root), json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
@@ -410,7 +483,7 @@ fn main() -> ExitCode {
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    return deliver("review", &root, "", json, Err(refusal));
+                    return deliver("review", &root, &tongue_of(&root), json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
@@ -447,6 +520,11 @@ fn main() -> ExitCode {
                     "--no-hooks" => answer("hooks", Some(&"no".to_string())),
                     "--lang" | "--adapter" | "--mode" | "--agents" | "--version" | "--ci"
                     | "--trust" => answer(word.trim_start_matches("--"), rest.next()),
+                    // The frame's own two, read here because this
+                    // command parses its own words (review 0040 R-2):
+                    // the root is taken by root_of below, and the
+                    // branch by the frame before any of this.
+                    "-C" | "--branch" => rest.next().is_some(),
                     other if other.starts_with("--") && other.contains('=') => {
                         let (flag, value) = other.split_once('=').unwrap();
                         answer(flag.trim_start_matches("--"), Some(&value.to_string()))
@@ -583,7 +661,7 @@ fn main() -> ExitCode {
             }
         }
         Some("plan") => {
-            let Some(slug) = args.get(1) else {
+            let Some(slug) = plain_words(&args).first().copied() else {
                 eprintln!(
                     "{}\n  {}\n  {}",
                     t("main-plan-no-slug"),
@@ -592,9 +670,7 @@ fn main() -> ExitCode {
                 );
                 return ExitCode::from(2);
             };
-            let root = args
-                .get(2)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_after(&args, 1);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
@@ -615,7 +691,7 @@ fn main() -> ExitCode {
             }
         }
         Some("new") => {
-            if args.get(1).map(String::as_str) != Some("contract") {
+            if plain_words(&args).first().map(|word| word.as_str()) != Some("contract") {
                 eprintln!(
                     "{}\n  {}\n  {}",
                     t("main-new-unknown"),
@@ -624,7 +700,7 @@ fn main() -> ExitCode {
                 );
                 return ExitCode::from(2);
             }
-            let Some(slug) = args.get(2) else {
+            let Some(slug) = plain_words(&args).get(1).copied() else {
                 eprintln!(
                     "{}\n  {}\n  {}",
                     t("main-new-no-slug"),
@@ -633,9 +709,7 @@ fn main() -> ExitCode {
                 );
                 return ExitCode::from(2);
             };
-            let root = args
-                .get(3)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_after(&args, 2);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
@@ -661,7 +735,7 @@ fn main() -> ExitCode {
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
-                    return deliver("status", &root, "", json, Err(refusal));
+                    return deliver("status", &root, &tongue_of(&root), json, Err(refusal));
                 }
             };
             keel::i18n::init(&config.lang);
@@ -697,10 +771,24 @@ fn main() -> ExitCode {
                     other if other.starts_with("--for=") => {
                         agent = Some(other["--for=".len()..].to_string());
                     }
-                    // The machine's road, read here too: this command
-                    // parses its own words, so the frame's guard is
-                    // not enough (wave 0040).
+                    // The machine's road and the frame's own two, read
+                    // here too: this command parses its own words, so
+                    // the frame's guard is not enough (wave 0040;
+                    // review 0040 R-2 for the other two).
                     "--json" => {}
+                    "-C" => match rest.next() {
+                        Some(named) => where_from = Some(named.clone()),
+                        None => {
+                            eprintln!("{}", t("main-usage"));
+                            return ExitCode::from(2);
+                        }
+                    },
+                    "--branch" => {
+                        if rest.next().is_none() {
+                            eprintln!("{}", t("main-usage"));
+                            return ExitCode::from(2);
+                        }
+                    }
                     other if other.starts_with('-') => {
                         eprintln!("{}", t("main-usage"));
                         return ExitCode::from(2);
@@ -768,9 +856,7 @@ fn main() -> ExitCode {
             )
         }
         Some("trust") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_of(&args);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
@@ -791,9 +877,7 @@ fn main() -> ExitCode {
             }
         }
         Some("hook") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_of(&args);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
@@ -814,9 +898,7 @@ fn main() -> ExitCode {
             }
         }
         Some("update") => {
-            let root = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("."), PathBuf::from);
+            let root = root_of(&args);
             let config = match keel::config::read(&root) {
                 Ok(config) => config,
                 Err(refusal) => {
@@ -850,17 +932,22 @@ fn main() -> ExitCode {
                 }
             };
             keel::i18n::init(&lang);
-            println!("{}", t("speak-concept-title"));
-            println!();
-            println!("{}", keel::speak::concept());
-            println!(
-                "{}",
+            let report = format!(
+                "{}\n\n{}\n{}\n",
+                t("speak-concept-title"),
+                keel::speak::concept(),
                 ta(
                     "speak-concept-source",
                     targs!("version" => env!("CARGO_PKG_VERSION").to_string())
                 )
             );
-            ExitCode::SUCCESS
+            deliver(
+                "concept",
+                &root,
+                &lang,
+                asked_json(&args),
+                Ok((report, 0, Vec::new())),
+            )
         }
         Some("cuts") => {
             // The mouth reads no document from disk: it serves what
@@ -884,7 +971,7 @@ fn main() -> ExitCode {
             let lang = match keel::config::read_unpinned(&root) {
                 Ok(config) => config.lang,
                 Err(refusal) => {
-                    return deliver("cuts", &root, "", json, Err(refusal));
+                    return deliver("cuts", &root, &tongue_of(&root), json, Err(refusal));
                 }
             };
             keel::i18n::init(&lang);
@@ -937,7 +1024,30 @@ fn main() -> ExitCode {
             let mut asked: Option<String> = None;
             let mut root = PathBuf::from(".");
             let mut named_root = false;
-            for word in args.iter().skip(1) {
+            let mut named_by_flag = false;
+            let mut rest = args.iter().skip(1);
+            while let Some(word) = rest.next() {
+                // The frame's own two, read here because this command
+                // parses its own words (review 0040 R-2).
+                if word == "-C" {
+                    let Some(named) = rest.next() else {
+                        eprintln!("{}", t("main-usage"));
+                        return ExitCode::from(2);
+                    };
+                    root = PathBuf::from(named);
+                    named_by_flag = true;
+                    continue;
+                }
+                if word == "--branch" {
+                    if rest.next().is_none() {
+                        eprintln!("{}", t("main-usage"));
+                        return ExitCode::from(2);
+                    }
+                    continue;
+                }
+                if word == "--json" {
+                    continue;
+                }
                 if asked.is_none() && (looks_like_a_paragraph(word) || !Path::new(word).is_dir()) {
                     asked = Some(word.clone());
                     continue;
@@ -947,7 +1057,9 @@ fn main() -> ExitCode {
                     return ExitCode::from(2);
                 }
                 named_root = true;
-                root = PathBuf::from(word);
+                if !named_by_flag {
+                    root = PathBuf::from(word);
+                }
             }
             // As for `cuts` (review 0028 R-5): the language decides
             // WHICH NORMATIVE DOCUMENT is read, so a config that does
@@ -961,16 +1073,13 @@ fn main() -> ExitCode {
                 }
             };
             keel::i18n::init(&lang);
-            match keel::speak::method(&lang, asked.as_deref()) {
-                Ok(said) => {
-                    print!("{said}");
-                    ExitCode::SUCCESS
-                }
-                Err(refusal) => {
-                    eprintln!("{refusal}");
-                    ExitCode::from(2)
-                }
-            }
+            deliver(
+                "method",
+                &root,
+                &lang,
+                asked_json(&args),
+                keel::speak::method(&lang, asked.as_deref()).map(|said| (said, 0, Vec::new())),
+            )
         }
         Some("version") => {
             let root = root_of(&args);
@@ -978,8 +1087,14 @@ fn main() -> ExitCode {
             // it must answer exactly where the courts refuse, and a
             // broken config never steers it silently -- its row
             // carries the reason, the config court the full refusal.
-            let lang = keel::config::read_unpinned(&root)
-                .map(|config| config.lang)
+            // One read, not three (review 0040 R-10): the lamp asked
+            // the config once for the tongue and once for the pin,
+            // and the second read happened on the prose road too --
+            // so a person paid for the machine's field.
+            let seen = keel::config::read_unpinned(&root).ok();
+            let lang = seen
+                .as_ref()
+                .map(|config| config.lang.clone())
                 .unwrap_or_default();
             keel::i18n::init(&lang);
             let report = keel::version::report(&root);
@@ -987,9 +1102,7 @@ fn main() -> ExitCode {
                 ("running", serde_json::json!(env!("CARGO_PKG_VERSION"))),
                 (
                     "pin",
-                    keel::config::read_unpinned(&root)
-                        .ok()
-                        .and_then(|config| config.version)
+                    seen.and_then(|config| config.version)
                         .map_or(serde_json::Value::Null, |pin| serde_json::json!(pin)),
                 ),
             ];
