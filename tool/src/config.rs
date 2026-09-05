@@ -31,16 +31,19 @@ pub const AGENTS: [&str; 2] = ["claude", "cursor"];
 pub enum Language {
     Rust,
     Ruby,
+    Elixir,
 }
 
 impl Language {
     /// Every spelling this release accepts, canonical name first.
     /// `cargo` is the old spelling of `rust`, kept and said aloud by
     /// check (wave 0017, review R-1).
-    pub const NAMES: [(&'static str, Language); 3] = [
+    pub const NAMES: [(&'static str, Language); 5] = [
         ("rust", Language::Rust),
         ("cargo", Language::Rust),
         ("ruby", Language::Ruby),
+        ("elixir", Language::Elixir),
+        ("mix", Language::Elixir),
     ];
 
     pub fn named(word: &str) -> Option<Language> {
@@ -74,6 +77,7 @@ impl Language {
             Language::Ruby => {
                 "ruby -Itest -e 'Dir.glob(\"test/**/*_test.rb\").each { |f| require File.expand_path(f) }'"
             }
+            Language::Elixir => "mix test",
         }
     }
 
