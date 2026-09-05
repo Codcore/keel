@@ -13,16 +13,14 @@ transforms:
   each-version-its-own-home:
     implements:
       - versions-live-side-by-side
-    files:
-      - install.sh
-      - tool/tests/versions_test.rs
-  the-launcher:
-    implements:
       - the-launcher-runs-what-the-project-pinned
     files:
       - install.sh
-      - one new in tool/
       - keel/contracts/tool-launcher.md
+      - tool/tests/common/mod.rs
+      - one new in tool/tests/common/
+      - keel.toml
+      - tool/tests/versions_test.rs
       - tool/tests/launcher_test.rs
   the-lamp-counts-them:
     implements:
@@ -153,16 +151,20 @@ decisions:
 
 ## transform: each-version-its-own-home
 
-`install.sh` кладе кожен ref у власну теку і записує поруч sha, з
-якого зібрано. Спільної теки `~/.keel`, куди все валиться, більше
-нема.
+`install.sh` кладе кожен ref у власну теку, записує поруч версію, sha
+коміта і sha256 самого бінарника, і ставить на PATH **launcher**:
+читає `version` із `keel.toml` проєкту (шануючи `-C`), знаходить цю
+версію, звіряє контрольну суму і віддає їй керування. Нема такої —
+відмова з готовою командою. Контракт `tool-launcher` описує його
+поведінку і тримається бігом, а не формою: це shell.
 
-## transform: the-launcher
-
-`~/.local/bin/keel` стає launcher-ом: читає `version` із `keel.toml`
-проєкту, знаходить цю версію, звіряє sha і віддає їй керування. Нема
-такої — відмова з командою. Контракт `tool-launcher` описує його
-поведінку, і тримається він бігом, а не формою: це shell.
+**Обидва сценарії їдуть однією трансформою, і це виправлення.**
+Спершу вони були двома, але обидва живуть у **тому самому файлі**, і
+я написав розкладку й launcher одним рухом — а тоді «народив
+червоним» другий сценарій, чия робота вже стояла: червоним його
+зробила форма мого власного стаба, а не брак роботи. Історію
+переписано, поки нічого не запушено: обидві проби бачені червоними
+проти справжнього старого `install.sh`. Урок — у журналі.
 
 ## transform: the-lamp-counts-them
 
