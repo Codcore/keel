@@ -66,12 +66,12 @@ fn the_generated_ci_runs_where_it_is_born() {
     let text = workflow(&born("ciborn", Some("rust")));
 
     // The tool arrives before the courts that call it.
-    let install = text
-        .find("install.sh")
-        .expect(&format!("a step that puts keel on PATH:\n{text}"));
-    let first_court = text
-        .find("keel check")
-        .expect(&format!("the documents court:\n{text}"));
+    let Some(install) = text.find("install.sh") else {
+        panic!("a step that puts keel on PATH:\n{text}");
+    };
+    let Some(first_court) = text.find("keel check") else {
+        panic!("the documents court:\n{text}");
+    };
     assert!(
         install < first_court,
         "and it arrives BEFORE the first court that calls keel:\n{text}"
