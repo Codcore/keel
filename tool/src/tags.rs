@@ -49,6 +49,13 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
         // `describe` names, only the block's border is INDENTATION
         // and not `end` (wave 0045).
         let python = file.extension().and_then(|e| e.to_str()) == Some("py");
+        // node names a test by a STRING, as ExUnit does -- `test('it
+        // works', …)`, `it("…")`, or in backticks -- and by its bare
+        // name even inside `describe` (wave 0046).
+        let javascript = matches!(
+            file.extension().and_then(|e| e.to_str()),
+            Some("js") | Some("mjs") | Some("cjs") | Some("ts") | Some("mts")
+        );
         // A STACK of classes, because they nest: pytest names a
         // method `TestOuter::TestInner::test_x` (review 0045 R-10).
         let mut classes: Vec<(String, usize)> = Vec::new();
@@ -138,6 +145,8 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                     Some((group, _)) => format!("{group} {name}"),
                     None => name,
                 })
+            } else if javascript {
+                js_test_name(trimmed)
             } else if python {
                 // A class opens a group at its own indentation and
                 // holds it while the lines below sit deeper; a line
@@ -249,6 +258,34 @@ pub fn test_name(trimmed: &str) -> Option<String> {
 /// is finished when its count is back to nothing.
 fn parens(trimmed: &str) -> i32 {
     trimmed.matches('(').count() as i32 - trimmed.matches(')').count() as i32
+}
+
+/// The name a `test('…', …)` or `it("…", …)` line declares, in any of
+/// the three quotes javascript writes, escapes read. `describe(` is
+/// not a declaration: node names the test inside by its bare name.
+pub fn js_test_name(trimmed: &str) -> Option<String> {
+    let rest = ["test(", "test (", "it(", "it ("]
+        .iter()
+        .find_map(|word| trimmed.strip_prefix(word))?
+        .trim_start();
+    let quote = rest.chars().next()?;
+    if !matches!(quote, '\'' | '"' | '`') {
+        return None;
+    }
+    let mut name = String::new();
+    let mut chars = rest[1..].chars();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\\' => {
+                if let Some(next) = chars.next() {
+                    name.push(next);
+                }
+            }
+            c if c == quote => return (!name.is_empty()).then_some(name),
+            c => name.push(c),
+        }
+    }
+    None
 }
 
 /// The name a `class Something:` line opens, for python -- the

@@ -193,6 +193,20 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             extra_limits.push(ta("limit-python-unread", targs!("file" => shown)));
         }
     }
+    if config.language() == Some(crate::config::Language::JavaScript) {
+        // The border of a tongue that CANNOT tell: not a measurement
+        // to be proud of, a limit -- and it goes where limits go.
+        extra_limits.push(t("limit-javascript-border"));
+        extra_limits.push(t("limit-javascript-reads"));
+        for path in crate::javascript::unread_files(root) {
+            let shown = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .display()
+                .to_string();
+            extra_limits.push(ta("limit-javascript-unread", targs!("file" => shown)));
+        }
+    }
     if config.language() == Some(crate::config::Language::Ruby) {
         extra_limits.push(t("limit-ruby-border"));
         extra_limits.push(t("limit-ruby-form"));

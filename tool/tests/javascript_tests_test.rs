@@ -50,7 +50,11 @@ const BODY: &str = "тіло обіцянки\n\n";
 /// under test/ as given.
 fn project(name: &str, test_name: &str, test_body: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
-    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"javascript\"\n").unwrap();
+    std::fs::write(
+        dir.join("keel.toml"),
+        "lang = \"uk\"\nadapter = \"javascript\"\n",
+    )
+    .unwrap();
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::create_dir_all(dir.join("test")).unwrap();
     std::fs::write(
@@ -58,7 +62,11 @@ fn project(name: &str, test_name: &str, test_body: &str) -> common::Sandbox {
         "{ \"name\": \"toy\", \"version\": \"0.1.0\", \"type\": \"module\" }\n",
     )
     .unwrap();
-    std::fs::write(dir.join("src/toy.js"), "export function works() {\n  return true;\n}\n").unwrap();
+    std::fs::write(
+        dir.join("src/toy.js"),
+        "export function works() {\n  return true;\n}\n",
+    )
+    .unwrap();
     let mut d = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
         if *cut != "functional.correctness" {
@@ -104,7 +112,11 @@ fn gate(dir: &Path) -> (String, i32) {
 }
 
 fn reviewed(dir: &Path) {
-    std::fs::write(dir.join("keel/reviews/0001-a-wave.md"), "# Рецензія\n\nok\n").unwrap();
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
     git(dir, &["add", "-A"]);
     git(dir, &["commit", "-q", "-m", "review"]);
     git(dir, &["checkout", "-q", "-b", "0001-a-wave"]);
@@ -132,7 +144,10 @@ fn javascript_tests_are_read_and_run() {
     // verdict from TAP -- never from the exit code, which node hands
     // out the same for a pass and for a name that matched nothing.
     let (said, code) = gate(&dir);
-    assert_eq!(code, 0, "the work passes over a test node ran green:\n{said}");
+    assert_eq!(
+        code, 0,
+        "the work passes over a test node ran green:\n{said}"
+    );
     assert!(said.contains("робота проходить"), "and says so:\n{said}");
 
     // A GREEN close: the tag and the battery meet on one key, and the
@@ -142,20 +157,31 @@ fn javascript_tests_are_read_and_run() {
     reviewed(&dir);
     let (said, code) = keel(&dir, &["close"]);
     assert_eq!(code, 0, "a proven node wave closes:\n{said}");
-    assert!(said.contains("0001-a-wave: закрита"), "and says so:\n{said}");
+    assert!(
+        said.contains("0001-a-wave: закрита"),
+        "and says so:\n{said}"
+    );
     let written: Vec<String> = walk(&dir)
         .into_iter()
-        .filter(|p| p.contains("node_modules") || p.contains(".nyc_output") || p.contains("coverage"))
+        .filter(|p| {
+            p.contains("node_modules") || p.contains(".nyc_output") || p.contains("coverage")
+        })
         .collect();
-    assert!(written.is_empty(), "close leaves the project as it found it: {written:?}");
+    assert!(
+        written.is_empty(),
+        "close leaves the project as it found it: {written:?}"
+    );
 
     // The battery: the roll AND the verdicts from TAP. A second test
     // the reader did not tag still exists for the court, together
     // with its failure; a test inside `describe` is named by its
     // bare name, as node names it; and a `.ts` file is read and run
     // by the same runner.
+    // A skipped test, an `it(` with a backtick name, and a file with
+    // no tests in it (node prints the FILE as one passed test there)
+    // ride along: none of the three is a test that ran green.
     let two = format!(
-        "import {{ test, describe }} from 'node:test';\nimport assert from 'node:assert';\nimport {{ works }} from '../src/toy.js';\n\n// proves: it-works@{rev}\ntest('it works', () => {{\n  assert.ok(works());\n}});\n\ntest('nobody claims me', () => {{\n  assert.strictEqual(1, 2);\n}});\n\ndescribe('grouped', () => {{\n  test('inside', () => {{\n    assert.ok(true);\n  }});\n}});\n"
+        "import {{ test, it, describe }} from 'node:test';\nimport assert from 'node:assert';\nimport {{ works }} from '../src/toy.js';\n\n// proves: it-works@{rev}\ntest('it works', () => {{\n  assert.ok(works());\n}});\n\ntest('nobody claims me', () => {{\n  assert.strictEqual(1, 2);\n}});\n\ntest('not now', {{ skip: true }}, () => {{\n  assert.ok(false);\n}});\n\nit(`spoken with it`, () => {{\n  assert.ok(true);\n}});\n\ndescribe('grouped', () => {{\n  test('inside', () => {{\n    assert.ok(true);\n  }});\n}});\n"
     );
     let dir = project("jsbattery", "toy.test.js", &two);
     std::fs::write(
@@ -163,13 +189,26 @@ fn javascript_tests_are_read_and_run() {
         "import { test } from 'node:test';\nimport assert from 'node:assert';\n\ntest('typed', () => {\n  const x: number = 1;\n  assert.strictEqual(x, 1);\n});\n",
     )
     .unwrap();
+    std::fs::write(dir.join("test/empty.test.js"), "// nothing here yet\n").unwrap();
+    // Before the battery: the reader sees `it(` and the backtick name
+    // as declarations, so a tag over each is read.
+    let tagged_it = format!(
+        "import {{ it }} from 'node:test';\nimport assert from 'node:assert';\n\n// proves: it-works@{rev}\nit(`spoken with it`, () => {{\n  assert.ok(true);\n}});\n"
+    );
+    let read = keel::tags::scan_text(Path::new("t/x.test.js"), &tagged_it).unwrap();
+    assert_eq!(read.len(), 1, "a tag over it(`…`) is read");
+    assert_eq!(read[0].test, "spoken with it");
     reviewed(&dir);
     let (said, code) = keel(&dir, &["close"]);
     assert!(
-        said.contains("батарея: 4 тестів"),
-        "the battery counts what node ran -- all four, the grouped one \
-         and the typed one included, and not the describe block or the \
-         file itself:\n{said}"
+        said.contains("батарея: 5 тестів"),
+        "the battery counts what node RAN -- the grouped one, the `it`, \
+         and the typed one included; not the skipped one, not the \
+         describe block, not the empty file's own line:\n{said}"
+    );
+    assert!(
+        !said.contains("not now"),
+        "a skipped test is neither green nor red, so it is not named:\n{said}"
     );
     assert!(
         said.contains("червоний тест") && said.contains("nobody claims me"),
