@@ -24,6 +24,44 @@ pub const AGENTS: [&str; 2] = ["claude", "cursor"];
 /// The config as read. `lang` (wave 0002) and `mode` (wave 0005)
 /// carry semantics; the other fields are read as data -- their rungs
 /// are ahead.
+/// The languages this release can lead a project in. Adding one is a
+/// module and a row here -- which is the whole point of the wave that
+/// made this an enum instead of a yes-or-no question.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Language {
+    Rust,
+    Ruby,
+}
+
+impl Language {
+    /// Every spelling this release accepts, canonical name first.
+    /// `cargo` is the old spelling of `rust`, kept and said aloud by
+    /// check (wave 0017, review R-1).
+    pub const NAMES: [(&'static str, Language); 3] = [
+        ("rust", Language::Rust),
+        ("cargo", Language::Rust),
+        ("ruby", Language::Ruby),
+    ];
+
+    pub fn named(word: &str) -> Option<Language> {
+        Self::NAMES
+            .iter()
+            .find(|(name, _)| *name == word)
+            .map(|(_, language)| *language)
+    }
+
+    /// The canonical names, for a refusal that says what it knows.
+    pub fn known() -> String {
+        let mut out: Vec<&str> = Vec::new();
+        for (name, _) in Self::NAMES {
+            if !out.contains(&name) {
+                out.push(name);
+            }
+        }
+        out.join(", ")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     pub version: Option<String>,
@@ -84,7 +122,18 @@ impl Config {
     /// `cargo` stays an accepted synonym, said aloud by check. The
     /// courts ask here instead of comparing strings themselves.
     pub fn rust_adapter(&self) -> bool {
-        matches!(self.adapter.as_deref(), Some("rust") | Some("cargo"))
+        self.language() == Some(Language::Rust)
+    }
+
+    /// Which language this release will judge here, by the name the
+    /// project wrote (wave 0038). `None` means the project named no
+    /// adapter at all -- the language-shaped courts do not run, and
+    /// say so. A name this release does not know never reaches here:
+    /// the config court refuses it by name, listing what it knows,
+    /// because a typo swallowed as silence is a court skipped in
+    /// silence.
+    pub fn language(&self) -> Option<Language> {
+        Language::named(self.adapter.as_deref()?)
     }
 
     /// The second question of the same home (review 0017 R-1): is

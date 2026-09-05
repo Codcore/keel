@@ -321,6 +321,33 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         }
     }
 
+    // A language this release does not know is a FINDING with the
+    // list of the ones it does (wave 0038). Not a refusal: a project
+    // that named a language keel cannot lead yet still gets its
+    // documents, links, scope and revisions judged. Not silence
+    // either: before this wave an unknown name simply meant "not
+    // Rust", so a typo skipped the language-shaped courts without
+    // ever saying which -- and §4.10 calls that worse than red.
+    if let Some(named) = config.adapter.as_deref()
+        && config.language().is_none()
+    {
+        rows.push((
+            "keel.toml".to_string(),
+            Some(format!(
+                "{}\n           {}: {}",
+                ta(
+                    "config-unknown-adapter",
+                    targs!("named" => named.to_string(), "known" => crate::config::Language::known()),
+                ),
+                t("word-instead"),
+                ta(
+                    "config-unknown-adapter-instead",
+                    targs!("known" => crate::config::Language::known()),
+                ),
+            )),
+        ));
+    }
+
     let generated: Vec<String> = config.generated.iter().map(|(k, _)| k.clone()).collect();
     let scope_status = match scope::current_branch(root) {
         None => t("check-scope-skipped-no-git"),

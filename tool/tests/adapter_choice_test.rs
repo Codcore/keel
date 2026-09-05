@@ -60,13 +60,33 @@ fn project(name: &str, adapter: Option<&str>) -> common::Sandbox {
     )
     .unwrap();
     std::fs::write(dir.join("README.md"), "проєкт\n").unwrap();
+    // The skeleton the named adapter needs to exist at all: a crate
+    // for cargo, a lib and a test directory for ruby. Missing those
+    // is the adapter's own refusal, not a question of choosing one.
+    match adapter {
+        Some("rust") | Some("cargo") => {
+            std::fs::write(
+                dir.join("Cargo.toml"),
+                "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            )
+            .unwrap();
+            std::fs::create_dir_all(dir.join("src")).unwrap();
+            std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\n").unwrap();
+        }
+        Some("ruby") => {
+            std::fs::create_dir_all(dir.join("lib")).unwrap();
+            std::fs::create_dir_all(dir.join("test")).unwrap();
+            std::fs::write(dir.join("lib/toy.rb"), "module Toy\nend\n").unwrap();
+        }
+        _ => {}
+    }
     git(&dir, &["init", "-q", "-b", "main"]);
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "base"]);
     dir
 }
 
-/// proves: the-adapter-is-chosen-by-name@ac3adc -- the operator read
+/// proves: the-adapter-is-chosen-by-name@007ef7 -- the operator read
 /// the README and asked where the other languages were. There was
 /// one adapter, cargo, and it was there so keel could judge itself:
 /// `rust_adapter()` was asked in eleven places across ten modules,
@@ -88,11 +108,13 @@ fn the_adapter_is_chosen_by_name() {
         );
     }
 
-    // A name it does not know is a REFUSAL that lists what it does --
-    // never a silent skip of the language-shaped courts.
+    // A name it does not know is a FINDING that lists what it does --
+    // never a silent skip of the language-shaped courts. Not a
+    // refusal: a project that named a language keel cannot lead yet
+    // still gets every court that does not need one.
     let dir = project("unknown", Some("kotlin"));
     let (said, code) = keel(&dir, "check");
-    assert_eq!(code, 2, "an unknown adapter is refused:\n{said}");
+    assert_eq!(code, 1, "an unknown adapter is a finding:\n{said}");
     assert!(
         said.contains("kotlin") && said.contains("rust") && said.contains("ruby"),
         "and the refusal names what was asked for and what is \

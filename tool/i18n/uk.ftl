@@ -200,6 +200,8 @@ holding-vanished = контракт "{ $contract }" обіцяє "{ $name }" —
 holding-vanished-instead = поверни одиницю або зміни/зніми контракт вголос (§2.12, §5.7)
 check-holding-count = сигнатур звірено: { $count }
 check-holding-uncompared = { $contract } — форму ніхто не порівнював: { $why } (§7.6)
+config-unknown-adapter = adapter = "{ $named }" — мови з таким імʼям цей реліз не веде; він знає: { $known }
+config-unknown-adapter-instead = постав одну з названих ({ $known }) або прибери поле зовсім: без адаптера судяться документи, звʼязки, scope і редакції, а мовні суди пропускаються — і вирок каже, які саме
 holding-why-no-adapter = адаптер у keel.toml не названий
 holding-why-unknown-adapter = названий адаптер не цього релізу (реліз обслуговує "rust")
 holding-module-missing = контракт { $contract } називає модуль "{ $module }", якого в коді нема — шукали { $looked } (§2.7, §7.6)

@@ -198,6 +198,8 @@ holding-vanished = the contract "{ $contract }" promises "{ $name }" -- no such 
 holding-vanished-instead = bring the unit back, or change/withdraw the contract aloud (§2.12, §5.7)
 check-holding-count = signatures checked: { $count }
 check-holding-uncompared = { $contract } — no one compared the form: { $why } (§7.6)
+config-unknown-adapter = adapter = "{ $named }" -- this release leads no language of that name; it knows: { $known }
+config-unknown-adapter-instead = name one of those ({ $known }), or drop the field entirely: without an adapter the documents, links, scope and revisions are still judged, and the language-shaped courts are skipped -- with the verdict naming which
 holding-why-no-adapter = no adapter named in keel.toml
 holding-why-unknown-adapter = the named adapter is not of this release (it serves "rust")
 holding-module-missing = contract { $contract } names module "{ $module }", which is not in the code -- looked for { $looked } (§2.7, §7.6)
