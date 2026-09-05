@@ -27,9 +27,11 @@ transforms:
       - the-lamp-shows-what-stands-here
     files:
       - tool/src/version.rs
+      - tool/src/main.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/installed_test.rs
+      - tool/tests/pin_hand_test.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:

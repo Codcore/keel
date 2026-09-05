@@ -1105,6 +1105,20 @@ fn main() -> ExitCode {
                     seen.and_then(|config| config.version)
                         .map_or(serde_json::Value::Null, |pin| serde_json::json!(pin)),
                 ),
+                (
+                    "installed",
+                    serde_json::Value::Array(
+                        keel::version::installed()
+                            .into_iter()
+                            .map(|standing| {
+                                serde_json::json!({
+                                    "version": standing.version,
+                                    "ref": standing.named,
+                                })
+                            })
+                            .collect(),
+                    ),
+                ),
             ];
             deliver(
                 "version",

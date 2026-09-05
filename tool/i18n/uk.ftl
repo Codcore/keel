@@ -568,6 +568,8 @@ version-pin-mismatch = пін keel.toml: "{ $pin }" — не цей бінарн
 version-pin-hand = { "  " }взяти саме її: KEEL_REF="{ $pin }" sh install.sh — або curl -fsSL { $installer } | sh -s -- { $pin }
 version-pin-hand-border = { "  " }межа: KEEL_REF бере git ref (tag або коміт) цього репозиторію за іменем — не перевірений checksum і не число з keel.toml саме собою. Якщо теґа з таким іменем нема, install.sh відмовляє переліком тих, що є; жоден теґ v1 не збереться, бо крейт тоді жив поза tool/
 version-pin-none = поле version не задано — піна нема; концепт радить пін: version = "{ $version }"
+version-installed = { "  " }стоїть тут: { $version }  (ref { $ref })
+version-installed-none = { "  " }тут не стоїть жодної версії — цей бінарник запущено не через launcher
 version-no-file = keel.toml нема — піна нема, біжить бінарник вище
 version-unread = keel.toml не прочитано ({ $reason }) — пін невідомий; відмову повністю скаже суд config
 

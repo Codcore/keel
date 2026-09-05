@@ -52,5 +52,56 @@ pub fn report(root: &Path) -> String {
     };
     out.push_str(&pin_row);
     out.push('\n');
+    for standing in installed() {
+        out.push_str(&ta(
+            "version-installed",
+            targs!("version" => standing.version, "ref" => standing.named),
+        ));
+        out.push('\n');
+    }
+    if installed().is_empty() {
+        out.push_str(&t("version-installed-none"));
+        out.push('\n');
+    }
+    out
+}
+
+/// One version standing on this machine: what it answers for itself,
+/// and the ref it was installed under.
+pub struct Standing {
+    pub version: String,
+    pub named: String,
+}
+
+/// The versions in `~/.keel/versions/` (wave 0041). The concept asks
+/// the lamp for three things -- which version runs, where the pin
+/// points, and which versions stand locally -- and the third had no
+/// answer, because until this wave only one could stand.
+///
+/// The home is `KEEL_HOME` where it is set, exactly as the installer
+/// and the launcher read it, so a probe and a person with a moved
+/// home see the same list.
+pub fn installed() -> Vec<Standing> {
+    let home = std::env::var("KEEL_HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| {
+            std::env::var("HOME")
+                .map(|home| std::path::PathBuf::from(home).join(".keel"))
+                .unwrap_or_default()
+        });
+    let Ok(entries) = std::fs::read_dir(home.join("versions")) else {
+        return Vec::new();
+    };
+    let mut out: Vec<Standing> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let version = std::fs::read_to_string(entry.path().join(".keel-version")).ok()?;
+            Some(Standing {
+                version: version.trim().to_string(),
+                named: entry.file_name().to_string_lossy().into_owned(),
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| a.named.cmp(&b.named));
     out
 }
