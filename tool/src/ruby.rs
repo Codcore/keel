@@ -3,10 +3,11 @@
 //! `ruby` as a command of the system, exactly as a person would in a
 //! terminal, and writes nothing anywhere.
 //!
-//! Minitest, and said so aloud: RSpec keeps its examples in `spec/`
-//! and names them by string rather than by method, which is a second
-//! reading and a second wave. Promising it here silently would be the
-//! quiet narrowing §9.9 asks a reviewer to hunt.
+//! Two readings of one tongue (wave 0047): minitest in `test/`,
+//! named by method and judged from `-v`'s own lines; rspec in
+//! `spec/`, named by rspec's FULL DESCRIPTION, selected by the id a
+//! dry run gives an example, and judged from rspec's JSON. The courts
+//! above ask one adapter and never learn which reading answered.
 
 use crate::docs::Refusal;
 use crate::i18n::{t, ta};
@@ -16,10 +17,37 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// `test/**/*_test.rb` -- where the proves tags live. A project
-/// without a test directory has none, and that is not a refusal.
+/// `test/**/*_test.rb` and `spec/**/*_spec.rb` -- where the proves
+/// tags of both readings live. A project without either directory
+/// has none, and that is not a refusal.
 pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
-    let dir = root.join("test");
+    let mut out = minitest_files(root)?;
+    out.extend(spec_files(root)?);
+    out.sort();
+    Ok(out)
+}
+
+/// The first reading's files: `test/**/*_test.rb`.
+pub fn minitest_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
+    files_named(root, "test", "_test.rb")
+}
+
+/// The second reading's files: `spec/**/*_spec.rb` (wave 0047).
+pub fn spec_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
+    files_named(root, "spec", "_spec.rb")
+}
+
+/// Whether a file is the second reading's: named `*_spec.rb`. The
+/// readings are told apart by the FILE, never by the project's
+/// config -- one project may keep both.
+pub fn is_spec(file: &Path) -> bool {
+    file.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.ends_with("_spec.rb"))
+}
+
+fn files_named(root: &Path, dir: &str, suffix: &str) -> Result<Vec<PathBuf>, Refusal> {
+    let dir = root.join(dir);
     if !dir.is_dir() {
         return Ok(Vec::new());
     }
@@ -38,7 +66,7 @@ pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
             } else if path
                 .file_name()
                 .and_then(|n| n.to_str())
-                .is_some_and(|n| n.ends_with("_test.rb"))
+                .is_some_and(|n| n.ends_with(suffix))
             {
                 out.push(path);
             }
@@ -48,30 +76,31 @@ pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
     Ok(out)
 }
 
-/// The `.rb` files in `test/` this adapter does NOT read, because
-/// minitest's own convention is `*_test.rb`. A border said aloud by
-/// the tool rather than only by the README (review 0038 R-19): an
-/// RSpec `_spec.rb` sitting here is skipped, and a skip nobody names
-/// reads as "there was nothing to read".
+/// The `.rb` files in `test/` and `spec/` this adapter does NOT read,
+/// because the conventions are `*_test.rb` and `*_spec.rb`: helpers,
+/// `spec/support/`, a `spec_helper.rb`. A border said aloud by the
+/// tool rather than only by the README (review 0038 R-19): a skip
+/// nobody names reads as "there was nothing to read".
 pub fn unread_files(root: &Path) -> Vec<PathBuf> {
-    let dir = root.join("test");
     let mut out: Vec<PathBuf> = Vec::new();
-    let mut stack = vec![dir];
-    while let Some(here) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&here) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-            } else if path.extension().is_some_and(|e| e == "rb")
-                && !path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .is_some_and(|n| n.ends_with("_test.rb"))
-            {
-                out.push(path);
+    for (dir, suffix) in [("test", "_test.rb"), ("spec", "_spec.rb")] {
+        let mut stack = vec![root.join(dir)];
+        while let Some(here) = stack.pop() {
+            let Ok(entries) = std::fs::read_dir(&here) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().is_some_and(|e| e == "rb")
+                    && !path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|n| n.ends_with(suffix) || n == "spec_helper.rb")
+                {
+                    out.push(path);
+                }
             }
         }
     }
@@ -124,6 +153,9 @@ fn snake_case(word: &str) -> String {
 /// say, the failure is taken as a failure, which is the direction
 /// that cannot turn red into green.
 pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal> {
+    if is_spec(&tag.file) {
+        return run_spec(root, tag);
+    }
     let relative = tag.file.strip_prefix(root).unwrap_or(&tag.file);
     let out = Command::new("ruby")
         .arg("-Itest")
@@ -160,7 +192,36 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
 /// "could not compile".
 pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
     let mut out: BTreeMap<(String, String), bool> = BTreeMap::new();
-    for file in test_files(root)? {
+    // The second reading's roll: one rspec run per spec file, the
+    // list and the verdicts alike from rspec's JSON. Pending is
+    // neither green nor red and not in the map (§7.12); a file that
+    // did not load is the adapter's refusal aloud, with ruby's words.
+    for file in spec_files(root)? {
+        let relative = file.strip_prefix(root).unwrap_or(&file);
+        let said = rspec(root, &[relative.display().to_string()])?;
+        if let Some(words) = load_error(&said.json, &said.voice) {
+            return Err(Refusal {
+                file: file.clone(),
+                reason: ta("adapter-rspec-broken", targs!("error" => words)),
+                instead: t("adapter-rspec-broken-instead"),
+            });
+        }
+        let key = crate::adapter::battery_key(root, &file);
+        for example in examples(&said.json) {
+            let green = match example.status.as_str() {
+                "passed" => true,
+                "failed" => false,
+                _ => continue,
+            };
+            // Two examples of one full description are one key, red
+            // if either is (the rule review 0046 R-2 asked to be one
+            // in both courts).
+            out.entry((key.clone(), example.description))
+                .and_modify(|was| *was = *was && green)
+                .or_insert(green);
+        }
+    }
+    for file in minitest_files(root)? {
         let relative = file.strip_prefix(root).unwrap_or(&file);
         let stem = crate::adapter::battery_key(root, &file);
         let run = Command::new("ruby")
@@ -253,12 +314,246 @@ pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
                 .to_string(),
         );
     }
-    // Minitest ran and named nothing: the method does not exist.
-    if said.contains("0 runs") {
+    // Minitest ran and named nothing: the method does not exist. The
+    // SUMMARY line says it -- `0 runs, 0 assertions, …` -- and only
+    // that line: minitest also prints its speed, `995.6450 runs/s`,
+    // and one run in ten ends in `0 runs/s`, which a substring match
+    // read as "nothing ran" and the gate refused a green test
+    // (review 0047 R-4; the flaw was wave 0038's).
+    if said
+        .lines()
+        .any(|line| line.trim_start().starts_with("0 runs,"))
+    {
         return crate::adapter::Outcome::NotRun;
     }
     if success {
         return crate::adapter::Outcome::Green;
     }
     crate::adapter::Outcome::Failed
+}
+
+/// One example as rspec's JSON reports it: the id a run selects it
+/// by (`./spec/toy_spec.rb[1:2:1]`), the full description a tag
+/// names it by, and the state.
+struct Example {
+    id: String,
+    description: String,
+    status: String,
+}
+
+/// Runs exactly the tagged example -- by the ID rspec itself gives
+/// it, found in a dry run by the full description. Never by name:
+/// `-e` matches a SUBSTRING, so `-e works` would run `works too` as
+/// well. Two runs per test are the price of exactness, and named.
+/// Where the dry run names two examples of one description, both
+/// run, and a red among them is red.
+pub fn run_spec(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal> {
+    let relative = tag.file.strip_prefix(root).unwrap_or(&tag.file);
+    let dry = rspec(
+        root,
+        &["--dry-run".to_string(), relative.display().to_string()],
+    )?;
+    if let Some(words) = load_error(&dry.json, &dry.voice) {
+        return Ok(crate::adapter::Outcome::BuildBroken(words));
+    }
+    let ids: Vec<String> = examples(&dry.json)
+        .into_iter()
+        .filter(|example| example.description == tag.test)
+        .map(|example| example.id)
+        .collect();
+    if ids.is_empty() {
+        return Ok(crate::adapter::Outcome::NotRun);
+    }
+    let said = rspec(root, &ids)?;
+    if let Some(words) = load_error(&said.json, &said.voice) {
+        return Ok(crate::adapter::Outcome::BuildBroken(words));
+    }
+    Ok(classify_spec(&said.json, &tag.test))
+}
+
+/// What one run came to, read from rspec's JSON and from it alone:
+/// a load error before any example -- `errors_outside_of_examples`
+/// -- is a broken build with ruby's own words; among the examples of
+/// this description any `failed` is red, else any `passed` is green,
+/// else (`pending` alone) nothing ran. No example of the name: nothing
+/// ran -- whatever the exit code, which is 0 for an id that matched
+/// nothing.
+pub fn classify_spec(said: &str, test: &str) -> crate::adapter::Outcome {
+    if let Some(words) = load_error(said, "") {
+        return crate::adapter::Outcome::BuildBroken(words);
+    }
+    let named: Vec<Example> = examples(said)
+        .into_iter()
+        .filter(|example| example.description == test)
+        .collect();
+    if named.iter().any(|example| example.status == "failed") {
+        crate::adapter::Outcome::Failed
+    } else if named.iter().any(|example| example.status == "passed") {
+        crate::adapter::Outcome::Green
+    } else {
+        crate::adapter::Outcome::NotRun
+    }
+}
+
+/// The examples in rspec's JSON, in its order.
+fn examples(said: &str) -> Vec<Example> {
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(said) else {
+        return Vec::new();
+    };
+    json["examples"]
+        .as_array()
+        .map(|list| {
+            list.iter()
+                .filter_map(|example| {
+                    Some(Example {
+                        id: example["id"].as_str()?.to_string(),
+                        description: example["full_description"].as_str()?.to_string(),
+                        status: example["status"].as_str()?.to_string(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// ruby's own words when the examples could not even be loaded --
+/// rspec still writes its JSON then, with the error counted outside
+/// the examples. The WORDS are in two places: a `--require`d helper
+/// that failed is narrated on stdout ("While loading spec_helper a
+/// `raise SyntaxError` occurred …", then ruby's `file.rb:LINE: syntax
+/// error …`, in colour whatever `--no-color` says), and the JSON's
+/// own `messages` carry what followed (a `NameError` for the constant
+/// the helper never defined). Both are read, colour stripped; the
+/// loading line, the error and its detail, and the place. `None`
+/// when the run loaded its files: a failed example is not a broken
+/// build.
+fn load_error(json: &str, voice: &str) -> Option<String> {
+    let parsed = serde_json::from_str::<serde_json::Value>(json).ok()?;
+    let errors = parsed["summary"]["errors_outside_of_examples_count"]
+        .as_u64()
+        .unwrap_or(0);
+    if errors == 0 {
+        return None;
+    }
+    let mut text = voice.to_string();
+    if let Some(messages) = parsed["messages"].as_array() {
+        for message in messages.iter().filter_map(|m| m.as_str()) {
+            text.push('\n');
+            text.push_str(message);
+        }
+    }
+    // Colour out of BOTH voices: ruby paints the syntax error inside
+    // rspec's `messages` as well as on stdout (review 0047 R-3).
+    let text = strip_ansi(&text);
+    let lines: Vec<&str> = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    let mut words: Vec<String> = Vec::new();
+    if let Some(loading) = lines.iter().find(|line| {
+        line.starts_with("While loading") || line.starts_with("An error occurred while loading")
+    }) {
+        words.push((*loading).to_string());
+    }
+    if let Some(at) = lines.iter().position(|line| {
+        line.ends_with("Error:") && line.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+    }) {
+        let mut error = lines[at].to_string();
+        if let Some(detail) = lines.get(at + 1) {
+            error.push(' ');
+            error.push_str(detail);
+        }
+        words.push(error);
+    }
+    if let Some(place) = lines
+        .iter()
+        .find(|line| line.contains(".rb:") && line.to_lowercase().contains("error"))
+    {
+        words.push((*place).to_string());
+    }
+    Some(if words.is_empty() {
+        "rspec could not load the examples".to_string()
+    } else {
+        words.join(" -- ")
+    })
+}
+
+/// Colour codes out: ruby paints its own syntax errors whatever rspec
+/// is told, and a refusal's words are for a person to read.
+fn strip_ansi(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' && chars.peek() == Some(&'[') {
+            chars.next();
+            for next in chars.by_ref() {
+                if next.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+            continue;
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// rspec as a command of the system, in the project's own world --
+/// with its JSON sent to a file OUTSIDE the project, because stdout
+/// is not ours: a `.rspec` may carry the project's own `--format`,
+/// and it must be read (a standard project needs its `--require
+/// spec_helper`). `SPEC_OPTS` is dropped: rspec reads it, and a
+/// `--tag` there filtered the run away (measured). `--no-color`, or
+/// the error's words carry colour codes.
+/// What one rspec run said: its JSON (from the file), and its voice
+/// on stdout and stderr, where a load error is narrated.
+struct Said {
+    json: String,
+    voice: String,
+}
+
+fn rspec(root: &Path, args: &[String]) -> Result<Said, Refusal> {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let out_file = std::env::temp_dir().join(format!(
+        "keel-rspec-{}-{}.json",
+        std::process::id(),
+        COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let mut command = Command::new("rspec");
+    command
+        .args(["--format", "json", "--out"])
+        .arg(&out_file)
+        .arg("--no-color")
+        .args(args)
+        .current_dir(root)
+        .env_remove("SPEC_OPTS");
+    crate::scope::forget_the_hook(&mut command);
+    let out = command.output().map_err(|e| Refusal {
+        file: root.to_path_buf(),
+        reason: ta("adapter-rspec-failed", targs!("error" => e.to_string())),
+        instead: t("adapter-rspec-failed-instead"),
+    })?;
+    let json = std::fs::read_to_string(&out_file);
+    let _ = std::fs::remove_file(&out_file);
+    let voice = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    match json {
+        Ok(json) => Ok(Said { json, voice }),
+        // rspec started and left without its JSON: an `abort` in
+        // spec_helper, an `exit` in a config -- its own words say
+        // which, and "put rspec on PATH" is not the answer (review
+        // 0047 R-9).
+        Err(_) => Err(Refusal {
+            file: root.to_path_buf(),
+            reason: ta(
+                "adapter-rspec-silent",
+                targs!("error" => strip_ansi(voice.trim())),
+            ),
+            instead: t("adapter-rspec-silent-instead"),
+        }),
+    }
 }

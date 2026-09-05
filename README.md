@@ -364,9 +364,21 @@ court still runs: documents, links, scope, revisions, and the tool says which
 ones it skipped instead of leaving them green.
 
 The concept's starting set is **Elixir, Ruby, Python, TypeScript/JavaScript**.
-All four are built. What is not: RSpec — the ruby adapter is minitest — and
-the other JS runners (jest, vitest, mocha); the javascript adapter is `node
---test`. Named here rather than left for a reader to discover.
+All four are built, and the ruby adapter has both of its readings: minitest in
+`test/` and RSpec in `spec/` (wave 0047). What is not: the other JS runners
+(jest, vitest, mocha); the javascript adapter is `node --test`. Named here
+rather than left for a reader to discover.
+
+RSpec is not a sixth tongue but a **second reading of ruby**, and the courts
+above the adapter never learn which reading answered. An example is named by
+rspec's own full description — `describe "#works"` and `context "when called"`
+under `RSpec.describe Toy` give `Toy#works when called returns true`, joined the
+way rspec joins them — and it runs by the **id** a `--dry-run` gives it, never
+by its name: `-e` matches a substring. The verdict is rspec's JSON, sent to a
+file outside the project because stdout belongs to the project's own `.rspec`;
+`pending` did not run; an error outside the examples is a refusal with ruby's
+words. Two examples no tag can name — a one-liner `it { … }` and an example
+inside `shared_examples` — are refused by name.
 
 JavaScript is the first tongue whose runner **cannot** tell its states apart by
 exit code — a failed test and a `SyntaxError` both leave with 1, and a name that

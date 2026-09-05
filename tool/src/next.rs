@@ -287,15 +287,20 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
         ));
         out.push('\n');
         let mut tests = adapter::tests_dir(root)?;
-        // node reads `test/` AND `tests/`, and a project that keeps
-        // its tests in the second was told the first (review 0046
-        // R-10): the one that exists is named; where neither does,
-        // node's own convention is.
-        if language == Some(crate::config::Language::JavaScript)
+        // node reads `test/` AND `tests/`, ruby `test/` AND `spec/`,
+        // and a project that keeps its tests in the second was told
+        // the first (review 0046 R-10): the one that exists is named;
+        // where neither does, the tongue's first convention is.
+        let second = match language {
+            Some(crate::config::Language::JavaScript) => Some("tests"),
+            Some(crate::config::Language::Ruby) => Some("spec"),
+            _ => None,
+        };
+        if let Some(second) = second
             && !tests.is_dir()
-            && root.join("tests").is_dir()
+            && root.join(second).is_dir()
         {
-            tests = root.join("tests");
+            tests = root.join(second);
         }
         let shown = tests.strip_prefix(root).unwrap_or(&tests);
         out.push_str(&ta(

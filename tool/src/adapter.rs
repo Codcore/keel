@@ -179,6 +179,16 @@ pub fn run_line(root: &Path, file: &Path, test: &str) -> String {
             shell_quoted(&format!("^{}$", crate::javascript::escape_regex(test))),
             relative.display()
         ),
+        // The second reading's line is rspec's own -- and `-e` is a
+        // substring match, which the person is told beside it.
+        Some(Language::Ruby) if crate::ruby::is_spec(file) => {
+            format!(
+                "rspec {} -e {}  {}",
+                relative.display(),
+                shell_quoted(test),
+                t("run-line-rspec-note")
+            )
+        }
         Some(Language::Ruby) => format!("ruby -Itest {} -n {test}", relative.display()),
         _ => {
             let stem = file
