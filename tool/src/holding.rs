@@ -14,7 +14,12 @@ use crate::targs;
 use std::path::Path;
 
 enum Comparability {
-    Source(String),
+    /// The module's source, and the file it was read from: a finding
+    /// that says a promise is not in the module must say WHICH file
+    /// it looked in, or a person has to guess the layout (wave 0043,
+    /// the same lesson review 0038 R-16 taught for a module that is
+    /// not there at all).
+    Source(String, String),
     NoAdapter,
     /// Not a module name of this crate at all: it carries a slash or
     /// a `..`, so it points somewhere outside. Review 0035 R-2:
@@ -47,8 +52,8 @@ pub fn court(
         let Some((module, place)) = judged(contract) else {
             continue;
         };
-        let source = match comparability(root, config, module) {
-            Comparability::Source(source) => source,
+        let (source, read) = match comparability(root, config, module) {
+            Comparability::Source(source, read) => (source, read),
             // Named and not there: a finding, not a margin note
             // (wave 0035).
             Comparability::Missing(looked) => {
@@ -100,7 +105,7 @@ pub fn court(
                     place.clone(),
                     ta(
                         "holding-vanished",
-                        targs!("contract" => contract.slug.clone(), "name" => name),
+                        targs!("contract" => contract.slug.clone(), "name" => name, "file" => read.clone()),
                     ),
                     t("holding-vanished-instead"),
                 ));
@@ -121,7 +126,7 @@ pub(crate) fn survey(root: &Path, config: &Config, contracts: &[Contract]) -> (u
             continue;
         };
         let why = match comparability(root, config, module) {
-            Comparability::Source(_) => {
+            Comparability::Source(..) => {
                 checked += contract.exports.len() as u64;
                 continue;
             }
@@ -268,7 +273,7 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
         };
         for path in &looked {
             if let Ok(source) = std::fs::read_to_string(path) {
-                return Comparability::Source(source);
+                return Comparability::Source(source, shown_path(root, path));
             }
         }
         // Every path that was tried, not the first of them (review
@@ -344,8 +349,8 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
             return Comparability::Missing(format!("src/{}.rs", inner.join("/")));
         }
     };
-    match std::fs::read_to_string(path) {
-        Ok(source) => Comparability::Source(source),
+    match std::fs::read_to_string(&path) {
+        Ok(source) => Comparability::Source(source, shown_path(root, &path)),
         Err(_) => Comparability::NoFile,
     }
 }
@@ -383,10 +388,19 @@ fn strip_comments(source: &str, tongue: Option<Language>) -> String {
     // both and reading quotes is the same work -- not two similar
     // ones (wave 0042).
     if matches!(tongue, Some(Language::Ruby) | Some(Language::Elixir)) {
-        return strip_ruby_comments(source);
+        let elixir = tongue == Some(Language::Elixir);
+        // Comments first, so a `<<~TEXT` written inside one does not
+        // open a heredoc that swallows the code below it; then the
+        // text itself, because what is inside a heredoc is not source
+        // (wave 0043).
+        return blank_prose_lines(&strip_ruby_comments(source), elixir);
     }
+    // The same for rust, and one line earlier: a raw string may hold
+    // a `//` or a `/*`, so blanking it first also keeps the comment
+    // reader below from swallowing the rest of the file.
+    let source = &blank_rust_text(source);
     let mut out = String::with_capacity(source.len());
-    let mut rest = source;
+    let mut rest = source.as_str();
     loop {
         let line = rest.find("//");
         let block = rest.find("/*");
@@ -449,6 +463,148 @@ fn strip_ruby_comments(source: &str) -> String {
         out.push('\n');
     }
     out
+}
+
+/// A path as a person would name it: relative to the project root,
+/// because an absolute path in a verdict is a machine talking to
+/// itself.
+fn shown_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .display()
+        .to_string()
+}
+
+/// What lives inside a multi-line text is not source, in any tongue.
+///
+/// A contract's `exports` are compared against the module's own
+/// source (§7.6), and the comment readers above cut LINE comments
+/// only -- so a declaration written inside a string stood for a live
+/// one. Measured in all three tongues before this was written: an
+/// elixir `@moduledoc`, a ruby heredoc and a rust `r#"..."#` each
+/// held a promise nothing implements, each reported as "1 signature
+/// compared, 0 findings" (wave 0043). And it is not a corner: a doc
+/// with an example in it is the central idiom of Elixir, and an
+/// example is written in the language it documents.
+///
+/// The body is replaced by empty LINES rather than removed, so every
+/// line number a reader may later quote still counts from the top.
+fn blank_prose_lines(source: &str, elixir: bool) -> String {
+    let mut out = String::with_capacity(source.len());
+    let mut fenced = false;
+    let mut heredoc: Option<String> = None;
+    for line in source.lines() {
+        if let Some(end) = &heredoc {
+            let closed = line.trim() == end.as_str();
+            out.push('\n');
+            if closed {
+                heredoc = None;
+            }
+            continue;
+        }
+        if elixir {
+            // A fence may open and close on one line (`@doc """x"""`),
+            // so the marks are COUNTED: an odd number turns the state
+            // over, an even one leaves it -- and the line itself is
+            // text either way.
+            let fences = line.matches("\"\"\"").count();
+            if fenced || fences > 0 {
+                if fences % 2 == 1 {
+                    fenced = !fenced;
+                }
+                out.push('\n');
+                continue;
+            }
+        } else if let Some(word) = heredoc_word(line) {
+            heredoc = Some(word);
+            out.push('\n');
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
+/// The terminator a ruby heredoc opened on this line waits for --
+/// `<<~WORD`, `<<-WORD` or `<<WORD`, quoted or bare.
+fn heredoc_word(line: &str) -> Option<String> {
+    let at = line.find("<<")?;
+    let rest = &line[at + 2..];
+    let rest = rest
+        .strip_prefix('~')
+        .or_else(|| rest.strip_prefix('-'))
+        .unwrap_or(rest);
+    let rest = match rest.chars().next() {
+        Some(quote @ ('\'' | '"')) => rest.strip_prefix(quote)?,
+        _ => rest,
+    };
+    let word: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || *c == '_')
+        .collect();
+    // `a << b` is a shovel, not a heredoc; a bare `<<` with nothing
+    // name-shaped after it opens nothing.
+    (!word.is_empty()).then_some(word)
+}
+
+/// Rust keeps its multi-line text in raw strings, and the hash count
+/// is part of the fence: `r"..."`, `r#"..."#`, `r##"..."##`.
+fn blank_rust_text(source: &str) -> String {
+    let chars: Vec<char> = source.chars().collect();
+    let mut out = String::with_capacity(source.len());
+    let mut inside: Option<usize> = None;
+    let mut i = 0usize;
+    while i < chars.len() {
+        let ch = chars[i];
+        match inside {
+            None => {
+                // An `r` that is part of a longer word (`for`, `expr`)
+                // opens nothing.
+                if ch == 'r' && (i == 0 || !is_word(chars[i - 1])) {
+                    let mut j = i + 1;
+                    let mut hashes = 0usize;
+                    while j < chars.len() && chars[j] == '#' {
+                        hashes += 1;
+                        j += 1;
+                    }
+                    if chars.get(j) == Some(&'"') {
+                        inside = Some(hashes);
+                        i = j + 1;
+                        continue;
+                    }
+                }
+                out.push(ch);
+                i += 1;
+            }
+            Some(hashes) => {
+                if ch == '\n' {
+                    out.push('\n');
+                    i += 1;
+                    continue;
+                }
+                if ch == '"' {
+                    let mut j = i + 1;
+                    let mut seen = 0usize;
+                    while seen < hashes && chars.get(j) == Some(&'#') {
+                        seen += 1;
+                        j += 1;
+                    }
+                    if seen == hashes {
+                        inside = None;
+                        i = j;
+                        continue;
+                    }
+                }
+                i += 1;
+            }
+        }
+    }
+    out
+}
+
+fn is_word(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_'
 }
 
 fn collapse(text: &str) -> String {

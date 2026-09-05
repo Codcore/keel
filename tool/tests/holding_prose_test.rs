@@ -94,7 +94,11 @@ fn a_promise_alive_only_in_prose_does_not_hold() {
     // --- elixir: @moduledoc, the tongue's central idiom ---
     let dir = keel_sandbox("proseelixir");
     std::fs::create_dir_all(dir.join("lib")).unwrap();
-    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"elixir\"\n").unwrap();
+    std::fs::write(
+        dir.join("keel.toml"),
+        "lang = \"uk\"\nadapter = \"elixir\"\n",
+    )
+    .unwrap();
     std::fs::write(
         dir.join("mix.exs"),
         "defmodule Toy.MixProject do\n  use Mix.Project\n  def project, do: [app: :toy, version: \"0.1.0\", elixir: \"~> 1.14\"]\n  def application, do: []\nend\n",
