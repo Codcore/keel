@@ -122,3 +122,53 @@ fn a_python_contract_holds_its_form() {
         "and the paths it looked along are named:\n{said}"
     );
 }
+
+/// Two things review 0045 measured about where the court looks: a
+/// name with a leading dot walked OUTSIDE the project (`Path::join`
+/// of an absolute piece replaces the root), and when both `toy.py`
+/// and `toy/__init__.py` stand, python imports the package -- the
+/// court read the file.
+///
+/// proves: a-python-contract-holds-its-form@d1acbd
+#[test]
+fn the_court_looks_where_python_does_and_nowhere_else() {
+    // R-7: a dotted name that begins with a dot is no module, and
+    // certainly not a path on the machine.
+    let dir = sandbox("pydot", ".etc.hostname", "def anything()");
+    let (said, code) = keel(&dir, &["check"]);
+    assert_ne!(
+        code, 0,
+        "a name with an empty segment holds nothing:\n{said}"
+    );
+    assert!(
+        !said.contains("сигнатур звірено: 1"),
+        "and nothing outside the project was ever compared:\n{said}"
+    );
+    let dir = sandbox("pydotdot", "..toy", "def works()");
+    let (said, code) = keel(&dir, &["check"]);
+    assert_ne!(code, 0, "nor does `..toy`:\n{said}");
+    assert!(
+        said.contains("..toy"),
+        "and the finding names what was asked for:\n{said}"
+    );
+
+    // R-8: both a file and a package -- the package is what python
+    // imports, so the package is what the court reads.
+    let dir = sandbox("pyboth", "toy", "def works(a: int) -> bool");
+    std::fs::create_dir_all(dir.join("src/toy")).unwrap();
+    std::fs::write(
+        dir.join("src/toy/__init__.py"),
+        "def works(a: int) -> bool:\n    return True\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("src/toy.py"),
+        "def works(a: str) -> bool:\n    return True\n",
+    )
+    .unwrap();
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(
+        code, 0,
+        "the package's signature holds, as python would load it:\n{said}"
+    );
+}

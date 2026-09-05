@@ -253,9 +253,18 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
     // A name that reaches outside the crate is not a module of it,
     // and the court says so instead of looking (review 0035 R-2).
     if module.starts_with('/')
-        || module
-            .split("::")
-            .any(|part| part == ".." || part.contains('/'))
+        || module.split("::").any(|part| {
+            part == ".."
+                    || part.contains('/')
+                    // `.usr.share.x` split on dots gives an empty
+                    // first segment, and `Path::join` of an absolute
+                    // piece REPLACES the root -- the same hole review
+                    // 0035 R-2 shut for `/`, reopened by python's
+                    // dotted names (review 0045 R-7).
+                    || part.starts_with('.')
+                    || part.ends_with('.')
+                    || part.contains("..")
+        })
     {
         return Comparability::Outside;
     }
