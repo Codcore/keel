@@ -33,13 +33,14 @@ pub enum Language {
     Ruby,
     Elixir,
     Python,
+    JavaScript,
 }
 
 impl Language {
     /// Every spelling this release accepts, canonical name first.
     /// `cargo` is the old spelling of `rust`, kept and said aloud by
     /// check (wave 0017, review R-1).
-    pub const NAMES: [(&'static str, Language); 7] = [
+    pub const NAMES: [(&'static str, Language); 12] = [
         ("rust", Language::Rust),
         ("cargo", Language::Rust),
         ("ruby", Language::Ruby),
@@ -47,6 +48,13 @@ impl Language {
         ("mix", Language::Elixir),
         ("python", Language::Python),
         ("pytest", Language::Python),
+        // TypeScript is not a separate tongue for this runner: node
+        // 22 strips the types itself (wave 0046).
+        ("javascript", Language::JavaScript),
+        ("typescript", Language::JavaScript),
+        ("node", Language::JavaScript),
+        ("js", Language::JavaScript),
+        ("ts", Language::JavaScript),
     ];
 
     pub fn named(word: &str) -> Option<Language> {
@@ -84,6 +92,7 @@ impl Language {
             // Told not to write into the project it judges, as the
             // adapter itself is (wave 0045).
             Language::Python => "pytest -p no:cacheprovider",
+            Language::JavaScript => "node --test",
         }
     }
 

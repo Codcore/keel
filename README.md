@@ -345,9 +345,11 @@ one records the revision it was translated from, and a stale record is a finding
 
 ## Adapters — and the honest state of them
 
-Four adapters exist: **`rust`** (`"cargo"` accepted), **`ruby`** (minitest),
-**`elixir`** (`"mix"` accepted, ExUnit) and **`python`** (`"pytest"` accepted).
-All four run the language-shaped courts — the `proves:` tags are read from the
+Five adapters exist: **`rust`** (`"cargo"` accepted), **`ruby`** (minitest),
+**`elixir`** (`"mix"` accepted, ExUnit), **`python`** (`"pytest"` accepted) and
+**`javascript`** (`"typescript"`, `"node"`, `"js"`, `"ts"` accepted — `node --test`,
+which runs `.ts` too, since node 22 strips types itself).
+All five run the language-shaped courts — the `proves:` tags are read from the
 project's test files, and a contract's `exports` are compared against the
 module's own source, wherever that language keeps it.
 
@@ -357,10 +359,21 @@ court still runs: documents, links, scope, revisions, and the tool says which
 ones it skipped instead of leaving them green.
 
 The concept's starting set is **Elixir, Ruby, Python, TypeScript/JavaScript**.
-Ruby, Elixir and Python are built; TypeScript/JS is not, and RSpec is not read
-yet either — the ruby adapter is minitest, the python one is pytest. That is the
-largest remaining gap, and it is named here rather than left for a reader to
-discover.
+All four are built. What is not: RSpec — the ruby adapter is minitest — and
+the other JS runners (jest, vitest, mocha); the javascript adapter is `node
+--test`. Named here rather than left for a reader to discover.
+
+JavaScript is the first tongue whose runner **cannot** tell its states apart by
+exit code — a failed test and a `SyntaxError` both leave with 1, and a name that
+matches nothing leaves with 0 while node counts the *file* as one passed test.
+A gate that read the code would bless work over a test that does not exist. So
+the adapter reads TAP and never the code: the line naming the test decides, a
+`# SKIP` did not run, the file's own line is not a test, and node's `#
+SyntaxError` above a file that did not load is a refusal with node's words. The
+test's name goes into `--test-name-pattern` as a regular expression, so it is
+escaped — `a.b (x)` becomes `^a\.b \(x\)$` — which is wave 0044's lesson about a
+string handed to another program. And it needed a fourth comment reader: `'…'`
+is a string in JS, not a lifetime, and a template literal runs over lines.
 
 Python is the second tongue that tells its states apart by exit code, and it
 tells more of them than Elixir: **0 green, 1 failed, 2 collection broke, 4 no
@@ -381,6 +394,7 @@ family and adds none of its own.
 | `ruby` | `test/**/*_test.rb` | `ruby -Itest <file> -n <method>` | `lib/<name>.rb`, `lib/<name>/init.rb`, `app/<name>.rb` — `A::B` is `a/b.rb`, and an acronym stays one word (`HTTPServer` → `http_server`) |
 | `elixir` | `test/**/*_test.exs` | `mix test --only 'test:test <name>'` | `lib/<name>.ex` — `A.B` is `a/b.ex`, acronyms as above |
 | `python` | `tests/**/test_*.py`, `*_test.py` | `pytest <file>::<name>` (a method as `Class::name`) | `src/a/b.py`, `a/b.py`, a package's `__init__.py` — every layout python keeps, each one tried and named |
+| `javascript` | `test/**`, `tests/**` named `*.test.{js,mjs,cjs,ts,mts}` | `node --test --test-name-pattern='^<name>$' <file>` — the name escaped as a regex | `src/a/b.{ts,js,mjs,cjs,mts}`, `src/a/b/index.*`, the same at the root — typed before plain, a file before its `index` |
 
 The ruby battery reads minitest's own verbose voice, so a test file that does
 not load is a refusal aloud rather than a page of green: without a run there is
@@ -408,20 +422,25 @@ check` prints that border itself, next to a second one: ruby writes no types, so
 the §7.6 form court compares a method name and its parameters and nothing more.
 
 Adding a language is a module, a row in `Language::NAMES`, the dictionary in
-both tongues, and **seventeen** places where something branches on the tongue —
-counted off the source (`grep -n 'language_of(root)\|config.language()' tool/src/*.rs`)
-rather than guessed: the number that stood here before was six beside a list of
-seven, then fourteen while wave 0044 was adding three more, and review 0045
-counted seventeen:
+both tongues, and **nineteen** places where something branches on the tongue —
+counted off the source rather than guessed: the number that stood here before
+was six beside a list of seven, then fourteen while wave 0044 was adding three
+more, seventeen by review 0045, and review 0046 found the grep
+(`grep -n 'language_of(root)\|config.language()' tool/src/*.rs`) giving more
+lines than the hand count, because `check` asks once per tongue for the
+tongue's own limits — so the list is the count, and the grep (twenty lines
+today) is how to find what the list missed:
 
 `adapter::builds_heavily`, `build_dir`, `tests_dir`, `run_line`, `test_files`,
 `run_test`, `run_all`; `config::battery_command`; `holding::comparability` (the
 module layout) and `holding::strip_comments` (the comment shape);
 `tags::scan_text` (the declaration shape), `tags::marks` and `tags::declares`
 (these three keyed by the file's extension, never by the project's config — see
-below); `check` for the tongue's own limits; and the three wave 0044 added —
+below); `check` for the tongue's own limits; the three wave 0044 added —
 `adapter::battery_dir` (where the generated CI runs), and the two in
-`generated` that pick the toolchain step and the battery step.
+`generated` that pick the toolchain step and the battery step; and the two
+review 0046 added in `next` — the comment mark the hint writes the tag in, and
+the directory it says the tests live in.
 
 Not "one file". Wave 0042 paid exactly that price for Elixir.
 

@@ -400,6 +400,17 @@ fn pinned_toolchain(root: &Path, where_crate: Option<&str>) -> Option<String> {
     None
 }
 
+/// The file this project pins its node in, if it keeps one: `.nvmrc`
+/// first, `.node-version` second -- the two names actions/setup-node
+/// reads on its own. Only the NAME of the file goes into the
+/// workflow, never its content: the content is the action's to read,
+/// and a name this function chose cannot carry a shell's word.
+fn pinned_node(root: &Path) -> Option<&'static str> {
+    [".nvmrc", ".node-version"]
+        .into_iter()
+        .find(|file| root.join(file).is_file())
+}
+
 /// Is this a channel NAME, and nothing a shell would read as more
 /// than one? The whole of the value must be it -- a prefix that
 /// looks right is exactly how the injection above got in.
@@ -470,6 +481,28 @@ fn workflow(root: &Path, config: &Config) -> String {
                      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# turns this file red on a tree that did not change -- a verdict\n\
                      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# repeatable only by accident. Add a rust-toolchain.toml with a\n\
                      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# plain channel name, and bump it deliberately.\n"
+                .to_string(),
+        },
+        // node: the runner's own node judges unless the project
+        // names one. The step below reads the file the project
+        // already keeps for nvm, and the verdict travels with it;
+        // without one, the file says so instead of staying silent
+        // (review 0046 R-11, the lesson of wave 0044 in a fifth
+        // tongue).
+        Some(Language::JavaScript) => match pinned_node(root) {
+            Some(file) => format!(
+                "      - name: the node this project pins\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# {file} names it, and this step installs exactly that one, so\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# a verdict here is the same verdict on any other machine.\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}uses: actions/setup-node@v4\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}node-version-file: {file}\n"
+            ),
+            None => "      # No node named: this project keeps no .nvmrc and no\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# .node-version, so the battery below runs on whatever node the\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# runner carries that day (ubuntu-latest carries 22 as this is\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# written) -- a verdict repeatable only by accident. Add a .nvmrc\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# naming a version, and bump it deliberately.\n"
                 .to_string(),
         },
         _ => String::new(),

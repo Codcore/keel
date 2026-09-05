@@ -267,20 +267,41 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
         for line in body.lines() {
             out.push_str(&format!("    {line}\n"));
         }
+        let config = crate::config::read_unpinned(root).ok();
+        let language = config.as_ref().and_then(|config| config.language());
+        // The tag in the tongue's own comment mark: `#` for the
+        // family that writes it, `//` for node -- the hint used to
+        // show rust's `///` to every tongue (review 0046 R-10).
+        let mark = match language {
+            Some(
+                crate::config::Language::Ruby
+                | crate::config::Language::Elixir
+                | crate::config::Language::Python,
+            ) => "#",
+            Some(crate::config::Language::JavaScript) => "//",
+            _ => "///",
+        };
         out.push_str(&ta(
             "next-tag-line",
-            targs!("scenario" => name.clone(), "rev" => current.clone()),
+            targs!("scenario" => name.clone(), "rev" => current.clone(), "mark" => mark.to_string()),
         ));
         out.push('\n');
-        let tests = adapter::tests_dir(root)?;
+        let mut tests = adapter::tests_dir(root)?;
+        // node reads `test/` AND `tests/`, and a project that keeps
+        // its tests in the second was told the first (review 0046
+        // R-10): the one that exists is named; where neither does,
+        // node's own convention is.
+        if language == Some(crate::config::Language::JavaScript)
+            && !tests.is_dir()
+            && root.join("tests").is_dir()
+        {
+            tests = root.join("tests");
+        }
         let shown = tests.strip_prefix(root).unwrap_or(&tests);
         out.push_str(&ta(
             "next-tests-dir",
             targs!(
-                "adapter" => crate::config::read_unpinned(root)
-                    .ok()
-                    .and_then(|config| config.adapter)
-                    .unwrap_or_default(),
+                "adapter" => config.and_then(|config| config.adapter).unwrap_or_default(),
                 "dir" => format!("{}/", shown.display())
             ),
         ));
