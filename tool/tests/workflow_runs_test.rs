@@ -24,6 +24,21 @@ fn git(dir: &Path, args: &[&str]) {
     );
 }
 
+fn keel(args: &[&str]) -> (String, i32) {
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(args)
+        .output()
+        .unwrap();
+    (
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        ),
+        out.status.code().unwrap_or(-1),
+    )
+}
+
 fn born(name: &str, adapter: Option<&str>) -> Sandbox {
     let dir = sandbox(name);
     git(&dir, &["init", "-q", "-b", "main"]);
@@ -56,7 +71,7 @@ fn workflow(dir: &Path) -> String {
     fs::read_to_string(dir.join(".github/workflows/keel.yml")).unwrap()
 }
 
-/// proves: the-generated-ci-runs-where-it-is-born@8300db -- the frame
+/// proves: the-generated-ci-runs-where-it-is-born@2eee71 -- the frame
 /// wrote a workflow that calls `keel` without installing it and said
 /// so in a comment. A project that ran `keel init` and pushed got
 /// `keel: command not found` -- a red CI that is not about its work,
@@ -109,5 +124,42 @@ fn the_generated_ci_runs_where_it_is_born() {
     assert!(
         text.contains("install.sh"),
         "the installing step does not depend on a language:\n{text}"
+    );
+
+    // Review 0039 R-4: a project that PINS a version got a step that
+    // installed `main` and then a refusal from every court two lines
+    // below, because the pin and the binary differ. The generator
+    // knows the pin, so the step carries it.
+    let dir = born("cipin", Some("rust"));
+    let (said, code) = keel(&[
+        "setup",
+        dir.to_str().unwrap(),
+        "--version",
+        "pin",
+        "--no-ask",
+    ]);
+    assert_eq!(code, 0, "the pin is written:\n{said}");
+    let config = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    let pinned = config
+        .lines()
+        .find_map(|line| line.strip_prefix("version = "))
+        .expect("keel.toml carries the pin")
+        .trim()
+        .trim_matches('"')
+        .to_string();
+    let text = workflow(&dir);
+    assert!(
+        text.contains(&format!("KEEL_REF: \"{pinned}\"")),
+        "and the installing step fetches exactly that version:\n{text}"
+    );
+    let install = text.find("KEEL_REF").unwrap();
+    let court = text.find("keel check").unwrap();
+    assert!(install < court, "before any court runs:\n{text}");
+
+    // And a project that keeps its own step is told how to keep it
+    // without being nagged by `keel update` forever (R-10).
+    assert!(
+        text.contains("delete this") && text.contains("[generated]"),
+        "the file says how an edited copy is kept for good:\n{text}"
     );
 }

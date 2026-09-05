@@ -5,7 +5,9 @@
 # it needs git and cargo on the runner, and it costs minutes on a
 # cold cache. If your project already puts `keel` on PATH some other
 # way, replace this step with yours -- the courts below do not care
-# how it got there.
+# how it got there. To keep an edited copy for good, delete this
+# file's line from [generated] in keel.toml as well: otherwise
+# `keel update` will keep saying it did not overwrite you.
 name: keel
 
 on:
@@ -21,9 +23,11 @@ jobs:
           fetch-depth: 0
       - name: the tool itself
         # Clones the method into ~/.keel, then builds it from source.
-        # It needs git and cargo on the runner. Where keel.toml
-        # pins a version, set KEEL_REF to that tag here: the
-        # courts refuse while the pin and the binary differ.
+        # It needs git and cargo on the runner, and cargo writes
+        # its own registry into CARGO_HOME while it does.
+        # keel.toml pins this version, so the step fetches it.
+        env:
+          KEEL_REF: "0.1.0"
         run: |
           curl -fsSL https://raw.githubusercontent.com/Codcore/keel/main/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
