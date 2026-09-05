@@ -279,7 +279,8 @@ one records the revision it was translated from, and a stale record is a finding
 
 ## Adapters — and the honest state of them
 
-Two adapters exist: **`rust`** (`"cargo"` accepted) and **`ruby`** (minitest).
+Three adapters exist: **`rust`** (`"cargo"` accepted), **`ruby`** (minitest) and
+**`elixir`** (`"mix"` accepted, ExUnit).
 Both run the language-shaped courts — the `proves:` tags are read from the
 project's test files, and a contract's `exports` are compared against the
 module's own source, wherever that language keeps it.
@@ -290,19 +291,28 @@ court still runs: documents, links, scope, revisions, and the tool says which
 ones it skipped instead of leaving them green.
 
 The concept's starting set is **Elixir, Ruby, Python, TypeScript/JavaScript**.
-Ruby is built; the other three are not, and RSpec is not read yet either — the
-ruby adapter is minitest. That is the largest remaining gap, and it is named
-here rather than left for a reader to discover.
+Ruby and Elixir are built; Python and TypeScript/JS are not, and RSpec is not
+read yet either — the ruby adapter is minitest. That is the largest remaining
+gap, and it is named here rather than left for a reader to discover.
 
 | language | tests | one test | module source |
 |---|---|---|---|
 | `rust` | `tests/*.rs` | `cargo test --test <file> <fn> -- --exact` | `src/<name>.rs`, `src/<name>/mod.rs` |
 | `ruby` | `test/**/*_test.rb` | `ruby -Itest <file> -n <method>` | `lib/<name>.rb`, `lib/<name>/init.rb`, `app/<name>.rb` — `A::B` is `a/b.rb`, and an acronym stays one word (`HTTPServer` → `http_server`) |
+| `elixir` | `test/**/*_test.exs` | `mix test --only 'test:test <name>'` | `lib/<name>.ex` — `A.B` is `a/b.ex`, acronyms as above |
 
 The ruby battery reads minitest's own verbose voice, so a test file that does
 not load is a refusal aloud rather than a page of green: without a run there is
 no verdict for anyone. A `.rb` file in `test/` that is not named `*_test.rb` is
 not read, and the check says which ones those were.
+
+**Elixir tells the two apart, and the tool says so.** `mix test` leaves with 0
+green, **2 on a failure and 1 on a compilation error**, so a broken build is
+judged a broken build rather than a red test — and `keel check` prints that,
+not ruby's border. A border that is not about your project is as untrue as one
+left unsaid. Two smaller things measured there: an ExUnit test is named by a
+*string*, and inside a `describe` block ExUnit puts the block's name in front,
+so the tool builds the full name rather than calling it a limit.
 
 An honest limit of the ruby adapter, and §7.12 foresaw it: ruby does not tell
 "failed" from "did not load" by its exit code — both are 1. The adapter reads
@@ -311,11 +321,11 @@ a failure as a failure: the direction that cannot turn red into green. `keel
 check` prints that border itself, next to a second one: ruby writes no types, so
 the §7.6 form court compares a method name and its parameters and nothing more.
 
-Adding a third language is a module, a row in `Language::NAMES`, and six places
-where the dispatcher branches (test directory, one test, battery, build
-directory, the step command, the module layout and its comment marks) plus the
-dictionary in both tongues. Not "one file" — the number is measured, not
-guessed.
+Adding a language is a module, a row in `Language::NAMES`, and six places where
+the dispatcher branches (test directory, one test, battery, build directory,
+the step command, the module layout and its comment marks) plus the dictionary
+in both tongues. Not "one file" — and wave 0042 paid exactly that price for
+Elixir, so the number is measured twice now rather than guessed.
 
 What an adapter has to answer is small and written down:
 
