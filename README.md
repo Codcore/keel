@@ -286,6 +286,26 @@ rust `r#"..."#` — used to hold a contract's `exports` as if it were live code.
 Comments were already not code; text is not code either, in all three tongues,
 and the finding now names the file it looked in.
 
+That rule is a **reader per tongue, not a rule per mark** — and the first cut of
+it, which was three passes over three marks, is why the reviewer sent the wave
+back. Rust is read in one pass the way rustc reads it (nested `/* */`, raw
+strings with their hash count, ordinary strings with their escapes, a char
+literal told from a lifetime); before that, `ident.strip_prefix("r#")` in `syn`
+opened a raw string that was never open and **17 of the 3419 crates** in the
+local registry lost a live declaration — with the same trap already standing in
+keel's own source. Ruby and Elixir are read **line by line, deliberately**:
+ruby writes `$'` for the post-match and `?'` for a character, and carrying quote
+state across lines to catch a multi-line string cost **513 live `def`s across 87
+files** of ruby's own library. A heredoc opens only when its word really stands
+alone on a line below, so a shovel, an example inside a string, and any heredoc
+shape this reader does not know all leave the file alone.
+
+The direction is chosen and stated: this court may let a ghost through and say
+so — the borders are listed in `BACKLOG.md` — but it must not refuse a promise
+that is alive. A court that refuses live code is not a stricter court; it is a
+broken one. Measured after the rewrite: zero live declarations lost across both
+corpora.
+
 ## Two languages
 
 `lang` in `keel.toml` picks the tool's own language — `uk` or `en`. It decides
