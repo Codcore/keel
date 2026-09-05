@@ -632,7 +632,16 @@ main-help = keel — інструмент методики. Команди:
     keel new contract <слаг> [тека] — риштування контракту
     keel update [тека] — оновити згенеровані інтеграції
     keel version [тека] — версія і що вона тримає
-main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <команда>] [--trust yes|no] [--no-ask] [тека] | keel setup [ті самі прапорці] [тека] | keel concept [тека] | keel trust [тека] | keel hook [тека] | keel cuts [тека] | keel method [§N.M | розділ] [тека] | keel version [тека] | keel update [тека]
+{"  "}
+{"  "}Кожна команда бере ще:
+    -C <тека> — де працювати, замість поточної
+    --branch <імʼя> — яку гілку вважати, де git її не знає (§4.10)
+{"  "}Читальні команди — check, close, status, next, map, review,
+{"  "}version, cuts, rev, concept, method — беруть ще:
+    --json — один JSON-пакет на stdout, для скриптів і harness-ів
+main-usage = натомість (кожна команда бере ще -C <тека>, --branch <імʼя>, а читальні — --json): keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <команда>] [--trust yes|no] [--no-ask] [тека] | keel setup [ті самі прапорці] [тека] | keel concept [тека] | keel trust [тека] | keel hook [тека] | keel cuts [тека] | keel method [§N.M | розділ] [тека] | keel version [тека] | keel update [тека]
+main-usage-command = натомість, ця команда бере: { $shape }
+main-branch-ignored = --branch не вжито: git знає гілку "{ $branch }", і git тут факт — прапорець чинний лише там, де git гілки не знає (§4.10)
 
 # The settings wizard (wave 0026)
 ask-lang = Which human language does this project speak? / Якою людською мовою говорить цей проєкт?

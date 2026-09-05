@@ -21,6 +21,15 @@ use std::path::Path;
 pub struct Outcome {
     pub report: String,
     pub findings: usize,
+    /// The very rows the report was rendered from -- a file, and the
+    /// reason it is red where there is one. Kept beside the prose so
+    /// the machine road (wave 0040) reads structure instead of
+    /// splitting sentences that come in two languages.
+    pub rows: Vec<(String, Option<String>)>,
+    /// What was not judged, and why, as the margin says it.
+    pub limits: Vec<String>,
+    /// How many documents this floor walked.
+    pub documents: usize,
 }
 
 /// Walks the documents under the root and reports on every file:
@@ -832,7 +841,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     };
     writeln!(report, "{next}").unwrap();
 
-    Ok(Outcome { report, findings })
+    Ok(Outcome {
+        report,
+        findings,
+        rows,
+        limits,
+        documents,
+    })
 }
 
 /// Whether the wave's own plan branch exists and already carries its
@@ -1176,6 +1191,12 @@ fn git_line(root: &Path, args: &[&str]) -> Option<String> {
 /// A refusal rendered as a report row, the school of every floor.
 fn push_refusal_row(rows: &mut Vec<(String, Option<String>)>, root: &Path, refusal: &Refusal) {
     let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
+    // The prose keeps its own shape, to the byte (review 0040 R-1):
+    // this hand once wrote "." here for a refusal about the project
+    // itself, and the wave promised in the same breath that the plain
+    // road had not moved. An empty name IS useless as a field, so the
+    // machine road fills it there -- where a change costs nobody a
+    // diff -- and the prose stays as every existing script sees it.
     rows.push((
         shown.display().to_string(),
         Some(format!(

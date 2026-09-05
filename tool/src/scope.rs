@@ -48,6 +48,10 @@ pub fn forget_the_hook(command: &mut Command) {
         "GIT_CEILING_DIRECTORIES",
         "GIT_CONFIG_PARAMETERS",
         "GIT_CONFIG_COUNT",
+        // And keel's own word about the branch (review 0040 R-3): a
+        // battery run from a court must judge the project, not the
+        // branch its parent was told about.
+        "KEEL_BRANCH",
     ] {
         command.env_remove(name);
     }
@@ -78,10 +82,44 @@ pub fn current_branch(root: &Path) -> Option<String> {
     if from_git.is_some() {
         return from_git;
     }
+    // The flag first, then the variable: what a person typed means
+    // more than what a hook left behind. The flag lives HERE and not
+    // in the environment (review 0040 R-3): written into KEEL_BRANCH
+    // it was inherited by every child this process starts -- and
+    // `keel close` starts the project's whole battery, whose own
+    // probes then judged themselves on a branch nobody was on. Three
+    // closed waves came back red, measured.
+    if let Some(named) = NAMED_BRANCH.get() {
+        return Some(named.clone());
+    }
     std::env::var("KEEL_BRANCH")
         .ok()
         .map(|named| named.trim().to_string())
         .filter(|named| !named.is_empty())
+}
+
+/// The branch `--branch` named, held for this process alone.
+static NAMED_BRANCH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// The frame says the branch it was given, once, before any command
+/// looks. A second call is ignored: a flag is given once.
+pub fn name_the_branch(named: &str) {
+    let named = named.trim();
+    if !named.is_empty() {
+        let _ = NAMED_BRANCH.set(named.to_string());
+    }
+}
+
+/// Whether a branch was named by flag -- so a caller can say aloud
+/// that git already knew one and the word was not used.
+pub fn branch_was_named() -> bool {
+    NAMED_BRANCH.get().is_some()
+}
+
+/// The branch as git alone tells it, for a caller that needs to know
+/// whether git has an answer at all (review 0040 R-9).
+pub fn branch_by_git_public(root: &Path) -> Option<String> {
+    branch_by_git(root)
 }
 
 /// The branch as git alone tells it.
