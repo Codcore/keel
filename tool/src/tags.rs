@@ -44,6 +44,12 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
             file.extension().and_then(|e| e.to_str()),
             Some("ex") | Some("exs")
         );
+        // Python's docstring is elixir's fence, and a test inside
+        // a class is named with the class in front -- as ExUnit's
+        // `describe` names, only the block's border is INDENTATION
+        // and not `end` (wave 0045).
+        let python = file.extension().and_then(|e| e.to_str()) == Some("py");
+        let mut class: Option<(String, usize)> = None;
         let mut pending: Option<(String, String)> = None;
         let mut describing: Option<(String, usize)> = None;
         let mut depth: usize = 0;
@@ -59,8 +65,8 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
             // file `mix test` runs green was refused). Counted, not
             // flagged, because a heredoc may open and close on one
             // line.
-            if elixir {
-                let fences = trimmed.matches("\"\"\"").count();
+            if elixir || python {
+                let fences = trimmed.matches("\"\"\"").count() + trimmed.matches("'''").count();
                 let was = heredoc;
                 if fences % 2 == 1 {
                     heredoc = !heredoc;
@@ -115,6 +121,26 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                     Some((group, _)) => format!("{group} {name}"),
                     None => name,
                 })
+            } else if python {
+                // A class opens a group at its own indentation and
+                // holds it while the lines below sit deeper; a line
+                // back at that indentation or shallower closes it.
+                let indent = line.len() - line.trim_start().len();
+                if !trimmed.is_empty()
+                    && let Some((_, opened)) = &class
+                    && indent <= *opened
+                {
+                    class = None;
+                }
+                if let Some(name) = class_name(trimmed) {
+                    class = Some((name, indent));
+                    None
+                } else {
+                    fn_name(trimmed, declares).map(|name| match &class {
+                        Some((group, _)) => format!("{group}::{name}"),
+                        None => name,
+                    })
+                }
             } else {
                 fn_name(trimmed, declares)
             };
@@ -129,7 +155,7 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 }
                 continue;
             }
-            if pending.is_some() && !stands_between(trimmed, elixir) {
+            if pending.is_some() && !stands_between(trimmed, elixir || python) {
                 let (scenario, rev) = pending.take().unwrap();
                 return Err(dangling(file, &scenario, &rev));
             }
@@ -163,7 +189,7 @@ fn stands_between(trimmed: &str, elixir: bool) -> bool {
 /// projects that had done nothing.
 fn marks(file: &Path) -> &'static [&'static str] {
     match file.extension().and_then(|e| e.to_str()) {
-        Some("rb") => &["#"],
+        Some("rb") | Some("py") => &["#"],
         Some("exs") | Some("ex") => ELIXIR_MARKS,
         _ => &["///", "//!", "//"],
     }
@@ -180,7 +206,7 @@ const ELIXIR_MARKS: &[&str] = &["#"];
 /// its tests are not named by an identifier at all (see `test_name`).
 fn declares(file: &Path) -> &'static [&'static str] {
     match file.extension().and_then(|e| e.to_str()) {
-        Some("rb") => &["def "],
+        Some("rb") | Some("py") => &["def "],
         _ => &["fn "],
     }
 }
@@ -192,6 +218,18 @@ fn declares(file: &Path) -> &'static [&'static str] {
 /// and exactly as `mix test --only` selects it.
 pub fn test_name(trimmed: &str) -> Option<String> {
     quoted_after(trimmed, "test ")
+}
+
+/// The name a `class Something:` line opens, for python -- the
+/// word between `class` and the parenthesis or colon, which is what
+/// pytest puts in front of every method inside it.
+pub fn class_name(trimmed: &str) -> Option<String> {
+    let rest = trimmed.strip_prefix("class ")?;
+    let name: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect();
+    (!name.is_empty()).then_some(name)
 }
 
 /// The name a `describe "..." do` block opens. ExUnit prefixes every

@@ -50,7 +50,11 @@ const BODY: &str = "тіло обіцянки\n\n";
 /// and a test file as given.
 fn project(name: &str, test_body: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
-    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"python\"\n").unwrap();
+    std::fs::write(
+        dir.join("keel.toml"),
+        "lang = \"uk\"\nadapter = \"python\"\n",
+    )
+    .unwrap();
     std::fs::create_dir_all(dir.join("src/toy")).unwrap();
     std::fs::create_dir_all(dir.join("tests")).unwrap();
     std::fs::write(
@@ -141,7 +145,11 @@ fn python_tests_are_read_and_run() {
         "from toy import works\n\n# proves: it-works@{rev}\ndef test_it_works():\n    assert works()\n\ndef test_nobody_claims_me():\n    assert 1 == 2\n\nclass TestGrouped:\n    def test_inside(self):\n        assert True\n"
     );
     let dir = project("pybattery", &two);
-    std::fs::write(dir.join("keel/reviews/0001-a-wave.md"), "# Рецензія\n\nok\n").unwrap();
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "review"]);
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
@@ -156,6 +164,45 @@ fn python_tests_are_read_and_run() {
         "and names the red one by pytest's own name:\n{said}"
     );
     assert_ne!(code, 0, "so a red battery does not close:\n{said}");
+
+    // A tag over a METHOD is read with the class in front, which is
+    // the only name pytest will select it by -- and a docstring
+    // between them, holding a `def test_` of its own, is text: it
+    // declares nothing and orphans nothing.
+    // And a module docstring that DOCUMENTS the tag syntax -- the
+    // most natural place for a `# proves:` line that is not a tag.
+    // Read as one, it bound a promise to a `def` that exists only as
+    // an example, and the gate then ran a test pytest does not have.
+    let grouped = format!(
+        "\"\"\"How a test claims a promise here:\n\n# proves: it-works@{rev}\ndef test_example():\n    pass\n\"\"\"\nfrom toy import works\n\nclass TestGrouped:\n    \"\"\"A group.\n\n    def test_example():\n        pass\n    \"\"\"\n\n    # proves: it-works@{rev}\n    def test_inside(self):\n        assert works()\n\ndef test_after():\n    assert True\n"
+    );
+    let dir = project("pygrouped", &grouped);
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(code, 0, "a tag over a method is read, past the docstring:\n{said}");
+    assert!(
+        said.contains("тегів тестів звірено: 1"),
+        "exactly the one tag, and the docstring's `def test_example` \
+         is not a declaration:\n{said}"
+    );
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let msg = dir.join("COMMIT_EDITMSG");
+    std::fs::write(&msg, "work: тіло\n").unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["gate", msg.to_str().unwrap(), dir.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        out.status.code().unwrap_or(-1),
+        0,
+        "and the method really runs under `TestGrouped::test_inside` -- \
+         a bare `test_inside` would have been \"not found\", never \
+         green:\n{said}"
+    );
 
     // The adapter writes NOTHING into the project: no cache, no
     // bytecode. Measured, because pytest does both by default.

@@ -104,14 +104,18 @@ pub fn builds_heavily(root: &Path) -> bool {
 /// shape this whole wave exists to stop.
 pub fn battery_dir(root: &Path) -> Option<PathBuf> {
     match language_of(root) {
-        Some(Language::Ruby) | Some(Language::Elixir) => Some(root.to_path_buf()),
+        Some(Language::Ruby) | Some(Language::Elixir) | Some(Language::Python) => {
+            Some(root.to_path_buf())
+        }
         _ => crate_root(root).ok(),
     }
 }
 
 pub fn build_dir(root: &Path) -> BuildDir {
     match language_of(root) {
-        Some(Language::Ruby) => BuildDir::Nothing,
+        // pytest builds nothing -- and, told so, writes nothing
+        // either (wave 0045).
+        Some(Language::Ruby) | Some(Language::Python) => BuildDir::Nothing,
         Some(Language::Elixir) => BuildDir::At(root.join(crate::elixir::BUILD_DIR)),
         _ => match crate_root(root) {
             Ok(dir) => BuildDir::At(dir.join(BUILD_DIR)),
@@ -127,6 +131,7 @@ pub fn build_dir(root: &Path) -> BuildDir {
 pub fn tests_dir(root: &Path) -> Result<PathBuf, Refusal> {
     match language_of(root) {
         Some(Language::Ruby) | Some(Language::Elixir) => Ok(root.join("test")),
+        Some(Language::Python) => Ok(root.join("tests")),
         _ => Ok(crate_root(root)?.join("tests")),
     }
 }
@@ -137,6 +142,7 @@ pub fn run_line(root: &Path, file: &Path, test: &str) -> String {
     let relative = file.strip_prefix(root).unwrap_or(file);
     match language_of(root) {
         Some(Language::Elixir) => format!("mix test --only 'test:test {test}'"),
+        Some(Language::Python) => format!("pytest {}::{test}", relative.display()),
         Some(Language::Ruby) => format!("ruby -Itest {} -n {test}", relative.display()),
         _ => {
             let stem = file
@@ -162,6 +168,7 @@ pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
     match language_of(root) {
         Some(Language::Ruby) => return crate::ruby::test_files(root),
         Some(Language::Elixir) => return crate::elixir::test_files(root),
+        Some(Language::Python) => return crate::python::test_files(root),
         _ => {}
     }
     let dir = crate_root(root)?.join("tests");
@@ -201,6 +208,7 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
     match language_of(root) {
         Some(Language::Ruby) => return crate::ruby::run_test(root, tag),
         Some(Language::Elixir) => return crate::elixir::run_test(root, tag),
+        Some(Language::Python) => return crate::python::run_test(root, tag),
         _ => {}
     }
     let crate_dir = crate_root(root)?;
@@ -271,6 +279,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     match language_of(root) {
         Some(Language::Ruby) => return crate::ruby::run_all(root),
         Some(Language::Elixir) => return crate::elixir::run_all(root),
+        Some(Language::Python) => return crate::python::run_all(root),
         _ => {}
     }
     let crate_dir = crate_root(root)?;

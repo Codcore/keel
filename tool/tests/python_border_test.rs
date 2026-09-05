@@ -48,7 +48,11 @@ const BODY: &str = "тіло обіцянки\n\n";
 
 fn project(name: &str, test_body: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
-    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"python\"\n").unwrap();
+    std::fs::write(
+        dir.join("keel.toml"),
+        "lang = \"uk\"\nadapter = \"python\"\n",
+    )
+    .unwrap();
     std::fs::create_dir_all(dir.join("src/toy")).unwrap();
     std::fs::create_dir_all(dir.join("tests")).unwrap();
     std::fs::write(
@@ -56,7 +60,11 @@ fn project(name: &str, test_body: &str) -> common::Sandbox {
         "[project]\nname = \"toy\"\nversion = \"0.1.0\"\n\n[tool.pytest.ini_options]\npythonpath = [\"src\"]\ntestpaths = [\"tests\"]\n",
     )
     .unwrap();
-    std::fs::write(dir.join("src/toy/__init__.py"), "def works():\n    return True\n").unwrap();
+    std::fs::write(
+        dir.join("src/toy/__init__.py"),
+        "def works():\n    return True\n",
+    )
+    .unwrap();
     let mut d = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
         if *cut != "functional.correctness" {
@@ -108,7 +116,9 @@ fn a_tongue_with_five_answers_says_them() {
     // own words -- not "something went wrong".
     let dir = project(
         "pybroken",
-        &format!("from toy import works\n\n# proves: it-works@{rev}\ndef test_it_works():\n    assert works()\n"),
+        &format!(
+            "from toy import works\n\n# proves: it-works@{rev}\ndef test_it_works():\n    assert works()\n"
+        ),
     );
     std::fs::write(dir.join("src/toy/__init__.py"), "def works(:\n").unwrap();
     let (said, code) = gate(&dir);
@@ -128,10 +138,15 @@ fn a_tongue_with_five_answers_says_them() {
     // name, pytest collects nothing under it.
     let dir = project(
         "pynotrun",
-        &format!("from toy import works\n\nif False:\n    # proves: it-works@{rev}\n    def test_it_works():\n        assert works()\n\ndef test_other():\n    assert True\n"),
+        &format!(
+            "from toy import works\n\nif False:\n    # proves: it-works@{rev}\n    def test_it_works():\n        assert works()\n\ndef test_other():\n    assert True\n"
+        ),
     );
     let (said, code) = gate(&dir);
-    assert_ne!(code, 0, "work over a test that never ran does not pass:\n{said}");
+    assert_ne!(
+        code, 0,
+        "work over a test that never ran does not pass:\n{said}"
+    );
     assert!(
         !said.contains("робота проходить"),
         "and \"did not run\" is not read as green:\n{said}"
@@ -142,7 +157,9 @@ fn a_tongue_with_five_answers_says_them() {
     // stand here; what it reads and does not read, said aloud.
     let dir = project(
         "pyborder",
-        &format!("from toy import works\n\n# proves: it-works@{rev}\ndef test_it_works():\n    assert works()\n"),
+        &format!(
+            "from toy import works\n\n# proves: it-works@{rev}\ndef test_it_works():\n    assert works()\n"
+        ),
     );
     std::fs::write(dir.join("tests/conftest.py"), "# proves: it-works@aaaaaa\n").unwrap();
     let (said, code) = keel(&dir, &["check"]);
@@ -152,7 +169,10 @@ fn a_tongue_with_five_answers_says_them() {
         "it says the five states are told apart:\n{said}"
     );
     assert!(
-        !said.contains("ruby не відрізняє") && !said.contains("ця мова відрізняє «впав» від «не зібрався» кодом виходу (0 зелене, 2 падіння"),
+        !said.contains("ruby не відрізняє")
+            && !said.contains(
+                "ця мова відрізняє «впав» від «не зібрався» кодом виходу (0 зелене, 2 падіння"
+            ),
         "and carries neither ruby's nor elixir's border into a tongue \
          that has its own:\n{said}"
     );
@@ -160,4 +180,43 @@ fn a_tongue_with_five_answers_says_them() {
         said.contains("conftest.py"),
         "and names the file in tests/ it did not read:\n{said}"
     );
+}
+
+/// The five codes, played without a project on disk.
+#[test]
+fn what_pytest_said_by_its_code_alone() {
+    use keel::adapter::Outcome;
+    assert!(matches!(
+        keel::python::classify("3 passed", 0),
+        Outcome::Green
+    ));
+    assert!(matches!(
+        keel::python::classify("1 failed, 2 passed", 1),
+        Outcome::Failed
+    ));
+    assert!(matches!(
+        keel::python::classify(
+            "E   SyntaxError: invalid syntax\nInterrupted: 1 error during collection",
+            2
+        ),
+        Outcome::BuildBroken(_)
+    ));
+    assert!(matches!(
+        keel::python::classify("ERROR: not found: tests/test_toy.py::test_nope", 4),
+        Outcome::NotRun
+    ));
+    // Code 4 carries two meanings, measured after the plan was
+    // written: one node asked for in a file whose import broke is
+    // "not found" too -- and the SyntaxError stands above it.
+    assert!(matches!(
+        keel::python::classify(
+            "E   SyntaxError: invalid syntax\nERROR: not found: tests/test_toy.py::test_it_works",
+            4
+        ),
+        Outcome::BuildBroken(_)
+    ));
+    assert!(matches!(
+        keel::python::classify("no tests ran", 5),
+        Outcome::NotRun
+    ));
 }

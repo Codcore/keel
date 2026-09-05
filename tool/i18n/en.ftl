@@ -796,3 +796,10 @@ briefing-report =
     misfires on a corner; LIGHT -- a word, a number, tidiness.
     Numbers come ONLY from runs; what you could not measure, say so
     and why.
+adapter-python-failed = pytest did not start: { $error }
+adapter-python-failed-instead = put pytest on PATH -- the adapter calls pytest exactly as a person would in a terminal
+adapter-python-broken = collecting the tests broke: { $error }
+adapter-python-broken-instead = pytest says so with exit code 2, a failure with 1, "no such test" with 4; without a collection there is no verdict for anyone -- mend it and run again
+limit-python-border = measured: this tongue tells five states apart by its exit code (0 green, 1 failed, 2 collection broke, 4 no such test, 5 nothing collected), so sec. 7.12's border about the two being alike does not stand here -- a broken collection is judged broken, and an unknown node "did not run", never green
+limit-python-reads = not checked: the adapter reads only tests/**/test_*.py and *_test.py -- pytest collects them anywhere under rootdir, and unittest without pytest is not read at all; the RSpec-shaped border, named here
+limit-python-unread = not checked: the adapter does not read { $file } -- pytest collects test_*.py and *_test.py, and a tag there was not read
