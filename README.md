@@ -270,6 +270,21 @@ could **not** judge rather than painting green over it:
 `keel close` is the heavier one: it runs the project's battery three times in
 its own target directory, because an inherited cache shifts verdicts.
 
+**The generated CI runs where your crate is.** keel asks the adapter for the
+tongue's root — `Cargo.toml`, `mix.exs`, `Gemfile` — and writes a
+`working-directory` only when that differs from the repository root. Until wave
+0044 the step was `cargo test` at the root, so a project whose crate sits in a
+subdirectory got `could not find Cargo.toml` from a file keel had written for
+it. keel's own repository is that shape, and its own CI had been saying so.
+
+**And it names the toolchain it judged with**, for a tongue that has one: a
+project carrying `rust-toolchain.toml` gets its channel installed by name, and
+one carrying none gets the truth in the file — the courts take whatever the
+runner has that day, which is repeatable only by accident. keel does not pin on
+your behalf; the pin is your project's decision. It made that decision for
+itself after `clippy -D warnings` came out clean on 1.94 and red on 1.98, on the
+same tree, because a lint had been added in between.
+
 **A test it watched fail holds the wave open** — whoever claims it. That reads
 obvious and was not true until wave 0043: blockers were counted only from the
 uncovered promises of the branch's own wave, so a red test no scenario named
