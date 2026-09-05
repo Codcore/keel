@@ -97,9 +97,13 @@ fn world(name: &str) -> (Sandbox, World) {
     let stub = dir.join("stub");
     fs::create_dir_all(&stub).unwrap();
     let home = dir.join("home");
+    // The stub writes where the installer builds. Wave 0041 moved that
+    // from $KEEL_HOME to $KEEL_HOME/source, because each version now
+    // has a home of its own -- the fixture follows the layout; not one
+    // assertion of this probe changed.
     fs::write(
         stub.join("cargo"),
-        "#!/bin/sh\nout=\"$KEEL_HOME/tool/target/release\"\nmkdir -p \"$out\"\nprintf '#!/bin/sh\\necho \"keel 2.0.0 stub\"\\n' > \"$out/keel\"\nchmod +x \"$out/keel\"\n",
+        "#!/bin/sh\nout=\"$KEEL_HOME/source/tool/target/release\"\nmkdir -p \"$out\"\nprintf '#!/bin/sh\\necho \"keel 2.0.0 stub\"\\n' > \"$out/keel\"\nchmod +x \"$out/keel\"\n",
     )
     .unwrap();
     let mut perms = fs::metadata(stub.join("cargo")).unwrap().permissions();
@@ -153,7 +157,8 @@ fn install(world: &World, git_ref: Option<&str>) -> (String, i32) {
 }
 
 fn head_of(world: &World) -> String {
-    git(&world.home, &["rev-parse", "HEAD"])
+    // The clone lives in `source` since wave 0041.
+    git(&world.home.join("source"), &["rev-parse", "HEAD"])
 }
 
 /// proves: the-pin-has-a-hand@37ae08 -- `keel version` over a mismatched

@@ -117,9 +117,17 @@ The tool is a Rust crate in `tool/`; git and cargo are all it needs.
 curl -fsSL https://raw.githubusercontent.com/Codcore/keel/main/install.sh | sh
 ```
 
-That clones the repository into `~/.keel`, builds the release binary and puts
-`keel` in `~/.local/bin`. Run it again to update. `KEEL_REPO`, `KEEL_HOME` and
-`KEEL_BIN` override all three.
+That clones the repository into `~/.keel/source`, builds a release binary into
+`~/.keel/versions/<ref>/`, and puts a **launcher** at `~/.local/bin/keel`. Run
+it again to update. `KEEL_REPO`, `KEEL_HOME` and `KEEL_BIN` override all three.
+
+**Versions stand side by side.** Each installed ref gets its own home, so two
+projects on two different pins work at the same time. The launcher reads the
+`version` a project pins in `keel.toml` (honouring `-C`) and runs exactly that
+one; a pin nobody installed is a refusal naming what *is* here and the command
+that brings what is not. It never runs a different version — the wrong binary
+in silence is worse than a refusal. Before it hands over it checks the binary
+is the one that was installed. `keel version` lists what stands here.
 
 A **version** may be named — first argument or `KEEL_REF` — and then exactly
 that git ref is installed:
@@ -154,16 +162,19 @@ Then, in the project you want to work in:
 keel init
 ```
 
-**What is not built, said here rather than discovered later:** the concept's
-distribution rung — `~/.keel/versions/<version>` holding several releases side
-by side, a launcher that picks one by the pin, and a verified checksum — does
-not exist. What exists is a git ref fetched **by name**: `version` in
-`keel.toml` guards, and `KEEL_REF` fetches, and nothing verifies that what
-arrived is what was published. Worse in practice today: **no published tag
-carries the current layout** — keel v1 kept the crate outside `tool/`, so
-`KEEL_REF=v0.8.9` refuses by name and only a commit or a branch works until a
-v2 release is tagged. The installer the generated CI step fetches comes from
-`main`, unpinned: a project pinned to an older keel still runs today's script.
+**What is not built, said here rather than discovered later:** a keel release is
+a **git ref fetched by name**. The commit sha is recorded and the binary's own
+sha256 is checked before every run, so you always know *which tree* you got and
+that nobody swapped the file — but nothing proves the *ref itself* is
+trustworthy. A signed, published release with a checksum of its own is not
+built. Nor does the launcher fetch a missing version by itself: it refuses with
+the command instead.
+
+**No published tag carries the current layout** — keel v1 kept the crate outside
+`tool/`, so `KEEL_REF=v0.8.9` refuses by name and only a commit or a branch
+works until a v2 release is tagged. The installer the generated CI step fetches
+comes from `main`, unpinned: a project pinned to an older keel still runs
+today's script.
 
 ## For scripts
 
