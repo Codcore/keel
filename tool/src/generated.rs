@@ -8,7 +8,8 @@
 //! by a byte, and an artefact a hand has touched is refused aloud,
 //! never overwritten.
 
-use crate::config::Config;
+use crate::adapter;
+use crate::config::{Config, Language};
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::targs;
@@ -60,7 +61,7 @@ enum Owner {
 /// vendor-neutral home of the Agent Skills standard, which is what
 /// Cursor reads (and Codex, whose option waits for its own wave --
 /// a fact about the directory, not a promise of this release).
-fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
+fn artefacts(root: &Path, config: &Config) -> Vec<(&'static str, Kind, String)> {
     let named = config.agents();
     let skill = skill(config);
     let rows: Vec<(&'static str, Kind, Owner, String)> = vec![
@@ -99,7 +100,7 @@ fn artefacts(config: &Config) -> Vec<(&'static str, Kind, String)> {
             ".github/workflows/keel.yml",
             Kind::Whole,
             Owner::Any,
-            workflow(config),
+            workflow(root, config),
         ),
     ];
     rows.into_iter()
@@ -306,7 +307,82 @@ pub const INSTALLER: &str = "https://raw.githubusercontent.com/Codcore/keel/main
 /// builds from source, because there is no released binary yet, and
 /// it says that about itself rather than leaving a reader to find
 /// out on a runner.
-fn workflow(config: &Config) -> String {
+/// Where the tongue's own root lies, said as a person would say it:
+/// relative to the repository root, or `None` when the two are the
+/// same. A crate in a subdirectory is an ordinary shape -- keel
+/// itself is one -- and the step that judges it must run there
+/// (wave 0044). Before this, the generated battery step was
+/// `cargo test` at the repository root, and this repository's own CI
+/// answered `could not find Cargo.toml` on every run.
+fn tongue_root(root: &Path, config: &Config) -> Option<String> {
+    let found = match config.language() {
+        Some(Language::Rust) => adapter::crate_root(root).ok()?,
+        Some(Language::Elixir) => marker_dir(root, "mix.exs")?,
+        Some(Language::Ruby) => marker_dir(root, "Gemfile")?,
+        None => return None,
+    };
+    let shown = found.strip_prefix(root).ok()?.to_str()?.to_string();
+    (!shown.is_empty()).then_some(shown)
+}
+
+/// The root itself when the marker lies there, else the one
+/// first-level directory that carries it -- and nothing when the
+/// answer is not one directory, because guessing is worse than
+/// leaving the step where it was.
+fn marker_dir(root: &Path, marker: &str) -> Option<std::path::PathBuf> {
+    if root.join(marker).is_file() {
+        return Some(root.to_path_buf());
+    }
+    let mut found: Vec<std::path::PathBuf> = std::fs::read_dir(root)
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir() && path.join(marker).is_file())
+        .collect();
+    found.sort();
+    (found.len() == 1).then(|| found.remove(0))
+}
+
+/// The toolchain this project pins, if it pins one. A verdict from
+/// "whatever stable was that day" is repeatable only by accident:
+/// `clippy --all-targets -- -D warnings` was clean on the author's
+/// 1.94 and red on the runner's 1.98, on the same tree, because a
+/// lint had been added in between (wave 0044).
+fn pinned_toolchain(root: &Path, where_crate: Option<&str>) -> Option<String> {
+    let mut looked = vec![
+        root.join("rust-toolchain.toml"),
+        root.join("rust-toolchain"),
+    ];
+    if let Some(dir) = where_crate {
+        looked.insert(0, root.join(dir).join("rust-toolchain.toml"));
+        looked.insert(1, root.join(dir).join("rust-toolchain"));
+    }
+    for path in looked {
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        // `rust-toolchain` (no extension) is the bare channel; the
+        // TOML form keeps it under `channel =`.
+        if path.extension().is_none() {
+            let bare = text.trim();
+            if !bare.is_empty() && !bare.contains('[') {
+                return Some(bare.to_string());
+            }
+        }
+        for line in text.lines() {
+            if let Some(rest) = line.trim().strip_prefix("channel") {
+                let value = rest.trim_start_matches([' ', '=']).trim();
+                let value = value.trim_matches(['"', '\'']);
+                if !value.is_empty() {
+                    return Some(value.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn workflow(root: &Path, config: &Config) -> String {
     // The battery step is the tongue's own, and its absence is never
     // silence (review 0038 R-9): a project whose adapter this release
     // does not lead gets a line saying so, in the file where a person
@@ -324,9 +400,40 @@ fn workflow(config: &Config) -> String {
         ),
         None => String::new(),
     };
+    // Where the crate is, said in the step rather than assumed
+    // (wave 0044): `cargo test` at the repository root cannot run in
+    // a project whose crate sits in a subdirectory -- and that is an
+    // ordinary shape, keel's own among them.
+    let where_crate = tongue_root(root, config);
+    let inside = match &where_crate {
+        Some(dir) => format!("        working-directory: {dir}\n"),
+        None => String::new(),
+    };
+    // And which toolchain judged, for a tongue that has one. A
+    // verdict from whatever the runner had that day is repeatable
+    // only by accident; where the project pins nothing, the file says
+    // so and names what would fix it.
+    let toolchain = match config.language() {
+        Some(Language::Rust) => match pinned_toolchain(root, where_crate.as_deref()) {
+            Some(channel) => format!(
+                "      - name: the toolchain this project pins\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# rust-toolchain.toml names {channel}; rustup honours it on\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# its own, and this line says aloud WHICH one judged, so a\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# verdict here is the same verdict on any other machine.\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: rustup toolchain install {channel} --profile minimal\n"
+            ),
+            None => "      # No toolchain named: this project pins none, so the courts\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# below judge with whatever the runner has today. A lint added\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# to a newer stable turns this file red on a tree that did not\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# change -- a verdict repeatable only by accident. Add a\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# rust-toolchain.toml to fix that, and bump it deliberately.\n"
+                .to_string(),
+        },
+        _ => String::new(),
+    };
     let courts = match config.language() {
         Some(language) => format!(
-            "      - name: the battery\n        run: {}\n",
+            "{toolchain}      - name: the battery\n        run: {}\n{inside}",
             language.battery_command()
         ),
         None => "      # No battery step: keel.toml names no adapter this\n\
@@ -448,7 +555,7 @@ pub fn write(root: &Path, config: &Config) -> (String, usize) {
     }
     let mut report = String::new();
     let mut lacked = 0usize;
-    for (path, kind, fresh) in artefacts(config) {
+    for (path, kind, fresh) in artefacts(root, config) {
         // A project that answered "no hooks" gets none written -- a
         // question whose answer changes nothing is not a question
         // (wave 0026). But silence belongs only where we never were:

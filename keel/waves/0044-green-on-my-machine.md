@@ -16,11 +16,12 @@ transforms:
       - a-court-names-the-toolchain-it-judged-with
     files:
       - tool/src/generated.rs
-      - tool/i18n/uk.ftl
-      - tool/i18n/en.ftl
       - keel/contracts/tool-generated.md
       - tool/tests/generated_ci_test.rs
       - .github/workflows/keel.yml
+      - .github/workflows/tool-ci.yml
+      - rust-toolchain.toml
+      - tool/tests/generated_stands_test.rs
   a-probe-that-knows-its-machine:
     implements:
       - a-probe-without-its-tool-stops-aloud

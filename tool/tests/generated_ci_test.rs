@@ -53,7 +53,11 @@ fn project(name: &str, where_crate: &str) -> common::Sandbox {
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     )
     .unwrap();
-    std::fs::write(crate_dir.join("src/lib.rs"), "pub fn works() -> bool { true }\n").unwrap();
+    std::fs::write(
+        crate_dir.join("src/lib.rs"),
+        "pub fn works() -> bool { true }\n",
+    )
+    .unwrap();
     dir
 }
 
@@ -84,7 +88,10 @@ fn a_court_runs_where_the_crate_is() {
     // And the proof that it is not only a word in a file: the command
     // as written, run from the repository root, really runs.
     let out = Command::new("sh")
-        .args(["-c", "cd tool && cargo metadata --no-deps --format-version 1 >/dev/null"])
+        .args([
+            "-c",
+            "cd tool && cargo metadata --no-deps --format-version 1 >/dev/null",
+        ])
         .current_dir(&dir)
         .output()
         .unwrap();
