@@ -176,6 +176,11 @@ works until a v2 release is tagged. The installer the generated CI step fetches
 comes from `main`, unpinned: a project pinned to an older keel still runs
 today's script.
 
+**One tool in this repository.** The first implementation — `keel.py` and its
+Python tests in `tests/` — lived at the root beside the crate for forty waves,
+and no court said which of the two was current. Wave 0049 took it out; it is
+in the history up to that wave, and the v0.8.x tags still carry it.
+
 ## For scripts
 
 Every command takes `-C <dir>` (where to work) and `--branch <name>` (which
