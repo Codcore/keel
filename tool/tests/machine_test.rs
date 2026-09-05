@@ -41,21 +41,25 @@ fn probe_binary(stem: &str) -> Option<PathBuf> {
 /// the tongue's runner: the shape of a runner that simply does not
 /// have elixir installed. Built rather than assumed, because on this
 /// machine `mix` sits in `/usr/bin` beside everything else.
-fn path_without(tool: &str, needs: &[&str]) -> PathBuf {
-    let bin = std::env::temp_dir().join(format!("keel-{}-nobin-{tool}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&bin);
-    std::fs::create_dir_all(&bin).unwrap();
+fn path_without(tool: &str, needs: &[&str]) -> common::Sandbox {
+    // The one hand makes it, and the one hand takes it away when
+    // this test ends (wave 0030): a probe that builds its own
+    // directory in the shared temp is exactly the leak that court
+    // exists to stop, and it holds this probe too.
+    let bin = common::sandbox(&format!("nobin-{tool}"));
+    // Looked for as a FILE on the real PATH. `command -v true`
+    // answers with the shell's builtin -- a bare word, not a path --
+    // and symlinking that leaves a dangling link, so the bare PATH
+    // silently lacked what it was meant to carry.
+    let path = std::env::var("PATH").unwrap_or_default();
     for want in needs {
-        let Ok(found) = Command::new("sh")
-            .args(["-c", &format!("command -v {want}")])
-            .output()
+        let Some(real) = path
+            .split(':')
+            .map(|dir| PathBuf::from(dir).join(want))
+            .find(|candidate| candidate.is_file())
         else {
-            continue;
+            panic!("{want} must be a real file on PATH for this probe to build its world");
         };
-        let real = String::from_utf8_lossy(&found.stdout).trim().to_string();
-        if real.is_empty() {
-            continue;
-        }
         std::os::unix::fs::symlink(&real, bin.join(want)).unwrap();
     }
     bin
@@ -67,7 +71,11 @@ fn a_probe_without_its_tool_stops_aloud() {
     let Some(probe) = probe_binary("elixir_border_test-") else {
         panic!("the elixir probe binary was not found beside this one");
     };
-    let bare = path_without("mix", &["git", "sh"]);
+    // `true` travels with it deliberately: a runner without elixir
+    // still has coreutils, and a PATH so bare that EVERY probe of the
+    // machine fails would let a hand that asks the wrong question
+    // pass for one that asks the right one.
+    let bare = path_without("mix", &["git", "sh", "true"]);
     let bare_path = bare.display().to_string();
     // It really is absent under that PATH -- otherwise this proves
     // nothing at all.
@@ -82,8 +90,12 @@ fn a_probe_without_its_tool_stops_aloud() {
          nothing"
     );
 
+    // `--nocapture`, or the harness swallows the very sentence this
+    // probe exists to read: without it the assertion below was
+    // satisfied by a TEST NAME that happens to contain "mix", and a
+    // mutation that made the skip name the wrong tool survived.
     let out = Command::new(&probe)
-        .args(["--test-threads", "1"])
+        .args(["--test-threads", "1", "--nocapture"])
         .env("PATH", &bare_path)
         .output()
         .unwrap();
@@ -100,8 +112,9 @@ fn a_probe_without_its_tool_stops_aloud() {
          fault:\n{said}"
     );
     assert!(
-        said.contains("mix"),
-        "and it says aloud what it lacked, so a person reading the log \
-         knows what was not judged:\n{said}"
+        said.contains("skipped, and said aloud") && said.contains("`mix` is not on this machine"),
+        "and it says aloud WHAT it lacked, in the skip itself and not \
+         merely in a test's name, so a person reading the log knows \
+         what was not judged:\n{said}"
     );
 }

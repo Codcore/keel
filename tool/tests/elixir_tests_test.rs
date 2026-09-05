@@ -44,13 +44,6 @@ fn keel(dir: &Path, args: &[&str]) -> (String, i32) {
     )
 }
 
-fn have_mix() -> bool {
-    Command::new("mix")
-        .arg("--version")
-        .output()
-        .is_ok_and(|out| out.status.success())
-}
-
 const BODY: &str = "тіло обіцянки\n\n";
 
 /// A mix project: mix.exs, a module, and a test file as given.
@@ -110,7 +103,9 @@ fn test_file(rev: &str) -> String {
 /// the four were built.
 #[test]
 fn elixir_tests_are_read_and_run() {
-    assert!(have_mix(), "this probe runs a real mix; it is not on PATH");
+    if !common::machine_has("mix").ready() {
+        return;
+    }
     let rev = keel::rev::text_rev(BODY);
     let dir = project("extags", &test_file(&rev));
 
