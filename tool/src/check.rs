@@ -210,6 +210,8 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     if config.language() == Some(crate::config::Language::Ruby) {
         extra_limits.push(t("limit-ruby-border"));
         extra_limits.push(t("limit-ruby-form"));
+        // The second reading and its own borders (wave 0047).
+        extra_limits.push(t("limit-rspec-border"));
         // And which files in test/ this adapter walked past (R-19).
         let unread = crate::ruby::unread_files(root);
         if !unread.is_empty() {

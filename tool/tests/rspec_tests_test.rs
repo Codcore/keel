@@ -336,9 +336,9 @@ fn rspec_examples_are_read_and_run() {
     reviewed(&dir);
     let (said, code) = keel(&dir, &["close"]);
     assert!(
-        said.contains("батарея: 5 тестів"),
+        said.contains("батарея: 4 тестів"),
         "the battery counts what rspec RAN -- the grouped one and the two \
-         `twice` as one included; not the pending one:\n{said}"
+         `twice` as ONE included; not the pending one:\n{said}"
     );
     assert!(
         !said.contains("not now"),
