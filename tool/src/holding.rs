@@ -6,7 +6,7 @@
 //! nothing, builds nothing, writes nothing (§7.10).
 
 use crate::adapter;
-use crate::config::Config;
+use crate::config::{Config, Language};
 use crate::docs::{Contract, Wave};
 use crate::i18n::{t, ta};
 use crate::tags::TestTag;
@@ -79,7 +79,7 @@ pub fn court(
         };
         // Comments are not code (0010 review R-3): a promise that
         // survives only in a comment has vanished.
-        let bare = strip_comments(&source);
+        let bare = strip_comments(&source, config.language());
         let flat_source = collapse(&bare);
         for signature in &contract.exports {
             if found_bounded(&flat_source, &collapse(signature)) {
@@ -129,7 +129,10 @@ pub(crate) fn survey(root: &Path, config: &Config, contracts: &[Contract]) -> (u
                 // A named yet unknown adapter is not painted absent
                 // (review 0017 R-3): the words tell which it is.
                 if config.adapter.is_some() {
-                    t("holding-why-unknown-adapter")
+                    ta(
+                        "holding-why-unknown-adapter",
+                        targs!("known" => Language::known()),
+                    )
                 } else {
                     t("holding-why-no-adapter")
                 }
@@ -255,19 +258,27 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
     // 0038): `Toy::Bar` in `lib/toy/bar.rb`. The court asks the
     // adapter where to look instead of knowing one language's
     // layout by heart.
-    if config.language() == Some(crate::config::Language::Ruby) {
+    if config.language() == Some(Language::Ruby) {
         let looked = crate::ruby::module_paths(root, module);
         for path in &looked {
             if let Ok(source) = std::fs::read_to_string(path) {
                 return Comparability::Source(source);
             }
         }
+        // Every path that was tried, not the first of them (review
+        // 0038 R-16): the scenario promises "the path it looked
+        // along", and three were walked.
         let shown = looked
-            .first()
-            .and_then(|path| path.strip_prefix(root).ok())
+            .iter()
+            .filter_map(|path| path.strip_prefix(root).ok())
             .map(|path| path.display().to_string())
-            .unwrap_or_else(|| module.to_string());
-        return Comparability::Missing(shown);
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Comparability::Missing(if shown.is_empty() {
+            module.to_string()
+        } else {
+            shown
+        });
     }
     let segments: Vec<&str> = module.split("::").collect();
     let Ok(crate_dir) = adapter::crate_root(root) else {
@@ -356,9 +367,15 @@ fn found_bounded(haystack: &str, needle: &str) -> bool {
     false
 }
 
-/// Line and block comments cut out; string literals stay text --
-/// that limit is named by the contract.
-fn strip_comments(source: &str) -> String {
+/// Line and block comments cut out. Which marks open one is the
+/// tongue's own (review 0038 R-4): reading Rust's `//` and `/* */`
+/// in a ruby file let a method alive only behind `#` pass for a live
+/// one, and cut a `"http://..."` -- and a `"/*"` swallowed the whole
+/// rest of the file.
+fn strip_comments(source: &str, tongue: Option<Language>) -> String {
+    if tongue == Some(Language::Ruby) {
+        return strip_ruby_comments(source);
+    }
     let mut out = String::with_capacity(source.len());
     let mut rest = source;
     loop {
@@ -388,6 +405,43 @@ fn strip_comments(source: &str) -> String {
     }
 }
 
+/// `#` opens a comment in ruby unless it stands inside a string --
+/// and `#{...}` interpolation is inside one by definition. Quotes
+/// are read rather than guessed at, which is why a URL keeps its
+/// fragment. The border, said rather than hidden: a heredoc or a
+/// `%w[]` list carrying a `#` is cut here, as this reads one line at
+/// a time.
+fn strip_ruby_comments(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    for line in source.lines() {
+        let mut quote: Option<char> = None;
+        let mut escaped = false;
+        let mut cut = line.len();
+        for (at, ch) in line.char_indices() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            match ch {
+                '\\' => escaped = true,
+                '"' | '\'' => match quote {
+                    None => quote = Some(ch),
+                    Some(open) if open == ch => quote = None,
+                    _ => {}
+                },
+                '#' if quote.is_none() => {
+                    cut = at;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        out.push_str(&line[..cut]);
+        out.push('\n');
+    }
+    out
+}
+
 fn collapse(text: &str) -> String {
     // rustfmt's wrapping is formatting, not form (§2.9 compares what
     // the language writes): the trailing comma before a closing
@@ -402,6 +456,12 @@ fn collapse(text: &str) -> String {
         .replace(", )", ")")
         .replace(" )", ")")
         .replace(", }", " }")
+        // Ruby writes no types, so the space after a comma is
+        // formatting there exactly as rustfmt's wrapping is here --
+        // and `def f(a, b)` against `def f(a,b)` was a finding
+        // (review 0038, the fourth commitment). Both sides pass
+        // through this hand, so the comparison stays honest.
+        .replace(", ", ",")
 }
 
 /// The unit a signature promises: the word after the language's
