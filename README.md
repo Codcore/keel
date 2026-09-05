@@ -345,9 +345,9 @@ one records the revision it was translated from, and a stale record is a finding
 
 ## Adapters — and the honest state of them
 
-Three adapters exist: **`rust`** (`"cargo"` accepted), **`ruby`** (minitest) and
-**`elixir`** (`"mix"` accepted, ExUnit).
-All three run the language-shaped courts — the `proves:` tags are read from the
+Four adapters exist: **`rust`** (`"cargo"` accepted), **`ruby`** (minitest),
+**`elixir`** (`"mix"` accepted, ExUnit) and **`python`** (`"pytest"` accepted).
+All four run the language-shaped courts — the `proves:` tags are read from the
 project's test files, and a contract's `exports` are compared against the
 module's own source, wherever that language keeps it.
 
@@ -357,15 +357,30 @@ court still runs: documents, links, scope, revisions, and the tool says which
 ones it skipped instead of leaving them green.
 
 The concept's starting set is **Elixir, Ruby, Python, TypeScript/JavaScript**.
-Ruby and Elixir are built; Python and TypeScript/JS are not, and RSpec is not
-read yet either — the ruby adapter is minitest. That is the largest remaining
-gap, and it is named here rather than left for a reader to discover.
+Ruby, Elixir and Python are built; TypeScript/JS is not, and RSpec is not read
+yet either — the ruby adapter is minitest, the python one is pytest. That is the
+largest remaining gap, and it is named here rather than left for a reader to
+discover.
+
+Python is the second tongue that tells its states apart by exit code, and it
+tells more of them than Elixir: **0 green, 1 failed, 2 collection broke, 4 no
+such test, 5 nothing collected** — measured with the real pytest before the wave
+was planned. One of those turned out to carry two meanings once the plan met the
+machine: asked for a single node in a file whose import broke, pytest answers 4
+and prints the `SyntaxError` above it, so that one code is told apart by its
+text. The plan had said the text would never be asked; the contract records
+where the measurement won. pytest also writes into the project it judges
+(`.pytest_cache`, `__pycache__`) unless told not to — the adapter tells it, and
+`find` after a run comes back empty. A docstring is Elixir's fence and `#` is
+Ruby's mark, so Python shares the one comment reader wave 0043 built for that
+family and adds none of its own.
 
 | language | tests | one test | module source |
 |---|---|---|---|
 | `rust` | `tests/*.rs` | `cargo test --test <file> <fn> -- --exact` | `src/<name>.rs`, `src/<name>/mod.rs` |
 | `ruby` | `test/**/*_test.rb` | `ruby -Itest <file> -n <method>` | `lib/<name>.rb`, `lib/<name>/init.rb`, `app/<name>.rb` — `A::B` is `a/b.rb`, and an acronym stays one word (`HTTPServer` → `http_server`) |
 | `elixir` | `test/**/*_test.exs` | `mix test --only 'test:test <name>'` | `lib/<name>.ex` — `A.B` is `a/b.ex`, acronyms as above |
+| `python` | `tests/**/test_*.py`, `*_test.py` | `pytest <file>::<name>` (a method as `Class::name`) | `src/a/b.py`, `a/b.py`, a package's `__init__.py` — every layout python keeps, each one tried and named |
 
 The ruby battery reads minitest's own verbose voice, so a test file that does
 not load is a refusal aloud rather than a page of green: without a run there is
@@ -393,16 +408,20 @@ check` prints that border itself, next to a second one: ruby writes no types, so
 the §7.6 form court compares a method name and its parameters and nothing more.
 
 Adding a language is a module, a row in `Language::NAMES`, the dictionary in
-both tongues, and **fourteen** places where something branches on the tongue —
-counted off the source rather than guessed, because the number that stood here
-before (six, beside a list of seven) was neither:
+both tongues, and **seventeen** places where something branches on the tongue —
+counted off the source (`grep -n 'language_of(root)\|config.language()' tool/src/*.rs`)
+rather than guessed: the number that stood here before was six beside a list of
+seven, then fourteen while wave 0044 was adding three more, and review 0045
+counted seventeen:
 
 `adapter::builds_heavily`, `build_dir`, `tests_dir`, `run_line`, `test_files`,
 `run_test`, `run_all`; `config::battery_command`; `holding::comparability` (the
 module layout) and `holding::strip_comments` (the comment shape);
 `tags::scan_text` (the declaration shape), `tags::marks` and `tags::declares`
 (these three keyed by the file's extension, never by the project's config — see
-below); and `check` for the tongue's own limits.
+below); `check` for the tongue's own limits; and the three wave 0044 added —
+`adapter::battery_dir` (where the generated CI runs), and the two in
+`generated` that pick the toolchain step and the battery step.
 
 Not "one file". Wave 0042 paid exactly that price for Elixir.
 

@@ -179,6 +179,20 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             extra_limits.push(ta("limit-elixir-unread", targs!("file" => shown)));
         }
     }
+    if config.language() == Some(crate::config::Language::Python) {
+        // Five states told apart by exit code -- measured, and
+        // said as a measurement rather than counted as a limit.
+        measured.push(t("limit-python-border"));
+        extra_limits.push(t("limit-python-reads"));
+        for path in crate::python::unread_files(root) {
+            let shown = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .display()
+                .to_string();
+            extra_limits.push(ta("limit-python-unread", targs!("file" => shown)));
+        }
+    }
     if config.language() == Some(crate::config::Language::Ruby) {
         extra_limits.push(t("limit-ruby-border"));
         extra_limits.push(t("limit-ruby-form"));

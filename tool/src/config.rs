@@ -32,18 +32,21 @@ pub enum Language {
     Rust,
     Ruby,
     Elixir,
+    Python,
 }
 
 impl Language {
     /// Every spelling this release accepts, canonical name first.
     /// `cargo` is the old spelling of `rust`, kept and said aloud by
     /// check (wave 0017, review R-1).
-    pub const NAMES: [(&'static str, Language); 5] = [
+    pub const NAMES: [(&'static str, Language); 7] = [
         ("rust", Language::Rust),
         ("cargo", Language::Rust),
         ("ruby", Language::Ruby),
         ("elixir", Language::Elixir),
         ("mix", Language::Elixir),
+        ("python", Language::Python),
+        ("pytest", Language::Python),
     ];
 
     pub fn named(word: &str) -> Option<Language> {
@@ -78,6 +81,9 @@ impl Language {
                 "ruby -Itest -e 'Dir.glob(\"test/**/*_test.rb\").each { |f| require File.expand_path(f) }'"
             }
             Language::Elixir => "mix test",
+            // Told not to write into the project it judges, as the
+            // adapter itself is (wave 0045).
+            Language::Python => "pytest -p no:cacheprovider",
         }
     }
 
