@@ -88,8 +88,33 @@ fn a_javascript_contract_holds_its_form() {
         );
     }
 
+    // Typed BEFORE plain (review 0046 R-8, mutation M03): where both
+    // `src/toy.ts` and `src/toy.js` exist, the typed one is the
+    // module compared, as the contract promises.
+    let dir = sandbox("jstsfirst", "toy", "export function works()");
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(
+        dir.join("src/toy.ts"),
+        "export function works() {\n  return true;\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("src/toy.js"),
+        "export function other() {\n  return true;\n}\n",
+    )
+    .unwrap();
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(
+        code, 0,
+        "with both beside each other, the typed file is the one read:\n{said}"
+    );
+
     // Ghosts do not hold, in each shape of text.
     for (name, source) in [
+        (
+            "jsghost5",
+            "const s = \"export function ghost(a)\";\nexport function works() {}\n",
+        ),
         (
             "jsghost1",
             "const doc = `\n  export function ghost(a)\n`;\nexport function works() {}\n",
@@ -132,6 +157,49 @@ fn a_javascript_contract_holds_its_form() {
     assert_eq!(
         code, 0,
         "an apostrophe does not eat the declaration after it:\n{said}"
+    );
+
+    // An apostrophe in a REGEX LITERAL on the same line as the
+    // declaration: the old reader dropped the rest of the line with
+    // the string it thought had opened (review 0046 R-7). Now the
+    // quote is put back as code and the declaration after it is read.
+    let dir = sandbox("jsregexline", "toy", "export function works()");
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(
+        dir.join("src/toy.js"),
+        "const re = /don't/; export function works() {\n  return re.test('x');\n}\n",
+    )
+    .unwrap();
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(
+        code, 0,
+        "a quote that never closes on its line is code, and so is the \
+         rest of the line:\n{said}"
+    );
+
+    // Diverged -- named as diverged (review 0046 R-9): the unit is
+    // there under its name, and its signature is not the promised
+    // one; that is not "no such unit".
+    let dir = sandbox(
+        "jsdiverged",
+        "toy",
+        "export function works(a: number, b: number): number",
+    );
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(
+        dir.join("src/toy.ts"),
+        "export function works(a: number): number {\n  return a;\n}\n",
+    )
+    .unwrap();
+    let (said, code) = keel(&dir, &["check"]);
+    assert_ne!(code, 0, "a diverged signature does not hold:\n{said}");
+    assert!(
+        said.contains("не сходиться") && said.contains("\"works\""),
+        "and is named as diverged, by the unit's name:\n{said}"
+    );
+    assert!(
+        !said.contains("такої одиниці"),
+        "not as a unit that is not there:\n{said}"
     );
 
     // Missing: every path that was tried is named.

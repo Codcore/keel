@@ -837,14 +837,26 @@ fn strip_js(source: &str) -> String {
                     break;
                 }
                 // A plain string does not run over a line; where one
-                // seems to, the quote was something else (an
-                // apostrophe in a regex, say) and the line is code.
+                // seems to, the quote was something else -- an
+                // apostrophe in a regex literal, in JSX text -- and
+                // the line is code. So the quote is put back as one
+                // character and the reading resumes right after it:
+                // the old reader dropped everything from the quote to
+                // the end of the line, and `const re = /don't/; export
+                // function works() {}` lost its declaration (review
+                // 0046 R-7). A `/…/` literal is still not read as one:
+                // a `//` inside it opens a comment, and that border
+                // stays named.
                 if chars[i] == '\n' && ch != '`' {
+                    out.push(ch);
+                    i = from + 1;
                     break;
                 }
                 i += 1;
             }
-            only_newlines(&mut out, &chars, from, i);
+            if i > from + 1 || i == n {
+                only_newlines(&mut out, &chars, from, i);
+            }
             continue;
         }
         out.push(ch);
@@ -888,14 +900,36 @@ fn collapse(text: &str) -> String {
 /// The unit a signature promises: the word after the language's
 /// keyword, so "diverged" and "vanished" are told apart honestly.
 fn unit_name(signature: &str) -> Option<String> {
-    const KEYWORDS: [&str; 8] = [
-        "fn", "enum", "struct", "trait", "const", "static", "type", "mod",
+    // Rust's words, and the words the other tongues declare with:
+    // without `function`, `class` and `def` a diverged signature was
+    // reported as "no such unit" in javascript and python alike, and
+    // the scenarios promised "diverged -- named" (review 0046 R-9).
+    const KEYWORDS: [&str; 15] = [
+        "fn",
+        "enum",
+        "struct",
+        "trait",
+        "const",
+        "static",
+        "type",
+        "mod",
+        "function",
+        "class",
+        "interface",
+        "def",
+        "defp",
+        "defmodule",
+        "module",
     ];
     let mut tokens = signature.split_whitespace().peekable();
     while let Some(token) = tokens.next() {
         if KEYWORDS.contains(&token) {
-            let name: String = tokens
-                .next()?
+            // `def self.works(a)` names `works`: the receiver before
+            // the last dot is not the unit.
+            let named = tokens.next()?;
+            let named = named.split('(').next().unwrap_or(named);
+            let named = named.rsplit('.').next().unwrap_or(named);
+            let name: String = named
                 .chars()
                 .take_while(|c| c.is_alphanumeric() || *c == '_')
                 .collect();
