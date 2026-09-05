@@ -197,16 +197,33 @@ every message, every refusal, and which normative text `keel method` and
 `keel cuts` serve. The Ukrainian text is the source of truth (§1.8); the English
 one records the revision it was translated from, and a stale record is a finding.
 
-## Adapters
+## Adapters — and the honest state of them
 
-`adapter = "rust"` (`"cargo"` accepted) turns on the language-shaped courts: the
-test tags are read from `tests/*.rs`, and a contract's `exports` are compared
-against the module's collapsed source. A project without an adapter still gets
-every document, link, scope and revision court — the tool says which ones it
-skipped instead of leaving them green.
+**Today there is exactly one adapter, `rust` (`"cargo"` accepted), and it exists
+so that keel can judge itself.** No adapter for any other language is written
+yet. If your project is not Rust, say so plainly: you get every document, link,
+scope and revision court, and the tool names the ones it skipped instead of
+leaving them green — but the two language-shaped courts (test tags, contract
+form) do not run.
 
-A contract may also carry `verify: <command>`: `keel close` runs it, and its
-fingerprint is recorded so it cannot be swapped later.
+The concept's starting set is **Elixir, Ruby, Python, TypeScript/JavaScript**,
+and none of the four is built. That is the largest gap in this tool, and it is
+named here rather than left for a reader to discover.
+
+What an adapter has to answer is small and written down:
+
+| question | why |
+|---|---|
+| where do the test files live | the `proves:` tags are read from them (§5.5) |
+| how to run exactly one test | the red birth is judged by watching it fail (§7.12) |
+| how to run the whole battery | `keel close` runs it three times (§7.13) |
+| how to read a module's source | a contract's `exports` are compared against it (§7.6) |
+| can it tell "failed" from "did not build" | §7.12; where it cannot, it accepts any failure and says so |
+
+A contract may also carry `verify: <command>`, and that road is
+language-independent: `keel close` runs the command and records its fingerprint,
+so it cannot be swapped later (§7.16). Until your language has an adapter,
+`verify` is how a contract can still be held by machine.
 
 ## What `init` puts in a project
 
