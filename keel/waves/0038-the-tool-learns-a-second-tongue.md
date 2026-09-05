@@ -25,6 +25,9 @@ transforms:
       - tool/src/next.rs
       - tool/src/rev.rs
       - tool/src/status.rs
+      - tool/src/ask.rs
+      - tool/src/generated.rs
+      - keel/contracts/tool-adapter-cargo.md
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/adapter_choice_test.rs
@@ -37,6 +40,7 @@ transforms:
       - tool/src/tags.rs
       - tool/src/close.rs
       - one new in tool/src/
+      - keel/contracts/tool-adapter-ruby.md
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/ruby_tests_test.rs
@@ -45,6 +49,7 @@ transforms:
       - a-ruby-contract-holds-its-form
     files:
       - tool/src/holding.rs
+      - tool/src/check.rs
       - keel/contracts/tool-holding.md
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
@@ -82,7 +87,7 @@ decisions:
   security.resistance: "не застосовується"
   maintainability.modularity: "тримає a-ruby-contract-holds-its-form: мовне обличчя живе в адаптері, а суди питають адаптер, а не мову"
   maintainability.reusability: "не застосовується"
-  maintainability.modifiability: "свідомо без тесту: третя мова додається одним модулем і рядком у переліку — це й доводить сам факт другої"
+  maintainability.modifiability: "свідомо без тесту, і число назване чесно: третя мова — це модуль, рядок у Language::NAMES і дотик до шести місць диспетчеризації (adapter, holding, ask, next, generated, i18n); «один модуль і рядок» було б неправдою (рецензія 0038 R-11)"
   maintainability.testability: "свідомо без тесту: усі три проби будують пісочниці спільною рукою 0030 і дають git власну особу"
   flexibility.scalability: "не застосовується"
   flexibility.installability: "не застосовується"
@@ -91,7 +96,7 @@ decisions:
   safety.risk-identification: "свідомо без окремої роботи: ризик названий числом — суди з мовним обличчям не бігли в жодному не-Rust проєкті"
   safety.fail-safe: "тримає ruby-tests-are-read-and-run: де адаптер не певен, він каже «не перевірено», а не малює зелене"
   safety.hazard-warning: "не застосовується"
-  safety.safe-integration: "свідомо без окремої роботи: наявний rust-проєкт має поводитись побайтово так само — це міряє проба вибору"
+  safety.safe-integration: "тримає the-adapter-is-chosen-by-name: проба вибору міряє, що назване імʼя справді вмикає мовні суди, а не лише що вихід нульовий, і окремо — що Rust-файл із ruby-фікстурою в сирому рядку читається як Rust. Побайтову тотожність бази і гілки міряв рецензент; механікою хвилі вона не тримається, і це сказано, а не приписано пробі (рецензія 0038 R-12)"
 ---
 
 ## Why
@@ -174,18 +179,38 @@ Ruby не пише типів, тож порівнюється **імʼя мет
 
 `adapter.rs` перестає бути одним зашитим cargo: адаптер — імʼя, яке
 реліз знає, і за ним вибирається виконавець. `config.rs` замість
-`rust_adapter()` віддає, який саме адаптер названо. Контракт
-`tool-adapter` описує, на що адаптер мусить відповідати.
+`rust_adapter()` віддає, який саме адаптер названо. На що адаптер
+мусить відповідати, описує контракт `tool-adapter-cargo` — той самий
+файл, бо диспетчер живе в `keel::adapter` поруч із рукою cargo, і
+контракт це каже вголос замість обіцяти окремий, якого нема
+(рецензія 0038 R-13).
+
+Вибір мусить дійти й туди, куди спершу не дійшов: `ask.rs` пропонує
+кожну мову, яку реліз веде — інакше `keel init --adapter ruby`
+відмовляв тому, що суди вже розуміли; `next.rs` питає адаптер, де
+лежать тести і якою командою жене один; `generated.rs` пише крок
+батареї мовою проєкту, а де мови не названо — рядок про те, що кроку
+нема і чому; `init.rs` не каже ruby-проєктові, що не знайшов його
+крейта (R-5, R-9, R-18).
 
 ## transform: ruby-tests-are-found-and-run
 
 Виконавець для Ruby: пошук тестових файлів, біг одного тесту, біг
-батареї, розбір падінь і чесна межа про «не зібрався».
+батареї, розбір падінь і чесна межа про «не зібрався». Вироки батареї
+читаються з власного голосу minitest (`-v`), а не з тексту файлу:
+читання тексту робило зеленим файл, який не завантажився, надувало
+число тестів методами, яких minitest не жене, і тягло зелений тест
+червоним за іменем, яке він лише починає (R-1, R-6, R-20). Читач
+тегів `tags.rs` при цьому питає **імʼя файлу**, а не мову проєкту:
+`#` — це коментар у ruby і паркан сирого рядка в Rust (R-3).
 
 ## transform: a-ruby-module-is-compared
 
 `holding.rs` питає адаптер, де лежить джерело модуля, замість знати
-це про Rust.
+це про Rust, — і якими знаками в цій мові відкривається коментар:
+рустівські `//` і `/* */` у ruby-файлі пускали закоментований метод
+за живий і різали URL навпіл (R-4). Межу §7.6 для мови без типів
+каже сам `keel check` рядком меж, а не лише проза хвилі.
 
 ## transform: journal
 

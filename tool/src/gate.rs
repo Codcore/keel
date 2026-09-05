@@ -76,7 +76,10 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
             .unwrap_or_else(|| t("gate-adapter-absent-name"));
         let report = format!(
             "{mode_line}\n{}\n",
-            ta("gate-adapter-unjudged", targs!("name" => name))
+            ta(
+                "gate-adapter-unjudged",
+                targs!("name" => name, "known" => crate::config::Language::known()),
+            )
         );
         return Ok((report, 0));
     }

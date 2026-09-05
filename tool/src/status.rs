@@ -25,7 +25,10 @@ pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("status-needs-adapter"),
-            instead: t("status-needs-adapter-instead"),
+            instead: ta(
+                "status-needs-adapter-instead",
+                targs!("known" => crate::config::Language::known()),
+            ),
         });
     }
     let scan = docs::scan(root)?;

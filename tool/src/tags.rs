@@ -34,10 +34,12 @@ pub fn scan(files: &[PathBuf]) -> Result<Vec<TestTag>, Refusal> {
 pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
     let mut out = Vec::new();
     {
+        let marks = marks(file);
+        let declares = declares(file);
         let mut pending: Option<(String, String)> = None;
         for line in text.lines() {
             let trimmed = line.trim();
-            if let Some((scenario, rev)) = tag_in(trimmed) {
+            if let Some((scenario, rev)) = tag_in(trimmed, marks) {
                 if let Some((held, held_rev)) = pending.take() {
                     return Err(dangling(file, &held, &held_rev));
                 }
@@ -54,7 +56,7 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 pending = Some((scenario, rev));
                 continue;
             }
-            if let Some(name) = fn_name(trimmed) {
+            if let Some(name) = fn_name(trimmed, declares) {
                 if let Some((scenario, rev)) = pending.take() {
                     out.push(TestTag {
                         file: file.to_path_buf(),
@@ -84,17 +86,35 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
     Ok(out)
 }
 
+/// Which marks open a comment in this file -- the file's own name
+/// answers, not the project's config (review 0038 R-3). `#` is a
+/// comment in ruby and the fence of a raw string in Rust, so a Rust
+/// probe that builds a ruby fixture is still a Rust file: reading
+/// `#` there turned a line inside `r#"..."#` into a tag and reddened
+/// projects that had done nothing.
+fn marks(file: &Path) -> &'static [&'static str] {
+    match file.extension().and_then(|e| e.to_str()) {
+        Some("rb") => &["#"],
+        _ => &["///", "//!", "//"],
+    }
+}
+
+/// The keyword a test declaration opens with in this file, for the
+/// same reason and by the same answer.
+fn declares(file: &Path) -> &'static [&'static str] {
+    match file.extension().and_then(|e| e.to_str()) {
+        Some("rb") => &["def "],
+        _ => &["fn "],
+    }
+}
+
 /// `proves: <scenario>@<rev>` inside a comment line; words after the
 /// record are the author's -- only the record is read.
-fn tag_in(trimmed: &str) -> Option<(String, String)> {
-    // Both tongues' comment marks (wave 0038). `#[test]` is not a
-    // comment in Rust, and it never becomes one here: what follows
-    // must read `proves: `, and an attribute does not.
-    let comment = trimmed
-        .strip_prefix("///")
-        .or_else(|| trimmed.strip_prefix("//!"))
-        .or_else(|| trimmed.strip_prefix("//"))
-        .or_else(|| trimmed.strip_prefix("#"))?;
+fn tag_in(trimmed: &str, marks: &[&str]) -> Option<(String, String)> {
+    // `#[test]` is not a comment in Rust, and it never becomes one
+    // here: what follows must read `proves: `, and an attribute does
+    // not.
+    let comment = marks.iter().find_map(|mark| trimmed.strip_prefix(mark))?;
     let rest = comment.trim_start().strip_prefix("proves: ")?;
     let token = rest.split_whitespace().next()?;
     let (scenario, rev) = token.split_once('@')?;
@@ -104,12 +124,16 @@ fn tag_in(trimmed: &str) -> Option<(String, String)> {
     Some((scenario.to_string(), rev.to_string()))
 }
 
-fn fn_name(trimmed: &str) -> Option<String> {
-    // `fn` in Rust, `def` in Ruby (wave 0038).
-    let after = trimmed
-        .strip_prefix("fn ")
-        .or_else(|| trimmed.strip_prefix("def "))
-        .or_else(|| trimmed.find(" fn ").map(|i| &trimmed[i + " fn ".len()..]))?;
+fn fn_name(trimmed: &str, declares: &[&str]) -> Option<String> {
+    // `fn` in Rust, `def` in Ruby -- whichever this file writes.
+    let after = declares
+        .iter()
+        .find_map(|word| trimmed.strip_prefix(word))
+        .or_else(|| {
+            declares
+                .contains(&"fn ")
+                .then(|| trimmed.find(" fn ").map(|i| &trimmed[i + " fn ".len()..]))?
+        })?;
     let name: String = after
         .chars()
         .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')

@@ -238,15 +238,23 @@ fn ignore_row(root: &Path) -> String {
     let dir = crate::adapter::BUILD_DIR;
     let rule = format!("{dir}/");
     // Which directory to ask about is the adapter's answer: the
-    // crate may live one level down (keel's own shape), and a root
-    // the adapter cannot name is said aloud, never guessed.
-    let build = match crate::adapter::crate_root(root) {
-        Ok(crate_dir) => crate_dir
+    // crate may live one level down (keel's own shape), a tongue may
+    // build nothing at all, and a root the adapter cannot name is
+    // said aloud, never guessed. Review 0038 R-18 caught the middle
+    // case wearing the last one's words -- a ruby project was told
+    // its crate could not be found.
+    let build = match crate::adapter::build_dir(root) {
+        crate::adapter::BuildDir::At(path) => path
             .strip_prefix(root)
             .unwrap_or(Path::new(""))
-            .join(dir),
-        Err(refusal) => {
-            return ta("init-ignore-no-crate", targs!("error" => refusal.reason));
+            .to_path_buf(),
+        crate::adapter::BuildDir::Nothing => return t("init-ignore-nothing-built"),
+        crate::adapter::BuildDir::Unknown => {
+            let reason = crate::adapter::crate_root(root)
+                .err()
+                .map(|refusal| refusal.reason)
+                .unwrap_or_default();
+            return ta("init-ignore-no-crate", targs!("error" => reason));
         }
     };
     // Asked with the trailing slash git wants: a directory-only

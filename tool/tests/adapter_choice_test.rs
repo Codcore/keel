@@ -106,6 +106,19 @@ fn the_adapter_is_chosen_by_name() {
             !said.contains("червоне"),
             "and naming it is not a finding:\n{said}"
         );
+        // And the name really turns the language-shaped courts ON --
+        // review 0038 R-12: this probe used to measure only an exit
+        // code and the absence of a word, so a `ruby` that quietly
+        // lost every language court stayed green under it.
+        assert!(
+            said.contains("тегів тестів звірено:"),
+            "the tag court ran for \"{named}\", it did not stand \
+             down:\n{said}"
+        );
+        assert!(
+            !said.contains("теги тестів не звірялись"),
+            "and it does not say it stood down for \"{named}\":\n{said}"
+        );
     }
 
     // A name it does not know is a FINDING that lists what it does --
@@ -126,8 +139,56 @@ fn the_adapter_is_chosen_by_name() {
     let dir = project("none", None);
     let (said, code) = keel(&dir, "check");
     assert_eq!(code, 0, "a project without an adapter is judged:\n{said}");
+    // Review 0038 R-17: this used to read
+    // `contains("адаптер") && contains("не званий") || contains("не названий")`
+    // -- and "не званий" is in no dictionary of this tool, so by
+    // Rust's own precedence the first two conjuncts were dead and the
+    // assert held one thing while looking like two. Both courts that
+    // stand down are named, each by its own words.
     assert!(
-        said.contains("адаптер") && said.contains("не званий") || said.contains("не названий"),
-        "and the skipped courts are named aloud:\n{said}"
+        said.contains("теги тестів не звірялись: adapter у keel.toml не названий"),
+        "the tag court says it stood down, and why:\n{said}"
+    );
+    assert!(
+        said.contains("1 річ не перевірено"),
+        "and the summary counts that stand-down rather than reading \
+         as a clean green:\n{said}"
+    );
+}
+
+/// A Rust project keeps its Rust reading (review 0038 R-3): `#`
+/// opens a comment in ruby and fences a raw string in Rust, and the
+/// second tongue must not redden the first.
+#[test]
+fn a_rust_file_is_read_as_rust() {
+    let dir = keel_sandbox("rusthash");
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
+    std::fs::create_dir_all(dir.join("tests")).unwrap();
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(dir.join("src/lib.rs"), "pub fn works() -> bool { true }\n").unwrap();
+    // A Rust probe that builds a ruby fixture: the `#` lines are a
+    // string's content, not this file's comments.
+    std::fs::write(
+        dir.join("tests/fixture_test.rs"),
+        "#[test]\nfn a_fixture() {\n    let fixture = r#\"\n# proves: nothing@aaaaaa\nname: toy\n\"#;\n    assert!(!fixture.is_empty());\n}\n",
+    )
+    .unwrap();
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    let (said, code) = keel(&dir, "check");
+    assert_eq!(
+        code, 0,
+        "a Rust project with a ruby fixture in a raw string is not a \
+         finding:\n{said}"
+    );
+    assert!(
+        !said.contains("nothing@aaaaaa") && !said.contains("адаптер відмовив"),
+        "and the tag court is neither fooled by it nor killed by it:\n{said}"
     );
 }

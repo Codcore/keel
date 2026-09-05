@@ -285,7 +285,10 @@ pub fn write(root: &Path) -> Result<(String, usize, usize), Refusal> {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("rev-write-needs-adapter"),
-            instead: t("rev-write-needs-adapter-instead"),
+            instead: ta(
+                "rev-write-needs-adapter-instead",
+                targs!("known" => crate::config::Language::known()),
+            ),
         });
     }
     let scan = docs::scan(root)?;

@@ -288,10 +288,20 @@ fn cursor_hooks() -> String {
 /// installing step arrives with the distribution rung, and the file
 /// says so itself.
 fn workflow(config: &Config) -> String {
-    let courts = if config.rust_adapter() {
-        "      - name: the battery\n        run: cargo test --no-fail-fast\n"
-    } else {
-        ""
+    // The battery step is the tongue's own, and its absence is never
+    // silence (review 0038 R-9): a project whose adapter this release
+    // does not lead gets a line saying so, in the file where a person
+    // would otherwise look for the step and find nothing.
+    let courts = match config.language() {
+        Some(language) => format!(
+            "      - name: the battery\n        run: {}\n",
+            language.battery_command()
+        ),
+        None => "      # No battery step: keel.toml names no adapter this\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# release leads, so it does not know how this project\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# runs its tests. `keel close` still runs the battery\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# where it can; add your own step here otherwise.\n"
+            .to_string(),
     };
     format!(
         "# keel (generated -- do not edit; keel update rewrites this file)\n\

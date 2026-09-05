@@ -60,14 +60,57 @@ pub fn crate_root(root: &Path) -> Result<PathBuf, Refusal> {
     }
 }
 
-/// Where this language builds, if it builds at all. Ruby compiles
-/// nothing, so there is no directory to measure or to warn about --
-/// and the closing court's price line says so rather than naming a
-/// path that will never exist (wave 0038).
-pub fn build_dir(root: &Path) -> Option<PathBuf> {
+/// Where this language builds, if it builds at all.
+pub enum BuildDir {
+    /// It builds, and here.
+    At(PathBuf),
+    /// It builds nothing at all -- ruby compiles ahead of nothing,
+    /// so there is no directory to measure or to warn about, and the
+    /// closing court's price line says so rather than naming a path
+    /// that will never exist (wave 0038).
+    Nothing,
+    /// It builds, but where could not be told: the adapter has its
+    /// own refusal to give, and that refusal is not "builds nothing"
+    /// (review 0038 R-18 -- a Rust project with no Cargo.toml was
+    /// told its tongue compiles nothing, one line above the refusal
+    /// that it has no crate).
+    Unknown,
+}
+
+pub fn build_dir(root: &Path) -> BuildDir {
     match language_of(root) {
-        Some(Language::Ruby) => None,
-        _ => crate_root(root).ok().map(|dir| dir.join(BUILD_DIR)),
+        Some(Language::Ruby) => BuildDir::Nothing,
+        _ => match crate_root(root) {
+            Ok(dir) => BuildDir::At(dir.join(BUILD_DIR)),
+            Err(_) => BuildDir::Unknown,
+        },
+    }
+}
+
+/// Where this tongue keeps its test files, said as a person would
+/// say it. The hand of §9.2 used to name `tests/` of a crate to a
+/// ruby project and refuse over a missing Cargo.toml (review 0038
+/// R-5): the courts above must not know one language's layout.
+pub fn tests_dir(root: &Path) -> Result<PathBuf, Refusal> {
+    match language_of(root) {
+        Some(Language::Ruby) => Ok(root.join("test")),
+        _ => Ok(crate_root(root)?.join("tests")),
+    }
+}
+
+/// The command a person would type to run exactly this one test --
+/// the very one `run_test` runs, in the tongue's own words.
+pub fn run_line(root: &Path, file: &Path, test: &str) -> String {
+    let relative = file.strip_prefix(root).unwrap_or(file);
+    match language_of(root) {
+        Some(Language::Ruby) => format!("ruby -Itest {} -n {test}", relative.display()),
+        _ => {
+            let stem = file
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            format!("cargo test --test {stem} {test} -- --exact")
+        }
     }
 }
 

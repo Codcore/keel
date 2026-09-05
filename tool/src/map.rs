@@ -34,7 +34,10 @@ pub fn draw(root: &Path) -> Result<String, Refusal> {
     // The honest unread word (review 0017 R-3): a named yet unknown
     // adapter is not painted absent.
     let unread = if config.adapter.is_some() {
-        t("map-proof-unknown")
+        ta(
+            "map-proof-unknown",
+            targs!("known" => crate::config::Language::known()),
+        )
     } else {
         t("map-proof-unread")
     };

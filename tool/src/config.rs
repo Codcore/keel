@@ -50,15 +50,45 @@ impl Language {
             .map(|(_, language)| *language)
     }
 
-    /// The canonical names, for a refusal that says what it knows.
+    /// Every spelling a refusal may suggest -- synonyms included,
+    /// because a person is told what they may write, not what the
+    /// enum is called. Review 0038 R-14: this used to filter for
+    /// repeats that `NAMES` cannot hold and call the result
+    /// canonical, which was ceremony reading as a check.
     pub fn known() -> String {
-        let mut out: Vec<&str> = Vec::new();
-        for (name, _) in Self::NAMES {
-            if !out.contains(&name) {
+        Self::NAMES
+            .iter()
+            .map(|(name, _)| format!("\"{name}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// The command that runs this tongue's whole battery, as a
+    /// person would type it in a terminal. The generated workflow
+    /// asks the tongue instead of knowing cargo by heart: a ruby
+    /// project used to get a CI file with no battery step at all,
+    /// and no word about the silence (review 0038 R-9).
+    pub fn battery_command(&self) -> &'static str {
+        match self {
+            Language::Rust => "cargo test --no-fail-fast",
+            Language::Ruby => {
+                "ruby -Itest -e 'Dir.glob(\"test/**/*_test.rb\").each { |f| require File.expand_path(f) }'"
+            }
+        }
+    }
+
+    /// One name per tongue, in the order `NAMES` gives them: what
+    /// the wizard offers and what a project is asked to write.
+    pub fn choices() -> Vec<&'static str> {
+        let mut out: Vec<&'static str> = Vec::new();
+        let mut taken: Vec<Language> = Vec::new();
+        for (name, language) in Self::NAMES {
+            if !taken.contains(&language) {
+                taken.push(language);
                 out.push(name);
             }
         }
-        out.join(", ")
+        out
     }
 }
 

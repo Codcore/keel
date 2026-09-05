@@ -117,7 +117,10 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("close-needs-adapter"),
-            instead: t("close-needs-adapter-instead"),
+            instead: ta(
+                "close-needs-adapter-instead",
+                targs!("known" => crate::config::Language::known()),
+            ),
         });
     }
     let scan = docs::scan(root)?;
@@ -145,11 +148,11 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // directory to measure, to warn about or to sweep.
     let target = adapter::build_dir(root);
     let needed = NEEDED_BYTES;
-    if let Some(target) = target.clone()
+    if let adapter::BuildDir::At(target) = &target
         && let Some(free) = free_bytes(root).filter(|free| *free < needed)
     {
         return Err(Refusal {
-            file: target,
+            file: target.clone(),
             reason: ta(
                 "close-no-room",
                 targs!("free" => gigabytes(free), "needed" => gigabytes(needed)),
@@ -162,7 +165,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // appearing 101 seconds in -- after the target was already built.
     // A warning that arrives with the bill is not a warning.
     match &target {
-        Some(target) => eprintln!(
+        adapter::BuildDir::At(target) => eprintln!(
             "{}",
             ta(
                 "close-price",
@@ -172,7 +175,10 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
                 )
             )
         ),
-        None => eprintln!("{}", t("close-price-nothing-built")),
+        adapter::BuildDir::Nothing => eprintln!("{}", t("close-price-nothing-built")),
+        // The adapter could not say where, and will say why itself a
+        // breath later: no price line is honester than a wrong one.
+        adapter::BuildDir::Unknown => {}
     }
     let found = tags::scan(&adapter::test_files(root)?)?;
     // The battery runs several times before green is believed
@@ -389,7 +395,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // And what the price actually came to (review 0031 R-6: the
     // scenario promised this sentence and the first cut of the work
     // simply did not carry it).
-    if let Some(target) = &target {
+    if let adapter::BuildDir::At(target) = &target {
         report.push_str(&ta(
             "close-price-paid",
             targs!(

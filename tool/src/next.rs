@@ -102,7 +102,10 @@ pub fn step(root: &Path) -> Result<String, Refusal> {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("next-needs-adapter"),
-            instead: t("next-needs-adapter-instead"),
+            instead: ta(
+                "next-needs-adapter-instead",
+                targs!("known" => crate::config::Language::known()),
+            ),
         });
     }
     let scan = docs::scan(root)?;
@@ -269,11 +272,17 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
             targs!("scenario" => name.clone(), "rev" => current.clone()),
         ));
         out.push('\n');
-        let tests = adapter::crate_root(root)?.join("tests");
+        let tests = adapter::tests_dir(root)?;
         let shown = tests.strip_prefix(root).unwrap_or(&tests);
         out.push_str(&ta(
             "next-tests-dir",
-            targs!("dir" => format!("{}/", shown.display())),
+            targs!(
+                "adapter" => crate::config::read_unpinned(root)
+                    .ok()
+                    .and_then(|config| config.adapter)
+                    .unwrap_or_default(),
+                "dir" => format!("{}/", shown.display())
+            ),
         ));
         out.push('\n');
         return Ok(out);
@@ -365,14 +374,12 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
             let mut runs: Vec<String> = Vec::new();
             for scenario in scenarios {
                 for tag in found.iter().filter(|t| t.scenario == *scenario) {
-                    let stem = tag
-                        .file
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().into_owned())
-                        .unwrap_or_default();
+                    // The tongue's own command, asked of the adapter
+                    // (review 0038 R-5): a ruby project was handed a
+                    // cargo line it could not run.
                     runs.push(format!(
-                        "    cargo test --test {stem} {} -- --exact\n",
-                        tag.test
+                        "    {}\n",
+                        adapter::run_line(root, &tag.file, &tag.test)
                     ));
                 }
             }
