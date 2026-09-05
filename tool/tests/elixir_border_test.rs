@@ -141,22 +141,33 @@ fn a_tongue_that_tells_the_two_apart_says_so() {
     let dir = project("exborder", &test_file(&rev));
     let (said, code) = keel(&dir, &["check"]);
     assert_eq!(code, 0, "a whole elixir project is judged:\n{said}");
+    // Ruby's row says the two are NOT told apart; this one says they
+    // are. The words overlap, so the assertion names the half that
+    // differs rather than a fragment both share.
     assert!(
-        !said.contains("не зібрався» кодом виходу"),
+        !said.contains("ruby не відрізняє"),
         "the check does not carry ruby's border into a tongue that \
          does not have it:\n{said}"
     );
     assert!(
-        said.contains("elixir") && said.contains("розрізняє"),
-        "it says the opposite, which is what is true here:\n{said}"
+        said.contains("ця мова відрізняє") && said.contains("1 не скомпілювалось"),
+        "it says the opposite, with the codes it measured:\n{said}"
     );
 
-    // A tag over a name ExUnit does not know is "not run", never
-    // "work passes".
-    let unknown = format!(
-        "defmodule ToyTest do\n  use ExUnit.Case\n\n  # proves: it-works@{rev}\n  test \"a name no run knows\" do\n    assert Toy.works()\n  end\nend\n"
+    // A test inside a `describe` block: ExUnit puts the block's name
+    // in front of it, so `--only 'test:test <bare name>'` matches
+    // NOTHING there. Measured, and it is why the reader tracks the
+    // block rather than naming a border it could have hidden behind.
+    let grouped = format!(
+        "defmodule ToyTest do\n  use ExUnit.Case\n\n  describe \"the group\" do\n    # proves: it-works@{rev}\n    test \"inside\" do\n      assert Toy.works()\n    end\n  end\nend\n"
     );
-    let dir = project("exnotrun", &unknown);
+    let dir = project("exdescribe", &grouped);
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(code, 0, "a tagged test inside a describe is read:\n{said}");
+    assert!(
+        said.contains("тегів тестів звірено: 1"),
+        "and counted:\n{said}"
+    );
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, "work: тіло\n").unwrap();
@@ -169,9 +180,46 @@ fn a_tongue_that_tells_the_two_apart_says_so() {
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
     );
-    assert_ne!(
+    assert_eq!(
         out.status.code().unwrap_or(-1),
         0,
-        "work over a test that never ran does not pass the gate:\n{said}"
+        "and it really runs -- a name mix cannot select would have \
+         been \"not run\", never green:\n{said}"
     );
+    assert!(
+        said.contains("робота проходить"),
+        "so the work passes over a test that truly ran:\n{said}"
+    );
+}
+
+/// The shapes `classify` must tell apart, played without a project on
+/// disk. Unlike ruby, this tongue answers with distinct codes -- and
+/// the one code that carries two meanings (1 is both "did not
+/// compile" and "--only matched nothing") is told apart by the text.
+#[test]
+fn what_mix_said_and_how_it_left() {
+    use keel::adapter::Outcome;
+
+    assert!(matches!(
+        keel::elixir::classify("2 tests, 0 failures", 0),
+        Outcome::Green
+    ));
+    assert!(matches!(
+        keel::elixir::classify("2 tests, 1 failure", 2),
+        Outcome::Failed
+    ));
+    assert!(matches!(
+        keel::elixir::classify(
+            "The --only option was given to \"mix test\" but no test was executed",
+            1
+        ),
+        Outcome::NotRun
+    ));
+    assert!(matches!(
+        keel::elixir::classify(
+            "== Compilation error in file test/toy_test.exs ==\n** (TokenMissingError) missing terminator",
+            1
+        ),
+        Outcome::BuildBroken(_)
+    ));
 }

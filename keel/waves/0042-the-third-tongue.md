@@ -23,7 +23,11 @@ transforms:
       - keel/contracts/tool-adapter-elixir.md
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
+      - tool/src/lib.rs
       - tool/tests/elixir_tests_test.rs
+      - tool/tests/elixir_border_test.rs
+      - tool/tests/adapter_name_test.rs
+      - tool/tests/ignore_reminder_test.rs
   an-elixir-module-is-compared:
     implements:
       - an-elixir-contract-holds-its-form

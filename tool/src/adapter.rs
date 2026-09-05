@@ -80,6 +80,7 @@ pub enum BuildDir {
 pub fn build_dir(root: &Path) -> BuildDir {
     match language_of(root) {
         Some(Language::Ruby) => BuildDir::Nothing,
+        Some(Language::Elixir) => BuildDir::At(root.join(crate::elixir::BUILD_DIR)),
         _ => match crate_root(root) {
             Ok(dir) => BuildDir::At(dir.join(BUILD_DIR)),
             Err(_) => BuildDir::Unknown,
@@ -93,7 +94,7 @@ pub fn build_dir(root: &Path) -> BuildDir {
 /// R-5): the courts above must not know one language's layout.
 pub fn tests_dir(root: &Path) -> Result<PathBuf, Refusal> {
     match language_of(root) {
-        Some(Language::Ruby) => Ok(root.join("test")),
+        Some(Language::Ruby) | Some(Language::Elixir) => Ok(root.join("test")),
         _ => Ok(crate_root(root)?.join("tests")),
     }
 }
@@ -103,6 +104,7 @@ pub fn tests_dir(root: &Path) -> Result<PathBuf, Refusal> {
 pub fn run_line(root: &Path, file: &Path, test: &str) -> String {
     let relative = file.strip_prefix(root).unwrap_or(file);
     match language_of(root) {
+        Some(Language::Elixir) => format!("mix test --only 'test:test {test}'"),
         Some(Language::Ruby) => format!("ruby -Itest {} -n {test}", relative.display()),
         _ => {
             let stem = file
@@ -125,8 +127,10 @@ fn language_of(root: &Path) -> Option<Language> {
 /// The crate's `tests/*.rs` -- where the proves tags live. A crate
 /// without a tests directory has none, and that is not a refusal.
 pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
-    if language_of(root) == Some(Language::Ruby) {
-        return crate::ruby::test_files(root);
+    match language_of(root) {
+        Some(Language::Ruby) => return crate::ruby::test_files(root),
+        Some(Language::Elixir) => return crate::elixir::test_files(root),
+        _ => {}
     }
     let dir = crate_root(root)?.join("tests");
     if !dir.is_dir() {
@@ -162,8 +166,10 @@ pub enum Outcome {
 /// --exact`) and classifies the consequence. cargo is called as a
 /// command of the system; its refusal to start is a refusal aloud.
 pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
-    if language_of(root) == Some(Language::Ruby) {
-        return crate::ruby::run_test(root, tag);
+    match language_of(root) {
+        Some(Language::Ruby) => return crate::ruby::run_test(root, tag),
+        Some(Language::Elixir) => return crate::elixir::run_test(root, tag),
+        _ => {}
     }
     let crate_dir = crate_root(root)?;
     let stem = tag
@@ -230,8 +236,10 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
 /// once. A build that does not build is a refusal aloud with the
 /// compiler's words: without a build there is no verdict for anyone.
 pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
-    if language_of(root) == Some(Language::Ruby) {
-        return crate::ruby::run_all(root);
+    match language_of(root) {
+        Some(Language::Ruby) => return crate::ruby::run_all(root),
+        Some(Language::Elixir) => return crate::elixir::run_all(root),
+        _ => {}
     }
     let crate_dir = crate_root(root)?;
     let mut command = Command::new("cargo");

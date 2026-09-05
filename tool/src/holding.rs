@@ -258,8 +258,14 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
     // 0038): `Toy::Bar` in `lib/toy/bar.rb`. The court asks the
     // adapter where to look instead of knowing one language's
     // layout by heart.
-    if config.language() == Some(Language::Ruby) {
-        let looked = crate::ruby::module_paths(root, module);
+    if matches!(
+        config.language(),
+        Some(Language::Ruby) | Some(Language::Elixir)
+    ) {
+        let looked = match config.language() {
+            Some(Language::Elixir) => crate::elixir::module_paths(root, module),
+            _ => crate::ruby::module_paths(root, module),
+        };
         for path in &looked {
             if let Ok(source) = std::fs::read_to_string(path) {
                 return Comparability::Source(source);
@@ -373,7 +379,10 @@ fn found_bounded(haystack: &str, needle: &str) -> bool {
 /// one, and cut a `"http://..."` -- and a `"/*"` swallowed the whole
 /// rest of the file.
 fn strip_comments(source: &str, tongue: Option<Language>) -> String {
-    if tongue == Some(Language::Ruby) {
+    // Ruby and Elixir share this hand, because `#` opens a comment in
+    // both and reading quotes is the same work -- not two similar
+    // ones (wave 0042).
+    if matches!(tongue, Some(Language::Ruby) | Some(Language::Elixir)) {
         return strip_ruby_comments(source);
     }
     let mut out = String::with_capacity(source.len());

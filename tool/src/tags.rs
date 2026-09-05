@@ -36,7 +36,17 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
     {
         let marks = marks(file);
         let declares = declares(file);
+        // By the file's own name, not by its comment marks: `#` opens
+        // a comment in ruby AND in elixir, so comparing the marks put
+        // every ruby file down the elixir road (caught by ruby's own
+        // courts the moment the third tongue landed).
+        let elixir = matches!(
+            file.extension().and_then(|e| e.to_str()),
+            Some("ex") | Some("exs")
+        );
         let mut pending: Option<(String, String)> = None;
+        let mut describing: Option<(String, usize)> = None;
+        let mut depth: usize = 0;
         for line in text.lines() {
             let trimmed = line.trim();
             if let Some((scenario, rev)) = tag_in(trimmed, marks) {
@@ -56,7 +66,32 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 pending = Some((scenario, rev));
                 continue;
             }
-            if let Some(name) = fn_name(trimmed, declares) {
+            let declared = if elixir {
+                // A `describe` opens a group whose name ExUnit puts
+                // in front of every test inside it; `end` closes the
+                // innermost block, and only a describe's own end
+                // clears the group -- so the depth is counted.
+                if let Some(group) = describe_name(trimmed) {
+                    describing = Some((group, depth));
+                }
+                if trimmed.starts_with("end") || trimmed == "end" {
+                    if let Some((_, opened)) = &describing
+                        && depth == *opened
+                    {
+                        describing = None;
+                    }
+                    depth = depth.saturating_sub(1);
+                } else if trimmed.ends_with(" do") || trimmed.ends_with(" do:") || trimmed == "do" {
+                    depth += 1;
+                }
+                test_name(trimmed).map(|name| match &describing {
+                    Some((group, _)) => format!("{group} {name}"),
+                    None => name,
+                })
+            } else {
+                fn_name(trimmed, declares)
+            };
+            if let Some(name) = declared {
                 if let Some((scenario, rev)) = pending.take() {
                     out.push(TestTag {
                         file: file.to_path_buf(),
@@ -95,16 +130,58 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
 fn marks(file: &Path) -> &'static [&'static str] {
     match file.extension().and_then(|e| e.to_str()) {
         Some("rb") => &["#"],
+        Some("exs") | Some("ex") => ELIXIR_MARKS,
         _ => &["///", "//!", "//"],
     }
 }
 
+/// Elixir writes `#` as ruby does. Which is why the two are told
+/// apart by the file's own extension and never by these marks --
+/// their DECLARATIONS differ (`def name` there, `test "name" do`
+/// here) and the marks do not.
+const ELIXIR_MARKS: &[&str] = &["#"];
+
 /// The keyword a test declaration opens with in this file, for the
-/// same reason and by the same answer.
+/// same reason and by the same answer. Elixir is not in this list:
+/// its tests are not named by an identifier at all (see `test_name`).
 fn declares(file: &Path) -> &'static [&'static str] {
     match file.extension().and_then(|e| e.to_str()) {
         Some("rb") => &["def "],
         _ => &["fn "],
+    }
+}
+
+/// An ExUnit test is named by a STRING, not an identifier: `test "it
+/// works" do`. Rust and Ruby both take the word after a keyword, and
+/// this is neither -- the third form the reader had to learn (wave
+/// 0042). The name is the string itself, exactly as ExUnit reports it
+/// and exactly as `mix test --only` selects it.
+pub fn test_name(trimmed: &str) -> Option<String> {
+    quoted_after(trimmed, "test ")
+}
+
+/// The name a `describe "..." do` block opens. ExUnit prefixes every
+/// test inside it, so `mix test --only 'test:test <bare name>'`
+/// matches NOTHING there -- measured, and it is why the reader tracks
+/// the block rather than naming a border (wave 0042).
+pub fn describe_name(trimmed: &str) -> Option<String> {
+    quoted_after(trimmed, "describe ")
+}
+
+fn quoted_after(trimmed: &str, word: &str) -> Option<String> {
+    let rest = trimmed.strip_prefix(word)?.trim_start();
+    let rest = rest.strip_prefix('"')?;
+    let (name, tail) = rest.split_once('"')?;
+    // `do` may sit on the line or open a block on the next; what must
+    // not follow is more of the string.
+    if name.is_empty() {
+        return None;
+    }
+    let tail = tail.trim();
+    if tail.is_empty() || tail.starts_with("do") || tail.starts_with(',') {
+        Some(name.to_string())
+    } else {
+        None
     }
 }
 

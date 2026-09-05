@@ -154,6 +154,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     {
         extra_limits.push(t("limit-hook-absent"));
     }
+    // The border that is true of THIS tongue, and only it. Ruby
+    // cannot tell a failure from a broken build; elixir can, and
+    // saying ruby's sentence over an elixir project would be as
+    // untrue as saying nothing (wave 0042).
+    if config.language() == Some(crate::config::Language::Elixir) {
+        extra_limits.push(t("limit-elixir-border"));
+    }
     if config.language() == Some(crate::config::Language::Ruby) {
         extra_limits.push(t("limit-ruby-border"));
         extra_limits.push(t("limit-ruby-form"));

@@ -11,6 +11,7 @@ pub mod close;
 pub mod confedit;
 pub mod config;
 pub mod docs;
+pub mod elixir;
 pub mod gate;
 pub mod generated;
 pub mod graph;
