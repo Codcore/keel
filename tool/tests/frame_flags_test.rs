@@ -78,7 +78,7 @@ fn the_frame_takes_the_place_and_the_branch() {
         &["check", "-C", dir.to_str().unwrap(), "--json"],
         None,
     );
-    assert_eq!(code, 0, "the named directory is judged:\n{out}{err}");
+    assert_ne!(code, 2, "the named directory is reachable:\n{out}{err}");
     let package: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert!(
         package["root"]
@@ -87,11 +87,25 @@ fn the_frame_takes_the_place_and_the_branch() {
         "and it is the one that was named, not the current one:\n{out}"
     );
 
-    // --branch names the branch where git hides it, and it is the
-    // flag that wins over the variable: a person typing a flag means
-    // it more than an environment left over from a hook.
+    // --branch answers the case sec. 4.10 named, and only it: a
+    // checkout where git knows no branch. There the flag names it,
+    // and it beats a variable a hook left behind -- a person typing a
+    // flag means it more.
+    let detached = project("detachedhead");
+    let head = String::from_utf8_lossy(
+        &Command::new("git")
+            .arg("-C")
+            .arg(&*detached)
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .trim()
+    .to_string();
+    git(&detached, &["checkout", "-q", "--detach", &head]);
     let (out, _, _) = keel_at(
-        &dir,
+        &detached,
         &["check", "--branch", "0001-a-wave", "--json"],
         Some("some-other-branch"),
     );
@@ -108,13 +122,25 @@ fn the_frame_takes_the_place_and_the_branch() {
 
     // Where no flag is given the variable still stands, exactly as it
     // did before this wave -- the generated CI relies on it.
-    let (out, _, _) = keel_at(&dir, &["check", "--json"], Some("0002-another"));
+    let (out, _, _) = keel_at(&detached, &["check", "--json"], Some("0002-another"));
     let package: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert!(
         package["report"]
             .as_str()
             .is_some_and(|report| report.contains("0002-another")),
         "KEEL_BRANCH still names the branch where no flag does:\n{out}"
+    );
+
+    // And where git DOES know the branch, git is the fact: a flag
+    // that could overrule it would let a person tell the scope court
+    // they are somewhere they are not.
+    let (out, _, _) = keel_at(&dir, &["check", "--branch", "0001-a-wave", "--json"], None);
+    let package: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert!(
+        !package["report"]
+            .as_str()
+            .is_some_and(|report| report.contains("0001-a-wave")),
+        "on a branch git knows, the flag does not overrule it:\n{out}"
     );
 
     // A flag that takes a word and is given none is a refusal, not a

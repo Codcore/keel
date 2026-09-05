@@ -41,15 +41,57 @@ fn one_path(args: &[String]) -> (PathBuf, bool) {
 /// junk`, `keel plan slug dir junk` and `keel new contract slug dir
 /// junk` still swallowed the typo -- the very swallowing this wave
 /// exists to end.
-/// The directory to work in: the first word that is not a flag.
+/// The directory to work in: `-C <dir>` if it was given, else the
+/// first word that is not a flag.
+///
 /// `args.get(1)` stood here in every command but `rev`, and a flag in
 /// front of the path read as the path -- the very shape review 0035
 /// R-7 caught once and left in seventeen other places (wave 0040).
 fn root_of(args: &[String]) -> PathBuf {
-    args.iter()
-        .skip(1)
-        .find(|word| !word.starts_with('-'))
-        .map_or_else(|| PathBuf::from("."), PathBuf::from)
+    let mut rest = args.iter().skip(1);
+    let mut plain: Option<&String> = None;
+    while let Some(word) = rest.next() {
+        match word.as_str() {
+            "-C" => {
+                if let Some(named) = rest.next() {
+                    return PathBuf::from(named);
+                }
+            }
+            "--branch" | "--for" => {
+                rest.next();
+            }
+            other if other.starts_with('-') => {}
+            other => {
+                if plain.is_none() {
+                    plain = Some(word);
+                }
+                let _ = other;
+            }
+        }
+    }
+    plain.map_or_else(|| PathBuf::from("."), PathBuf::from)
+}
+
+/// `--branch <name>` names the branch where git does not know it --
+/// a CI checkout with a detached HEAD (sec. 4.10 forbids skipping the
+/// comparison in silence there). It is the same answer KEEL_BRANCH
+/// gives, so the frame writes it into the environment and the one
+/// place that reads a branch stays one place; a flag a person typed
+/// beats a variable a hook left behind.
+///
+/// It does NOT beat git. Where git knows the branch, git is the fact,
+/// and a flag that could overrule it would let a person tell the
+/// scope court they are somewhere they are not.
+fn take_branch(args: &[String]) {
+    let mut rest = args.iter().skip(1);
+    while let Some(word) = rest.next() {
+        if word == "--branch"
+            && let Some(named) = rest.next()
+        {
+            unsafe { std::env::set_var("KEEL_BRANCH", named) };
+            return;
+        }
+    }
 }
 
 /// Whether this call asked for the machine's road out.
@@ -107,23 +149,28 @@ const SHAPES: [(&str, usize, &[&str]); 16] = [
     // `plan`, `new`, `update`, `gate` and `hook` answer a person
     // about what they did, and a harness that wants their outcome
     // asks `check` afterwards. That border is named in the wave.
-    ("check", 0, &["--json"]),
-    ("close", 0, &["--json"]),
-    ("map", 0, &["--json"]),
-    ("review", 0, &["--json"]),
-    ("status", 0, &["--json"]),
-    ("trust", 0, &[]),
-    ("hook", 0, &[]),
-    ("cuts", 0, &["--json"]),
-    ("concept", 0, &[]),
-    ("version", 0, &["--json"]),
-    ("update", 0, &[]),
-    ("rev", 0, &["--write", "--json"]),
-    ("next", 0, &["--for", "--json"]),
-    ("gate", 1, &[]),
-    ("plan", 1, &[]),
-    ("new", 2, &[]),
+    ("check", 0, &["--json", "-C", "--branch"]),
+    ("close", 0, &["--json", "-C", "--branch"]),
+    ("map", 0, &["--json", "-C", "--branch"]),
+    ("review", 0, &["--json", "-C", "--branch"]),
+    ("status", 0, &["--json", "-C", "--branch"]),
+    ("trust", 0, &["-C", "--branch"]),
+    ("hook", 0, &["-C", "--branch"]),
+    ("cuts", 0, &["--json", "-C", "--branch"]),
+    ("concept", 0, &["-C", "--branch"]),
+    ("version", 0, &["--json", "-C", "--branch"]),
+    ("update", 0, &["-C", "--branch"]),
+    ("rev", 0, &["--write", "--json", "-C", "--branch"]),
+    ("next", 0, &["--for", "--json", "-C", "--branch"]),
+    ("gate", 1, &["-C", "--branch"]),
+    ("plan", 1, &["-C", "--branch"]),
+    ("new", 2, &["-C", "--branch"]),
 ];
+
+/// The frame's own flags, taken by every command: where to work, and
+/// which branch to believe where git is silent (NEW-CONCEPT, "rules
+/// for all commands"). Both take a word.
+const FRAME_FLAGS: [&str; 2] = ["-C", "--branch"];
 
 /// The tongue the CLI frame speaks in. Its refusals used to be
 /// English always, "the project language is not known yet" -- but
@@ -197,9 +244,14 @@ fn main() -> ExitCode {
                     bad = true;
                     break;
                 }
-                // A flag that takes a word takes it here.
-                if *word == "--for" {
-                    rest.next();
+                // A flag that takes a word takes it here -- and a
+                // flag left without its word is a refusal, not a
+                // silent nothing.
+                if (*word == "--for" || FRAME_FLAGS.contains(&word.as_str()))
+                    && rest.next().is_none()
+                {
+                    bad = true;
+                    break;
                 }
             } else {
                 plain += 1;
@@ -212,6 +264,11 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     }
+
+    // The frame's own branch flag, before any command looks: the one
+    // place that reads a branch reads the environment, so the flag is
+    // written there and nothing else has to learn about it.
+    take_branch(&args);
 
     match args.first().map(String::as_str) {
         Some("check") => {

@@ -632,7 +632,7 @@ main-help = keel — інструмент методики. Команди:
     keel new contract <слаг> [тека] — риштування контракту
     keel update [тека] — оновити згенеровані інтеграції
     keel version [тека] — версія і що вона тримає
-main-usage = натомість: keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <команда>] [--trust yes|no] [--no-ask] [тека] | keel setup [ті самі прапорці] [тека] | keel concept [тека] | keel trust [тека] | keel hook [тека] | keel cuts [тека] | keel method [§N.M | розділ] [тека] | keel version [тека] | keel update [тека]
+main-usage = натомість (кожна команда бере ще -C <тека>, --branch <імʼя>, а читальні — --json): keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <команда>] [--trust yes|no] [--no-ask] [тека] | keel setup [ті самі прапорці] [тека] | keel concept [тека] | keel trust [тека] | keel hook [тека] | keel cuts [тека] | keel method [§N.M | розділ] [тека] | keel version [тека] | keel update [тека]
 
 # The settings wizard (wave 0026)
 ask-lang = Which human language does this project speak? / Якою людською мовою говорить цей проєкт?

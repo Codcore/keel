@@ -31,7 +31,7 @@ transforms:
       - the-frame-takes-the-place-and-the-branch
     files:
       - tool/src/main.rs
-      - tool/src/scope.rs
+      - tool/src/check.rs
       - keel/contracts/tool-cli.md
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl

@@ -1191,8 +1191,16 @@ fn git_line(root: &Path, args: &[&str]) -> Option<String> {
 /// A refusal rendered as a report row, the school of every floor.
 fn push_refusal_row(rows: &mut Vec<(String, Option<String>)>, root: &Path, refusal: &Refusal) {
     let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
+    // A refusal about the project itself strips down to nothing, and
+    // an empty name is a row with a blank where the file should be --
+    // invisible in prose and useless as a field (wave 0040, seen the
+    // moment the machine road made rows into data).
+    let shown = match shown.display().to_string() {
+        empty if empty.is_empty() => ".".to_string(),
+        named => named,
+    };
     rows.push((
-        shown.display().to_string(),
+        shown,
         Some(format!(
             "{}\n           {}: {}",
             refusal.reason,
