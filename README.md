@@ -166,15 +166,28 @@ keel init
 a **git ref fetched by name**. The commit sha is recorded and the binary's own
 sha256 is checked before every run, so you always know *which tree* you got and
 that nobody swapped the file — but nothing proves the *ref itself* is
-trustworthy. A signed, published release with a checksum of its own is not
-built. Nor does the launcher fetch a missing version by itself: it refuses with
-the command instead.
+trustworthy. A published release carries that proof (wave 0048): `release.sh`
+builds `keel-<version>-<target>.tar.gz` with its `.sha256` beside it, the
+workflow on a `v*` tag attests the provenance and publishes both, and the
+launcher **fetches a missing version by itself** — a pin that names a version
+and stands nowhere in `versions/` is downloaded from the releases, checked
+against its checksum *before* it is unpacked, recorded, said aloud (what was
+taken and from where), and run. A checksum that does not match refuses and
+installs nothing; a pin with no release, or a pin that is a git ref, refuses
+with the ready command as before. `install.sh` takes the same road first and
+builds from git only where no release answers. The launcher checks the sha256,
+not the signature: `gh attestation verify` does that, and `gh` is not a thing
+every machine has.
 
-**No published tag carries the current layout** — keel v1 kept the crate outside
-`tool/`, so `KEEL_REF=v0.8.9` refuses by name and only a commit or a branch
-works until a v2 release is tagged. The installer the generated CI step fetches
-comes from `main`, unpinned: a project pinned to an older keel still runs
-today's script.
+**No published tag carries the current layout yet** — keel v1 kept the crate
+outside `tool/`, so `KEEL_REF=v0.8.9` refuses by name and only a commit or a
+branch works until a v2 release is tagged. The number and the tag are the
+operator's line: bumping the crate and keel's own pin before the tag exists
+would break this repository's CI, which installs by pin through `install.sh`
+from `main`. Once a `v*` tag is pushed, the release workflow builds the archive
+and the pin road above opens. The installer the generated CI step fetches comes
+from `main`, unpinned: a project pinned to an older keel still runs today's
+script.
 
 **One tool in this repository.** The first implementation — `keel.py` and its
 Python tests in `tests/` — lived at the root beside the crate for forty waves,
