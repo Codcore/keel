@@ -220,13 +220,18 @@ pub fn tests_dir(root: &Path) -> Result<PathBuf, Refusal> {
 
 /// The command a person would type to run exactly this one test --
 /// the very one `run_test` runs, in the tongue's own words.
-pub fn run_line(root: &Path, file: &Path, test: &str) -> String {
+pub fn run_line(root: &Path, file: &Path, test: &str, line: usize) -> String {
     let relative = file.strip_prefix(root).unwrap_or(file);
     match language_of(root) {
-        Some(Language::Elixir) => format!(
-            "mix test --only {}",
-            shell_quoted(&format!("test:test {test}"))
-        ),
+        // By file and line, which is what `run_test` runs (wave
+        // 0051): `--only 'test:test <name>'` over a name with letters
+        // past ASCII excludes everything -- "no test was executed" --
+        // and the hand of §9.2 handed a person exactly that line
+        // while the court beside it ran another (final review
+        // 2026-09-06, bugs R-12; wave 0055).
+        Some(Language::Elixir) => {
+            format!("mix test {}:{line}", relative.display())
+        }
         Some(Language::Python) => format!("pytest {}::{test}", relative.display()),
         Some(Language::JavaScript) => format!(
             "node --test --test-name-pattern={} {}",

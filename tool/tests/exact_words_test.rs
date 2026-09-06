@@ -80,7 +80,7 @@ const BODY: &str = "тіло обіцянки\n";
 
 /// A mix project on the branch of its wave, with the test file the
 /// case needs.
-fn elixir_project(name: &str, test_file: &str) -> common::Sandbox {
+fn elixir_project(name: &str, test_file: &str, worked: bool) -> common::Sandbox {
     let dir = keel_sandbox(name);
     write(&dir, "keel.toml", "lang = \"uk\"\nadapter = \"elixir\"\n");
     write(
@@ -107,7 +107,31 @@ fn elixir_project(name: &str, test_file: &str) -> common::Sandbox {
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "база"]);
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The transform's own file, worked in and committed under its
+    // slug where the case wants a finished wave (§4.4, §6.2); left
+    // alone where it wants the step that hands out the run line.
+    if worked {
+        // The birth first: a green test nobody saw red proves
+        // nothing (§6.3, §7.12), and this fixture is about a NAME,
+        // so it walks the loop properly.
+        git(&dir, &["commit", "-q", "--allow-empty", "-m", "red: it-works"]);
+        write(
+            &dir,
+            "lib/toy.ex",
+            "defmodule Toy do\n  @doc \"the work of this wave\"\n  def works, do: true\nend\n",
+        );
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", "work: тіло роботи"]);
+    }
     dir
+}
+
+fn elixir_project_unworked(name: &str, test_file: &str) -> common::Sandbox {
+    elixir_project(name, test_file, false)
+}
+
+fn elixir_project_worked(name: &str, test_file: &str) -> common::Sandbox {
+    elixir_project(name, test_file, true)
 }
 
 /// proves: the-words-lead-somewhere@cb3152 -- a word that points at
@@ -161,7 +185,7 @@ fn the_words_lead_somewhere() {
     // -- the run line of a tongue is the line the court itself runs --
     if common::machine_has("mix").ready() {
         let rev = keel::rev::text_rev(BODY);
-        let dir = elixir_project(
+        let dir = elixir_project_unworked(
             "wordsrunline",
             &format!(
                 "defmodule ToyTest do\n  use ExUnit.Case\n\n  # proves: it-works@{rev}\n  test \"тест додає число\" do\n    assert Toy.works()\n  end\nend\n"
@@ -181,7 +205,7 @@ fn the_words_lead_somewhere() {
         );
 
         // -- an escaped quote inside a name is part of the name ------
-        let dir = elixir_project(
+        let dir = elixir_project_worked(
             "wordsquote",
             &format!(
                 "defmodule ToyTest do\n  use ExUnit.Case\n\n  # proves: it-works@{rev}\n  test \"it's \\\"quoted\\\"\" do\n    assert Toy.works()\n  end\nend\n"

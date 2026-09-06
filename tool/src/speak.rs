@@ -536,7 +536,7 @@ pub fn method(lang: &str, asked: Option<&str>) -> Result<String, Refusal> {
         report.push('\n');
         return Ok(report);
     };
-    let wanted = asked.trim_start_matches('§').trim();
+    let wanted = &plain_number(asked.trim_start_matches('§').trim());
     // A chapter asked for by name is served whole -- which is the
     // only way to reach the Constitution's eight rules and the three
     // appendices, a sixth of the methodology that no paragraph number
@@ -641,6 +641,27 @@ fn numbered_rule(line: &str) -> Option<(String, String)> {
 /// INSIDE a §-paragraph is a list item and never a piece: taking it
 /// for one served §6.3 at 9% of itself and made the contents count
 /// pieces that do not exist (review 0029 R-5).
+/// A paragraph's number in one spelling, whatever tongue wrote it:
+/// the letter of a lettered paragraph transliterated to the latin
+/// one it stands for (wave 0055). The Ukrainian norm writes `§6.3-а`
+/// with a Cyrillic letter and its English translation `§6.3-a` with a
+/// latin one -- the same paragraph, and the skeleton court is right
+/// that a number meaning two things cites nothing. So the NUMBER is
+/// one here, in both texts and for whoever types it, while each text
+/// keeps its own letters on the page.
+fn plain_number(number: &str) -> String {
+    number
+        .chars()
+        .map(|ch| match ch {
+            'а' | 'А' => 'a',
+            'б' | 'Б' => 'b',
+            'в' | 'В' => 'v',
+            'г' | 'Г' => 'g',
+            other => other,
+        })
+        .collect()
+}
+
 fn chapters_of(text: &'static str) -> Vec<(&'static str, Vec<(String, String)>)> {
     let mut chapters: Vec<(&'static str, Vec<(String, String)>)> = Vec::new();
     let mut bodies: Vec<Vec<&str>> = Vec::new();
@@ -657,11 +678,30 @@ fn chapters_of(text: &'static str) -> Vec<(&'static str, Vec<(String, String)>)>
     for (at, body) in bodies.iter().enumerate() {
         let paragraphs = if body.iter().any(|line| line.starts_with("**§")) {
             pieces(body, |line| {
-                line.strip_prefix("**§")
-                    .and_then(|rest| rest.split_once(".**"))
-                    .map(|(number, opening)| {
-                        (number.to_string(), format!("**§{number}.**{opening}"))
-                    })
+                // The number runs to the dot that ends it: the dot
+                // followed by the closing `**` of a plain paragraph,
+                // or by a space -- a paragraph counted WITH A LETTER
+                // carries its own title there (`**§6.3-а. Скасування
+                // початої хвилі**`). Reading only `.**` made §6.3-а
+                // and §6.3-б part of §6.3, and `keel method §6.3-б`
+                // answered that this generation's methodology has no
+                // such paragraph, over a paragraph standing in it
+                // (final review 2026-09-06, methodology R-3; wave
+                // 0055).
+                let rest = line.strip_prefix("**§")?;
+                let end = rest
+                    .char_indices()
+                    .find(|(at, ch)| {
+                        *ch == '.'
+                            && matches!(
+                                rest[at + ch.len_utf8()..].chars().next(),
+                                Some('*') | Some(' ')
+                            )
+                    })?
+                    .0;
+                let number = &rest[..end];
+                let opening = &rest[end + 1..];
+                Some((plain_number(number), format!("**§{number}.{opening}")))
             })
         } else {
             pieces(body, |line| {

@@ -116,7 +116,9 @@ transforms:
       - tool/i18n/en.ftl
       - keel/contracts/tool-speak.md
       - keel/contracts/tool-tags.md
+      - keel/contracts/tool-adapter-elixir.md
       - tool/tests/exact_words_test.rs
+      - tool/tests/elixir_border_test.rs
   the-asserts-can-fall:
     chore: "six negative asserts hunt English phrases the tool never says, and two probes of 0053-0054 hold their clauses by a weaker fact than written: the asserts are made able to fall and dead_assert_test reads English phrases too (final review, tests R-5, R-6)"
     files:

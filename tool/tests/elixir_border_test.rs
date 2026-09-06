@@ -447,8 +447,13 @@ fn the_battery_believes_mix_and_not_the_source() {
     let dir = project("exnext", &test_file_of(&rev));
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
     let (said, _) = keel(&dir, &["next"]);
+    // Wave 0055: the line handed to a person is the line the court
+    // itself runs -- by file and line. `--only` stood here until
+    // then, and over a name with letters past ASCII it excludes
+    // everything, so the advice led nowhere (final review
+    // 2026-09-06, bugs R-12).
     assert!(
-        said.contains("mix test --only 'test:test it works'"),
+        said.contains("mix test test/toy_test.exs:"),
         "next hands the tongue's own run line:\n{said}"
     );
     assert!(

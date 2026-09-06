@@ -414,7 +414,7 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
                     // cargo line it could not run.
                     runs.push(format!(
                         "    {}\n",
-                        adapter::run_line(root, &tag.file, &tag.test)
+                        adapter::run_line(root, &tag.file, &tag.test, tag.line)
                     ));
                 }
             }
