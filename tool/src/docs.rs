@@ -54,7 +54,8 @@ pub enum TransformKind {
     Chore(String),
 }
 
-/// A transform is a portion of work, exactly one commit (§2.4).
+/// A transform is a portion of work, closed by a commit under its
+/// slug -- one or several (§2.4, §6.2).
 #[derive(Debug, Clone)]
 pub struct Transform {
     pub kind: TransformKind,

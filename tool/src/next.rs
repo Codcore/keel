@@ -482,14 +482,24 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
         out.push('\n');
         return Ok(out);
     }
-    if !root
-        .join("keel/reviews")
-        .join(format!("{}.md", wave.slug))
-        .is_file()
-    {
-        out.push_str(&ta("next-step-review", targs!("wave" => wave.slug.clone())));
-        out.push('\n');
-        return Ok(out);
+    // One word about one state (review 0037 R-2; global review
+    // 2026-09-06, methodology R-13): an empty file is not a review
+    // for `close` and `status`, so it is none for the step either.
+    match std::fs::read_to_string(root.join("keel/reviews").join(format!("{}.md", wave.slug))) {
+        Err(_) => {
+            out.push_str(&ta("next-step-review", targs!("wave" => wave.slug.clone())));
+            out.push('\n');
+            return Ok(out);
+        }
+        Ok(text) if text.split_whitespace().next().is_none() => {
+            out.push_str(&ta(
+                "next-step-review-empty",
+                targs!("wave" => wave.slug.clone()),
+            ));
+            out.push('\n');
+            return Ok(out);
+        }
+        Ok(_) => {}
     }
 
     // The PR words go by weight (§6.8; the debt named by the 0015

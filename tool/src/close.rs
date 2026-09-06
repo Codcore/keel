@@ -51,14 +51,19 @@ pub(crate) enum State {
 /// inform, they do not punish.
 /// What the closing court wants free before it starts.
 ///
-/// MEASURED, not guessed (review 0031 R-5): one full `keel close` on
-/// this repository leaves 1.26 GiB in the target directory -- the
-/// three battery runs (§7.13) share one target, they do not each
-/// build their own. The first version of this constant said 4 GiB
-/// from the ceiling and refused with 3.5 GiB free, where the work
-/// would have finished with 2.2 GiB to spare. Two gigabytes is the
-/// measured price plus room for a project larger than this one.
-const NEEDED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+/// MEASURED, not guessed (review 0031 R-5), and measured AGAIN
+/// (global review 2026-09-06, methodology R-15; wave 0053): one full
+/// `keel close` on this repository leaves 3.0-3.2 GiB in the target
+/// directory of this generation (the battery of 195 tests, three
+/// runs sharing one target) -- the first measurement, 1.26 GiB,
+/// belonged to a smaller battery and stood in the word for twenty
+/// waves. The first version of this constant said 4 GiB from the
+/// ceiling and refused with 3.5 GiB free, where the work would have
+/// finished with 2.2 GiB to spare; the second said 2 GiB and was
+/// under the measured weight. Three gibibytes is the measured
+/// weight, rounded up to whole gibibytes, and the word carries this
+/// number and no other.
+const NEEDED_BYTES: u64 = 3 * 1024 * 1024 * 1024;
 
 /// Free bytes on the filesystem holding this project, or nothing
 /// when the question cannot be asked -- a court that cannot see the
@@ -426,9 +431,13 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     let mut blockers = 0usize;
     let mut own_plan = false;
     let mut own_awaiting = false;
+    let mut own_light = false;
     for wave in &scan.waves {
         let state = wave_state(root, wave, &found, &legal, Some(&battery))?;
         let own = branch.as_deref() == Some(wave.slug.as_str());
+        if own && docs::weight(wave) == docs::Weight::Light {
+            own_light = true;
+        }
         // A wave whose own branch this is does not read as closed
         // while the court is watching its battery fail. Waves closed
         // in earlier generations keep their verdict: their promises
@@ -550,8 +559,16 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         report.push('\n');
     }
     if blockers > 0 {
+        // The blockers are named by the wave's own weight (global
+        // review 2026-09-06, methodology R-16: "a full wave" was said
+        // over a light one waiting for its report).
+        let key = if own_light {
+            "close-blockers-light"
+        } else {
+            "close-blockers"
+        };
         report.push_str(&ta(
-            "close-blockers",
+            key,
             targs!("wave" => branch.unwrap_or_default(), "count" => blockers as u64),
         ));
         report.push('\n');
@@ -734,28 +751,35 @@ pub(crate) fn wave_state(
     // beside it.
     if nothing_to_prove(wave) {
         let report = root.join("keel/reviews").join(format!("{}.md", wave.slug));
-        if report.is_file() {
-            // "Closed by the fact of merge" only where the fact
-            // stands: the wave file in main. The first reading
-            // called a chore wave closed the moment its report lay
-            // beside it, on a branch main had never seen (global
-            // review 2026-09-06, methodology R-5).
-            // On the wave's OWN branch the fact is its work in the
-            // trunk, not its file: "its file and its work arrive in
-            // main by one PR" (§6.5; review 0052 R-6).
-            let own = scope::current_branch(root).as_deref() == Some(wave.slug.as_str());
-            let fact = if own {
-                scope::work_in_trunk(root)
-            } else {
-                scope::stands_in_main(root, &format!("keel/waves/{}.md", wave.slug))
-            };
-            return Ok(match fact {
-                Some(true) => State::ClosedLight,
-                Some(false) => State::AwaitingMerge(true),
-                None => State::AwaitingMerge(false),
-            });
+        // An empty file is no review here either -- one word about
+        // one state in every court (review 0037 R-2 for the full
+        // wave; global review 2026-09-06, methodology R-13; wave 0053).
+        match std::fs::read_to_string(&report) {
+            Err(_) => return Ok(State::Progress(vec![t("close-lack-review")])),
+            Ok(text) if text.split_whitespace().next().is_none() => {
+                return Ok(State::Progress(vec![t("close-lack-review-empty")]));
+            }
+            Ok(_) => {}
         }
-        return Ok(State::Progress(vec![t("close-lack-review")]));
+        // "Closed by the fact of merge" only where the fact
+        // stands: the wave file in main. The first reading
+        // called a chore wave closed the moment its report lay
+        // beside it, on a branch main had never seen (global
+        // review 2026-09-06, methodology R-5).
+        // On the wave's OWN branch the fact is its work in the
+        // trunk, not its file: "its file and its work arrive in
+        // main by one PR" (§6.5; review 0052 R-6).
+        let own = scope::current_branch(root).as_deref() == Some(wave.slug.as_str());
+        let fact = if own {
+            scope::work_in_trunk(root)
+        } else {
+            scope::stands_in_main(root, &format!("keel/waves/{}.md", wave.slug))
+        };
+        return Ok(match fact {
+            Some(true) => State::ClosedLight,
+            Some(false) => State::AwaitingMerge(true),
+            None => State::AwaitingMerge(false),
+        });
     }
 
     let wave_path = root.join("keel/waves").join(format!("{}.md", wave.slug));

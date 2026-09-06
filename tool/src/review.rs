@@ -34,12 +34,29 @@ pub fn package(root: &Path) -> Result<String, Refusal> {
         });
     };
     let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
+    // A wave called off is outside judgement, and §6.3-a says every
+    // court says so aloud -- this one assembled a package in silence
+    // (global review 2026-09-06, methodology R-12; wave 0053).
+    if let Some(why) = &wave.cancelled {
+        let mut out = t("review-title");
+        out.push('\n');
+        writeln!(
+            out,
+            "{}",
+            ta(
+                "review-cancelled",
+                targs!("wave" => slug.clone(), "why" => why.clone())
+            )
+        )
+        .unwrap();
+        return Ok(out);
+    }
     let rel = format!("keel/waves/{slug}.md");
     let wave_path = root.join(&rel);
     let text = std::fs::read_to_string(&wave_path).map_err(|e| Refusal {
         file: wave_path.clone(),
-        reason: format!("the wave file cannot be read: {e}"),
-        instead: "check the path and file permissions".to_string(),
+        reason: ta("docs-unreadable", targs!("error" => e.to_string())),
+        instead: t("docs-unreadable-instead"),
     })?;
     // CRLF normalized for section parsing (review 0009 R-3): the
     // package must not lose the Why and the caveats to Windows line

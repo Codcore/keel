@@ -302,11 +302,19 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                             refs_unjudged += 1;
                             None
                         } else if closed && revision_in_history(root, &relative, &reference.rev) {
-                            refs_historic += 1;
-                            historic_items.push(ta(
+                            // One old revision, however many
+                            // references of the header hold it: the
+                            // line counted rows -- 169 on this tree
+                            // for 88 revisions (global review
+                            // 2026-09-06, methodology R-14; wave 0053).
+                            let item = ta(
                                 "check-refs-historic-item",
                                 targs!("wave" => wave.slug.clone(), "contract" => reference.slug.clone(), "recorded" => reference.rev.clone()),
-                            ));
+                            );
+                            if !historic_items.contains(&item) {
+                                refs_historic += 1;
+                                historic_items.push(item);
+                            }
                             None
                         } else {
                             Some((

@@ -212,6 +212,8 @@ trust-nothing-new = нового нема: кожна команда verify/ci �
 trust-approves = рядки лягають у diff, який затверджує merge (§7.16)
 trust-no-config = keel.toml нема — рядок довіри нема куди готувати
 trust-no-config-instead = спершу створи конфіг: команда trust нічого не вигадує
+trust-unwritable = keel.toml не записується: { $error }
+trust-unwritable-instead = перевір права доступу до файлу
 trust-surgery-broken = хірургія не втримала форму цього файлу ({ $error }) — нічого не записано
 trust-surgery-broken-instead = наведи лад у блоці [trust] руками і біжи keel trust знову
 
@@ -261,6 +263,7 @@ review-impact-stale = стара проти нового тексту
 review-diff-header = ## Повний diff гілки (проти { $base })
 review-diff-empty = порожній
 review-diff-unverified = ## Повний diff гілки: не звірявся — нема точки розгалуження
+review-cancelled = хвилю { $wave } скасовано — { $why } (§6.3-а): пакет не збирається, судити нічого
 review-not-wave = гілка "{ $branch }" не зветься як хвиля (§8.2) — для якої хвилі збирати пакет, не вгадується
 review-not-wave-instead = стань на гілку хвилі: пакет збирається для хвилі гілки (§9.9)
 review-scenarios-none = нема — chore-хвиля сценаріїв не обіцяє (§6.8)
@@ -484,7 +487,7 @@ close-lack-ref = посилання { $contract }@{ $recorded } не сходи�
 close-lack-review-empty = файл звіту рецензії keel/reviews/<хвиля>.md є, але він порожній — порожній файл не рецензія (§9.9)
 close-lack-review = звіту рецензії keel/reviews/<хвиля>.md поруч із хвилею нема (§9.9)
 close-price-nothing-built = ціна цього суду: батарея жене тричі (§7.13); ця мова нічого не збирає, тож місця на диску суд не потребує
-close-price = ціна цього суду: батарея жене тричі (§7.13) у ВЛАСНИЙ { $target } — успадкований кеш зсуває вироки (§6.7), тож це рішення, а не вада; місця треба ~{ $needed } ГіБ (зміряно: одне закриття лишає 1,26 ГіБ)
+close-price = ціна цього суду: батарея жене тричі (§7.13) у ВЛАСНИЙ { $target } — успадкований кеш зсуває вироки (§6.7), тож це рішення, а не вада; місця треба ~{ $needed } ГіБ (зміряно на цьому дереві: одне закриття лишає ~{ $needed } ГіБ)
 close-price-light = ціна цього суду: батарея жене тричі (§7.13) у власну теку { $target } — успадкований кеш зсуває вироки (§6.7), тож це рішення, а не вада; ця мова збирає дрібно, тож вільного місця суд не вимагає
 close-price-paid = ціна сплачена: { $target } важить { $size } ГіБ
 close-no-room = на диску вільно { $free } ГБ, а цьому судові треба ~{ $needed } ГБ — краще відмовитись зараз, ніж померти на півдорозі з «no space left on device»
@@ -492,6 +495,7 @@ close-no-room-instead = звільни місце (rm -rf tool/target приби
 close-needs-adapter = судові закриття потрібен адаптер, який веде цей реліз, названий у keel.toml
 close-needs-adapter-instead = постав adapter = одним із тих, що реліз знає: { $known } (NEW-CONCEPT, «Конфіг»)
 close-blockers = блокери хвилі цієї гілки { $wave }: { $count } — повна хвиля не зливається недоведеною (§6.5, §9.9)
+close-blockers-light = блокери хвилі цієї гілки { $wave }: { $count } — легка хвиля не зливається без звіту рецензії (§9.9)
 close-no-blockers = блокерів нема: гілка не зветься як незакрита хвиля — стани вище інформують
 close-no-blockers-awaiting = блокерів нема: хвиля цієї гілки { $wave } закриється фактом merge (§6.5) — merge і є її закриття
 close-form-judged = суд форми (§7.6): знахідок { $count } — ті самі контракти, що судить keel check
@@ -515,6 +519,7 @@ close-plan-own = хвиля цієї гілки — затверджена, ще
 ## команда map (§10.7)
 map-title = keel map — мапа якості (§10.7)
 map-view-wave = мапа хвилі { $wave }: гілка зветься нею (§8.2) — пункт пакета рецензента (§9.9); чесність кожного рядка лишається роботою рецензента
+map-view-cancelled = хвилю { $wave } скасовано — { $why } (§6.3-а): мапа намальована, а судити нічого
 map-view-project = мапа проєкту: гілка "{ $branch }" не зветься хвилею — по кожному розрізу слово наймолодшої хвилі, що відповіла
 map-covered = закрито: "{ $scenario }" — { $proof }
 map-proof-proven = доведений (тег збіжний, §6.3; зелень тесту — суд keel close)
@@ -571,6 +576,7 @@ next-contract-label = { "  " }контракт { $contract }@{ $rev }, чинн�
 next-contract-missing = файлу контракту "{ $contract }" нема — бите посилання назве keel check (§7.1)
 next-run-label = { "  " }біг тестів його сценаріїв:
 next-run-none = { "  " }тестів її сценаріїв ще нема — біг зʼявиться з тегами (знятий сценарій тега не дістане)
+next-step-review-empty = крок: файл звіту рецензії keel/reviews/{ $wave }.md є, але він порожній — порожній файл не рецензія (§9.9): збери пакет командою `keel review` свіжому агентові і поклади його звіт у цей файл
 next-step-review = крок: хвиля зібрана — час рецензії (§9.9): збери пакет командою `keel review` свіжому агентові; звіт ляже в keel/reviews/{ $wave }.md
 next-step-light-contract-chores = крок: гілка хвилі { $wave } змінює контракт "{ $contract }", а хвиля — самі chore без обіцянки: такій хвилі контракт не належить (§2.11, §6.8) — дай їй сценарій або прибери зміну з гілки
 next-step-chores-heavy = крок: хвиля { $wave } — самі chore, а вага повна ({ $why }): хвиля з самих chore мусить бути легкою (§2.11) — дай їй сценарій або лиши одну chore-трансформу без контракту
@@ -710,7 +716,7 @@ main-help = keel — інструмент методики. Команди:
 {"  "}Читальні команди — check, close, status, next, map, review,
 {"  "}version, cuts, rev, concept, method — беруть ще:
     --json — один JSON-пакет на stdout, для скриптів і harness-ів
-main-usage = натомість (кожна команда бере ще -C <тека>, --branch <імʼя>, а читальні — --json): keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <команда>] [--trust yes|no] [--no-ask] [тека] | keel setup [ті самі прапорці] [тека] | keel concept [тека] | keel trust [тека] | keel hook [тека] | keel cuts [тека] | keel method [§N.M | розділ] [тека] | keel version [тека] | keel update [тека]
+main-usage = натомість (кожна команда бере ще -C <тека>, --branch <імʼя>, а читальні — --json): keel check [тека] | keel rev [--write] [тека] | keel gate <файл-повідомлення> [тека] | keel close [тека] | keel map [тека] | keel review [тека] | keel status [тека] | keel next [--for <агент>] [тека] | keel plan <слаг> [тека] | keel new contract <слаг> [тека] | keel init [--lang <м>] [--adapter <а>] [--mode <р>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <команда>] [--trust yes|no] [--no-ask] [тека] | keel setup [ті самі прапорці] [тека] | keel concept [тека] | keel trust [тека] | keel hook [тека] | keel cuts [тека] | keel method [§N.M | розділ] [тека] | keel version [тека] | keel update [тека]
 main-usage-command = натомість, ця команда бере: { $shape }
 main-branch-ignored = --branch не вжито: git знає гілку "{ $branch }", і git тут факт — прапорець чинний лише там, де git гілки не знає (§4.10)
 
