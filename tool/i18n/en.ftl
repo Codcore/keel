@@ -265,6 +265,8 @@ adapter-ruby-failed = ruby did not start: { $error }
 adapter-ruby-failed-instead = put ruby on PATH -- the adapter calls it exactly as a person would in a terminal
 adapter-ruby-broken = the test file { $error }
 adapter-ruby-broken-instead = ruby builds nothing ahead: a file that did not load gives no verdict for any test in it -- mend it and run again
+adapter-ruby-silent = ruby said not a word about running { $file }: no minitest summary "N runs, …", and it left with 0
+adapter-ruby-silent-instead = require "minitest/autorun" in the test file -- without it minitest never runs, and silence is not read as green
 adapter-rspec-failed = rspec did not start: { $error }
 adapter-rspec-failed-instead = put rspec on PATH -- the adapter calls it exactly as a person would in a terminal; it writes its JSON to a file outside the project, and without the file there is no verdict
 adapter-rspec-broken = rspec did not load the examples: { $error }
@@ -282,6 +284,8 @@ adapter-cargo-failed = cargo refuses: { $error }
 adapter-cargo-failed-instead = the judgement needs cargo running (journal A3); make cargo answer here and retry
 adapter-battery-mismatch = cargo announces { $stems } targets and prints { $blocks } verdict blocks -- the stitch does not meet (a harness = false target?)
 adapter-battery-mismatch-instead = the court does not judge by a shifted seam; run that target apart or give it a harness, then retry keel close
+adapter-battery-alike = cargo announces the target "{ $target }" twice -- the verdicts of two targets of one name cannot be told apart (a workspace?)
+adapter-battery-alike-instead = this release leads one crate: run the workspace members apart, each with its own keel.toml, or give the targets different names -- then retry keel close
 
 ## gate module
 gate-mode = mode: { $mode }

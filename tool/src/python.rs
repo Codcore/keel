@@ -182,16 +182,25 @@ fn bare_name(name: &str) -> String {
 /// it prints them: the `-rA` summary (`PASSED tests/test_toy.py::x`,
 /// `FAILED tests/test_toy.py::y - assert …`) and the `-v` progress
 /// line (`tests/test_toy.py::x PASSED [ 33%]`). The file, the node
-/// after the first `::` (classes and all), and the verdict word.
+/// after the first `::` (classes and all), and the verdict word --
+/// every distinct verdict word of a node, since a node may get two.
 pub fn ran(said: &str) -> Vec<(String, String, String)> {
     const VERDICTS: [&str; 6] = ["PASSED", "FAILED", "ERROR", "SKIPPED", "XFAIL", "XPASS"];
     let mut out: Vec<(String, String, String)> = Vec::new();
-    let mut seen: std::collections::BTreeSet<(String, String)> = std::collections::BTreeSet::new();
+    // One node is spoken of twice by shape (the progress line and
+    // the -rA summary) and may be spoken of twice by VERDICT: `PASSED`
+    // for the body and `ERROR` for its teardown. The first roll kept
+    // the first word only, and a test whose teardown broke came out
+    // green in the battery while the gate saw pytest leave with 1
+    // (global review 2026-09-06, bugs cut R-3). Every distinct word
+    // is kept, and the battery folds them -- red wins.
+    let mut seen: std::collections::BTreeSet<(String, String, String)> =
+        std::collections::BTreeSet::new();
     let mut take = |file: &str, name: &str, verdict: &str| {
         if !file.ends_with(".py") || name.is_empty() {
             return;
         }
-        if seen.insert((file.to_string(), name.to_string())) {
+        if seen.insert((file.to_string(), name.to_string(), verdict.to_string())) {
             out.push((file.to_string(), name.to_string(), verdict.to_string()));
         }
     };

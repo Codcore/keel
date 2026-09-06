@@ -210,8 +210,20 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             });
         }
         let key = crate::adapter::battery_key(root, &file);
+        // node prints the FILE as one passed entry where nothing in
+        // it ran -- a file with no test, a name pattern that matched
+        // nothing -- and that line is no test. A filter by the name
+        // alone threw out a red test NAMED as its file with it (global
+        // review 2026-09-06, bugs cut R-21). Measured on node 22: the
+        // file's own line never carries a `location:`, a failed test
+        // always does -- so a red under the file's name is a test, and
+        // the file line stays out. A GREEN test named as its file has
+        // no location either and is read as the file line: it is not
+        // counted, the court says its tag ran nothing, and the wave
+        // stays open -- the safe side of the border, named in the
+        // contract.
         for entry in tap(&said) {
-            if entry.suite || entry.skipped || entry.name == shown {
+            if entry.suite || entry.skipped || (entry.name == shown && !entry.located) {
                 continue;
             }
             out.entry((key.clone(), entry.name))
@@ -228,6 +240,10 @@ pub struct Entry {
     pub ok: bool,
     pub suite: bool,
     pub skipped: bool,
+    /// Whether node gave the entry a `location:` -- the line of the
+    /// test that failed. The FILE's own line (a file with no test in
+    /// it, or a name pattern that matched nothing) never has one.
+    pub located: bool,
 }
 
 /// node's TAP, read as node writes it: `ok N - <name>` or `not ok N -
@@ -271,6 +287,7 @@ pub fn tap(said: &str) -> Vec<Entry> {
         let name = unescape_tap(name);
         // The YAML block below it, if node wrote one.
         let mut suite = false;
+        let mut located = false;
         let mut look = at + 1;
         if lines.get(look).is_some_and(|l| l.trim() == "---") {
             look += 1;
@@ -282,6 +299,9 @@ pub fn tap(said: &str) -> Vec<Entry> {
                 if let Some(kind) = body.strip_prefix("type:") {
                     suite = kind.trim().trim_matches('\'') == "suite";
                 }
+                if body.starts_with("location:") {
+                    located = true;
+                }
                 look += 1;
             }
         }
@@ -290,6 +310,7 @@ pub fn tap(said: &str) -> Vec<Entry> {
             ok,
             suite,
             skipped,
+            located,
         });
         at += 1;
     }

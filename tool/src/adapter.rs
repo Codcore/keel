@@ -375,27 +375,68 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     // cargo splits its word: the target list ("Running tests/x.rs")
     // goes to stderr, the verdicts go to stdout -- one block per
     // target, in the same order, since targets run one after another.
-    // The stems and the blocks are stitched back by that order.
-    let mut stems: Vec<String> = Vec::new();
+    // The targets and the blocks are stitched back by that order.
+    //
+    // A target is keyed as cargo announces it: `tests/x.rs` by its
+    // stem -- the key a tag's file gives (`battery_key`) -- and any
+    // other target (`unittests src/lib.rs`, `unittests src/main.rs`)
+    // by the words themselves. The bare STEM let the library's and
+    // the binary's unit tests share one key, and the second target's
+    // green overwrote the first's red while cargo left with 101
+    // (global review 2026-09-06, bugs cut R-1). Two targets announced
+    // by one path -- a workspace with `a/tests/basic.rs` and
+    // `b/tests/basic.rs` -- are told apart by nothing a tag could
+    // name: a refusal aloud, never two verdicts folded into one.
+    let mut targets: Vec<String> = Vec::new();
     for line in stderr.lines() {
         let trimmed = line.trim();
         if let Some(what) = trimmed.strip_prefix("Running ") {
-            let path = what.split_whitespace().next().unwrap_or("");
-            stems.push(
-                Path::new(path)
+            let announced = what.split(" (").next().unwrap_or(what).trim();
+            let key = if announced.starts_with("tests/") {
+                Path::new(announced)
                     .file_stem()
                     .map(|s| s.to_string_lossy().into_owned())
-                    .unwrap_or_default(),
-            );
+                    .unwrap_or_default()
+            } else {
+                announced.to_string()
+            };
+            if targets.contains(&key) {
+                return Err(Refusal {
+                    file: crate_dir,
+                    reason: ta(
+                        "adapter-battery-alike",
+                        targs!("target" => announced.to_string()),
+                    ),
+                    instead: t("adapter-battery-alike-instead"),
+                });
+            }
+            targets.push(key);
         } else if trimmed.starts_with("Doc-tests ") {
-            stems.push("doc-tests".to_string());
+            targets.push("doc-tests".to_string());
         }
     }
     let stdout = String::from_utf8_lossy(&out.stdout);
-    let mut verdicts = std::collections::BTreeMap::new();
+    let mut verdicts: BTreeMap<(String, String), bool> = BTreeMap::new();
     let mut block: usize = 0;
+    // The `failures:` section of a block repeats whatever the failed
+    // tests printed, and a test may print anything -- `test quiet ...
+    // ok`, `running 1 test` (bugs cut R-16). Nothing in it is a
+    // verdict or a block opener; it ends at cargo's own `test result:`
+    // line. The border is text: a test that prints THAT line too is
+    // read past, and the stitch below is what still stands.
+    let mut in_failures = false;
     for line in stdout.lines() {
         let trimmed = line.trim();
+        if in_failures {
+            if trimmed.starts_with("test result:") {
+                in_failures = false;
+            }
+            continue;
+        }
+        if trimmed == "failures:" {
+            in_failures = true;
+            continue;
+        }
         if trimmed.starts_with("running ") && trimmed.ends_with("tests")
             || trimmed == "running 1 test"
         {
@@ -410,25 +451,30 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
                 v if v.starts_with("FAILED") => false,
                 _ => continue, // ignored and friends are no verdict
             };
-            let stem = block
+            let target = block
                 .checked_sub(1)
-                .and_then(|i| stems.get(i))
+                .and_then(|i| targets.get(i))
                 .cloned()
                 .unwrap_or_default();
-            verdicts.insert((stem, name.trim().to_string()), green);
+            // Red wins where one key is spoken of twice: a verdict is
+            // never overwritten by a later green.
+            verdicts
+                .entry((target, name.trim().to_string()))
+                .and_modify(|was| *was = *was && green)
+                .or_insert(green);
         }
     }
     // The stitch holds only when every announced target printed its
     // verdict block: a harness = false target prints "Running" and
-    // no block, shifting every later verdict onto the wrong stem --
+    // no block, shifting every later verdict onto the wrong target --
     // up to blessing a wave with a red tagged test (review R-1). A
     // seam that does not meet is a refusal, not a guess.
-    if block != stems.len() {
+    if block != targets.len() {
         return Err(Refusal {
             file: crate_dir,
             reason: ta(
                 "adapter-battery-mismatch",
-                targs!("stems" => stems.len() as u64, "blocks" => block as u64),
+                targs!("stems" => targets.len() as u64, "blocks" => block as u64),
             ),
             instead: t("adapter-battery-mismatch-instead"),
         });

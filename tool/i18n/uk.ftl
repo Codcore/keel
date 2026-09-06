@@ -267,6 +267,8 @@ adapter-ruby-failed = ruby не запустився: { $error }
 adapter-ruby-failed-instead = постав ruby на PATH — адаптер кличе його так само, як людина в терміналі
 adapter-ruby-broken = тестовий файл { $error }
 adapter-ruby-broken-instead = ruby не збирає наперед: файл, який не завантажився, не дає вироку жодному тесту — полагодь його і повтори
+adapter-ruby-silent = ruby не сказав ні слова про біг файлу { $file }: підсумку minitest «N runs, …» нема, а вийшов із 0
+adapter-ruby-silent-instead = require "minitest/autorun" у файлі тестів — без нього minitest не біжить, і мовчання не читається як зелене
 adapter-rspec-failed = rspec не запустився: { $error }
 adapter-rspec-failed-instead = постав rspec на PATH — адаптер кличе його так само, як людина в терміналі; JSON він пише у файл поза проєктом, і без файла вироку нема
 adapter-rspec-broken = rspec не завантажив приклади: { $error }
@@ -284,6 +286,8 @@ adapter-cargo-failed = cargo відмовляє: { $error }
 adapter-cargo-failed-instead = судові потрібен робочий cargo (журнал А3); зроби так, щоб cargo тут відповідав, і повтори
 adapter-battery-mismatch = cargo оголошує { $stems } цілей і друкує { $blocks } блоків вироків — зшивка не сходиться (ціль із harness = false?)
 adapter-battery-mismatch-instead = суд не судить по зсунутому шву; віддай тій цілі harness або жени її окремо, тоді повтори keel close
+adapter-battery-alike = cargo оголошує ціль "{ $target }" двічі — вироки двох цілей з одним іменем не розрізнити (воркспейс?)
+adapter-battery-alike-instead = цей реліз веде один крейт: жени члени воркспейсу окремо, кожен зі своїм keel.toml, або дай цілям різні імена — тоді повтори keel close
 
 ## модуль gate
 gate-mode = mode: { $mode }

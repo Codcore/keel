@@ -254,16 +254,30 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         }
         if ran == 0 {
             // Nothing ran. Either the file declares no test at all --
-            // which is not a fault -- or it did not load, and then
-            // there is no verdict for anyone.
-            if let crate::adapter::Outcome::BuildBroken(words) =
-                classify(&said, run.status.success())
-            {
-                return Err(Refusal {
-                    file: file.clone(),
-                    reason: ta("adapter-ruby-broken", targs!("error" => words)),
-                    instead: t("adapter-ruby-broken-instead"),
-                });
+            // which is not a fault, and minitest still says `0 runs`
+            // -- or it did not load, or minitest never ran because
+            // nothing required `minitest/autorun` (bugs cut R-7): in
+            // the last two there is no verdict for anyone, and the
+            // refusal says which.
+            match classify(&said, run.status.success()) {
+                crate::adapter::Outcome::BuildBroken(words) => {
+                    return Err(Refusal {
+                        file: file.clone(),
+                        reason: ta("adapter-ruby-broken", targs!("error" => words)),
+                        instead: t("adapter-ruby-broken-instead"),
+                    });
+                }
+                crate::adapter::Outcome::NotRun if !summarised(&said) => {
+                    return Err(Refusal {
+                        file: file.clone(),
+                        reason: ta(
+                            "adapter-ruby-silent",
+                            targs!("file" => relative.display().to_string()),
+                        ),
+                        instead: t("adapter-ruby-silent-instead"),
+                    });
+                }
+                _ => {}
             }
         }
     }
@@ -326,10 +340,29 @@ pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
     {
         return crate::adapter::Outcome::NotRun;
     }
+    // No summary line at all: minitest never ran. Without
+    // `minitest/autorun` ruby loads the file, defines the class,
+    // says nothing and leaves with 0 -- and the first reading called
+    // that green (global review 2026-09-06, bugs cut R-7). Silence is
+    // "nothing ran", in both courts.
+    if !summarised(said) {
+        return crate::adapter::Outcome::NotRun;
+    }
     if success {
         return crate::adapter::Outcome::Green;
     }
     crate::adapter::Outcome::Failed
+}
+
+/// Whether minitest spoke its summary line at all -- `3 runs, 3
+/// assertions, 0 failures, …` -- the one line every run prints, a run
+/// of zero tests included.
+fn summarised(said: &str) -> bool {
+    said.lines().any(|line| {
+        let trimmed = line.trim_start();
+        let digits = trimmed.chars().take_while(|c| c.is_ascii_digit()).count();
+        digits > 0 && trimmed[digits..].starts_with(" runs, ")
+    })
 }
 
 /// One example as rspec's JSON reports it: the id a run selects it

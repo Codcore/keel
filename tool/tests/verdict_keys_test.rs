@@ -166,7 +166,10 @@ fn every_verdict_keeps_its_own_key() {
         "the stitch of targets and blocks still meets:\n{said}"
     );
     assert_ne!(code, 0, "and a court that saw red does not close:\n{said}");
-    assert!(!said.contains("закрита"), "no verdict reads as closure:\n{said}");
+    assert!(
+        !said.contains("закрита"),
+        "no verdict reads as closure:\n{said}"
+    );
 
     // --- rust: two targets announced by one path (a workspace with
     // `a/tests/basic.rs` and `b/tests/basic.rs`) -- nothing a tag
@@ -194,12 +197,18 @@ fn every_verdict_keeps_its_own_key() {
     wave(&dir, "rust", "a/src/lib.rs");
     settle(&dir);
     let (said, code) = keel(&dir, &["close"]);
+    // cargo announces the members' library targets first, and both
+    // are `unittests src/lib.rs`: the first pair of one name is the
+    // one the refusal names.
     assert!(
-        said.contains("tests/basic.rs") && said.contains("двічі"),
+        said.contains("оголошує ціль") && said.contains("двічі"),
         "two targets of one name are refused by that name:\n{said}"
     );
     assert_ne!(code, 0, "and the refusal is not a closure:\n{said}");
-    assert!(!said.contains("закрита"), "no verdict reads as closure:\n{said}");
+    assert!(
+        !said.contains("закрита"),
+        "no verdict reads as closure:\n{said}"
+    );
 
     // --- python: green in the body, ERROR at teardown -- pytest says
     // two words about one node, and the second is red ---
@@ -236,7 +245,10 @@ fn every_verdict_keeps_its_own_key() {
              teardown is red:\n{said}"
         );
         assert_ne!(code, 0, "the two courts agree on one tree:\n{said}");
-        assert!(!said.contains("закрита"), "no verdict reads as closure:\n{said}");
+        assert!(
+            !said.contains("закрита"),
+            "no verdict reads as closure:\n{said}"
+        );
     }
 
     // --- javascript: a red test named as its own file ---
@@ -277,7 +289,10 @@ fn every_verdict_keeps_its_own_key() {
             "and the battery did not lose it as `not run`:\n{said}"
         );
         assert_ne!(code, 0, "a court that saw red does not close:\n{said}");
-        assert!(!said.contains("закрита"), "no verdict reads as closure:\n{said}");
+        assert!(
+            !said.contains("закрита"),
+            "no verdict reads as closure:\n{said}"
+        );
     }
 
     // --- ruby: minitest required without `minitest/autorun` -- ruby
@@ -319,6 +334,9 @@ fn every_verdict_keeps_its_own_key() {
             "the battery names what minitest lacked to run at all:\n{said}"
         );
         assert_ne!(code, 0, "and does not close over it:\n{said}");
-        assert!(!said.contains("закрита"), "no verdict reads as closure:\n{said}");
+        assert!(
+            !said.contains("закрита"),
+            "no verdict reads as closure:\n{said}"
+        );
     }
 }
