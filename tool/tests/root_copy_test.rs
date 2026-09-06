@@ -52,11 +52,21 @@ fn the_root_copy_does_not_drift() {
         root.starts_with("# Keel: the methodology"),
         "the root copy keeps its own preamble"
     );
-    if let Some(line) = first_difference(body(&root), body(&en)) {
-        let shown = body(&root).lines().nth(line - 1).unwrap_or("<end>");
-        let theirs = body(&en).lines().nth(line - 1).unwrap_or("<end>");
+    // Byte for byte (review 0054 R-11: a copy with CRLF or without
+    // its last newline read equal line by line); the line is for the
+    // message only.
+    if body(&root) != body(&en) {
+        let line = first_difference(body(&root), body(&en)).unwrap_or(0);
+        let shown = body(&root)
+            .lines()
+            .nth(line.saturating_sub(1))
+            .unwrap_or("<end>");
+        let theirs = body(&en)
+            .lines()
+            .nth(line.saturating_sub(1))
+            .unwrap_or("<end>");
         panic!(
-            "the root copy drifted from docs/en at body line {line}:\n  root: {shown}\n  en:   {theirs}"
+            "the root copy drifted from docs/en at body line {line} (0: the bytes differ where the lines do not):\n  root: {shown}\n  en:   {theirs}"
         );
     }
     // The court can fall: one line more in a copy is named by line.
