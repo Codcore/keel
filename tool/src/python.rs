@@ -177,6 +177,22 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             .and_modify(|was| *was = *was && green)
             .or_insert(green);
     }
+    // pytest left red and the reader saw none: the same belt cargo's
+    // hand has (wave 0055). A session hook of the project's own --
+    // `session.exitstatus = 1` in conftest -- makes pytest leave with
+    // 1 over a run where every test passed, and the battery read that
+    // as green while the gate, which asks the exit code, called the
+    // work red: two courts, one tree, two answers (final review
+    // 2026-09-06, tests R-2). Where nothing was read at all the
+    // courts above say "did not run" in their own words, and this
+    // belt stays out of it.
+    if code != 0 && !out.values().any(|green| !green) && out.values().any(|green| *green) {
+        return Err(Refusal {
+            file: root.to_path_buf(),
+            reason: ta("adapter-python-red-unseen", targs!("code" => code as i64)),
+            instead: t("adapter-python-red-unseen-instead"),
+        });
+    }
     Ok(out)
 }
 

@@ -582,6 +582,18 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         if let Some(rest) = trimmed.strip_prefix("test ")
             && let Some((name, verdict)) = rest.rsplit_once(" ... ")
         {
+            // `#[should_panic]` is written by cargo into the verdict
+            // line -- `test it_panics - should panic ... ok` -- and
+            // the first reading kept the whole of it as the name, so
+            // the closing court said the battery ran no test of the
+            // tag's name while the gate, which runs one test by name,
+            // was green (final review 2026-09-06, bugs R-9; wave
+            // 0055). The suffix is cargo's word about the test, not
+            // part of what anyone may write in a `proves:` tag.
+            let name = name
+                .trim()
+                .strip_suffix(" - should panic")
+                .unwrap_or(name.trim());
             let green = match verdict.trim() {
                 "ok" => true,
                 v if v.starts_with("FAILED") => false,
@@ -599,7 +611,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
                 .unwrap_or_default();
             // One key, one verdict: cargo names a test once per
             // target, and the numbers above are what hold the text.
-            verdicts.insert((target, name.trim().to_string()), green);
+            verdicts.insert((target, name.to_string()), green);
         }
     }
     // The stitch holds only when every announced target printed its

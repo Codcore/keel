@@ -461,6 +461,7 @@ limit-shallow = not checked: the history is shallow -- { $skipped ->
 limit-base-stale = not checked: local { $trunk } is { $behind } behind { $base } as of the last fetch (this clone knows nothing newer) -- scope was judged against a stale base; instead: git fetch
 limit-base-local-only = not checked: this clone knows no remote { $trunk } -- the base of comparison is local and its freshness cannot be checked
 limit-hook-absent = not held by machine here: keel.toml says hooks = true, but no commit-msg hook of ours stands in this clone -- git does not clone hooks, so the block in AGENTS.md promises a machine that is not on this one: here both rules (sec. 8.4, sec. 7.12) are held by people; instead: keel hook
+limit-tags-cancelled = not checked: the test "{ $test }" carries the tag of scenario "{ $scenario }" of wave { $wave }, which was called off -- a called-off wave is outside judgement whole (§6.3-a), so this is no orphan; instead: take the test away with the wave's branch, or put the wave back to work
 limit-ruby-border = not checked: ruby does not tell "failed" from "did not build" by its exit code -- both are 1 (§7.12). The adapter reads the text (SyntaxError, LoadError); where the text does not say, a failure is taken as a failure -- the direction that cannot turn red into green; a skipped test (`skip`, the S mark) did not run: neither green nor red
 limit-ruby-form = not checked in essence: ruby writes no types, so the §7.6 form court compares a method name and its parameters -- and nothing more; green form here means even less about meaning than it does in a tongue with types (§7.8)
 limit-elixir-border = measured: this tongue tells "failed" from "did not build" by its exit code (0 green, 2 failed, 1 did not compile), so sec. 7.12's border about the two being alike does not stand here -- a broken build is judged a broken build, not a red test; a skipped test (`@tag :skip`) leaves with 0 and did not run: neither green nor red
@@ -523,13 +524,14 @@ close-form-blockers = form the code does not hold: { $count } -- a contract whos
 close-verify-count = verify commands judged: { $count }
 close-verify-passed = verify "{ $command }" of { $contract } — passed
 close-verify-failed = verify "{ $command }" of { $contract } — FAILED ({ $words }) — a broken foreign promise does not merge (§2.8)
-close-verify-untrusted = verify "{ $command }" of { $contract } — did not run: not trusted (§7.16); check holds that verdict
+close-verify-untrusted = verify "{ $command }" of { $contract } — did not run: not trusted (§7.16), so nobody proved the contract's promise; check holds that verdict; instead: read the command again and record trust by hand with keel trust
 close-red-blockers = the battery saw red: { $count } -- they failed while the court watched, so the wave does not close; whether a scenario claims them is beside the point: a court that saw red and closed is worse than a court that did not run
 close-verify-blockers = broken foreign promises: { $count } — the exit is red
+close-verify-unproven = contract promises whose proof did not run: { $count } -- a command trust does not let run does not run (§7.16); check holds the verdict of distrust, and while it is red the tree does not merge -- so "no blockers" is not said here; instead: keel trust
 close-verify-no-words = the command left no words
 close-ci-passed = ci "{ $command }" — passed: the project's own gate is green
 close-ci-failed = ci "{ $command }" — FAILED ({ $words }) — the project's own gate is red, the wave does not merge (§7.16); run the command yourself to see its whole word
-close-ci-untrusted = ci "{ $command }" — did not run: not trusted (§7.16); check holds that verdict — record trust with keel trust
+close-ci-untrusted = ci "{ $command }" — did not run: not trusted (§7.16), so the project's own gate did not judge this tree; check holds that verdict; instead: read the command again and record trust by hand with keel trust
 close-ci-none = ci = "none" — a refusal aloud, lawful; nothing runs
 close-ci-undecided = ci = "" — undecided; nothing runs (check's finding)
 close-ci-absent = ci not declared — nothing runs
@@ -894,6 +896,8 @@ adapter-python-failed = pytest did not start: { $error }
 adapter-python-failed-instead = put pytest on PATH -- the adapter calls pytest exactly as a person would in a terminal
 adapter-python-broken = collecting the tests broke: { $error }
 adapter-python-broken-instead = pytest says so with exit code 2, a failure with 1, "no such test" with 4; without a collection there is no verdict for anyone -- mend it and run again
+adapter-python-red-unseen = pytest left with { $code } and the reader saw no red verdict at all -- the fall happened outside the tests (a session hook, a teardown, a plugin)
+adapter-python-red-unseen-instead = run `pytest -vv` by hand and see what fell outside the tests; without a red it has read the court does not judge
 limit-python-border = measured: this tongue tells five states apart by its exit code (0 green, 1 failed, 2 collection broke, 4 no such test, 5 nothing collected), so sec. 7.12's border about the two being alike does not stand here -- a broken collection is judged broken, and an unknown node "did not run", never green
 limit-python-reads = not checked: the adapter reads only tests/**/test_*.py and *_test.py -- pytest collects them anywhere under rootdir, and unittest without pytest is not read at all; the RSpec-shaped border, named here
 limit-python-unread = not checked: the adapter does not read { $file } -- pytest collects test_*.py and *_test.py, and a tag there was not read

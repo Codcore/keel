@@ -318,6 +318,10 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // The project's ci follows through the same gate (wave 0019).
     let mut verify_count: u64 = 0;
     let mut verify_blockers = 0usize;
+    // Counted apart from the broken ones: a promise whose proof did
+    // not run is not a broken promise, and one word for both would
+    // say of a distrusted command that it failed (wave 0055).
+    let mut verify_unrun = 0usize;
     let mut verify_lines: Vec<String> = Vec::new();
     for contract in &scan.contracts {
         if contract.withdrawn.is_some() {
@@ -328,10 +332,18 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         };
         verify_count += 1;
         if !crate::trust::trusted(&config, command) {
+            // A proof that did not run is not a proof, and this
+            // court says so in its footer too (wave 0055): it used to
+            // print "no blockers" right under the row naming the
+            // command that did not run (final review 2026-09-06, bugs
+            // R-13). The VERDICT of distrust stays check's, as wave
+            // 0010 promised -- this court does not duplicate the
+            // finding, and its exit is unchanged.
             verify_lines.push(ta(
                 "close-verify-untrusted",
                 targs!("command" => command.clone(), "contract" => contract.slug.clone()),
             ));
+            verify_unrun += 1;
             continue;
         }
         match run_command(root, command) {
@@ -404,14 +416,24 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // contract's proof; untrusted, none, undecided and absent are
     // each a word, never a run. "Trusted" means "runs".
     let mut ci_blocker = 0usize;
+    let mut ci_unrun = false;
     let ci_line = match config.ci.as_deref() {
         None => t("close-ci-absent"),
         Some("") => t("close-ci-undecided"),
         Some("none") => t("close-ci-none"),
-        Some(command) if !crate::trust::trusted(&config, command) => ta(
-            "close-ci-untrusted",
-            targs!("command" => command.to_string()),
-        ),
+        Some(command) if !crate::trust::trusted(&config, command) => {
+            // The exit stays check's: wave 0010 promised that
+            // distrust is check's verdict and this court does not
+            // duplicate the finding, and that promise is alive. What
+            // wave 0055 ends is the CONTRADICTION -- the footer said
+            // "no blockers" under a row saying a proof did not run
+            // (final review 2026-09-06, bugs R-13).
+            ci_unrun = true;
+            ta(
+                "close-ci-untrusted",
+                targs!("command" => command.to_string()),
+            )
+        }
         Some(command) => match run_command(root, command) {
             Ok(()) => ta("close-ci-passed", targs!("command" => command.to_string())),
             Err(words) => {
@@ -547,6 +569,13 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         ));
         report.push('\n');
     }
+    if verify_unrun > 0 {
+        report.push_str(&ta(
+            "close-verify-unproven",
+            targs!("count" => verify_unrun as u64),
+        ));
+        report.push('\n');
+    }
     if form_blockers > 0 {
         report.push_str(&ta(
             "close-form-blockers",
@@ -586,7 +615,13 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             targs!("wave" => branch.unwrap_or_default()),
         ));
         report.push('\n');
-    } else if verify_blockers == 0 && form_blockers == 0 && ci_blocker == 0 && red_tests == 0 {
+    } else if verify_blockers == 0
+        && verify_unrun == 0
+        && !ci_unrun
+        && form_blockers == 0
+        && ci_blocker == 0
+        && red_tests == 0
+    {
         // The branch's own wave may be named and unblocked at once:
         // a light wave waiting for its merge (review 0052 R-13 -- the
         // old word called such a branch "not named as an unclosed

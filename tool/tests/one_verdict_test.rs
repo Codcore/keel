@@ -116,7 +116,7 @@ fn project(name: &str, manifest_tail: &str, test_body: &str) -> Sandbox {
     dir
 }
 
-/// proves: the-courts-agree-on-one-tree@0c9481 -- one tree, two
+/// proves: the-courts-agree-on-one-tree@73e245 -- one tree, two
 /// courts, and five ways they answered differently: a runner cargo
 /// could not read, a pytest that failed outside its tests, a name
 /// cargo spells with its own suffix, a command trust does not let
@@ -202,15 +202,19 @@ fn the_courts_agree_on_one_tree() {
         "the documents court reddens over a command it does not \
          trust (§7.16):\n{check}"
     );
-    let (said, code) = keel(&dir, &["close"]);
-    assert_ne!(
-        code, 0,
-        "and the closing court says the same of the same tree -- a \
-         proof that did not run is not a proof:\n{said}"
+    let (said, _code) = keel(&dir, &["close"]);
+    assert!(
+        said.contains("did not run") && said.contains("keel trust"),
+        "the closing court names the proof that did not run and the \
+         hand that lets it run (§7.16):\n{said}"
     );
     assert!(
-        !said.contains("0009-w: closed"),
-        "so the wave does not close:\n{said}"
+        !said.lines().any(|line| line.starts_with("no blockers")),
+        "and does not say \"no blockers\" under it: the verdict of \
+         distrust is check's (wave 0010 promised this court would not \
+         duplicate it), and while it stands red the tree does not \
+         merge -- a footer that says otherwise is the two courts \
+         disagreeing over one tree:\n{said}"
     );
 
     // Trust recorded by hand, and both courts agree the other way.
@@ -220,6 +224,10 @@ fn the_courts_agree_on_one_tree() {
     git(&dir, &["commit", "-q", "-m", "t: trust recorded"]);
     let (said, code) = keel(&dir, &["close"]);
     assert_eq!(code, 0, "with trust recorded the wave closes:\n{said}");
+    assert!(
+        said.lines().any(|line| line.starts_with("no blockers")),
+        "and the footer is the plain one again:\n{said}"
+    );
 
     // -- the tags of a wave called off are outside judgement --------
     let dir = project("oneverdictoff", "", "");
@@ -239,20 +247,25 @@ fn the_courts_agree_on_one_tree() {
     );
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "t: the work"]);
-    let (said, code) = keel(&dir, &["check"]);
+    let (said, _code) = keel(&dir, &["check"]);
+    // (The sandbox has other findings of its own -- a scope this
+    // fixture does not declare, a birth it never committed -- so the
+    // exit code says nothing here; the tag rows do.)
     assert!(
-        !said.contains("holds_gone"),
-        "a called-off wave is outside judgement whole (§6.3-a), and \
-         its tests' tags are not orphans of it:\n{said}"
+        !said.contains("no wave knows"),
+        "a called-off wave is outside judgement whole (§6.3-a), so its \
+         test's tag is no orphan of this court -- an orphan is a tag no \
+         wave knows, and this wave knows it:\n{said}"
     );
-    assert_eq!(
-        code, 0,
-        "so the tree is green over them, and the court says what it \
-         did not judge:\n{said}"
+    assert!(
+        said.contains("not checked") && said.contains("holds_gone"),
+        "it is said aloud among what was not judged, by the test's own \
+         name -- never painted green:\n{said}"
     );
     assert!(
         said.contains("0010-off"),
-        "naming the wave that was called off:\n{said}"
+        "and the wave called off is named as what was not judged \
+         (§6.3-a):\n{said}"
     );
 
     // -- pytest that leaves red with nothing red in it ---------------
