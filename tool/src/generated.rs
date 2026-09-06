@@ -536,15 +536,16 @@ fn workflow(root: &Path, config: &Config) -> String {
         None => "target/debug/keel".to_string(),
     };
     let header = if own {
-        "# This repository is the tool: the first step builds keel from the\n\
-         # checked-out tree, so a branch is judged by its own binary and not\n\
-         # by the one the published installer would fetch; the steps after\n\
-         # it put the tongues the battery judges on the runner; the rest\n\
-         # judge with it. If you already put `keel` on PATH some other way,\n\
-         # replace the first step with yours -- the courts below do not care\n\
-         # how it got there. To keep an edited copy for good, delete this\n\
-         # file's line from [generated] in keel.toml as well: otherwise\n\
-         # `keel update` will keep saying it did not overwrite you.\n"
+        "# This repository is the tool: the first steps name the toolchain\n\
+         # this project pins and build keel from the checked-out tree, so a\n\
+         # branch is judged by its own binary and not by the one the\n\
+         # published installer would fetch; the steps after them put the\n\
+         # tongues the battery judges on the runner; the rest judge with it.\n\
+         # If you already put `keel` on PATH some other way, replace the\n\
+         # build step with yours -- the courts below do not care how it got\n\
+         # there. To keep an edited copy for good, delete this file's line\n\
+         # from [generated] in keel.toml as well: otherwise `keel update`\n\
+         # will keep saying it did not overwrite you.\n"
     } else {
         "# The first step installs the tool; the rest judge with it.\n\
          # It takes the published release of the pinned version where one\n\
@@ -556,9 +557,8 @@ fn workflow(root: &Path, config: &Config) -> String {
          # file's line from [generated] in keel.toml as well: otherwise\n\
          # `keel update` will keep saying it did not overwrite you.\n"
     };
-    let install = if own {
-        format!(
-            "      - name: the tool itself\n\
+    let own_step = format!(
+        "      - name: the tool itself\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Built from this tree: this repository IS the tool, and a\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# branch is judged by its own binary (wave 0053). It needs\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# cargo on the runner; the battery below reuses what it built.\n\
@@ -567,10 +567,9 @@ fn workflow(root: &Path, config: &Config) -> String {
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}install -D {built} \"$HOME/.local/bin/keel\"\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n\
              {TONGUES}"
-        )
-    } else {
-        format!(
-            "      - name: the tool itself\n\
+    );
+    let installer_step = format!(
+        "      - name: the tool itself\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Clones the method into ~/.keel, then builds it from source.\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# It needs git and cargo on the runner, and cargo writes\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# its own registry into CARGO_HOME while it does.\n\
@@ -578,8 +577,7 @@ fn workflow(root: &Path, config: &Config) -> String {
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: |\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}curl -fsSL {INSTALLER} | sh\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n"
-        )
-    };
+    );
     // And which toolchain judged, for a tongue that has one. A
     // verdict from whatever the runner had that day is repeatable
     // only by accident; where the project pins nothing -- or pins
@@ -625,9 +623,9 @@ fn workflow(root: &Path, config: &Config) -> String {
         },
         _ => String::new(),
     };
-    let courts = match config.language() {
+    let battery = match config.language() {
         Some(language) => format!(
-            "{toolchain}      - name: the battery\n        run: {}\n{inside}",
+            "      - name: the battery\n        run: {}\n{inside}",
             language.battery_command()
         ),
         None => "      # No battery step: keel.toml names no adapter this\n\
@@ -635,6 +633,16 @@ fn workflow(root: &Path, config: &Config) -> String {
                  \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# runs its tests. `keel close` still runs the battery\n\
                  \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# where it can; add your own step here otherwise.\n"
             .to_string(),
+    };
+    // The tool's own workflow names the toolchain FIRST and builds
+    // with it (review 0053 R-12: the pin step stood after the courts
+    // it should have judged with); a stranger's names it before the
+    // battery, as before -- its install step needs no toolchain of
+    // the project's.
+    let (install, courts) = if own {
+        (format!("{toolchain}{own_step}"), battery)
+    } else {
+        (installer_step, format!("{toolchain}{battery}"))
     };
     format!(
         "# keel (generated -- do not edit; keel update rewrites this file)\n\

@@ -24,6 +24,45 @@ fn repo_file(rel: &str) -> String {
     .unwrap_or_else(|e| panic!("{rel}: {e}"))
 }
 
+/// A layout framed by `keel init`, and the workflow it was given.
+fn framed(name: &str, files: &[(&str, &str)]) -> String {
+    let dir = common::sandbox(name);
+    let git = |args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .args(["-c", "user.email=keel@test", "-c", "user.name=keel-test"])
+            .args(args)
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "git {args:?}");
+    };
+    git(&["init", "-q", "-b", "main"]);
+    for (rel, text) in files {
+        let path = dir.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args([
+            "init",
+            dir.to_str().unwrap(),
+            "--lang",
+            "uk",
+            "--adapter",
+            "rust",
+            "--no-ask",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "the frame lands in {name}:\n{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    std::fs::read_to_string(dir.join(".github/workflows/keel.yml")).unwrap()
+}
+
 /// proves: the-own-ci-runs-the-same-battery@b4c9e0
 #[test]
 fn the_own_ci_runs_the_same_battery() {
@@ -51,17 +90,27 @@ fn the_own_ci_runs_the_same_battery() {
     // --- under a declared runner a missing tool is a fall by name,
     // not a skip: the battery of the runner equals the battery of the
     // courts ---
+    // Both halves set the variable themselves and put it back as it
+    // was: the first reading asked the environment's own CI for the
+    // "off the runner" half, and on the runner -- where CI is always
+    // set -- the probe of the runner fell on its own first clause
+    // (review 0053 R-1).
+    // SAFETY: this binary runs one test, and the variable is set for
+    // the length of one call each time.
+    let declared = std::env::var_os("CI");
+    unsafe { std::env::remove_var("CI") };
     let lacking = common::machine_has("keel-no-such-tool-anywhere");
     assert!(
         !lacking.ready(),
         "off the runner a missing tool is a skip said aloud"
     );
-    // SAFETY: this binary runs one test, and the variable is set for
-    // the length of one call.
     unsafe { std::env::set_var("CI", "true") };
     let fell =
         std::panic::catch_unwind(|| common::machine_has("keel-no-such-tool-anywhere").ready());
-    unsafe { std::env::remove_var("CI") };
+    match &declared {
+        Some(value) => unsafe { std::env::set_var("CI", value) },
+        None => unsafe { std::env::remove_var("CI") },
+    }
     assert!(
         fell.is_err(),
         "on the runner (CI set) a missing tool fails the probe by name instead of skipping it"
@@ -77,6 +126,56 @@ fn the_own_ci_runs_the_same_battery() {
     assert!(
         !workflow.contains("install.sh"),
         "and does not fetch another tree's binary:\n{workflow}"
+    );
+    // The toolchain this project pins is named BEFORE the build that
+    // uses it (review 0053 R-12: the pin step stood after the courts).
+    let pinned = workflow
+        .find("rustup toolchain install")
+        .expect("the workflow names the toolchain this project pins");
+    let built = workflow.find("cargo build").unwrap();
+    assert!(
+        pinned < built,
+        "the toolchain is named before the tool is built with it:\n{workflow}"
+    );
+    // The tool's own repository is known by two marks, and only by
+    // both (review 0053 R-7): a stranger's crate that merely shares
+    // the name, and a stranger's tree that merely carries an
+    // install.sh, both get the installer step.
+    let crate_named = |name: &str| {
+        format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n")
+    };
+    let by_name = framed(
+        "ownbyname",
+        &[("Cargo.toml", &crate_named("keel")), ("src/lib.rs", "")],
+    );
+    assert!(
+        by_name.contains("install.sh") && !by_name.contains("cargo build"),
+        "a crate that merely shares the name gets the installer step:\n{by_name}"
+    );
+    let by_file = framed(
+        "ownbyfile",
+        &[
+            ("Cargo.toml", &crate_named("toy")),
+            ("src/lib.rs", ""),
+            ("install.sh", "#!/bin/sh\n"),
+        ],
+    );
+    assert!(
+        by_file.contains("install.sh") && !by_file.contains("cargo build"),
+        "a tree that merely carries an install.sh gets the installer step:\n{by_file}"
+    );
+    let both = framed(
+        "ownboth",
+        &[
+            ("tool/Cargo.toml", &crate_named("keel")),
+            ("tool/src/lib.rs", ""),
+            ("install.sh", "#!/bin/sh\n"),
+        ],
+    );
+    assert!(
+        both.contains("cargo build --manifest-path tool/Cargo.toml")
+            && !both.contains("install.sh"),
+        "both marks together: the tool builds from its own tree:\n{both}"
     );
     // The file stands as the tool left it: its recorded digest is
     // the file's own.

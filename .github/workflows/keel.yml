@@ -1,14 +1,15 @@
 # keel (generated -- do not edit; keel update rewrites this file)
 #
-# This repository is the tool: the first step builds keel from the
-# checked-out tree, so a branch is judged by its own binary and not
-# by the one the published installer would fetch; the steps after
-# it put the tongues the battery judges on the runner; the rest
-# judge with it. If you already put `keel` on PATH some other way,
-# replace the first step with yours -- the courts below do not care
-# how it got there. To keep an edited copy for good, delete this
-# file's line from [generated] in keel.toml as well: otherwise
-# `keel update` will keep saying it did not overwrite you.
+# This repository is the tool: the first steps name the toolchain
+# this project pins and build keel from the checked-out tree, so a
+# branch is judged by its own binary and not by the one the
+# published installer would fetch; the steps after them put the
+# tongues the battery judges on the runner; the rest judge with it.
+# If you already put `keel` on PATH some other way, replace the
+# build step with yours -- the courts below do not care how it got
+# there. To keep an edited copy for good, delete this file's line
+# from [generated] in keel.toml as well: otherwise `keel update`
+# will keep saying it did not overwrite you.
 name: keel
 
 on:
@@ -22,6 +23,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: the toolchain this project pins
+        # rust-toolchain.toml names 1.94.1; rustup honours it on
+        # its own, and this line says aloud WHICH one judged, so a
+        # verdict here is the same verdict on any other machine.
+        run: rustup toolchain install 1.94.1 --profile minimal
       - name: the tool itself
         # Built from this tree: this repository IS the tool, and a
         # branch is judged by its own binary (wave 0053). It needs
@@ -73,11 +79,6 @@ jobs:
         env:
           KEEL_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: keel close .
-      - name: the toolchain this project pins
-        # rust-toolchain.toml names 1.94.1; rustup honours it on
-        # its own, and this line says aloud WHICH one judged, so a
-        # verdict here is the same verdict on any other machine.
-        run: rustup toolchain install 1.94.1 --profile minimal
       - name: the battery
         run: cargo test --no-fail-fast
         working-directory: tool
