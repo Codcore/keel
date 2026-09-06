@@ -109,7 +109,7 @@ fn a_court_that_cannot_fail_is_not_a_court() {
     // one guards a sentence the norm used to carry. They are named
     // here rather than left to a reader's judgement -- a court with
     // an unwritten exception is not a court.
-    const GUARDS: [(&str, &str); 6] = [
+    const GUARDS: [(&str, &str); 7] = [
         // The full name mix would print if the reader put a test
         // into a describe block it is not in.
         ("elixir_border_test.rs", "a group it works"),
@@ -128,6 +128,11 @@ fn a_court_that_cannot_fail_is_not_a_court() {
         // A sentence §4.13 used to carry: a guard over the NORM's
         // text, which a person edits.
         ("rule_truth_test.rs", "the check on a PR"),
+        // The toml crate's own words, which the config court echoes
+        // when a file does not parse: the tool never writes them
+        // itself, and the whole point of the assert is that no such
+        // echo appears.
+        ("config_quoting_test.rs", "TOML parse error"),
     ];
 
     let mut corpus = String::new();
@@ -162,34 +167,46 @@ fn a_court_that_cannot_fail_is_not_a_court() {
         let file = path.file_name().unwrap().to_string_lossy().to_string();
         let lines: Vec<&str> = text.lines().collect();
         for (index, line) in lines.iter().enumerate() {
-            let Some((before, rest)) = line.split_once(".contains(\"") else {
-                continue;
-            };
-            // A negative assert, and only that: `!x.contains("…")`.
-            if !before.trim_start().starts_with('!') && !before.contains("&& !") {
-                continue;
-            }
-            let Some((needle, _)) = rest.split_once('"') else {
-                continue;
-            };
-            if needle.len() < 5 || needle.chars().any(|c| ('а'..='я').contains(&c)) {
-                continue;
-            }
-            if GUARDS.contains(&(file.as_str(), needle)) {
-                continue;
-            }
-            let lowered = needle.to_lowercase();
-            if corpus.contains(&lowered) {
-                continue;
-            }
-            // The probe's own fixture may write it, and then the
-            // court under test really can print it back.
-            let elsewhere = lines
-                .iter()
-                .enumerate()
-                .any(|(other, l)| other != index && l.to_lowercase().contains(&lowered));
-            if !elsewhere {
-                mute.push(format!("{file}:{} — \"{needle}\"", index + 1));
+            // EVERY `.contains("…")` of the line, not the first: an
+            // assert may hold one phrase and deny another on one line
+            // (`x.contains("a") && !x.contains("b")`), and reading
+            // only the first needle left the second unjudged (review
+            // 0055 R-8).
+            let mut at = 0usize;
+            while let Some(found) = line[at..].find(".contains(\"") {
+                let call = at + found;
+                at = call + ".contains(\"".len();
+                let Some(rest) = line.get(at..) else { break };
+                let Some((needle, _)) = rest.split_once('"') else {
+                    break;
+                };
+                // Negative? The `!` stands before the receiver of THIS
+                // call: walk back over the receiver's own name.
+                let before = &line[..call];
+                let receiver_start = before
+                    .rfind(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.'))
+                    .map_or(0, |at| at + 1);
+                let negative = before[..receiver_start].trim_end().ends_with('!');
+                if !negative || needle.len() < 5 || needle.chars().any(|c| ('а'..='я').contains(&c))
+                {
+                    continue;
+                }
+                if GUARDS.contains(&(file.as_str(), needle)) {
+                    continue;
+                }
+                let lowered = needle.to_lowercase();
+                if corpus.contains(&lowered) {
+                    continue;
+                }
+                // The probe's own fixture may write it, and then the
+                // court under test really can print it back.
+                let elsewhere = lines
+                    .iter()
+                    .enumerate()
+                    .any(|(other, l)| other != index && l.to_lowercase().contains(&lowered));
+                if !elsewhere {
+                    mute.push(format!("{file}:{} — \"{needle}\"", index + 1));
+                }
             }
         }
     }
