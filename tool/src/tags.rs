@@ -225,26 +225,28 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 }
                 named
             } else if elixir {
-                // A comment is not code: `# TODO: decide what to do`
-                // opened a block and gave the next test a group it
-                // did not have (bugs R-10).
-                if trimmed.starts_with('#') {
+                // The line's CODE: a comment is not code -- a whole
+                // line of it (`# TODO: decide what to do` opened a
+                // block and gave the next test a group it did not
+                // have, bugs R-10) and a trailing one alike (`x = 1 #
+                // then do` did the same, review 0051 R-1) -- so the
+                // comment is cut off outside quotes by the hand ruby
+                // uses, and the words are counted over the code with
+                // its strings blanked.
+                let code = ruby_code(trimmed);
+                if code.is_empty() {
                     None
                 } else {
                     // A `describe` opens a group whose name ExUnit puts
                     // in front of every test inside it; `end` closes the
                     // innermost block, and only a describe's own end
                     // clears the group -- so the depth is counted.
-                    if let Some(group) = describe_name(trimmed) {
+                    if let Some(group) = describe_name(&code) {
                         describing = Some((group, depth));
                     }
-                    // `end` as a WORD: `endpoint = …` starts with the
-                    // letters and closes nothing (bugs R-10).
-                    let first_word: String = trimmed
-                        .chars()
-                        .take_while(|c| c.is_alphanumeric() || *c == '_')
-                        .collect();
-                    if first_word == "end" {
+                    let (opens, ends) = elixir_depth(&blank_quoted(&code));
+                    depth += opens;
+                    for _ in 0..ends {
                         // The depth recorded when the block opened is
                         // the depth OUTSIDE it; its own `do` raised the
                         // count by one, so the `end` that closes it sits
@@ -258,13 +260,8 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                             describing = None;
                         }
                         depth = depth.saturating_sub(1);
-                    } else if trimmed.ends_with(" do")
-                        || trimmed.ends_with(" do:")
-                        || trimmed == "do"
-                    {
-                        depth += 1;
                     }
-                    test_name(trimmed).map(|name| match &describing {
+                    test_name(&code).map(|name| match &describing {
                         Some((group, _)) => format!("{group} {name}"),
                         None => name,
                     })
@@ -553,6 +550,58 @@ enum SpecArg {
     Unknown(String),
 }
 
+/// What a line of elixir opens and closes: a block `do` at its end
+/// and every anonymous `fn` in it open one level each; every `end`
+/// WORD closes one. Elixir closes both with `end`, and a reader that
+/// opened on `do` alone lost the group at every multi-line `fn ->
+/// … end` (review 0051 R-1) -- while `endpoint = …` starts with the
+/// letters and closes nothing (bugs R-10), and `fn x -> x end` on one
+/// line opens and closes on that line. A `do:` keyword form has no
+/// `end` and opens nothing, even where the line breaks right after
+/// it. Counted over the code with its strings blanked: `"the end"`
+/// is text.
+fn elixir_depth(code: &str) -> (usize, usize) {
+    let words: Vec<&str> = code
+        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .filter(|w| !w.is_empty())
+        .collect();
+    let ends = keyword_ends(code);
+    let mut opens = words.iter().filter(|w| **w == "fn").count();
+    if code.ends_with(" do") || code == "do" {
+        opens += 1;
+    }
+    (opens, ends)
+}
+
+/// How many times `end` stands in the code as the KEYWORD: a whole
+/// word, and not the symbol `:end`, the atom `:end`, the hash key
+/// `end:`, the method `.end` of a range, or an `@end` variable --
+/// each of those is the letters, not the closer (review 0051 R-2
+/// found the symbol next to the percent literal it named).
+fn keyword_ends(code: &str) -> usize {
+    let chars: Vec<char> = code.chars().collect();
+    let is_word = |c: char| c.is_alphanumeric() || c == '_';
+    let mut count = 0usize;
+    let mut i = 0usize;
+    while i + 3 <= chars.len() {
+        if chars[i] == 'e' && chars[i + 1] == 'n' && chars[i + 2] == 'd' {
+            let before = if i > 0 { Some(chars[i - 1]) } else { None };
+            let after = chars.get(i + 3).copied();
+            let whole = !before.is_some_and(is_word) && !after.is_some_and(is_word);
+            let letters = matches!(before, Some('.') | Some(':') | Some('@') | Some('$'))
+                || matches!(after, Some('?') | Some('!'))
+                || (after == Some(':') && chars.get(i + 4) != Some(&':'));
+            if whole && !letters {
+                count += 1;
+            }
+            i += 3;
+            continue;
+        }
+        i += 1;
+    }
+    count
+}
+
 /// The line's code: a trailing `# comment` outside quotes is not
 /// code. `#{…}` inside a double-quoted string is not a comment either.
 fn ruby_code(line: &str) -> String {
@@ -609,7 +658,7 @@ fn ruby_depth(code: &str) -> (usize, usize) {
         .split(|c: char| !(c.is_alphanumeric() || c == '_'))
         .filter(|w| !w.is_empty())
         .collect();
-    let ends = words.iter().filter(|w| **w == "end").count();
+    let ends = keyword_ends(code);
     let mut opens = 0usize;
     let block = code.ends_with(" do") || code == "do" || code.contains(" do |");
     if block {
@@ -1036,166 +1085,99 @@ fn fn_name(trimmed: &str, declares: &[&str]) -> Option<String> {
 
 /// The line with the CONTENTS of its quoted strings blanked -- the
 /// quotes stay, the escapes are honoured -- so a reader that counts
-/// words or parentheses counts code and not text.
+/// words or parentheses counts code and not text. Ruby's other
+/// spellings of a string are blanked the same way: `%w[end start]`,
+/// `%q(end)`, `%i{…}`, `%r<…>`, `%s|…|` -- the word `end` inside one
+/// closed a group (review 0051 R-2). Bracket delimiters nest; a
+/// literal that runs past the line is a named border, as is the bare
+/// `%(…)`, which is modulo as often as a string.
 fn blank_quoted(line: &str) -> String {
+    let chars: Vec<char> = line.chars().collect();
     let mut out = String::with_capacity(line.len());
-    let mut quote: Option<char> = None;
-    let mut chars = line.chars();
-    while let Some(ch) = chars.next() {
-        match quote {
-            Some(q) => {
-                if ch == '\\' {
+    let mut i = 0usize;
+    while i < chars.len() {
+        let ch = chars[i];
+        let (open, close, nests) = if ch == '"' || ch == '\'' {
+            (ch, ch, false)
+        } else if ch == '%'
+            && let Some(delim) = percent_open(&chars, i)
+        {
+            out.push('%');
+            out.push(chars[i + 1]);
+            i += 2;
+            match delim {
+                '(' => ('(', ')', true),
+                '[' => ('[', ']', true),
+                '{' => ('{', '}', true),
+                '<' => ('<', '>', true),
+                other => (other, other, false),
+            }
+        } else {
+            out.push(ch);
+            i += 1;
+            continue;
+        };
+        out.push(open);
+        i += 1;
+        let mut depth = 1usize;
+        while i < chars.len() {
+            let c = chars[i];
+            if c == '\\' {
+                out.push(' ');
+                i += 1;
+                if i < chars.len() {
                     out.push(' ');
-                    if chars.next().is_some() {
-                        out.push(' ');
-                    }
-                } else if ch == q {
-                    quote = None;
-                    out.push(ch);
-                } else {
-                    out.push(' ');
+                    i += 1;
+                }
+                continue;
+            }
+            if nests && c == open {
+                depth += 1;
+            } else if c == close {
+                depth -= 1;
+                if depth == 0 {
+                    out.push(c);
+                    i += 1;
+                    break;
                 }
             }
-            None => {
-                if ch == '"' || ch == '\'' {
-                    quote = Some(ch);
-                }
-                out.push(ch);
-            }
+            out.push(' ');
+            i += 1;
         }
     }
     out
 }
 
-/// Rust text with the contents of its literals blanked and everything
-/// else -- comments above all, where the tags live -- kept as it is.
-/// Strings with their escapes, raw strings with their hashes, byte
-/// strings, char literals; a lifetime (`'a`) is not a literal. The
-/// newlines inside a literal stay, so a line still counts from the
-/// top.
-fn blank_rust_literals(text: &str) -> String {
-    let chars: Vec<char> = text.chars().collect();
-    let n = chars.len();
-    let mut out = String::with_capacity(text.len());
-    let mut i = 0usize;
-    let blank = |out: &mut String, c: char| out.push(if c == '\n' { '\n' } else { ' ' });
-    while i < n {
-        let c = chars[i];
-        let next = chars.get(i + 1).copied();
-        // Comments are kept whole: a quote inside one opens nothing.
-        if c == '/' && next == Some('/') {
-            while i < n && chars[i] != '\n' {
-                out.push(chars[i]);
-                i += 1;
-            }
-            continue;
-        }
-        if c == '/' && next == Some('*') {
-            let mut depth = 0usize;
-            loop {
-                if i >= n {
-                    break;
-                }
-                if chars[i] == '/' && chars.get(i + 1) == Some(&'*') {
-                    depth += 1;
-                    out.push('/');
-                    out.push('*');
-                    i += 2;
-                } else if chars[i] == '*' && chars.get(i + 1) == Some(&'/') {
-                    depth -= 1;
-                    out.push('*');
-                    out.push('/');
-                    i += 2;
-                    if depth == 0 {
-                        break;
-                    }
-                } else {
-                    out.push(chars[i]);
-                    i += 1;
-                }
-            }
-            continue;
-        }
-        let word_before = i > 0 && (chars[i - 1].is_alphanumeric() || chars[i - 1] == '_');
-        // Raw strings: r"…", r#"…"#, br"…", br#"…"#.
-        if !word_before && (c == 'r' || (c == 'b' && next == Some('r'))) {
-            let mut j = i + if c == 'b' { 2 } else { 1 };
-            let mut hashes = 0usize;
-            while chars.get(j) == Some(&'#') {
-                hashes += 1;
-                j += 1;
-            }
-            if chars.get(j) == Some(&'"') {
-                out.extend(chars[i..=j].iter());
-                i = j + 1;
-                loop {
-                    if i >= n {
-                        break;
-                    }
-                    if chars[i] == '"' && (0..hashes).all(|h| chars.get(i + 1 + h) == Some(&'#')) {
-                        out.push('"');
-                        for _ in 0..hashes {
-                            out.push('#');
-                        }
-                        i += 1 + hashes;
-                        break;
-                    }
-                    blank(&mut out, chars[i]);
-                    i += 1;
-                }
-                continue;
-            }
-        }
-        // Strings: "…" and b"…", escapes honoured.
-        if c == '"' || (c == 'b' && next == Some('"') && !word_before) {
-            if c == 'b' {
-                out.push('b');
-                i += 1;
-            }
-            out.push('"');
-            i += 1;
-            while i < n {
-                if chars[i] == '\\' {
-                    blank(&mut out, chars[i]);
-                    if i + 1 < n {
-                        blank(&mut out, chars[i + 1]);
-                    }
-                    i += 2;
-                    continue;
-                }
-                if chars[i] == '"' {
-                    out.push('"');
-                    i += 1;
-                    break;
-                }
-                blank(&mut out, chars[i]);
-                i += 1;
-            }
-            continue;
-        }
-        // Char literals ('a', '\n', '\'') against lifetimes ('a).
-        if c == '\'' {
-            let literal_end = if next == Some('\\') {
-                (i + 2..n.min(i + 12)).find(|&k| chars[k] == '\'')
-            } else if chars.get(i + 2) == Some(&'\'') && next.is_some_and(|ch| ch != '\'') {
-                Some(i + 2)
-            } else {
-                None
-            };
-            if let Some(end) = literal_end {
-                out.push('\'');
-                for &ch in &chars[i + 1..end] {
-                    blank(&mut out, ch);
-                }
-                out.push('\'');
-                i = end + 1;
-                continue;
-            }
-        }
-        out.push(c);
-        i += 1;
+/// The delimiter of a percent literal opening at `i` -- `%w[`,
+/// `%q(`, `%i{`, `%r<`, `%s|` … -- where `%` starts a token and a
+/// literal's letter follows it. `a % b` and `a%w` are modulo, and a
+/// delimiter that could be a word is none.
+fn percent_open(chars: &[char], i: usize) -> Option<char> {
+    if i > 0 && (chars[i - 1].is_alphanumeric() || matches!(chars[i - 1], '_' | ')' | ']')) {
+        return None;
     }
-    out
+    let letter = *chars.get(i + 1)?;
+    if !"wWqQiIrsx".contains(letter) {
+        return None;
+    }
+    let delim = *chars.get(i + 2)?;
+    if delim.is_alphanumeric() || delim == '_' || delim.is_whitespace() {
+        return None;
+    }
+    Some(delim)
+}
+
+/// Rust text with the contents of its literals blanked and everything
+/// else -- comments above all, where the tags live -- kept as it is:
+/// the ONE reader of rust, the form court's own (`holding`), asked to
+/// keep the comments. A second copy of it lived here through the
+/// first reading of wave 0051 and did not know the C-string prefixes
+/// of Rust 1.77, `c"…"` and `cr#"…"#` -- a tag inside one was read as
+/// a tag and the real one behind it was lost in silence (review 0051
+/// R-3). The newlines inside a literal stay, so a line still counts
+/// from the top.
+fn blank_rust_literals(text: &str) -> String {
+    crate::holding::read_rust(text, crate::holding::Comments::Keep)
 }
 
 fn dangling(file: &Path, scenario: &str, rev: &str) -> Refusal {

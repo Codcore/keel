@@ -20,6 +20,7 @@ transforms:
       - tool/src/tags.rs
       - tool/src/rev.rs
       - tool/src/ruby.rs
+      - tool/src/holding.rs
       - keel/contracts/tool-tags.md
       - keel/contracts/tool-rev.md
       - keel/contracts/tool-adapter-ruby.md
@@ -35,6 +36,8 @@ transforms:
       - tool/src/ruby.rs
       - tool/src/adapter.rs
       - tool/src/python.rs
+      - tool/src/tags.rs
+      - keel/contracts/tool-tags.md
       - keel/contracts/tool-adapter-elixir.md
       - keel/contracts/tool-adapter-ruby.md
       - keel/contracts/tool-adapter-cargo.md
@@ -176,6 +179,14 @@ FA2916, текст дає fa2916» (R-26). BOM перед тегом у перш
 фікстури: синоніми `typescript`/`node`/`js`/`ts`, «файл перед `index`»,
 межі `keel check` (одна з чотирьох тримається) — R-13–R-15.
 
+**Дрейф (§4.6), названий уголос.** Після рецензії 0051 у першу
+трансформу дописано `tool/src/holding.rs` — читач rust став однією
+рукою для суду форми і читача тегів (R-3); у другу — `tool/src/tags.rs`
+і `keel/contracts/tool-tags.md`, бо її коміти несли поле `line` тега і
+його експорт (R-7). `ruby.rs` і `tool-adapter-ruby.md` у першій
+трансформі — з коміту `ac25a3f`: класифікатор зламу збірки живе в
+`ruby.rs`, а клаузу тримає проба сценарію 1.
+
 ## scenario: a-name-is-read-as-its-tongue-writes-it
 
 **Дано** файли тестів, де імʼя ховається за формою: spec-файл зі
@@ -227,14 +238,18 @@ Cargo.toml, pytest — вузлом із шляхом у пробілах, і б
 
 ## transform: the-depth-of-a-file-is-read-from-its-code
 
-`tags.rs`: `ruby_depth` знімає рядкові літерали перед лічбою слів;
-elixir-глибина рахує `end` словом і не читає коментарів; `fn_name`
-для python і ruby бере ідентифікатор цілком (літери за Unicode);
-лічильник дужок parametrize не читає літералів; читач тегів rust
-знімає рядкові й raw-літерали тією самою рукою, що читач форми; BOM
-знімається перед читанням. `docs.rs`: секції тіла не читаються з
-fenced-блоків. `rev.rs`: `matches` без огляду на регістр hex.
-`ruby.rs`-класифікатор — у другій трансформі. Контракти tags, docs, rev.
+`tags.rs`: `ruby_depth` знімає рядкові літерали — і відсоткові,
+`%w[…]`/`%q(…)` — перед лічбою слів; elixir-глибина рахує `end` і
+`fn` словами коду і не читає коментарів — ні рядкових, ні хвостових;
+`fn_name` для python і ruby бере ідентифікатор цілком (літери за
+Unicode); лічильник дужок parametrize не читає літералів; читач тегів
+rust знімає літерали **тією самою рукою, що читач форми** —
+`holding::read_rust` із перемикачем коментарів (дрейф: `holding.rs`
+дописано після рецензії 0051, R-3); BOM знімається перед читанням.
+`rev.rs`: секції тіла не читаються з fenced-блоків; `matches` без
+огляду на регістр hex. `ruby.rs`: злам збірки пізнається за формою
+рядка ruby (дрейф, названий у коміті). Контракти tags, rev,
+adapter-ruby, holding.
 
 ## transform: the-runner-selects-by-what-it-knows
 

@@ -51,6 +51,23 @@ fn gate(dir: &Path) -> (String, i32) {
     )
 }
 
+fn keel(dir: &Path, args: &[&str]) -> (String, i32) {
+    let mut all: Vec<&str> = args.to_vec();
+    all.push(dir.to_str().unwrap());
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(&all)
+        .output()
+        .unwrap();
+    (
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        ),
+        out.status.code().unwrap_or(-1),
+    )
+}
+
 const BODY: &str = "тіло обіцянки\n\n";
 
 /// One wave, one scenario `it-works`, one transform `work`, the review
@@ -109,6 +126,17 @@ fn a_name_is_read_as_its_tongue_writes_it() {
         vec!["Toy holds".to_string()],
         "the group survives an `end` inside a string (bugs R-9)"
     );
+    // Ruby's other spellings of a string, and the letters `end` where
+    // they are not the keyword: a symbol, a hash key, a range's
+    // method (review 0051 R-2).
+    let percent = format!(
+        "RSpec.describe Toy do\n  it \"words\" do\n    expect(%w[end start]).to eq(%w[end start])\n    expect(%q(end)).to eq(\"end\")\n    expect(%i{{end}}).to eq(%i[end])\n    expect(%r<end>).to match(\"end\")\n    expect([:end]).to eq([:end])\n    h = {{ end: (1..3).end }}\n    expect(h[:end]).to eq(3)\n  end\n\n  # proves: it-works@{rev}\n  it \"holds\" do\n    expect(Toy.works).to be(true)\n  end\nend\n"
+    );
+    assert_eq!(
+        names("spec/toy_spec.rb", &percent),
+        vec!["Toy holds".to_string()],
+        "`%w[end]`, `%q(end)`, `:end`, `end:` and `.end` are letters, not the closer (review 0051 R-2)"
+    );
 
     // --- elixir: a line starting with `end…` inside a test, and a
     // comment ending in ` do` -- neither is an `end` or a `do` ---
@@ -128,6 +156,33 @@ fn a_name_is_read_as_its_tongue_writes_it() {
         vec!["holds".to_string()],
         "a comment ending in ` do` opens nothing, and the test outside the \
          describe carries no group (bugs R-10)"
+    );
+    // A multi-line anonymous function closes with `end`, and its
+    // `end` is not the describe's; a trailing comment is not code
+    // either (review 0051 R-1).
+    let anonymous = format!(
+        "defmodule ToyTest do\n  use ExUnit.Case\n\n  describe \"group\" do\n    test \"raises\" do\n      assert_raise ArgumentError, fn ->\n        raise ArgumentError\n      end\n    end\n\n    # proves: it-works@{rev}\n    test \"holds\" do\n      assert Toy.works()\n    end\n  end\nend\n"
+    );
+    assert_eq!(
+        names("test/toy_test.exs", &anonymous),
+        vec!["group holds".to_string()],
+        "a multi-line `fn -> … end` opens and closes its own level (review 0051 R-1)"
+    );
+    let trailing = format!(
+        "defmodule ToyTest do\n  use ExUnit.Case\n\n  describe \"group\" do\n    test \"first\" do\n      x = 1 # then do\n      assert x == 1\n    end\n  end\n\n  # proves: it-works@{rev}\n  test \"holds\" do\n    assert Toy.works()\n  end\nend\n"
+    );
+    assert_eq!(
+        names("test/toy_test.exs", &trailing),
+        vec!["holds".to_string()],
+        "a trailing comment ending in ` do` opens nothing (review 0051 R-1)"
+    );
+    let shapes = format!(
+        "defmodule ToyTest do\n  use ExUnit.Case\n\n  describe \"group\" do\n    test \"inline\", do: assert(Enum.map([1], fn x -> x end) == [1])\n    test \"split\",\n      do: assert(true)\n    test \"what to do\" do\n      assert \"please do\" == \"please do\"\n      assert :end == :end\n      assert %{{end: 1}}.end == 1\n    end\n  end\n\n  # proves: it-works@{rev}\n  test \"holds\" do\n    assert Toy.works()\n  end\nend\n"
+    );
+    assert_eq!(
+        names("test/toy_test.exs", &shapes),
+        vec!["holds".to_string()],
+        "an inline `fn … end`, a `do:` broken over lines, strings and the atom `:end` count as elixir counts them"
     );
 
     // --- python and ruby: a name with letters beyond ASCII is read
@@ -224,6 +279,70 @@ fn a_name_is_read_as_its_tongue_writes_it() {
             code, 0,
             "mix runs `group holds` and the work passes:\n{said}"
         );
+    }
+    if common::machine_has("mix").ready() {
+        // The comment case through BOTH courts: the gate runs the test
+        // by its line whatever its name, and only the closing court,
+        // which reads the battery by name, would show a name mix does
+        // not use (review 0051 R-11).
+        let dir = keel_sandbox("nameelixircomment");
+        std::fs::create_dir_all(dir.join("lib")).unwrap();
+        std::fs::create_dir_all(dir.join("test")).unwrap();
+        std::fs::write(
+            dir.join("mix.exs"),
+            "defmodule Toy.MixProject do\n  use Mix.Project\n  def project, do: [app: :toy, version: \"0.1.0\", elixir: \"~> 1.14\"]\n  def application, do: []\nend\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("lib/toy.ex"),
+            "defmodule Toy do\n  def works, do: true\nend\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("test/test_helper.exs"), "ExUnit.start()\n").unwrap();
+        std::fs::write(dir.join("test/toy_test.exs"), &trailing).unwrap();
+        frame(&dir, "elixir", "lib/toy.ex");
+        let (said, code) = gate(&dir);
+        assert_eq!(code, 0, "mix runs `holds` and the work passes:\n{said}");
+        let (said, code) = keel(&dir, &["close"]);
+        assert!(
+            said.contains("0001-a-wave: закрита"),
+            "and the battery finds `holds` under the name mix gives it:\n{said}"
+        );
+        assert_eq!(code, 0, "nothing red:\n{said}");
+    }
+    if common::machine_has("pytest").ready() {
+        // `def test_ünïcode` through both courts (review 0051 R-11):
+        // pytest selects `tests/test_toy.py::test_ünïcode` whole.
+        let dir = keel_sandbox("nameunicode");
+        std::fs::create_dir_all(dir.join("src/toy")).unwrap();
+        std::fs::create_dir_all(dir.join("tests")).unwrap();
+        std::fs::write(
+            dir.join("pyproject.toml"),
+            "[project]\nname = \"toy\"\nversion = \"0.1.0\"\n\n[tool.pytest.ini_options]\npythonpath = [\"src\"]\ntestpaths = [\"tests\"]\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("src/toy/__init__.py"),
+            "def works():\n    return True\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("tests/test_toy.py"), &py).unwrap();
+        frame(&dir, "python", "src/toy/__init__.py");
+        let (said, code) = gate(&dir);
+        assert_eq!(
+            code, 0,
+            "pytest runs `test_ünïcode` whole and the work passes:\n{said}"
+        );
+        assert!(
+            !said.contains("не виконав"),
+            "and did not lose it as `not run`:\n{said}"
+        );
+        let (said, code) = keel(&dir, &["close"]);
+        assert!(
+            said.contains("0001-a-wave: закрита"),
+            "and the battery reads its verdict under the whole name:\n{said}"
+        );
+        assert_eq!(code, 0, "nothing red:\n{said}");
     }
     if common::machine_has("pytest").ready() {
         let dir = keel_sandbox("nameparam");

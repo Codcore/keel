@@ -102,6 +102,26 @@ fn what_is_not_code_is_not_read() {
         said.contains("тегів тестів звірено: 1"),
         "one tag read, the real one:\n{said}"
     );
+    // The C-string literals of Rust 1.77, `c"…"` and `cr#"…"#`: the
+    // second copy of the reader did not know them, read a tag out of
+    // one and lost the real tag behind it in silence -- one reader of
+    // rust now, the form court's (review 0051 R-3).
+    let c_strings = format!(
+        "const C: &std::ffi::CStr = cr#\"a \" b\n// proves: it-works@abcdef\nfn from_c_raw() {{}}\n\"#;\nconst D: &std::ffi::CStr = c\"// proves: it-works@abcdef\";\n\n/// proves: it-works@{rev}\n#[test]\nfn it_works() {{\n    assert!(toy::works() && !C.is_empty() && !D.is_empty());\n}}\n"
+    );
+    let tags = keel::tags::scan_text(Path::new("tests/w_test.rs"), &c_strings).unwrap();
+    assert_eq!(
+        tags.iter().map(|t| t.test.as_str()).collect::<Vec<_>>(),
+        vec!["it_works"],
+        "a tag inside a C-string is text, and the real one is read (review 0051 R-3)"
+    );
+    let dir = crate_with("notcodecstr", "", &c_strings);
+    let (said, code) = check(&dir);
+    assert_eq!(code, 0, "and the check is green over it:\n{said}");
+    assert!(
+        said.contains("тегів тестів звірено: 1"),
+        "one tag read, the real one:\n{said}"
+    );
 
     // --- `## scenario:` inside a fenced block of the body is text ---
     let dir = crate_with(
