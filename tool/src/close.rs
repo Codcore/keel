@@ -581,12 +581,19 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
 /// review R-5) -- no raw English inside a localized verdict. A
 /// command that does not start fails with the system's words.
 fn run_command(root: &Path, command: &str) -> Result<(), String> {
-    let out = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(command)
-        .current_dir(root)
-        .output()
-        .map_err(|e| e.to_string())?;
+    let mut child = std::process::Command::new("sh");
+    child.arg("-c").arg(command).current_dir(root);
+    // As clean as the battery (wave 0050): the hook's git variables
+    // and the inherited cargo target are forgotten here too, since a
+    // verify that runs the same crate's tests under a shared cache
+    // gets the shifted verdicts the battery refuses, and one that
+    // asks git for its repository sees the hook's (global review
+    // 2026-09-06, bugs cut R-18).
+    scope::forget_the_hook(&mut child);
+    child
+        .env_remove("CARGO_TARGET_DIR")
+        .env_remove("CARGO_BUILD_TARGET_DIR");
+    let out = child.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         return Ok(());
     }

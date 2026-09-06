@@ -435,6 +435,12 @@ fn node(root: &Path, args: &[String]) -> Result<String, Refusal> {
     // variable, the same way the courts drop an inherited
     // CARGO_TARGET_DIR.
     command.env_remove("NODE_COMPILE_CACHE");
+    // And the environment's own options: `--test-skip-pattern` or
+    // `--test-name-pattern` in NODE_OPTIONS took the red test out of
+    // the battery and the wave closed over it (global review
+    // 2026-09-06, bugs cut R-6). The verdict is the verdict of a
+    // silent environment.
+    command.env_remove("NODE_OPTIONS");
     let out = command.output().map_err(|e| Refusal {
         file: root.to_path_buf(),
         reason: ta(

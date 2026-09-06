@@ -166,18 +166,22 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
         return run_spec(root, tag);
     }
     let relative = tag.file.strip_prefix(root).unwrap_or(&tag.file);
-    let out = Command::new("ruby")
+    let mut command = Command::new("ruby");
+    command
         .arg("-Itest")
         .arg(relative)
         .arg("-n")
         .arg(&tag.test)
-        .current_dir(root)
-        .output()
-        .map_err(|e| Refusal {
-            file: root.to_path_buf(),
-            reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
-            instead: t("adapter-ruby-failed-instead"),
-        })?;
+        .current_dir(root);
+    // The first reading forgot to forget the hook (global review
+    // 2026-09-06, bugs cut R-18): a test that asks git for its
+    // repository saw the hook's under GIT_DIR.
+    crate::scope::forget_the_hook(&mut command);
+    let out = command.output().map_err(|e| Refusal {
+        file: root.to_path_buf(),
+        reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
+        instead: t("adapter-ruby-failed-instead"),
+    })?;
     let said = format!(
         "{}{}",
         String::from_utf8_lossy(&out.stdout),
@@ -233,17 +237,18 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     for file in minitest_files(root)? {
         let relative = file.strip_prefix(root).unwrap_or(&file);
         let stem = crate::adapter::battery_key(root, &file);
-        let run = Command::new("ruby")
+        let mut command = Command::new("ruby");
+        command
             .arg("-Itest")
             .arg(relative)
             .arg("-v")
-            .current_dir(root)
-            .output()
-            .map_err(|e| Refusal {
-                file: root.to_path_buf(),
-                reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
-                instead: t("adapter-ruby-failed-instead"),
-            })?;
+            .current_dir(root);
+        crate::scope::forget_the_hook(&mut command);
+        let run = command.output().map_err(|e| Refusal {
+            file: root.to_path_buf(),
+            reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
+            instead: t("adapter-ruby-failed-instead"),
+        })?;
         let said = format!(
             "{}{}",
             String::from_utf8_lossy(&run.stdout),
@@ -349,12 +354,14 @@ pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
     {
         return crate::adapter::Outcome::NotRun;
     }
-    // No summary line at all: minitest never ran. Without
-    // `minitest/autorun` ruby loads the file, defines the class,
-    // says nothing and leaves with 0 -- and the first reading called
-    // that green (global review 2026-09-06, bugs cut R-7). Silence is
-    // "nothing ran", in both courts.
-    if !summarised(said) {
+    // No summary line at all and a clean exit: minitest never ran.
+    // Without `minitest/autorun` ruby loads the file, defines the
+    // class, says nothing and leaves with 0 -- and the first reading
+    // called that green (global review 2026-09-06, bugs cut R-7).
+    // Silence is "nothing ran", in both courts. A silent exit that
+    // is NOT clean stays a failure: the direction that cannot turn
+    // red into green (§7.12).
+    if success && !summarised(said) {
         return crate::adapter::Outcome::NotRun;
     }
     if success {
@@ -567,6 +574,14 @@ fn rspec(root: &Path, args: &[String]) -> Result<Said, Refusal> {
         .args(["--format", "json", "--out"])
         .arg(&out_file)
         .arg("--no-color")
+        // The project's own `.rspec` and nothing else: without `-O`
+        // rspec also reads `~/.rspec` and `./.rspec-local` -- the
+        // machine's and the person's files, not the project's -- and
+        // a `--dry-run` in either made every example "passed" without
+        // running one (global review 2026-09-06, bugs cut R-6).
+        // Measured on RSpec 3.13: with `--options .rspec` only the
+        // project's file is read, and its absence is not an error.
+        .args(["--options", ".rspec"])
         .args(args)
         .current_dir(root)
         .env_remove("SPEC_OPTS");

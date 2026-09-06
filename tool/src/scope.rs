@@ -52,6 +52,10 @@ pub fn forget_the_hook(command: &mut Command) {
         // battery run from a court must judge the project, not the
         // branch its parent was told about.
         "KEEL_BRANCH",
+        // And the launcher's word about the ref (wave 0050): the pin
+        // court no longer reads it, and the project's tests must not
+        // hear it either (global review 2026-09-06, bugs cut R-8).
+        "KEEL_RUNNING_REF",
     ] {
         command.env_remove(name);
     }

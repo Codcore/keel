@@ -139,7 +139,11 @@ fn the_battery_hears_no_word_from_outside() {
             format!("from toy import works\n\n\n# proves: it-works@{rev}\ndef test_red():\n    assert not works()\n"),
         )
         .unwrap();
-        frame(&dir, "lang = \"uk\"\nadapter = \"python\"\n", "src/toy/__init__.py");
+        frame(
+            &dir,
+            "lang = \"uk\"\nadapter = \"python\"\n",
+            "src/toy/__init__.py",
+        );
         settle(&dir);
         let env = [(
             "PYTEST_ADDOPTS",
@@ -185,7 +189,11 @@ fn the_battery_hears_no_word_from_outside() {
             ),
         )
         .unwrap();
-        frame(&dir, "lang = \"uk\"\nadapter = \"javascript\"\n", "src/toy.js");
+        frame(
+            &dir,
+            "lang = \"uk\"\nadapter = \"javascript\"\n",
+            "src/toy.js",
+        );
         settle(&dir);
         let env = [("NODE_OPTIONS", "--test-skip-pattern=red".to_string())];
         let (said, code) = gate(&dir, &env);
@@ -199,7 +207,10 @@ fn the_battery_hears_no_word_from_outside() {
             said.contains("червоний тест: red one"),
             "the battery sees the skipped-by-pattern test red:\n{said}"
         );
-        assert!(!said.contains("не виконала"), "and never as `not run`:\n{said}");
+        assert!(
+            !said.contains("не виконала"),
+            "and never as `not run`:\n{said}"
+        );
         assert_ne!(code, 0, "a court that saw red does not close:\n{said}");
     }
 
@@ -245,7 +256,10 @@ fn the_battery_hears_no_word_from_outside() {
              by the machine, not the project:\n{said}"
         );
         assert_ne!(code, 0, "a court that saw red does not close:\n{said}");
-        assert!(!said.contains("закрита"), "no verdict reads as closure:\n{said}");
+        assert!(
+            !said.contains("закрита"),
+            "no verdict reads as closure:\n{said}"
+        );
     }
 
     // --- the pin court: a word in the air sways nothing; the file
@@ -309,7 +323,8 @@ fn the_battery_hears_no_word_from_outside() {
         ),
     )
     .unwrap();
-    let verify = "test -z \"$CARGO_TARGET_DIR\" && test -z \"$GIT_DIR\" && test -z \"$KEEL_RUNNING_REF\"";
+    let verify =
+        "test -z \"$CARGO_TARGET_DIR\" && test -z \"$GIT_DIR\" && test -z \"$KEEL_RUNNING_REF\"";
     let fingerprint = keel::trust::fingerprint(verify);
     frame(
         &dir,

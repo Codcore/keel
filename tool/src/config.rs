@@ -228,18 +228,36 @@ impl Config {
     /// every ref answers `0.1.0` -- the crate version has not moved
     /// in 495 commits -- so a pin that could only name the version
     /// could not tell two installed releases apart at all. The ref is
-    /// what the launcher knows and the binary does not, so the
-    /// launcher says it in KEEL_RUNNING_REF.
+    /// what the installer wrote to the disk beside the binary --
+    /// `.keel-ref` in the version's own home -- and the binary reads
+    /// it there itself (wave 0050). It used to take the launcher's
+    /// word in KEEL_RUNNING_REF, which anyone could set from a shell
+    /// and which turned the court off (global review 2026-09-06, bugs
+    /// cut R-8).
     pub fn pin_mismatch(&self, running: &str) -> Option<&str> {
         let pin = self.version.as_deref()?;
         if pin == running {
             return None;
         }
-        match std::env::var("KEEL_RUNNING_REF") {
-            Ok(named) if named.trim() == pin => None,
+        match installed_ref() {
+            Some(named) if named == pin => None,
             _ => Some(pin),
         }
     }
+}
+
+/// The ref this binary was installed under, by the file the installer
+/// wrote beside it: `<home>/.keel-ref` next to `<home>/keel`. None
+/// where the binary stands anywhere else -- a cargo build in a
+/// target directory answers by its crate version alone.
+pub fn installed_ref() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let named = std::fs::read_to_string(exe.parent()?.join(".keel-ref")).ok()?;
+    let named = named.trim();
+    if named.is_empty() {
+        return None;
+    }
+    Some(named.to_string())
 }
 
 /// The full keel.toml vocabulary from the concept. An unknown field

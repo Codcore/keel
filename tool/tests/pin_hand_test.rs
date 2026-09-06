@@ -106,13 +106,34 @@ fn world(name: &str) -> (Sandbox, World) {
         "#!/bin/sh\nout=\"$KEEL_HOME/source/tool/target/release\"\nmkdir -p \"$out\"\nprintf '#!/bin/sh\\necho \"keel 2.0.0 stub\"\\n' > \"$out/keel\"\nchmod +x \"$out/keel\"\n",
     )
     .unwrap();
-    let mut perms = fs::metadata(stub.join("cargo")).unwrap().permissions();
+    // And a `curl` that never leaves the machine (wave 0050, global
+    // review tests cut R-1): this world had no KEEL_RELEASES and no
+    // shim, so after wave 0048 the installer walked its release road
+    // to github.com twice per battery run -- a verdict that depended
+    // on the network. A `file://` address goes to the real curl, any
+    // other is logged and refused, and `install()` holds the log
+    // empty.
+    let real_curl = ["/usr/bin/curl", "/bin/curl", "/usr/local/bin/curl"]
+        .into_iter()
+        .find(|c| Path::new(c).is_file())
+        .unwrap_or("/usr/bin/curl");
+    fs::write(
+        stub.join("curl"),
+        format!(
+            "#!/bin/sh\nfor a in \"$@\"; do case \"$a\" in http://*|https://*) echo \"$a\" >> '{}'; exit 22;; esac; done\nexec {real_curl} \"$@\"\n",
+            dir.join("curl-http.log").display()
+        ),
+    )
+    .unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        perms.set_mode(0o755);
+        for tool in ["cargo", "curl"] {
+            let mut perms = fs::metadata(stub.join(tool)).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(stub.join(tool), perms).unwrap();
+        }
     }
-    fs::set_permissions(stub.join("cargo"), perms).unwrap();
 
     let world = World {
         dir: dir.to_path_buf(),
@@ -145,7 +166,19 @@ fn install(world: &World, git_ref: Option<&str>) -> (String, i32) {
         .env("KEEL_REF", git_ref.unwrap_or(""));
     // The stub reads KEEL_HOME to know where to write.
     command.env("KEEL_HOME", &world.home);
+    // No release stands anywhere this world can reach: an empty
+    // `file://` directory, so the release road of wave 0048 ends here
+    // and the source road is taken -- and the curl shim holds that
+    // no other address was ever asked for.
+    let releases = world.dir.join("no-releases");
+    fs::create_dir_all(&releases).unwrap();
+    command.env("KEEL_RELEASES", format!("file://{}", releases.display()));
     let out = command.output().unwrap();
+    assert!(
+        !world.dir.join("curl-http.log").exists(),
+        "no road of this world walks to the network:\n{}",
+        fs::read_to_string(world.dir.join("curl-http.log")).unwrap_or_default()
+    );
     (
         format!(
             "{}{}",
@@ -161,7 +194,7 @@ fn head_of(world: &World) -> String {
     git(&world.home.join("source"), &["rev-parse", "HEAD"])
 }
 
-/// proves: the-pin-has-a-hand@37ae08 -- `keel version` over a mismatched
+/// proves: the-pin-has-a-hand@aac589 -- `keel version` over a mismatched
 /// pin said the courts refuse until the pin and the binary meet, and
 /// named no hand that makes them meet. install.sh took no version at
 /// all: it cloned and built `main`, whatever keel.toml said. The

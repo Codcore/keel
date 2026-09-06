@@ -345,6 +345,12 @@ fn pytest(root: &Path, args: &[String]) -> Result<(String, i32), Refusal> {
         .args(["-p", "no:cacheprovider", "-rA"])
         .args(args)
         .env("PYTHONDONTWRITEBYTECODE", "1")
+        // The environment's own options never reach the run: a
+        // `--deselect` in PYTEST_ADDOPTS took the tagged test out of
+        // the battery and the wave closed over its red (global review
+        // 2026-09-06, bugs cut R-6). The project's own addopts in its
+        // config are read as before -- they are the project's word.
+        .env_remove("PYTEST_ADDOPTS")
         .current_dir(root);
     crate::scope::forget_the_hook(&mut command);
     let out = command.output().map_err(|e| Refusal {

@@ -496,9 +496,9 @@ run() {
             exit 2
         fi
     fi
-    # The binary knows its crate version and not the ref it was built
-    # from; the launcher does, and tells it, so a pin may name either.
-    KEEL_RUNNING_REF="$(name_of "$home")" export KEEL_RUNNING_REF
+    # The binary reads the ref it was installed under from .keel-ref
+    # beside itself (wave 0050) -- the launcher no longer says it in
+    # the environment, where anyone could have said it.
     exec "$home/keel" "$@"
 }
 
