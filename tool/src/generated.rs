@@ -581,8 +581,8 @@ fn workflow(root: &Path, config: &Config) -> String {
         "      - name: the tool itself\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Takes the published release of the pinned version where one stands\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# (curl, tar, a checksum -- no build); where none does, it clones\n\
-             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# into the tool's home and builds from source, needing git and\n\
-             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# cargo on the runner -- and cargo writes\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# into the tool's home and builds from source. That road needs\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# git and cargo on the runner, and cargo writes\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# its own registry into CARGO_HOME while it does.\n\
              {pin}\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: |\n\

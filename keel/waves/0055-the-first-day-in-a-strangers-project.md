@@ -128,11 +128,12 @@ transforms:
       - tool/tests/own_ci_test.rs
       - tool/tests/norm_marks_test.rs
   the-documents-tell-the-day:
-    chore: "README, the concept and the generated texts say what the tool does on day one: the manual mode and the hooks, the release line, keel update and spike, the frame's own words about red births and the installer (final review, method R-5, R-6, R-7, R-14, R-15, R-16)"
+    chore: "README, the concept and the generated texts say what the tool does on day one: the manual mode and the hooks, the release line, keel update and spike, the frame's own words about red births and the installer (final review, method R-6, R-7, R-15, R-16)"
     files:
       - README.md
       - docs/uk/NEW-CONCEPT.md
       - tool/src/generated.rs
+      - tool/tests/status_test.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS); the final review's three reports queued in BACKLOG, the rows this wave strikes struck"
     files:
