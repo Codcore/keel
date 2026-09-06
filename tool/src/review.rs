@@ -34,12 +34,29 @@ pub fn package(root: &Path) -> Result<String, Refusal> {
         });
     };
     let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
+    // A wave called off is outside judgement, and §6.3-a says every
+    // court says so aloud -- this one assembled a package in silence
+    // (global review 2026-09-06, methodology R-12; wave 0053).
+    if let Some(why) = &wave.cancelled {
+        let mut out = t("review-title");
+        out.push('\n');
+        writeln!(
+            out,
+            "{}",
+            ta(
+                "review-cancelled",
+                targs!("wave" => slug.clone(), "why" => why.clone())
+            )
+        )
+        .unwrap();
+        return Ok(out);
+    }
     let rel = format!("keel/waves/{slug}.md");
     let wave_path = root.join(&rel);
     let text = std::fs::read_to_string(&wave_path).map_err(|e| Refusal {
         file: wave_path.clone(),
-        reason: format!("the wave file cannot be read: {e}"),
-        instead: "check the path and file permissions".to_string(),
+        reason: ta("docs-unreadable", targs!("error" => e.to_string())),
+        instead: t("docs-unreadable-instead"),
     })?;
     // CRLF normalized for section parsing (review 0009 R-3): the
     // package must not lose the Why and the caveats to Windows line
@@ -120,11 +137,16 @@ pub fn package(root: &Path) -> Result<String, Refusal> {
     if crate::check::is_shallow(root) {
         writeln!(out, "{}", t("review-drift-unverified")).unwrap();
     } else {
-        match drift_anchor(root, &rel, wave.renamed_from.as_deref()) {
+        let full = docs::weight(wave) == docs::Weight::Full;
+        match drift_anchor(root, &rel, wave.renamed_from.as_deref(), full) {
             None => writeln!(out, "{}", t("review-drift-unverified")).unwrap(),
-            Some((anchor, anchored_rel, anchored_slug)) => {
+            Some((anchor, anchored_rel, anchored_slug, kind)) => {
                 let short = anchor.get(..7).unwrap_or(&anchor).to_string();
-                writeln!(out, "{}", ta("review-drift-header", targs!("sha" => short))).unwrap();
+                let key = match kind {
+                    Anchor::Fork => "review-drift-header-fork",
+                    Anchor::First => "review-drift-header",
+                };
+                writeln!(out, "{}", ta(key, targs!("sha" => short))).unwrap();
                 match old_wave_files(root, &anchor, &anchored_rel, &anchored_slug) {
                     None => writeln!(out, "  {}", t("review-drift-unreadable")).unwrap(),
                     Some(old_files) => {
@@ -301,20 +323,40 @@ fn wave_files(wave: &docs::Wave) -> Vec<String> {
     files
 }
 
-/// The first commit that added the wave file -- the drift anchor of
-/// this generation, named aloud in the package. A renamed wave
-/// (renamed_from) keeps the true anchor of its old name, so growth
-/// at the rename is not blessed as planned (review 0009 R-5); the
-/// anchor is returned with the path and slug it was found under.
+/// Which commit the anchor is.
+enum Anchor {
+    /// The fork point with main: the wave file as the plan PR merged
+    /// it (§4.6, the norm as written -- wave 0052).
+    Fork,
+    /// The first commit that added the wave file: a light wave has no
+    /// plan PR, and a full wave whose plan is not merged yet has no
+    /// fork point carrying its file.
+    First,
+}
+
+/// The drift anchor (§4.6): for a FULL wave the wave file at the
+/// fork point with main -- the plan PR merged, whatever number of
+/// commits the plan branch took (the first reading took the first
+/// commit of the file, and a plan branch of two commits had its
+/// second file "added after the anchor" once merged; global review
+/// 2026-09-06, methodology R-7). For a light wave, and for a full
+/// one whose plan is not in main yet, the first commit of the file.
+/// A renamed wave (renamed_from) keeps the true anchor of its old
+/// name, so growth at the rename is not blessed as planned (review
+/// 0009 R-5); the anchor is returned with the path and slug it was
+/// found under. Border: once the branch is merged, the fork point
+/// is the head -- the package is assembled on the branch, before the
+/// PR (§9.9).
 fn drift_anchor(
     root: &Path,
     rel: &str,
     renamed_from: Option<&str>,
-) -> Option<(String, String, String)> {
+    full: bool,
+) -> Option<(String, String, String, Anchor)> {
     if let Some(old) = renamed_from {
         let old_rel = format!("keel/waves/{old}.md");
         if let Some(sha) = first_add(root, &old_rel) {
-            return Some((sha, old_rel, old.to_string()));
+            return Some((sha, old_rel, old.to_string(), Anchor::First));
         }
     }
     let slug = rel
@@ -322,7 +364,14 @@ fn drift_anchor(
         .and_then(|s| s.strip_suffix(".md"))
         .unwrap_or("wave")
         .to_string();
-    first_add(root, rel).map(|sha| (sha, rel.to_string(), slug))
+    if full
+        && let Ok((base, from_main)) = scope::compare_base(root)
+        && from_main
+        && git_show(root, &base, rel).is_some()
+    {
+        return Some((base, rel.to_string(), slug, Anchor::Fork));
+    }
+    first_add(root, rel).map(|sha| (sha, rel.to_string(), slug, Anchor::First))
 }
 
 fn first_add(root: &Path, rel: &str) -> Option<String> {

@@ -8,6 +8,8 @@ scenarios:
   closure-needs-review-file:
     proves: tool-close@0bc96a
     covers: [security.non-repudiation]
+    withdrawn: "рішення оператора 2026-09-04 (хвиля 0037): рецензент у кожної хвилі, легка теж не закривається без звіту — обіцянка «chore-хвиля звіту не потребує» померла; проба перейшла під наступника (хвиля 0050, глобальне ревʼю тестів R-2)"
+    superseded_by: every-wave-has-its-reviewer
   vanished-tag-is-red:
     proves: tool-tags@4a0d5e
     covers: [security.integrity, reliability.faultlessness]
@@ -82,6 +84,7 @@ decisions:
   safety.fail-safe: "свідомо без нового тесту: невідомість (нема git, нема адаптера, збірка зламана) — відмова або слово, не тихий пропуск; школа доведена 0004–0005, нові шляхи йдуть нею ж"
   safety.hazard-warning: "свідомо без нового тесту: стан «в роботі» з поіменним переліком — і є попередження до злиття; тримає wave-closure-judged"
   safety.safe-integration: "свідомо без тесту: новий файл — close.rs зі своїм тестом; check росте лише floor-ом §5.6/§7.15; на нашому ж репо суд закриття вперше судить пʼять злитих хвиль — і що назве, те чесна знахідка, не поломка"
+  security.non-repudiation: "розріз ніс closure-needs-review-file, знятий хвилею 0050: заслон звіту рецензії відтоді тримає every-wave-has-its-reviewer (0037) для хвилі будь-якої ваги"
 ---
 
 ## Why

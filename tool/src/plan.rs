@@ -50,10 +50,10 @@ pub fn wave(root: &Path, slug: &str) -> Result<String, Refusal> {
     // off the branches: a document broken inside hides no number,
     // and one deliberately red skeleton does not block the next
     // birth.
-    let mut taken: Vec<u64> = wave_file_numbers(&waves);
-    let branches_read = branch_numbers(root, slug, &mut taken);
-    if taken.contains(&number) {
-        let next = taken.iter().max().unwrap_or(&number) + 1;
+    let held = taken(root, slug);
+    let branches_read = held.branches_read;
+    if held.numbers().contains(&number) {
+        let next = held.next_free(number);
         // The instead tells the truth about what was searched
         // (review 0013 R-1): "every branch" is said only where git
         // actually answered.
@@ -169,7 +169,72 @@ fn keel_dirs(root: &Path, dir: &Path, what: &str) -> Result<(), Refusal> {
 /// The numbers held by the wave files themselves: the file stem's
 /// leading digits (§8.5). No header is parsed -- a broken document
 /// hides no number.
-fn wave_file_numbers(waves: &Path) -> Vec<u64> {
+/// The numbers held: on disk, by the file names of keel/waves/ (each
+/// with the stem that holds it), and on the branches; and whether git
+/// answered about the branches. One hand for the birth (`keel plan`)
+/// and for the court of `keel check` -- §8.8 was judged by the birth
+/// alone, and two wave files with one number were zero findings
+/// (global review 2026-09-06, methodology R-11; wave 0052).
+pub struct Taken {
+    pub files: Vec<(u64, String)>,
+    pub branches: Vec<u64>,
+    pub branches_read: bool,
+}
+
+impl Taken {
+    /// Every number held, on disk or on a branch.
+    pub fn numbers(&self) -> Vec<u64> {
+        self.files
+            .iter()
+            .map(|(n, _)| *n)
+            .chain(self.branches.iter().copied())
+            .collect()
+    }
+
+    /// The next free number: one past the highest held, and never
+    /// below the one asked about.
+    pub fn next_free(&self, at_least: u64) -> u64 {
+        self.numbers()
+            .into_iter()
+            .max()
+            .unwrap_or(at_least)
+            .max(at_least)
+            + 1
+    }
+
+    /// The numbers held by more than one file on disk, with the
+    /// stems that hold them (§8.8).
+    pub fn doubled(&self) -> Vec<(u64, Vec<String>)> {
+        let mut by_number: std::collections::BTreeMap<u64, Vec<String>> = Default::default();
+        for (number, stem) in &self.files {
+            by_number.entry(*number).or_default().push(stem.clone());
+        }
+        by_number
+            .into_iter()
+            .filter(|(_, stems)| stems.len() > 1)
+            .map(|(number, mut stems)| {
+                stems.sort();
+                (number, stems)
+            })
+            .collect()
+    }
+}
+
+/// The numbers held, read for the slug being born (its own branches
+/// are its name, never a rival) -- or for nobody, with an empty slug.
+pub fn taken(root: &Path, own: &str) -> Taken {
+    let waves = root.join("keel/waves");
+    let files = wave_file_numbers(&waves);
+    let mut branches = Vec::new();
+    let branches_read = branch_numbers(root, own, &mut branches);
+    Taken {
+        files,
+        branches,
+        branches_read,
+    }
+}
+
+fn wave_file_numbers(waves: &Path) -> Vec<(u64, String)> {
     let mut out = Vec::new();
     if let Ok(entries) = std::fs::read_dir(waves) {
         for entry in entries.flatten() {
@@ -178,10 +243,11 @@ fn wave_file_numbers(waves: &Path) -> Vec<u64> {
                 && let Some(stem) = path.file_stem()
                 && let Some(number) = leading_number(&stem.to_string_lossy())
             {
-                out.push(number);
+                out.push((number, stem.to_string_lossy().into_owned()));
             }
         }
     }
+    out.sort();
     out
 }
 

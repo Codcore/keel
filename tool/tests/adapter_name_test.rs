@@ -3,6 +3,10 @@
 //! rust is canonical, cargo an accepted synonym said aloud.
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
+//!
+//! The fixture's "a language this release does not lead" was `elixir`
+//! until wave 0042 built it. It is `kotlin` now -- the name moved,
+//! not one assertion of these courts.
 
 mod common;
 
@@ -107,7 +111,7 @@ fn adapter_named_by_language() {
 
     // An unknown adapter refuses with the canonical name to reach for.
     let dir = keel_sandbox("unknown");
-    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"elixir\"\n");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"kotlin\"\n");
     crate_files(&dir);
     let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
@@ -143,7 +147,7 @@ fn adapter_named_by_language_second_birth() {
     // the truth: check points at rust, the form court and the map
     // say "not of this release", never "not named".
     let dir = keel_sandbox("namedunknown");
-    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"elixir\"\n");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"kotlin\"\n");
     crate_files(&dir);
     write(
         &dir,
@@ -161,10 +165,14 @@ fn adapter_named_by_language_second_birth() {
         "named-yet-unknown is not painted as absent (R-3):\n{out}"
     );
 
-    // R-4: gate asks the home -- an unknown adapter passes with a
-    // word, cargo is never run blindly for a foreign language.
+    // R-4: gate asks the home -- an unknown adapter is a word aloud,
+    // cargo is never run blindly for a foreign language. Since wave
+    // 0052 the word over a birth or a transform is a REFUSAL, as the
+    // scenario says of every court ("з невідомим -- відмова вголос"):
+    // a court that cannot judge does not pass what it was asked to
+    // judge (§7.12; review 0017 R-4 had settled for a pass).
     let dir = keel_sandbox("gatehome");
-    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"elixir\"\n");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"kotlin\"\n");
     crate_files(&dir);
     write(
         &dir,
@@ -176,13 +184,13 @@ fn adapter_named_by_language_second_birth() {
     let msg = dir.join(".git/COMMIT_MSG_PROBE");
     let (out, err, code) = keel(&["gate", msg.to_str().unwrap(), dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
-    assert_eq!(
+    assert_ne!(
         code, 0,
-        "gate passes with a word instead of judging blind (R-4):\n{out}"
+        "gate refuses with a word instead of judging blind (R-4, wave 0052):\n{out}"
     );
     assert!(
-        out.contains("not judged") && out.contains("\"elixir\""),
-        "the unjudged verdict is a word aloud with the adapter's name (R-4, §9.7):\n{out}"
+        out.contains("not of this release") && out.contains("\"kotlin\""),
+        "the refusal is a word aloud with the adapter's name (R-4, §9.7):\n{out}"
     );
 
     // R-5: rust is pinned across the three courts the first birth

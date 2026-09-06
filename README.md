@@ -117,9 +117,38 @@ The tool is a Rust crate in `tool/`; git and cargo are all it needs.
 curl -fsSL https://raw.githubusercontent.com/Codcore/keel/main/install.sh | sh
 ```
 
-That clones the repository into `~/.keel`, builds the release binary and puts
-`keel` in `~/.local/bin`. Run it again to update. `KEEL_REPO`, `KEEL_HOME` and
-`KEEL_BIN` override all three. By hand it is the same three lines:
+That clones the repository into `~/.keel/source`, builds a release binary into
+`~/.keel/versions/<ref>/`, and puts a **launcher** at `~/.local/bin/keel`. Run
+it again to update. `KEEL_REPO`, `KEEL_HOME` and `KEEL_BIN` override all three.
+
+**Versions stand side by side.** Each installed ref gets its own home, so two
+projects on two different pins work at the same time. The launcher reads the
+`version` a project pins in `keel.toml` (honouring `-C`) and runs exactly that
+one; a pin nobody installed is a refusal naming what *is* here and the command
+that brings what is not. It never runs a different version — the wrong binary
+in silence is worse than a refusal. Before it hands over it checks the binary
+is the one that was installed. `keel version` lists what stands here.
+
+A **version** may be named — first argument or `KEEL_REF` — and then exactly
+that git ref is installed:
+
+```bash
+KEEL_REF="<tag or commit>" sh install.sh
+curl -fsSL https://raw.githubusercontent.com/Codcore/keel/main/install.sh | sh -s -- <tag or commit>
+```
+
+A ref that is not there refuses and lists what the clone knows. This is what
+`keel version` prints when `keel.toml` pins a version the running binary is
+not — the advice names the command with the pin already in it, and the border
+with it: `KEEL_REF` takes a **git ref by name**, while `version` holds a number,
+and the two are only the same word once a tag carries that name. Where
+`keel.toml` pins a version, the generated CI step carries that pin too.
+
+`cargo` writes its own registry and cache into `CARGO_HOME` (`~/.cargo` by
+default, tens of megabytes on a first build) — that is cargo's home, not keel's,
+and the installer does not move it.
+
+By hand it is the same three lines:
 
 ```bash
 git clone https://github.com/Codcore/keel ~/.keel
@@ -132,6 +161,77 @@ Then, in the project you want to work in:
 ```bash
 keel init
 ```
+
+**What is not built, said here rather than discovered later:** a keel release is
+a **git ref fetched by name**. The commit sha is recorded and the binary's own
+sha256 is checked before every run, so you always know *which tree* you got and
+that nobody swapped the file — but nothing proves the *ref itself* is
+trustworthy. A published release carries that proof (wave 0048): `release.sh`
+builds `keel-<version>-<target>.tar.gz` with its `.sha256` beside it, the
+workflow on a `v*` tag attests the provenance and publishes both, and the
+launcher **fetches a missing version by itself** — a pin that names a version
+and stands nowhere in `versions/` is downloaded from the releases, checked
+against its checksum *before* it is unpacked, recorded, said aloud (what was
+taken and from where), and run. A checksum that does not match refuses and
+installs nothing; a pin with no release, or a pin that is a git ref, refuses
+with the ready command as before. `install.sh` takes the same road first and
+builds from git only where no release answers. The launcher checks the sha256,
+not the signature: `gh attestation verify` does that, and `gh` is not a thing
+every machine has.
+
+**No published tag carries the current layout yet** — keel v1 kept the crate
+outside `tool/`, so `KEEL_REF=v0.8.9` refuses by name. The number and the tag
+are the operator's line, in this order: bump the crate's version in one commit;
+push the tag `v<version>` on that commit — the workflow builds the release, and
+`release.sh --tag` refuses a tree that answers another number; then bump the pin
+in `keel.toml`, and this repository's CI takes the release road. Until then
+keel's own CI installs by the pin `0.1.0`, which is neither a tag nor a release:
+`install.sh` builds the branch the remote leads with and accepts it only because
+that tree answers `0.1.0`. The installer the generated CI step fetches comes
+from `main`, unpinned: a project pinned to an older keel still runs today's
+script.
+
+**One tool in this repository.** The first implementation — `keel.py` and its
+Python tests in `tests/` — lived at the root beside the crate for forty waves,
+and no court said which of the two was current. Wave 0049 took it out; it is
+in the history up to that wave, and the v0.8.x tags still carry it.
+
+## For scripts
+
+Every command takes `-C <dir>` (where to work) and `--branch <name>` (which
+branch to believe **where git does not know it** — a CI checkout with a detached
+HEAD). `--branch` never overrules git: where git has a branch, git is the fact,
+and the tool says aloud that the flag was not used rather than dropping the word
+in silence.
+
+The reading commands — `check`, `close`, `status`, `next`, `map`, `review`,
+`version`, `cuts`, `rev` — also take `--json`, and then print one JSON object
+and nothing else:
+
+```json
+{"keel":1,"command":"check","ok":false,"exit":1,"root":"…","lang":"uk",
+ "structured":true,
+ "findings":[{"file":"keel/waves/0001-a-wave.md","reason":"…","instead":"…"}],
+ "limits":["…"],"summary":{"documents":62,"findings":1,"limits":1},
+ "report":"…the prose verdict, byte for byte…"}
+```
+
+A refusal is the same envelope with `refusal` carrying `file`, `reason` and
+`instead`. Without the flag the output is byte-for-byte what it always was.
+
+Two borders, said here rather than found later: the package carries the
+structure the courts already computed and the whole prose in `report` — it does
+not turn every sentence into a typed field, and `structured` says so. And the
+commands that *write* (`init`, `setup`, `plan`, `new`, `update`, `gate`,
+`hook`, `trust`) have no `--json`: they tell a person what they did in their
+project, and a harness that wants the outcome asks `check` afterwards.
+`concept` and `method` do take it — they write nothing, they read the norm.
+
+`report` is what a person sees on stdout, to the byte. One thing is not in it:
+the price line `keel close` prints on **stderr before** it starts work, which is
+a warning ahead of the verdict rather than part of it.
+
+## What `init` asks
 
 `init` asks a handful of questions — language, adapter, mode, agents, CI command
 — and writes `keel.toml` plus the integrations below. `keel setup` changes any
@@ -168,6 +268,14 @@ Exit codes: `0` green, `1` findings, `2` a refusal. `--help` and `--version` are
 answered anywhere; an unknown flag or a second path is refused, never read as a
 directory.
 
+What is **not** there, so nobody looks for it: `keel check --fast` — the v1
+subset for pre-commit is not carried, the commit-msg hook (`keel gate`) is the
+fast court; and a court over the scope intersections of parallel waves — `check`
+judges one branch against its trunk, and whether two open waves declaring one
+file deserve a court of their own is an operator's line in BACKLOG. The commands
+of the first tool (`gaps`, `mutate`, `show`, `hooks`, `skills`, `hook <event>`)
+live in `docs/uk/README.md` as history, and the concept says where each went.
+
 ## What the courts actually check
 
 `keel check` is the one you run constantly. It judges, and says aloud what it
@@ -190,6 +298,72 @@ could **not** judge rather than painting green over it:
 `keel close` is the heavier one: it runs the project's battery three times in
 its own target directory, because an inherited cache shifts verdicts.
 
+**The generated CI runs where keel itself runs the battery.** The question goes
+to the adapter, because only the adapter knows which directory it works from:
+for rust that is the crate's root, and for **ruby and elixir it is always the
+repository root**, since both adapters run from there. A `working-directory` is
+written only when that differs from the repository root; where the adapter
+cannot say — no crate, several, or one deeper than a level — the file says so
+in a comment rather than leaving a step to fail on a runner without a reason.
+
+Until wave 0044 the step was `cargo test` at the root, so a project whose crate
+sits in a subdirectory got `could not find Cargo.toml` from a file keel had
+written for it. keel's own repository is that shape, and its own CI had been
+saying so. The first cut of the fix looked for `Gemfile` and `mix.exs` itself,
+and that was worse: CI then ran a *different* battery from the one the courts
+judge, and a red tree came out green.
+
+**And it names the toolchain it judged with**, for a tongue that has one: a
+project carrying `rust-toolchain.toml` gets its channel installed by name, and
+one carrying none gets the truth in the file — the courts take whatever the
+runner has that day, which is repeatable only by accident. keel does not pin on
+your behalf; the pin is your project's decision. It made that decision for
+itself after `clippy -D warnings` came out clean on 1.94 and red on 1.98, on the
+same tree, because a lint had been added in between.
+
+The channel is read with a TOML reader and must be a channel **name** —
+letters, digits, dot, dash, underscore, and the whole of the value. The first
+cut took the text after `channel` by hand and put it straight into a `run:`
+line, so a pin could write any command at all into the workflow keel generates.
+A value this release cannot vouch for is treated as no pin: the file then says
+none is named, which is true and harmless.
+
+**A test it watched fail holds the wave open** — whoever claims it. That reads
+obvious and was not true until wave 0043: blockers were counted only from the
+uncovered promises of the branch's own wave, so a red test no scenario named
+was printed by name and then closed over, with exit 0. Measured that way in
+rust, ruby and elixir alike, which is why the fix is in the court and not in
+any adapter. A flaky test blocks the same way: three runs exist precisely so
+flakiness is visible, and a flaky test is not a green one. Waves closed in
+earlier generations keep their verdict — their promises were proven at their
+time, and today's red is not their lack.
+
+The same wave took a second false green out of `keel check`: a declaration
+written inside a multi-line text — an elixir `@moduledoc`, a ruby heredoc, a
+rust `r#"..."#` — used to hold a contract's `exports` as if it were live code.
+Comments were already not code; text is not code either, in all three tongues,
+and the finding now names the file it looked in.
+
+That rule is a **reader per tongue, not a rule per mark** — and the first cut of
+it, which was three passes over three marks, is why the reviewer sent the wave
+back. Rust is read in one pass the way rustc reads it (nested `/* */`, raw
+strings with their hash count, ordinary strings with their escapes, a char
+literal told from a lifetime); before that, `ident.strip_prefix("r#")` in `syn`
+opened a raw string that was never open and **17 of the 3419 crates** in the
+local registry lost a live declaration — with the same trap already standing in
+keel's own source. Ruby and Elixir are read **line by line, deliberately**:
+ruby writes `$'` for the post-match and `?'` for a character, and carrying quote
+state across lines to catch a multi-line string cost **513 live `def`s across 87
+files** of ruby's own library. A heredoc opens only when its word really stands
+alone on a line below, so a shovel, an example inside a string, and any heredoc
+shape this reader does not know all leave the file alone.
+
+The direction is chosen and stated: this court may let a ghost through and say
+so — the borders are listed in `BACKLOG.md` — but it must not refuse a promise
+that is alive. A court that refuses live code is not a stricter court; it is a
+broken one. Measured after the rewrite: zero live declarations lost across both
+corpora.
+
 ## Two languages
 
 `lang` in `keel.toml` picks the tool's own language — `uk` or `en`. It decides
@@ -199,22 +373,125 @@ one records the revision it was translated from, and a stale record is a finding
 
 ## Adapters — and the honest state of them
 
-**Today there is exactly one adapter, `rust` (`"cargo"` accepted), and it exists
-so that keel can judge itself.** No adapter for any other language is written
-yet. If your project is not Rust, say so plainly: you get every document, link,
-scope and revision court, and the tool names the ones it skipped instead of
-leaving them green — but the two language-shaped courts (test tags, contract
-form) do not run.
+Five adapters exist: **`rust`** (`"cargo"` accepted), **`ruby`** (minitest),
+**`elixir`** (`"mix"` accepted, ExUnit), **`python`** (`"pytest"` accepted) and
+**`javascript`** (`"typescript"`, `"node"`, `"js"`, `"ts"` accepted — `node --test`,
+which runs `.ts` too, since node 22 strips types itself).
+All five run the language-shaped courts — the `proves:` tags are read from the
+project's test files, and a contract's `exports` are compared against the
+module's own source, wherever that language keeps it.
 
-The concept's starting set is **Elixir, Ruby, Python, TypeScript/JavaScript**,
-and none of the four is built. That is the largest gap in this tool, and it is
-named here rather than left for a reader to discover.
+Name a language this release does not know and you get a finding with the list
+of the ones it does — never a silent skip. Name none at all and every other
+court still runs: documents, links, scope, revisions, and the tool says which
+ones it skipped instead of leaving them green.
+
+The concept's starting set is **Elixir, Ruby, Python, TypeScript/JavaScript**.
+All four are built, and the ruby adapter has both of its readings: minitest in
+`test/` and RSpec in `spec/` (wave 0047). What is not: the other JS runners
+(jest, vitest, mocha); the javascript adapter is `node --test`. Named here
+rather than left for a reader to discover.
+
+RSpec is not a sixth tongue but a **second reading of ruby**, and the courts
+above the adapter never learn which reading answered. An example is named by
+rspec's own full description — `describe "#works"` and `context "when called"`
+under `RSpec.describe Toy` give `Toy#works when called returns true`, joined the
+way rspec joins them — and it runs by the **id** a `--dry-run` gives it, never
+by its name: `-e` matches a substring. The verdict is rspec's JSON, sent to a
+file outside the project because stdout belongs to the project's own `.rspec`;
+`pending` did not run; an error outside the examples is a refusal with ruby's
+words. Two examples no tag can name — a one-liner `it { … }` and an example
+inside `shared_examples` — are refused by name.
+
+JavaScript is the first tongue whose runner **cannot** tell its states apart by
+exit code — a failed test and a `SyntaxError` both leave with 1, and a name that
+matches nothing leaves with 0 while node counts the *file* as one passed test.
+A gate that read the code would bless work over a test that does not exist. So
+the adapter reads TAP and never the code: the line naming the test decides, a
+`# SKIP` did not run, the file's own line is not a test, and node's `#
+SyntaxError` above a file that did not load is a refusal with node's words. The
+test's name goes into `--test-name-pattern` as a regular expression, so it is
+escaped — `a.b (x)` becomes `^a\.b \(x\)$` — which is wave 0044's lesson about a
+string handed to another program. And it needed a fourth comment reader: `'…'`
+is a string in JS, not a lifetime, and a template literal runs over lines.
+
+Python is the second tongue that tells its states apart by exit code, and it
+tells more of them than Elixir: **0 green, 1 failed, 2 collection broke, 4 no
+such test, 5 nothing collected** — measured with the real pytest before the wave
+was planned. One of those turned out to carry two meanings once the plan met the
+machine: asked for a single node in a file whose import broke, pytest answers 4
+and prints the `SyntaxError` above it, so that one code is told apart by its
+text. The plan had said the text would never be asked; the contract records
+where the measurement won. pytest also writes into the project it judges
+(`.pytest_cache`, `__pycache__`) unless told not to — the adapter tells it, and
+`find` after a run comes back empty. A docstring is Elixir's fence and `#` is
+Ruby's mark, so Python shares the one comment reader wave 0043 built for that
+family and adds none of its own.
+
+| language | tests | one test | module source |
+|---|---|---|---|
+| `rust` | `tests/*.rs` | `cargo test --test <file> <fn> -- --exact` | `src/<name>.rs`, `src/<name>/mod.rs` |
+| `ruby` | `test/**/*_test.rb` | `ruby -Itest <file> -n <method>` | `lib/<name>.rb`, `lib/<name>/init.rb`, `app/<name>.rb` — `A::B` is `a/b.rb`, and an acronym stays one word (`HTTPServer` → `http_server`) |
+| `elixir` | `test/**/*_test.exs` | `mix test --only 'test:test <name>'` | `lib/<name>.ex` — `A.B` is `a/b.ex`, acronyms as above |
+| `python` | `tests/**/test_*.py`, `*_test.py` | `pytest <file>::<name>` (a method as `Class::name`) | `src/a/b.py`, `a/b.py`, a package's `__init__.py` — every layout python keeps, each one tried and named |
+| `javascript` | `test/**`, `tests/**` named `*.test.{js,mjs,cjs,ts,mts}` | `node --test --test-name-pattern='^<name>$' <file>` — the name escaped as a regex | `src/a/b.{ts,js,mjs,cjs,mts}`, `src/a/b/index.*`, the same at the root — typed before plain, a file before its `index` |
+
+The ruby battery reads minitest's own verbose voice, so a test file that does
+not load is a refusal aloud rather than a page of green: without a run there is
+no verdict for anyone. A `.rb` file in `test/` that is not named `*_test.rb` is
+not read, and the check says which ones those were.
+
+**Elixir tells the two apart, and the tool says so.** `mix test` leaves with 0
+green, **2 on a failure and 1 on a compilation error**, so a broken build is
+judged a broken build rather than a red test — and `keel check` prints that,
+not ruby's border. A border that is not about your project is as untrue as one
+left unsaid. Two smaller things measured there: an ExUnit test is named by a
+*string*, and inside a `describe` block ExUnit puts the block's name in front,
+so the tool builds the full name rather than calling it a limit.
+
+The border Elixir does share with Ruby is named too: neither writes types in a
+`def`, so §7.6 compares a name and its parameters and nothing more. The other
+half of that border is gone — a `def` written inside a `@moduledoc` used to pass
+for a live one, and wave 0043 took it away in all three tongues at once.
+
+An honest limit of the ruby adapter, and §7.12 foresaw it: ruby does not tell
+"failed" from "did not load" by its exit code — both are 1. The adapter reads
+the text (`SyntaxError`, `LoadError`), and where the text does not say, it takes
+a failure as a failure: the direction that cannot turn red into green. `keel
+check` prints that border itself, next to a second one: ruby writes no types, so
+the §7.6 form court compares a method name and its parameters and nothing more.
+
+Adding a language is a module, a row in `Language::NAMES`, the dictionary in
+both tongues, and **twenty** places where something branches on the tongue —
+counted off the source rather than guessed: the number that stood here before
+was six beside a list of seven, then fourteen while wave 0044 was adding three
+more, seventeen by review 0045, and review 0046 found the grep
+(`grep -n 'language_of(root)\|config.language()' tool/src/*.rs`) giving more
+lines than the hand count, because `check` asks once per tongue for the
+tongue's own limits — so the list is the count, and the grep (twenty-one
+lines today) is how to find what the list missed:
+
+`adapter::builds_heavily`, `build_dir`, `tests_dir`, `run_line`, `test_files`,
+`run_test`, `run_all`, and `is_test_path` (wave 0050 — which path of a tree is
+a test file, asked by the §7.15 court of a tree that is not on disk);
+`config::battery_command`; `holding::comparability` (the
+module layout) and `holding::strip_comments` (the comment shape);
+`tags::scan_text` (the declaration shape), `tags::marks` and `tags::declares`
+(these three keyed by the file's extension, never by the project's config — see
+below); `check` for the tongue's own limits; the three wave 0044 added —
+`adapter::battery_dir` (where the generated CI runs), and the two in
+`generated` that pick the toolchain step and the battery step; and the two
+review 0046 added in `next` — the comment mark the hint writes the tag in, and
+the directory it says the tests live in.
+
+Not "one file". Wave 0042 paid exactly that price for Elixir.
 
 What an adapter has to answer is small and written down:
 
 | question | why |
 |---|---|
 | where do the test files live | the `proves:` tags are read from them (§5.5) |
+| which path of a tree is a test file | §7.15 judges the tree at the fork point, which is not on disk |
 | how to run exactly one test | the red birth is judged by watching it fail (§7.12) |
 | how to run the whole battery | `keel close` runs it three times (§7.13) |
 | how to read a module's source | a contract's `exports` are compared against it (§7.6) |
@@ -234,7 +511,7 @@ so it cannot be swapped later (§7.16). Until your language has an adapter,
 | `AGENTS.md` | a keel block, appended; text above it untouched |
 | `.claude/skills/keel/SKILL.md`, `.agents/skills/keel/SKILL.md` | the skill |
 | `.claude/settings.json`, `.cursor/hooks.json` | the agent hooks |
-| `.github/workflows/keel.yml` | `keel check`, `keel close`, the battery |
+| `.github/workflows/keel.yml` | a step that installs keel, then `keel check`, `keel close`, the battery |
 | `.git/hooks/commit-msg` | the commit court (§8.4, §7.12) |
 
 Every generated file is recorded by digest. Edit one by hand and `keel update`
@@ -242,18 +519,36 @@ refuses to overwrite it, saying so — it never touches what it did not write.
 
 ## Modes
 
-`keel init --mode` answers who may start a procedure and whether anything
-watches while it runs:
+`keel init --mode` answers **who may start a procedure**, and nothing else:
 
-| mode | who starts a procedure | agent hooks |
-|---|---|---|
-| `strict` (default) | the agent, on its own judgement | installed |
-| `soft` | the agent, on its own judgement | none |
-| `manual` | only you, by typing the slash command | none |
+| mode | who starts a procedure |
+|---|---|
+| `strict` (default) | the agent, on its own judgement |
+| `soft` | the agent, on its own judgement, and the commit court is advisory |
+| `manual` | only you, by typing the slash command |
 
-The agent hooks read what the agent is about to write and refuse a file the
-current wave does not declare. The git hook is separate and is always installed:
-it holds the commit grammar and the red birth.
+Two things this table used to claim and does not:
+
+- **The agent hooks are not switched by `--mode`.** They are written whenever
+  `hooks` is on, in every mode; `--no-hooks` (or `hooks = false`) is the switch,
+  and it turns off the git hook too.
+- **The agent hooks do not read what the agent is about to write.** What is
+  generated today is a *session-start* hook that runs `keel next` and puts the
+  current step into the agent's context. A hook that judges a write before it
+  happens is not built.
+
+The git hook is separate: it holds the commit grammar and the red birth (§8.4,
+§7.12) — and it is installed unless you answered `hooks = false`, in which case
+nothing holds those two but your own care. The keel block in `AGENTS.md` and
+the skill say which of the two your project **asked for**: where `hooks` is off
+they say plainly that no commit judgement runs and name what still judges
+(`keel close`, `keel check`).
+
+Whether a hook really stands on *this* machine is a different question, because
+**git does not clone hooks**: a fresh clone and a CI runner have none. The block
+cannot know that — it is compared by digest across every machine — so `keel
+check` says it instead, as a limit, on any clone whose block promises a machine
+and where no hook of ours is installed. `keel hook` puts one back.
 
 ## State
 
@@ -266,5 +561,7 @@ and cannot be edited. A session that dies loses nothing: the next agent runs
 
 A green check means *the test exists, its revision matches, and it passes* — not
 that the promise is proven in essence. No mechanism closes that gap; a fresh
-reviewer does, with the four questions of §9.9. The tool says this in its own
-verdict rather than letting a green line imply more than it holds (§7.8).
+reviewer does, with the four questions of §9.9. `keel check` prints that border
+in its own verdict rather than letting a green line imply more than it holds
+(§7.8) — `keel close`, the heavier court, does not yet, and says "every live
+scenario proven" where it means the same narrower thing.

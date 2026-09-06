@@ -29,7 +29,11 @@ fn revision_recipe_reproduced() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     assert_eq!(
         rev::contract_rev(&root.join("keel/contracts/tool-docs.md")).unwrap(),
-        "2ab9a9"
+        // 2ab9a9 until wave 0052 wrote the weight's reason (`heavy`)
+        // into the contract; f53b8f until its fourth transform wrote
+        // the number's one hand; df690e until review 0052 asked the
+        // exports to name `weight` and `heavy`.
+        "22b7a7"
     );
     assert_eq!(
         rev::contract_rev(&root.join("keel/contracts/tool-config.md")).unwrap(),
@@ -43,9 +47,11 @@ fn revision_recipe_reproduced() {
         // the pin court above mode in words; 5555a7 until 0022 gave
         // [generated] its meaning; 544f7a until 0024 taught the
         // config which agents a project generates for; 0e4d22 until
-        // 0026 gave it the hooks field and the wizard's word -- the
-        // pin follows the live text.
-        "08e270"
+        // 0026 gave it the hooks field and the wizard's word; 08e270
+        // until 0050 taught the pin court to read `.keel-ref` beside
+        // the binary instead of a word in the air -- the pin follows
+        // the live text.
+        "c1cb09"
     );
 
     // Prefix comparison (§5.2): 4-6 characters, from the start.

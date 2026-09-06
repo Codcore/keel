@@ -25,7 +25,22 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
         reason: ta("docs-unreadable", targs!("error" => e.to_string())),
         instead: t("docs-unreadable-instead"),
     })?;
-    let subject = message.lines().next().unwrap_or("").trim().to_string();
+    // The subject as git will RECORD it: the first line that is not
+    // blank and not a `#` comment -- the file of a commit-msg hook
+    // still carries the editor's comment block and the blank line
+    // typed before the subject, and git strips both after the hook
+    // (`commit.cleanup=strip`). Reading the first raw line judged
+    // `work: …` typed after an Enter as "outside the judgement", exit
+    // 0, over a red test (global review 2026-09-06, bugs R-5; wave
+    // 0052). Under `verbatim` a `#` subject is neither a birth nor
+    // work, and the court is only stricter.
+    let comment = comment_mark(root);
+    let subject = message
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty() && !line.starts_with(comment.as_str()))
+        .unwrap_or("")
+        .to_string();
     let mutant = mutant_line(&message);
 
     let mode_line = if config.mode_set {
@@ -42,6 +57,16 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
     let scan = docs::scan(root)?;
     let Some(slug) = scope::branch_wave(root, &scan.waves) else {
         let branch = scope::current_branch(root).unwrap_or_else(|| "?".to_string());
+        // A wave file that stands under the branch's name and could
+        // not be read is not "no wave": a header with a field the
+        // reader does not know switched the whole court off -- "not
+        // named as any wave that reads", exit 0, over a red test
+        // (global review 2026-09-06, bugs R-13; wave 0052). The
+        // reader's own refusal is the verdict, with its words.
+        let wave_file = root.join("keel/waves").join(format!("{branch}.md"));
+        if let Some(refusal) = scan.refusals.iter().find(|r| r.file == wave_file) {
+            return Err(refusal.clone());
+        }
         let report = format!(
             "{mode_line}\n{}\n",
             ta("gate-not-wave", targs!("branch" => branch))
@@ -67,21 +92,44 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
 
     // The one court that physically runs the toolchain asks the home
     // first (review 0017 R-4): an adapter this release does not
-    // serve -- or none at all -- is a word aloud and a pass, never a
-    // blind cargo run over a foreign language.
-    if !config.rust_adapter() {
+    // serve -- or none at all -- is a word aloud, never a blind cargo
+    // run over a foreign language. A pass, though, only for a commit
+    // the court would not judge anyway: over a birth or a transform
+    // the word used to be a pass too, and a `work:` commit over a red
+    // test lay down under "not judged", exit 0 (global review
+    // 2026-09-06, methodology R-10; wave 0052). A court that cannot
+    // judge does not pass what it was asked to judge.
+    let verdict = if !config.adapter_known() {
         let name = config
             .adapter
             .clone()
             .unwrap_or_else(|| t("gate-adapter-absent-name"));
-        let report = format!(
-            "{mode_line}\n{}\n",
-            ta("gate-adapter-unjudged", targs!("name" => name))
-        );
-        return Ok((report, 0));
-    }
-
-    let verdict = judge(root, wave, &subject, mutant)?;
+        match claim(&subject, wave) {
+            // What this court would have to RUN it cannot: a refusal.
+            Claim::Birth | Claim::Work => Verdict::Refuse(ta(
+                "gate-adapter-refuses",
+                targs!("name" => name, "known" => crate::config::Language::known()),
+            )),
+            // What it judges without running -- a chore has no test
+            // to run, a typo is a typo under any adapter -- it judges
+            // as under a known one (review 0052 R-1, R-11: the first
+            // reading refused a chore, and dressed `docs: x` and
+            // `Work: x` in the adapter's words).
+            Claim::Chore | Claim::Typo => judge(root, wave, &subject, mutant, config.language())?,
+            Claim::Outside => {
+                let report = format!(
+                    "{mode_line}\n{}\n",
+                    ta(
+                        "gate-adapter-unjudged",
+                        targs!("name" => name, "known" => crate::config::Language::known()),
+                    )
+                );
+                return Ok((report, 0));
+            }
+        }
+    } else {
+        judge(root, wave, &subject, mutant, config.language())?
+    };
     let (words, guilty) = match verdict {
         Verdict::Pass(words) => (words, false),
         Verdict::Refuse(words) => (words, true),
@@ -104,6 +152,68 @@ enum Verdict {
     Refuse(String),
 }
 
+/// What the subject claims, as this court sorts it.
+enum Claim {
+    /// `red: <scenario>` -- a test must be run.
+    Birth,
+    /// `<transform>: …` of a transform with promises -- tests must run.
+    Work,
+    /// `<transform>: …` of a chore -- nothing to run (§2.11).
+    Chore,
+    /// A slug-shaped head unknown to the wave, or the capitalized
+    /// twin of a birth or a transform -- refused as a typo without
+    /// running anything (§8.4).
+    Typo,
+    /// Everything else: merge commits, records of decisions.
+    Outside,
+}
+
+fn claim(subject: &str, wave: &docs::Wave) -> Claim {
+    if subject.starts_with("red: ") {
+        return Claim::Birth;
+    }
+    let Some((head, _)) = subject.split_once(':') else {
+        return Claim::Outside;
+    };
+    let head = head.trim();
+    if docs::slug_ok(head) {
+        return match wave.transforms.iter().find(|(n, _)| n == head) {
+            Some((_, transform)) => match transform.kind {
+                docs::TransformKind::Implements(_) => Claim::Work,
+                docs::TransformKind::Chore(_) => Claim::Chore,
+            },
+            None => Claim::Typo,
+        };
+    }
+    let lower = head.to_lowercase();
+    if docs::slug_ok(&lower) && (lower == "red" || wave.transforms.iter().any(|(n, _)| *n == lower))
+    {
+        return Claim::Typo;
+    }
+    Claim::Outside
+}
+
+/// The mark git strips a comment line by: `core.commentString`, else
+/// `core.commentChar`, else `#`. A project that set `;` had its
+/// editor's comment block read as the subject again -- the very bug
+/// wave 0052 closed, under another sign (review 0052 R-3). `auto`
+/// is git choosing a sign the message does not contain, which the
+/// hook cannot see: read as `#`, and named a border.
+fn comment_mark(root: &Path) -> String {
+    for key in ["core.commentString", "core.commentChar"] {
+        let out = scope::git_at(root).args(["config", "--get", key]).output();
+        if let Ok(out) = out
+            && out.status.success()
+        {
+            let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !value.is_empty() && value != "auto" {
+                return value;
+            }
+        }
+    }
+    "#".to_string()
+}
+
 /// The judgement proper, mode-blind: what the message claims against
 /// what the tests really do.
 fn judge(
@@ -111,10 +221,11 @@ fn judge(
     wave: &docs::Wave,
     subject: &str,
     mutant: Option<(String, String)>,
+    tongue: Option<config::Language>,
 ) -> Result<Verdict, Refusal> {
     if let Some(rest) = subject.strip_prefix("red: ") {
         let scenario = rest.split_whitespace().next().unwrap_or("");
-        return judge_red(root, wave, scenario, mutant);
+        return judge_red(root, wave, scenario, mutant, tongue);
     }
     if let Some((head, _)) = subject.split_once(':') {
         let head = head.trim();
@@ -178,6 +289,7 @@ fn judge_red(
     wave: &docs::Wave,
     scenario: &str,
     mutant: Option<(String, String)>,
+    tongue: Option<config::Language>,
 ) -> Result<Verdict, Refusal> {
     let Some((name, sc)) = wave.scenarios.iter().find(|(n, _)| n == scenario) else {
         return Ok(Verdict::Refuse(ta(
@@ -199,8 +311,16 @@ fn judge_red(
             targs!("scenario" => name.clone()),
         ))),
         1 => match adapter::run_test(root, mine[0])? {
+            // The word carries the tongue's border (global review
+            // 2026-09-06, methodology R-17; wave 0053): ruby leaves
+            // with one code for a fall and for a broken build, so
+            // "truly fails" is said only where the code can say it.
             Outcome::Failed => Ok(Verdict::Pass(ta(
-                "gate-red-pass",
+                if tongue == Some(config::Language::Ruby) {
+                    "gate-red-pass-ruby"
+                } else {
+                    "gate-red-pass"
+                },
                 targs!("scenario" => name.clone(), "test" => mine[0].test.clone()),
             ))),
             // The §6.3 exception: green, but the mutant is recorded.

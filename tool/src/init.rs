@@ -227,7 +227,7 @@ fn ignore_row(root: &Path) -> String {
         Ok(config) => config,
         Err(refusal) => return ta("init-ignore-unjudged", targs!("error" => refusal.reason)),
     };
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         // A named adapter is called by its name; "not named" belongs
         // to the absent one (review 0020 R-8; the 0017 R-3 school).
         return match config.adapter {
@@ -235,18 +235,37 @@ fn ignore_row(root: &Path) -> String {
             None => t("init-ignore-no-adapter"),
         };
     }
-    let dir = crate::adapter::BUILD_DIR;
-    let rule = format!("{dir}/");
+    // The rule names the directory THIS tongue builds into, asked of
+    // the adapter that already knows (review 0042 R-3): the cargo
+    // constant stood here, so an elixir project was told its build
+    // directory is `_build/` and advised to ignore `target/` -- one
+    // line contradicting itself, and following it left `_build` under
+    // git, which is the very harm this reminder exists for.
+    let rule = match crate::adapter::build_dir(root) {
+        crate::adapter::BuildDir::At(path) => format!(
+            "{}/",
+            path.file_name().unwrap_or_default().to_string_lossy()
+        ),
+        _ => format!("{}/", crate::adapter::BUILD_DIR),
+    };
     // Which directory to ask about is the adapter's answer: the
-    // crate may live one level down (keel's own shape), and a root
-    // the adapter cannot name is said aloud, never guessed.
-    let build = match crate::adapter::crate_root(root) {
-        Ok(crate_dir) => crate_dir
+    // crate may live one level down (keel's own shape), a tongue may
+    // build nothing at all, and a root the adapter cannot name is
+    // said aloud, never guessed. Review 0038 R-18 caught the middle
+    // case wearing the last one's words -- a ruby project was told
+    // its crate could not be found.
+    let build = match crate::adapter::build_dir(root) {
+        crate::adapter::BuildDir::At(path) => path
             .strip_prefix(root)
             .unwrap_or(Path::new(""))
-            .join(dir),
-        Err(refusal) => {
-            return ta("init-ignore-no-crate", targs!("error" => refusal.reason));
+            .to_path_buf(),
+        crate::adapter::BuildDir::Nothing => return t("init-ignore-nothing-built"),
+        crate::adapter::BuildDir::Unknown => {
+            let reason = crate::adapter::crate_root(root)
+                .err()
+                .map(|refusal| refusal.reason)
+                .unwrap_or_default();
+            return ta("init-ignore-no-crate", targs!("error" => reason));
         }
     };
     // Asked with the trailing slash git wants: a directory-only

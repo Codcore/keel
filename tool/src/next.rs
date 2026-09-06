@@ -98,11 +98,14 @@ fn unknown_agent(root: &Path, agent: &str) -> Refusal {
 
 pub fn step(root: &Path) -> Result<String, Refusal> {
     let config = config::read(root)?;
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("next-needs-adapter"),
-            instead: t("next-needs-adapter-instead"),
+            instead: ta(
+                "next-needs-adapter-instead",
+                targs!("known" => crate::config::Language::known()),
+            ),
         });
     }
     let scan = docs::scan(root)?;
@@ -175,7 +178,7 @@ pub fn step(root: &Path) -> Result<String, Refusal> {
                     lines.push(ta("next-ready", targs!("wave" => wave.slug.clone())));
                 }
             }
-            State::Progress(_) => {
+            State::Progress(_) | State::AwaitingMerge(_) => {
                 lines.push(ta("next-working", targs!("wave" => wave.slug.clone())));
             }
             _ => {}
@@ -264,22 +267,55 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
         for line in body.lines() {
             out.push_str(&format!("    {line}\n"));
         }
+        let config = crate::config::read_unpinned(root).ok();
+        let language = config.as_ref().and_then(|config| config.language());
+        // The tag in the tongue's own comment mark: `#` for the
+        // family that writes it, `//` for node -- the hint used to
+        // show rust's `///` to every tongue (review 0046 R-10).
+        let mark = match language {
+            Some(
+                crate::config::Language::Ruby
+                | crate::config::Language::Elixir
+                | crate::config::Language::Python,
+            ) => "#",
+            Some(crate::config::Language::JavaScript) => "//",
+            _ => "///",
+        };
         out.push_str(&ta(
             "next-tag-line",
-            targs!("scenario" => name.clone(), "rev" => current.clone()),
+            targs!("scenario" => name.clone(), "rev" => current.clone(), "mark" => mark.to_string()),
         ));
         out.push('\n');
-        let tests = adapter::crate_root(root)?.join("tests");
+        let mut tests = adapter::tests_dir(root)?;
+        // node reads `test/` AND `tests/`, ruby `test/` AND `spec/`,
+        // and a project that keeps its tests in the second was told
+        // the first (review 0046 R-10): the one that exists is named;
+        // where neither does, the tongue's first convention is.
+        let second = match language {
+            Some(crate::config::Language::JavaScript) => Some("tests"),
+            Some(crate::config::Language::Ruby) => Some("spec"),
+            _ => None,
+        };
+        if let Some(second) = second
+            && !tests.is_dir()
+            && root.join(second).is_dir()
+        {
+            tests = root.join(second);
+        }
         let shown = tests.strip_prefix(root).unwrap_or(&tests);
         out.push_str(&ta(
             "next-tests-dir",
-            targs!("dir" => format!("{}/", shown.display())),
+            targs!(
+                "adapter" => config.and_then(|config| config.adapter).unwrap_or_default(),
+                "dir" => format!("{}/", shown.display())
+            ),
         ));
         out.push('\n');
         return Ok(out);
     }
 
     let (changed, added) = branch_files(root)?;
+    let committed = scope::slug_commits(root)?;
     for (name, transform) in &wave.transforms {
         // Every `one new in` line promises exactly one file (§4.1;
         // review 0012 R-8): any other count leaves the transform the
@@ -297,6 +333,14 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
             }
         });
         if !untouched {
+            // Done in its files -- and closed only by a commit under
+            // its slug (§6.2): the work in a `wip:` commit is not the
+            // transform's commit (wave 0052).
+            if !committed.contains(name.as_str()) {
+                out.push_str(&ta("next-step-commit", targs!("name" => name.clone())));
+                out.push('\n');
+                return Ok(out);
+            }
             continue;
         }
         match &transform.kind {
@@ -365,14 +409,12 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
             let mut runs: Vec<String> = Vec::new();
             for scenario in scenarios {
                 for tag in found.iter().filter(|t| t.scenario == *scenario) {
-                    let stem = tag
-                        .file
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().into_owned())
-                        .unwrap_or_default();
+                    // The tongue's own command, asked of the adapter
+                    // (review 0038 R-5): a ruby project was handed a
+                    // cargo line it could not run.
                     runs.push(format!(
-                        "    cargo test --test {stem} {} -- --exact\n",
-                        tag.test
+                        "    {}\n",
+                        adapter::run_line(root, &tag.file, &tag.test)
                     ));
                 }
             }
@@ -399,14 +441,65 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
     // ride one PR with nobody reading it. Weight still decides how
     // many pull requests (§6.8, §8.1) and nothing else.
     let light = docs::weight(wave) == docs::Weight::Light;
-    if !root
-        .join("keel/reviews")
-        .join(format!("{}.md", wave.slug))
-        .is_file()
-    {
-        out.push_str(&ta("next-step-review", targs!("wave" => wave.slug.clone())));
+    // The weight is a fact of the branch too (§6.8, §5.7): a light
+    // wave whose branch changed a contract does not ride to one PR
+    // -- the step is to name the contract, or to take the change off
+    // the branch (wave 0052).
+    // §2.11 read here as `check` reads it (review 0052 R-5: `next`
+    // said "time for the PR" over the very wave `check` reddened): a
+    // wave with no promise whose transforms are chores must be light.
+    let chores_only = wave.scenarios.is_empty()
+        && !wave.transforms.is_empty()
+        && wave
+            .transforms
+            .iter()
+            .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
+    if chores_only && let Some(heavy) = docs::heavy(wave) {
+        let why = match heavy {
+            docs::Heavy::Transforms(count) => ta(
+                "check-chores-heavy-transforms",
+                targs!("count" => count as u64),
+            ),
+            docs::Heavy::Contract | docs::Heavy::Withdraws => t("check-chores-heavy-contract"),
+        };
+        out.push_str(&ta(
+            "next-step-chores-heavy",
+            targs!("wave" => wave.slug.clone(), "why" => why),
+        ));
         out.push('\n');
         return Ok(out);
+    }
+    if light && let Some(contract) = scope::contracts_changed(root)?.first() {
+        let key = if chores_only {
+            "next-step-light-contract-chores"
+        } else {
+            "next-step-light-contract"
+        };
+        out.push_str(&ta(
+            key,
+            targs!("wave" => wave.slug.clone(), "contract" => contract.clone()),
+        ));
+        out.push('\n');
+        return Ok(out);
+    }
+    // One word about one state (review 0037 R-2; global review
+    // 2026-09-06, methodology R-13): an empty file is not a review
+    // for `close` and `status`, so it is none for the step either.
+    match std::fs::read_to_string(root.join("keel/reviews").join(format!("{}.md", wave.slug))) {
+        Err(_) => {
+            out.push_str(&ta("next-step-review", targs!("wave" => wave.slug.clone())));
+            out.push('\n');
+            return Ok(out);
+        }
+        Ok(text) if text.split_whitespace().next().is_none() => {
+            out.push_str(&ta(
+                "next-step-review-empty",
+                targs!("wave" => wave.slug.clone()),
+            ));
+            out.push('\n');
+            return Ok(out);
+        }
+        Ok(_) => {}
     }
 
     // The PR words go by weight (§6.8; the debt named by the 0015

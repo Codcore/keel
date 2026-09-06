@@ -399,11 +399,11 @@ fn ignore_reminded() {
 
     // A named adapter this release does not serve is called by its
     // name -- never "not named" (R-8, the 0017 R-3 school).
-    let dir = project("namedforeign", Some("elixir"));
+    let dir = project("namedforeign", Some("kotlin"));
     let (out, err, _) = keel(&["init", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
-        out.contains("\"elixir\"") && !out.contains("no adapter"),
+        out.contains("\"kotlin\"") && !out.contains("no adapter"),
         "a named adapter is named, not called absent (R-8):\n{out}"
     );
 }

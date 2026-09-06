@@ -96,6 +96,13 @@ fn status_tells_where() {
         "tests/a_test.rs",
         &format!("/// proves: a@{a_rev}\n#[test]\nfn holds_a() {{}}\n"),
     );
+    // The fact of merge is the wave file standing in main (§6.5; wave
+    // 0052) -- so main holds the files, and the head is detached, so
+    // the branch line still gets the honest word "no branch".
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "the three stages"]);
+    git(&dir, &["checkout", "-q", "--detach"]);
 
     let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
@@ -149,7 +156,11 @@ fn status_tells_where() {
     );
     assert!(
         out.contains("git named no branch"),
-        "a sandbox without git gets the honest branch word, never a guess:\n{out}"
+        "a detached head gets the honest branch word, never a guess:\n{out}"
+    );
+    assert!(
+        out.contains("0060-light") && out.contains("merging closed it"),
+        "the light wave is closed by the fact of merge -- its file stands in main (§6.5):\n{out}"
     );
 }
 

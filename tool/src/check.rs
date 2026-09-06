@@ -21,6 +21,15 @@ use std::path::Path;
 pub struct Outcome {
     pub report: String,
     pub findings: usize,
+    /// The very rows the report was rendered from -- a file, and the
+    /// reason it is red where there is one. Kept beside the prose so
+    /// the machine road (wave 0040) reads structure instead of
+    /// splitting sentences that come in two languages.
+    pub rows: Vec<(String, Option<String>)>,
+    /// What was not judged, and why, as the margin says it.
+    pub limits: Vec<String>,
+    /// How many documents this floor walked.
+    pub documents: usize,
 }
 
 /// Walks the documents under the root and reports on every file:
@@ -123,11 +132,108 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // Limits gathered while judging, said in the verdict's own
     // margin rather than swallowed (§4.10, wave 0031).
     let mut extra_limits: Vec<String> = Vec::new();
+    // The tongue's own border, said by the tool and not only by the
+    // wave that built the adapter (review 0038 R-7): §7.12 asks for
+    // it aloud wherever the adapter cannot tell a failure from a
+    // broken build, and ruby cannot.
+    // The block promises a machine; this machine may not have one
+    // (review 0039 R-1). git does not clone hooks, so every colleague
+    // and every CI runner reads a guarantee that stayed behind on
+    // the machine `keel init` ran on -- and nothing said so. Said as
+    // a limit and not a finding: a runner has no commits to judge,
+    // and the commit court did its work before the push.
+    // Only where a block of ours really stands and really claims the
+    // machine: a project that keel never wrote to promises nothing,
+    // and a row about a promise nobody made is noise.
+    let claims_a_machine = config.mode != "manual"
+        && config.hooks
+        && config.generated.iter().any(|(key, _)| key == "AGENTS.md");
+    if claims_a_machine
+        && !crate::gate::hook_path(root)
+            .is_some_and(|path| path.is_file() && crate::gate::hook_is_ours(&path))
+    {
+        extra_limits.push(t("limit-hook-absent"));
+    }
+    // The border that is true of THIS tongue, and only it. Ruby
+    // cannot tell a failure from a broken build; elixir can, and
+    // saying ruby's sentence over an elixir project would be as
+    // untrue as saying nothing (wave 0042).
+    // Said in the margin, but NOT counted among the things left
+    // unchecked (review 0042 R-8): this row is a measurement, and
+    // counting it inflated "not checked" by one on every elixir
+    // project -- with the very sentence the wave is proud of.
+    let mut measured: Vec<String> = Vec::new();
+    if config.language() == Some(crate::config::Language::Elixir) {
+        measured.push(t("limit-elixir-border"));
+        // A measured border is a boast; this one is a limit, and it
+        // goes where limits go (review 0042 R-16). Elixir writes no
+        // types either, and the ghost inside a `@moduledoc` heredoc
+        // was measured passing for a live `def` -- in both tongues.
+        extra_limits.push(t("limit-elixir-form"));
+        for path in crate::elixir::unread_files(root) {
+            let shown = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .display()
+                .to_string();
+            extra_limits.push(ta("limit-elixir-unread", targs!("file" => shown)));
+        }
+    }
+    if config.language() == Some(crate::config::Language::Python) {
+        // Five states told apart by exit code -- measured, and
+        // said as a measurement rather than counted as a limit.
+        measured.push(t("limit-python-border"));
+        extra_limits.push(t("limit-python-reads"));
+        for path in crate::python::unread_files(root) {
+            let shown = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .display()
+                .to_string();
+            extra_limits.push(ta("limit-python-unread", targs!("file" => shown)));
+        }
+    }
+    if config.language() == Some(crate::config::Language::JavaScript) {
+        // The border of a tongue that CANNOT tell: not a measurement
+        // to be proud of, a limit -- and it goes where limits go.
+        extra_limits.push(t("limit-javascript-border"));
+        extra_limits.push(t("limit-javascript-reads"));
+        for path in crate::javascript::unread_files(root) {
+            let shown = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .display()
+                .to_string();
+            extra_limits.push(ta("limit-javascript-unread", targs!("file" => shown)));
+        }
+    }
+    if config.language() == Some(crate::config::Language::Ruby) {
+        extra_limits.push(t("limit-ruby-border"));
+        extra_limits.push(t("limit-ruby-form"));
+        // The second reading and its own borders (wave 0047).
+        extra_limits.push(t("limit-rspec-border"));
+        // And which files in test/ this adapter walked past (R-19).
+        let unread = crate::ruby::unread_files(root);
+        if !unread.is_empty() {
+            extra_limits.push(ta(
+                "limit-ruby-unread",
+                targs!(
+                    "count" => unread.len() as u64,
+                    "files" => unread
+                        .iter()
+                        .filter_map(|path| path.strip_prefix(root).ok())
+                        .map(|path| path.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            ));
+        }
+    }
     let mut cancelled_rows: Vec<String> = Vec::new();
     // Tags are read once and serve three floors: the tag floor, the
     // §7.15 delta, and the §5.6 narrowing through structural closure.
     let found_tags: Option<Result<Vec<tags::TestTag>, Refusal>> = config
-        .rust_adapter()
+        .adapter_known()
         .then(|| adapter::test_files(root).and_then(|files| tags::scan(&files)));
     let mut ref_rows: std::collections::BTreeSet<(String, String)> = Default::default();
     let mut refs_checked: u64 = 0;
@@ -135,6 +241,11 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let mut refs_unjudged: u64 = 0;
     let mut refs_no_history: u64 = 0;
     let mut historic_items: Vec<String> = Vec::new();
+    // The same count on a cut-short clone: the skipped number must
+    // be the number the whole clone would have checked (wave 0033),
+    // so it counts revisions, not rows, exactly as the historic one.
+    let mut unjudged_items: std::collections::BTreeSet<(String, String, String)> =
+        Default::default();
     for wave in &scan.waves {
         // A wave called off is outside judgement whole (§6.3-a):
         // review 0037 R-1 measured this court and the §7.7 one below
@@ -193,14 +304,28 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                             refs_no_history += 1;
                             None
                         } else if shallow {
-                            refs_unjudged += 1;
+                            if unjudged_items.insert((
+                                wave.slug.clone(),
+                                reference.slug.clone(),
+                                reference.rev.clone(),
+                            )) {
+                                refs_unjudged += 1;
+                            }
                             None
                         } else if closed && revision_in_history(root, &relative, &reference.rev) {
-                            refs_historic += 1;
-                            historic_items.push(ta(
+                            // One old revision, however many
+                            // references of the header hold it: the
+                            // line counted rows -- 169 on this tree
+                            // for 88 revisions (global review
+                            // 2026-09-06, methodology R-14; wave 0053).
+                            let item = ta(
                                 "check-refs-historic-item",
                                 targs!("wave" => wave.slug.clone(), "contract" => reference.slug.clone(), "recorded" => reference.rev.clone()),
-                            ));
+                            );
+                            if !historic_items.contains(&item) {
+                                refs_historic += 1;
+                                historic_items.push(item);
+                            }
                             None
                         } else {
                             Some((
@@ -271,6 +396,49 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 )),
             ));
         }
+        // §2.11: a wave of chores alone must be light -- "big work
+        // without a single promise is a reason to stop and think, not
+        // to slip through". Two chore transforms were a wave nobody
+        // called full and nobody called light (global review
+        // 2026-09-06, methodology R-4; wave 0052). "Without a single
+        // promise" is read as written: a wave with no scenario at all
+        // -- the one `close` calls nothing-to-prove -- whose transforms
+        // are chores; a wave that WITHDRAWS a promise has one to speak
+        // of, and §6.8 makes it full for that reason alone.
+        let chores_only = wave.scenarios.is_empty()
+            && !wave.transforms.is_empty()
+            && wave
+                .transforms
+                .iter()
+                .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
+        // A wave with no scenario cannot withdraw one, so that road
+        // of `heavy` never leads here (review 0052 R-8).
+        let why = if chores_only {
+            match docs::heavy(wave) {
+                Some(docs::Heavy::Transforms(count)) => Some(ta(
+                    "check-chores-heavy-transforms",
+                    targs!("count" => count as u64),
+                )),
+                Some(docs::Heavy::Contract) => Some(t("check-chores-heavy-contract")),
+                Some(docs::Heavy::Withdraws) | None => None,
+            }
+        } else {
+            None
+        };
+        if let Some(why) = why {
+            rows.push((
+                wave_path.clone(),
+                Some(format!(
+                    "{}\n           {}: {}",
+                    ta(
+                        "check-chores-heavy",
+                        targs!("wave" => wave.slug.clone(), "why" => why)
+                    ),
+                    t("word-instead"),
+                    t("check-chores-heavy-instead")
+                )),
+            ));
+        }
     }
     let live_contracts: Vec<String> = scan
         .contracts
@@ -283,6 +451,29 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             format!("keel/waves/{wave_slug}.md"),
             Some(format!(
                 "{reason}\n           {}: {instead}",
+                t("word-instead")
+            )),
+        ));
+    }
+    // §8.8 by the hand of `keel plan`: two wave files with one number
+    // are a finding here too, with the next free number -- the birth
+    // alone judged this before wave 0052 (methodology R-11).
+    let held = crate::plan::taken(root, "");
+    for (number, stems) in held.doubled() {
+        let next = format!("{:04}", held.next_free(number));
+        let instead = if held.branches_read {
+            ta("plan-number-taken-instead", targs!("next" => next))
+        } else {
+            ta("plan-number-taken-instead-disk", targs!("next" => next))
+        };
+        rows.push((
+            format!("keel/waves/{}.md", stems[0]),
+            Some(format!(
+                "{}\n           {}: {instead}",
+                ta(
+                    "check-number-twice",
+                    targs!("number" => format!("{number:04}"), "count" => stems.len() as u64, "files" => stems.join(", ")),
+                ),
                 t("word-instead")
             )),
         ));
@@ -321,7 +512,55 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         }
     }
 
-    let generated: Vec<String> = config.generated.iter().map(|(k, _)| k.clone()).collect();
+    // A language this release does not know is a FINDING with the
+    // list of the ones it does (wave 0038). Not a refusal: a project
+    // that named a language keel cannot lead yet still gets its
+    // documents, links, scope and revisions judged. Not silence
+    // either: before this wave an unknown name simply meant "not
+    // Rust", so a typo skipped the language-shaped courts without
+    // ever saying which -- and §4.10 calls that worse than red.
+    if let Some(named) = config.adapter.as_deref()
+        && config.language().is_none()
+    {
+        rows.push((
+            "keel.toml".to_string(),
+            Some(format!(
+                "{}\n           {}: {}",
+                ta(
+                    "config-unknown-adapter",
+                    targs!("named" => named.to_string(), "known" => crate::config::Language::known()),
+                ),
+                t("word-instead"),
+                ta(
+                    "config-unknown-adapter-instead",
+                    targs!("known" => crate::config::Language::known()),
+                ),
+            )),
+        ));
+    }
+
+    // A recorded digest gone stale is named, even where the text is
+    // the one this release writes: `keel update` re-records it in
+    // silence, and the workflow's record stood foreign from wave 0044
+    // to 0050 with `keel check` saying nothing (wave 0052).
+    for (file, recorded, actual, release) in crate::generated::stale_records(root, config) {
+        let instead = if release {
+            t("check-generated-stale-release")
+        } else {
+            t("check-generated-stale-hand")
+        };
+        rows.push((
+            "keel.toml".to_string(),
+            Some(format!(
+                "{}\n           {}: {instead}",
+                ta(
+                    "check-generated-stale",
+                    targs!("file" => file, "recorded" => recorded, "actual" => actual),
+                ),
+                t("word-instead")
+            )),
+        ));
+    }
     let scope_status = match scope::current_branch(root) {
         None => t("check-scope-skipped-no-git"),
         // A plan branch is judged too, and by §4.9: it carries the
@@ -354,7 +593,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                     "check-scope-plan-unjudged",
                     targs!("branch" => branch, "wave" => planned),
                 ),
-                Compared::Yes => match scope::plan_findings(root, &generated) {
+                Compared::Yes => match scope::plan_findings(root, config) {
                     Ok(list) => {
                         for (file, reason, instead) in list {
                             rows.push((
@@ -409,7 +648,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 let wave_path = format!("keel/waves/{slug}.md");
                 let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
                 let compared = scope::compare_base(root)
-                    .and_then(|base| scope::findings(root, wave).map(|list| (base, list)));
+                    .and_then(|base| scope::findings(root, wave, config).map(|list| (base, list)));
                 match compared {
                     Ok(((sha, from_main), list)) => {
                         // §6.8/§8.1: a FULL wave rides two branches
@@ -453,6 +692,43 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                     ta("scope-full-one-branch-instead", targs!("wave" => slug.clone())),
                                 )),
                             ));
+                        }
+                        // The weight is a fact of the branch too
+                        // (§6.8, §5.7): a contract created or changed
+                        // on the branch of a LIGHT wave -- one the
+                        // declared files do not name -- is the second
+                        // human look skipped (global review
+                        // 2026-09-06, methodology R-3; wave 0052).
+                        if docs::weight(wave) == docs::Weight::Light {
+                            // The instead must lead somewhere lawful
+                            // (§9.7): a wave with no promise cannot
+                            // name the contract and stay light --
+                            // §2.11 would take it (review 0052 R-5).
+                            let chores_only = wave.scenarios.is_empty();
+                            match scope::contracts_changed(root) {
+                                Ok(contracts) => {
+                                    for contract in contracts {
+                                        let instead = if chores_only {
+                                            t("scope-light-contract-instead-chores")
+                                        } else {
+                                            t("scope-light-contract-instead")
+                                        };
+                                        rows.push((
+                                            wave_path.clone(),
+                                            Some(format!(
+                                                "{}\n           {}: {}",
+                                                ta(
+                                                    "scope-light-contract",
+                                                    targs!("wave" => slug.clone(), "contract" => contract),
+                                                ),
+                                                t("word-instead"),
+                                                instead,
+                                            )),
+                                        ));
+                                    }
+                                }
+                                Err(refusal) => push_refusal_row(&mut rows, root, &refusal),
+                            }
                         }
                         // The red birth, judged by the BRANCH (§7.12).
                         // Two audits found this independently: the
@@ -512,9 +788,26 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                 )),
                             ));
                         }
+                        // §6.2, judged by the BRANCH and never on main
+                        // (§6.5 judges history by its consequences): a
+                        // transform touched in every file it names and
+                        // closed by no commit under its slug (wave
+                        // 0052, methodology R-9).
+                        for (name, instead) in uncommitted_transforms(root, wave, &sha) {
+                            rows.push((
+                                wave_path.clone(),
+                                Some(format!(
+                                    "{name}\n           {}: {instead}",
+                                    t("word-instead")
+                                )),
+                            ));
+                        }
                         let short = sha.get(..7).unwrap_or(&sha).to_string();
                         let base_text = if from_main {
-                            ta("check-scope-base-main", targs!("sha" => short))
+                            ta(
+                                "check-scope-base-main",
+                                targs!("sha" => short, "trunk" => scope::trunk(root).unwrap_or_default()),
+                            )
                         } else {
                             ta("check-scope-base-first", targs!("sha" => short))
                         };
@@ -545,7 +838,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // cargo adapter is served on this rung -- anything else is a
     // skip said aloud, never a silent green.
     let mut tags_checked: u64 = 0;
-    let known = config.rust_adapter();
+    let known = config.adapter_known();
     let judged = match (&config.adapter, &found_tags) {
         (None, _) => Err(t("check-tags-skipped-no-adapter")),
         (Some(_), Some(Ok(found))) if known => {
@@ -563,7 +856,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         }
         (Some(other), _) => Err(ta(
             "check-tags-skipped-adapter",
-            targs!("name" => other.to_string()),
+            targs!("name" => other.to_string(), "known" => crate::config::Language::known()),
         )),
     };
     let tags_status = match judged {
@@ -732,6 +1025,9 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let mut limits = verdict_limits(root, refs_unjudged);
     limits.extend(extra_limits);
     limits.extend(cancelled_rows);
+    for row in &measured {
+        writeln!(report, "{row}").unwrap();
+    }
     for limit in &limits {
         writeln!(report, "{limit}").unwrap();
     }
@@ -763,7 +1059,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     };
     writeln!(report, "{next}").unwrap();
 
-    Ok(Outcome { report, findings })
+    Ok(Outcome {
+        report,
+        findings,
+        rows,
+        limits,
+        documents,
+    })
 }
 
 /// Whether the wave's own plan branch exists and already carries its
@@ -1001,6 +1303,69 @@ fn untested_scenarios(
 /// demanding a red commit from history that is no longer reachable
 /// would redden the verdict on its own past. That is why the court
 /// asks the BRANCH, not the whole repository.
+/// Transforms touched in every file they name whose slug heads no
+/// commit of the branch (§6.2) -- with the instead. A transform not
+/// yet touched everywhere is the scope court's word, not this one's.
+fn uncommitted_transforms(root: &Path, wave: &docs::Wave, base: &str) -> Vec<(String, String)> {
+    let Some(committed) = scope::slug_commits(root).ok() else {
+        return Vec::new();
+    };
+    let changed: std::collections::BTreeSet<String> =
+        git_out(root, &["diff", "--name-only", "--no-renames", base, "HEAD"])
+            .unwrap_or_default()
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+    let added: std::collections::BTreeSet<String> = git_out(
+        root,
+        &[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--diff-filter=A",
+            base,
+            "HEAD",
+        ],
+    )
+    .unwrap_or_default()
+    .lines()
+    .map(|l| l.trim().to_string())
+    .filter(|l| !l.is_empty())
+    .collect();
+    let mut out = Vec::new();
+    for (name, transform) in &wave.transforms {
+        if transform.files.is_empty() || committed.contains(name.as_str()) {
+            continue;
+        }
+        let mut dirs: std::collections::BTreeMap<&str, usize> = Default::default();
+        for line in &transform.files {
+            if let docs::ScopeLine::OneNewIn(d) = line {
+                *dirs.entry(d.as_str()).or_insert(0) += 1;
+            }
+        }
+        let done = transform.files.iter().all(|line| match line {
+            docs::ScopeLine::Path(p) => changed.contains(p),
+            docs::ScopeLine::OneNewIn(d) => {
+                added.iter().filter(|f| f.starts_with(d.as_str())).count() == dirs[d.as_str()]
+            }
+        });
+        if done {
+            out.push((
+                ta(
+                    "scope-transform-uncommitted",
+                    targs!("name" => name.clone()),
+                ),
+                ta(
+                    "scope-transform-uncommitted-instead",
+                    targs!("name" => name.clone()),
+                ),
+            ));
+        }
+    }
+    out
+}
+
 fn unborn_scenarios(
     root: &Path,
     wave: &docs::Wave,
@@ -1107,6 +1472,12 @@ fn git_line(root: &Path, args: &[&str]) -> Option<String> {
 /// A refusal rendered as a report row, the school of every floor.
 fn push_refusal_row(rows: &mut Vec<(String, Option<String>)>, root: &Path, refusal: &Refusal) {
     let shown = refusal.file.strip_prefix(root).unwrap_or(&refusal.file);
+    // The prose keeps its own shape, to the byte (review 0040 R-1):
+    // this hand once wrote "." here for a refusal about the project
+    // itself, and the wave promised in the same breath that the plain
+    // road had not moved. An empty name IS useless as a field, so the
+    // machine road fills it there -- where a change costs nobody a
+    // diff -- and the prose stays as every existing script sees it.
     rows.push((
         shown.display().to_string(),
         Some(format!(
@@ -1171,10 +1542,27 @@ fn tag_rows(
 
     let mut out = Vec::new();
     for tag in found {
+        let shown = tag.file.strip_prefix(root).unwrap_or(&tag.file);
+        // A live tag over a scenario withdrawn everywhere: §2.12 says
+        // the test goes with the promise, in the same PR. The court
+        // walked past it in silence before wave 0050 (global review
+        // 2026-09-06, methodology cut R-8) -- and the closing court
+        // never saw its red either.
         if gone.contains(tag.scenario.as_str()) {
+            out.push((
+                shown.display().to_string(),
+                format!(
+                    "{}\n           {}: {}",
+                    ta(
+                        "tags-withdrawn-live",
+                        targs!("test" => tag.test.clone(), "scenario" => tag.scenario.clone()),
+                    ),
+                    t("word-instead"),
+                    t("tags-withdrawn-live-instead")
+                ),
+            ));
             continue;
         }
-        let shown = tag.file.strip_prefix(root).unwrap_or(&tag.file);
         match revs.get(&tag.scenario) {
             None => out.push((
                 shown.display().to_string(),
@@ -1317,25 +1705,11 @@ fn vanished_rows(
     let Ok((base, _)) = scope::compare_base(root) else {
         return Vec::new();
     };
-    let Ok(crate_dir) = adapter::crate_root(root) else {
-        return Vec::new();
-    };
-    let tests_rel = crate_dir
-        .strip_prefix(root)
-        .map(|p| p.join("tests"))
-        .unwrap_or_else(|_| std::path::PathBuf::from("tests"));
-    let listing = git_out(
-        root,
-        &[
-            "ls-tree",
-            "-r",
-            "--name-only",
-            &base,
-            "--",
-            &tests_rel.display().to_string(),
-        ],
-    )
-    .unwrap_or_default();
+    // The base tree whole, and the tongue's own rule for which of
+    // its paths is a test file (wave 0050): the court used to ask
+    // for a crate and, refused in every other tongue, judged nothing
+    // while the summary line still claimed §7.15.
+    let listing = git_out(root, &["ls-tree", "-r", "--name-only", &base]).unwrap_or_default();
 
     let head_scenarios: std::collections::BTreeSet<&str> =
         found.iter().map(|t| t.scenario.as_str()).collect();
@@ -1348,7 +1722,11 @@ fn vanished_rows(
 
     let mut out = Vec::new();
     let mut named: std::collections::BTreeSet<String> = Default::default();
-    for rel in listing.lines().map(str::trim).filter(|l| !l.is_empty()) {
+    for rel in listing
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && adapter::is_test_path(root, l))
+    {
         let Some(text) = git_out(root, &["show", &format!("{base}:{rel}")]) else {
             continue;
         };

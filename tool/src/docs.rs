@@ -54,7 +54,8 @@ pub enum TransformKind {
     Chore(String),
 }
 
-/// A transform is a portion of work, exactly one commit (§2.4).
+/// A transform is a portion of work, closed by a commit under its
+/// slug -- one or several (§2.4, §6.2).
 #[derive(Debug, Clone)]
 pub struct Transform {
     pub kind: TransformKind,
@@ -94,11 +95,30 @@ pub enum Weight {
 /// one PR -- without the second human look the paragraph asks for in
 /// exactly that case (norm audit В-2, conformance audit ВАЖКА-6).
 pub fn weight(wave: &Wave) -> Weight {
+    if heavy(wave).is_some() {
+        Weight::Full
+    } else {
+        Weight::Light
+    }
+}
+
+/// What makes a wave full (§6.8), where something does: the reason
+/// is asked by the court of §2.11 -- a wave of chores alone must be
+/// light, and a wave of two chores was called light by nobody and
+/// full by nobody (global review 2026-09-06, methodology R-4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Heavy {
+    Transforms(usize),
+    Withdraws,
+    Contract,
+}
+
+pub fn heavy(wave: &Wave) -> Option<Heavy> {
     if wave.transforms.len() != 1 {
-        return Weight::Full;
+        return Some(Heavy::Transforms(wave.transforms.len()));
     }
     if wave.scenarios.iter().any(|(_, sc)| sc.withdrawn.is_some()) {
-        return Weight::Full;
+        return Some(Heavy::Withdraws);
     }
     for (_, transform) in &wave.transforms {
         // "Creates or changes a contract" is read off the DECLARED
@@ -117,11 +137,11 @@ pub fn weight(wave: &Wave) -> Weight {
                 }
             };
             if touches {
-                return Weight::Full;
+                return Some(Heavy::Contract);
             }
         }
     }
-    Weight::Light
+    None
 }
 
 /// A contract is a promise that outlives its wave (§2.6-§2.8).

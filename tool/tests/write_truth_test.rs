@@ -169,24 +169,56 @@ fn a_write_that_lies_is_red() {
         let mut perms = std::fs::metadata(&waves).unwrap().permissions();
         perms.set_mode(0o555);
         std::fs::set_permissions(&waves, perms).unwrap();
-        // Root ignores the mode, so the hand is run as nobody. Where
-        // that cannot be arranged the case is skipped aloud rather
-        // than pretended.
-        let out = Command::new("setpriv")
-            .args([
-                "--reuid=65534",
-                "--regid=65534",
-                "--clear-groups",
-                env!("CARGO_BIN_EXE_keel"),
-                "rev",
-                "--write",
-                dir.to_str().unwrap(),
-            ])
-            .output();
+        // Root ignores the mode, so as root the hand is run as
+        // nobody -- and ONLY as root. A non-root caller cannot drop
+        // privileges at all: `setpriv` spawns, fails with its own
+        // "setgroups failed: Operation not permitted", and exits 127,
+        // while `Command::output()` still returns `Ok` -- so this
+        // probe used to judge SETPRIV'S message as keel's, on every
+        // runner that is not root (wave 0044). Where the caller is
+        // already not root, no dropping is needed: the mode above
+        // holds by itself.
+        // Asked by BEHAVIOUR, and asked without touching the hand
+        // under test: can THIS caller write into a 0555 directory?
+        // Where it cannot, the mode already holds and no dropping is
+        // needed -- which is just as well, since a non-root caller
+        // cannot drop privileges at all (wave 0044). The probe under
+        // test is never used as the question, because a trial run
+        // would write the very record the case is about.
+        let trial = waves.join(".keel-can-i-write");
+        let ignores_the_mode = std::fs::write(&trial, b"").is_ok();
+        let _ = std::fs::remove_file(&trial);
+        let out = if !ignores_the_mode {
+            Command::new(env!("CARGO_BIN_EXE_keel"))
+                .args(["rev", "--write", dir.to_str().unwrap()])
+                .output()
+        } else {
+            Command::new("setpriv")
+                .args([
+                    "--reuid=65534",
+                    "--regid=65534",
+                    "--clear-groups",
+                    env!("CARGO_BIN_EXE_keel"),
+                    "rev",
+                    "--write",
+                    dir.to_str().unwrap(),
+                ])
+                .output()
+        };
         let mut perms = std::fs::metadata(&waves).unwrap().permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&waves, perms).unwrap();
         match out {
+            Ok(out) if String::from_utf8_lossy(&out.stderr).contains("setpriv:") => {
+                // The helper itself did not run. That is an ABSENCE
+                // of a verdict, never a verdict (wave 0044).
+                eprintln!(
+                    "the unwritable case is skipped: the helper left with {} -- \
+                     {} -- these are ITS words, not keel's",
+                    out.status.code().unwrap_or(-1),
+                    String::from_utf8_lossy(&out.stderr).trim()
+                );
+            }
             Ok(out) => {
                 let said = format!(
                     "{}{}",

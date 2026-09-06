@@ -100,14 +100,14 @@ rev-transform-no-body = transform "{ $name }" is declared in the header but has 
 rev-transform-no-body-instead = write the section -- the work's words live in the body -- or remove the declaration
 rev-orphan-section = the body carries an orphan section "## { $kind }: { $name }" -- "{ $name }" is declared by no header entry, and an orphan does not live in silence (§7.7)
 rev-orphan-section-instead = declare it in the header, or remove the section deliberately
-rev-nearmiss = the heading "## { $heading }" spells the section word without its space -- not recognised as a section, and not free prose either (§7.7)
+rev-nearmiss = the heading "## { $heading }" spells the section word without its space -- not recognised as a section, and not free prose either (§7.7; stricter than the letter of the norm, because it judges sections and not typos in headings -- and such a heading would otherwise stay silent)
 rev-nearmiss-instead = write "## scenario: <name>" / "## transform: <name>" with the space, or rename the heading away from the section words
 rev-dup-transform = the body carries the "## transform: { $name }" section more than once — "{ $name }" is not guessed between (§7.7)
 rev-dup-transform-instead = keep one section: the methodology will not guess which body carries the work's words (§2.10)
 
 rev-write-title = keel rev --write — the drifted records (NEW-CONCEPT)
-rev-write-needs-adapter = the rewriting hand needs the rust adapter named in keel.toml (old spelling cargo accepted): closedness is judged by tags
-rev-write-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
+rev-write-needs-adapter = the rewriting hand needs an adapter this release leads, named in keel.toml: closedness is judged by tags
+rev-write-needs-adapter-instead = set adapter = one of the names this release knows: { $known } (NEW-CONCEPT, Config)
 rev-write-rewritten = { "  " }{ $wave }: { $contract }@{ $old } → { $contract }@{ $new } — the record now holds the current revision
 rev-write-kept = { "  " }{ $wave }: closed — leaving its records to history's court (§5.6)
 rev-write-stopped = the writing hand stopped: { $count } { $count ->
@@ -122,13 +122,13 @@ rev-write-none = nothing has drifted in the open waves — every record they hol
 rev-write-count = records rewritten: { $count }
 
 ## graph module
-graph-scenario-twice = scenario "{ $scenario }" lives in more than one wave: { $waves } -- a test tag is a bare name, so the machine cannot tell whose promise it proves, and one test closes both
+graph-scenario-twice = scenario "{ $scenario }" lives in more than one wave: { $waves } -- a test tag is a bare name, so the machine cannot tell whose promise it proves, and one test closes both (stricter than the letter of the norm, because it does not forbid two waves one name -- and the court does not guess whose promise was proven)
 graph-scenario-twice-instead = give the scenarios different names: one name, one home
-graph-name-taken = the name "{ $name }" is worn by a promise of wave { $wave } and by a contract at once -- and a test tag is a bare name, so whose revision it holds cannot be seen
+graph-name-taken = the name "{ $name }" is worn by a promise of wave { $wave } and by a contract at once -- and a test tag is a bare name, so whose revision it holds cannot be seen (stricter than the letter of the norm, because it does not divide names between promises and contracts -- and the court does not guess whose revision a tag holds)
 graph-name-taken-instead = rename one of the two: scenario names and contract slugs live in one namespace
 graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
 graph-unknown-cut-instead = the forty cuts ship with the release (§3.4); pick one of them or fix the typo
-graph-double-cover = the cut "{ $slug }" has { $count } live covers: scenarios { $holders } (§10.3 -- exactly one answer)
+graph-double-cover = the cut "{ $slug }" has { $count } live covers: scenarios { $holders } (§10.3 -- exactly one answer; stricter than the letter of the norm, because it asks an answer for every cut and does not forbid two -- and two live covers hide which promise is judged)
 graph-double-cover-instead = keep one cover; the other scenario stands on its proves or another cut (§3.3)
 graph-double-decided = the cut "{ $slug }" is closed by scenario "{ $holder }" and decided at once (§10.3)
 graph-double-decided-instead = drop the decisions line -- the scenario answers; or withdraw the cover deliberately (§2.12)
@@ -156,6 +156,11 @@ scope-one-new-many = more than one new file in "{ $dir }": { $files }
 scope-one-new-many-instead = `one new in` promises exactly one (§4.1); name the extra files in files, each by itself
 scope-one-new-count = the `one new in` lines promise { $promised } new files in "{ $dir }", the branch adds { $found }
 scope-one-new-count-instead = make the counts meet (§4.1): one line per expected file, one new file per line
+scope-light-contract = the branch of the light wave { $wave } changes the contract "{ $contract }" -- only a full wave creates or changes a contract (§6.8, §5.7), and the second human look was skipped here
+scope-light-contract-instead = name the contract in the transform's files -- the weight is full then and the wave rides two PRs (§8.1) -- or take the contract change off the branch
+scope-light-contract-instead-chores = a wave without a single promise changes no contract (§2.11): give it a scenario -- or take the contract change off the branch
+scope-transform-uncommitted = transform "{ $name }" is touched in every file it names, and no commit with the subject `{ $name }: …` stands on the branch -- a transform is closed by the commit under its slug (§6.2)
+scope-transform-uncommitted-instead = commit the transform's work under its slug: `{ $name }: <words>` -- several commits are allowed (§2.4); main has no such court -- there history is judged by its consequences (§6.5)
 scope-git-failed = git refuses here: { $error }
 scope-git-failed-instead = scope is judged against the branch (§4.5); make git answer in this directory and re-run keel check
 
@@ -168,7 +173,24 @@ tags-dangling = the tag proves: { $scenario }@{ $rev } has no test function righ
 tags-dangling-instead = put the tag on its test (§5.5); a record that holds nothing is worse than none
 tags-bad-rev = the tag on "{ $scenario }" holds the record "{ $rev }" -- a revision is written as 4-6 hex characters (§5.2)
 tags-bad-rev-instead = recompute with keel rev and record its prefix; a crooked record holds nothing
+tags-js-dynamic = the tag proves: { $scenario }@{ $rev } stands over a test whose name node builds at run time (a template with { "${…}" }) -- no reader of the source can know it
+tags-js-dynamic-instead = name the test with a plain string (§5.5): the tag holds a name, and the name must be known before the run
+tags-js-subtest = the tag proves: { $scenario }@{ $rev } stands over a subtest (t.test) -- node runs it only through its parent test, and on its own it does not run
+tags-js-subtest-instead = put the tag on the parent test(…) (§5.5): its verdict carries every subtest -- or make the subtest a test of its own
+tags-spec-one-liner = the tag proves: { $scenario }@{ $rev } stands over an example with no name -- `it { "{ … }" }` or `it do … end` -- rspec names it by its place in the file, and there is no name for a tag to hold
+tags-spec-one-liner-instead = give the example a name -- `it "…" do … end` (§5.5): the tag holds the full description, which rspec composes out of names
+tags-spec-shared = the tag proves: { $scenario }@{ $rev } stands over an example inside shared_examples -- it has as many names as the places that include it, and none of them is the one
+tags-spec-shared-instead = put the tag on an example outside shared_examples (§5.5), or on a separate example that calls the shared behaviour
+tags-spec-dynamic = the tag proves: { $scenario }@{ $rev } stands over an example whose name rspec builds at run time (a string with { "#{…}" }) -- no reader of the source can know it
+tags-spec-dynamic-instead = name the example with a plain string (§5.5): the tag holds the full description, and it must be known before the run
+tags-spec-nonliteral = the tag proves: { $scenario }@{ $rev } stands under a group whose description is not a literal -- `{ $what }` -- and rspec will name it otherwise than the reader reads it
+tags-spec-nonliteral-instead = name the group with a string or a module constant (§5.5): a variable, a method or a value constant gives a name the reader does not know
+adapter-rspec-silent = rspec left without writing its JSON -- this is what it said: { $error }
+adapter-rspec-silent-instead = this is not rspec being absent: something stopped it before the examples (an abort in spec_helper, an exit from a config) -- read its words and run again
+run-line-rspec-note = # -e is a substring match: it may run more than this name; the court selects by id
 tags-vanished = the tag of scenario "{ $scenario }" was at the fork point and is gone at HEAD -- the scenario is alive
+tags-withdrawn-live = the tag of test "{ $test }" holds "{ $scenario }" -- the scenario is withdrawn (§2.12) and the test still carries its tag
+tags-withdrawn-live-instead = the test of a withdrawn promise is deleted by the same PR that withdrew it (§2.12); a test that holds the successor's rule is re-tagged to the successor
 tags-vanished-instead = bring the test back or withdraw the scenario deliberately (§7.15, §2.12); old promises are not disarmed in silence
 tags-vanished-gone = the tag of scenario "{ $scenario }" was at the fork point and is gone at HEAD -- gone with its wave: the promise was erased whole
 tags-vanished-gone-instead = documents are not deleted (§4.12): bring the wave back and withdraw the scenario in its file (§2.12) -- destruction without a trace is forbidden
@@ -188,18 +210,22 @@ trust-nothing-new = nothing new to trust: every verify/ci command already carrie
 trust-approves = the lines land in the diff the merge approves (§7.16)
 trust-no-config = keel.toml is not here -- nowhere to prepare the trust line
 trust-no-config-instead = create the config first: the trust command invents nothing
+trust-unwritable = keel.toml cannot be written: { $error }
+trust-unwritable-instead = check the file permissions
 trust-surgery-broken = the surgery cannot keep this file's shape ({ $error }) -- nothing was written
 trust-surgery-broken-instead = tidy the [trust] block by hand, then run keel trust again
 
 # -- holding: the form court of contracts (§7.6, §2.9) --------------
 holding-diverged = the contract "{ $contract }" promises "{ $signature }" -- the code's "{ $name }" does not match it (§2.9)
 holding-diverged-instead = align the code or the promise; changing a held contract is a full wave with its impact list (§5.7)
-holding-vanished = the contract "{ $contract }" promises "{ $name }" -- no such unit in the module's file (§7.6)
+holding-vanished = the contract "{ $contract }" promises "{ $name }" -- no such unit in { $file } (§7.6); what lives only in a comment or inside a multi-line text does not count as source
 holding-vanished-instead = bring the unit back, or change/withdraw the contract aloud (§2.12, §5.7)
 check-holding-count = signatures checked: { $count }
 check-holding-uncompared = { $contract } — no one compared the form: { $why } (§7.6)
+config-unknown-adapter = adapter = "{ $named }" -- this release leads no language of that name; it knows: { $known }
+config-unknown-adapter-instead = name one of those ({ $known }), or drop the field entirely: without an adapter the documents, links, scope and revisions are still judged, and the language-shaped courts are skipped -- with the verdict naming which
 holding-why-no-adapter = no adapter named in keel.toml
-holding-why-unknown-adapter = the named adapter is not of this release (it serves "rust")
+holding-why-unknown-adapter = the named adapter is not of this release (it leads { $known })
 holding-module-missing = contract { $contract } names module "{ $module }", which is not in the code -- looked for { $looked } (§2.7, §7.6)
 holding-module-missing-instead = put the module where it is named, or rewrite the module field to match what exists; until then this contract's signatures are not compared
 holding-module-outside = contract { $contract } names module "{ $module }", and that is not a module of this crate: the name leads outside it (§2.7, §7.6)
@@ -218,6 +244,7 @@ review-scenario-withdrawn = { " " }(withdrawn)
 review-transforms-header = ## Transforms, verbatim — the caveats ride here (§2.10)
 review-chores-header = ## Chore reasons (§2.11)
 review-chores-none = none
+review-drift-header-fork = ## Drift (§4.6) -- files added to scope after the anchor (the wave file at the fork point with main, after the plan PR merged: { $sha })
 review-drift-header = ## Drift (§4.6) — files added to scope after the anchor (the first commit of the wave file: { $sha })
 review-drift-line = { $file } — added after the anchor
 review-drift-removed-line = { $file } — removed from scope after the anchor
@@ -234,6 +261,7 @@ review-impact-stale = stale against the new text
 review-diff-header = ## The full branch diff (against { $base })
 review-diff-empty = empty
 review-diff-unverified = ## The full branch diff: not verified — no fork point
+review-cancelled = wave { $wave } is cancelled -- { $why } (§6.3-a): no package is assembled, there is nothing to judge
 review-not-wave = the branch "{ $branch }" is not named as a wave (§8.2) — the package does not guess which wave it is for
 review-not-wave-instead = checkout the wave's branch: the package is assembled for the branch's wave (§9.9)
 review-scenarios-none = none — a chore wave promises no scenarios (§6.8)
@@ -244,6 +272,23 @@ review-protocol-questions = above the lists, four judgement questions: what did 
 review-protocol-report = the report lands as keel/reviews/{ $wave }.md next to the wave — keel close holds the wave open until it does
 
 ## adapter module
+adapter-ruby-failed = ruby did not start: { $error }
+adapter-ruby-failed-instead = put ruby on PATH -- the adapter calls it exactly as a person would in a terminal
+adapter-ruby-broken = the test file { $error }
+adapter-ruby-broken-instead = ruby builds nothing ahead: a file that did not load gives no verdict for any test in it -- mend it and run again
+adapter-ruby-silent = ruby said not a word about running { $file }: no minitest summary "N runs, …", and it left with 0
+adapter-ruby-silent-instead = require "minitest/autorun" in the test file -- without it minitest never runs, and silence is not read as green
+adapter-rspec-failed = rspec did not start: { $error }
+adapter-rspec-failed-instead = put rspec on PATH -- the adapter calls it exactly as a person would in a terminal; it writes its JSON to a file outside the project, and without the file there is no verdict
+adapter-rspec-broken = rspec did not load the examples: { $error }
+adapter-rspec-broken-instead = ruby does not build ahead: a file that did not load gives no example a verdict -- mend it and run again
+adapter-rspec-tmp = the temporary directory for rspec's JSON cannot be made: { $error }
+adapter-rspec-tmp-instead = the directory must be new and this run's own: either something already stands under that name in the system's temp dir -- remove it -- or the temp dir itself (TMPDIR) is missing or not writable -- create it or change TMPDIR; then retry
+limit-rspec-border = not checked: ruby's second reading -- rspec -- reads spec/**/*_spec.rb and names an example by its full description, as rspec does (groups joined by a space; none only after a module constant before #…, ::… or .… -- rspec's own rule, measured); one example runs by the id a `--dry-run` gives it, the verdict comes from JSON, and pending did not run; one-liner examples `it { "{ … }" }` have no name and hold no tag, nor do examples inside shared_examples; a `describe` with a non-literal argument (described_class) gives its group no name; an example named at run time and a group named by a variable or a value constant are refusals aloud; spec/support/ and spec_helper.rb are not read; where a project sets example_status_persistence_file_path, its file (spec/examples.txt by default) lies there after a run -- the project writes it, not the adapter; the generated CI runs minitest -- this release writes no rspec step, add it yourself
+adapter-elixir-failed = mix did not start: { $error }
+adapter-elixir-failed-instead = put elixir and mix on PATH -- the adapter calls mix exactly as a person would in a terminal
+adapter-elixir-broken = the project does not compile: { $error }
+adapter-elixir-broken-instead = mix says so with exit code 1, and a failure with 2; without a build there is no verdict for anyone -- mend it and run again
 adapter-no-crate = no Cargo.toml at the root and none exactly one level down
 adapter-no-crate-instead = the cargo adapter needs a crate: put Cargo.toml at the root or in one first-level directory
 adapter-many-crates = several first-level crates: { $found }
@@ -252,6 +297,14 @@ adapter-cargo-failed = cargo refuses: { $error }
 adapter-cargo-failed-instead = the judgement needs cargo running (journal A3); make cargo answer here and retry
 adapter-battery-mismatch = cargo announces { $stems } targets and prints { $blocks } verdict blocks -- the stitch does not meet (a harness = false target?)
 adapter-battery-mismatch-instead = the court does not judge by a shifted seam; run that target apart or give it a harness, then retry keel close
+adapter-battery-counts = cargo counted { $passed } green and { $failed } red in a block, the reader read { $green } and { $red } -- the verdict lines do not add up to cargo's own closing line
+adapter-battery-counts-instead = a test that writes to stdout past libtest (a child process) may have forged a verdict or block line; make it silent or run it apart, then retry keel close
+adapter-cargo-red-unseen = cargo left with { $code } and the reader saw no red verdict at all -- the test binary fell before its closing line, or speaks a shape this reader does not know
+adapter-cargo-red-unseen-instead = run `cargo test --no-fail-fast` by hand and see what fell; without a red it has read the court does not judge
+adapter-cargo-manifest = Cargo.toml does not parse as TOML: { $error }
+adapter-cargo-manifest-instead = mend the manifest -- the test target's name is read from `[[test]]`, and the court will not guess the stem in its place
+adapter-battery-alike = cargo announces the target "{ $target }" twice -- the verdicts of two targets of one name cannot be told apart (a workspace?)
+adapter-battery-alike-instead = this release leads one crate: run the workspace members apart, each with its own keel.toml, or give the targets different names -- then retry keel close
 
 ## gate module
 gate-mode = mode: { $mode }
@@ -260,6 +313,7 @@ gate-manual = mode: manual -- the judgement is off, discipline by hand (as in v1
 gate-not-wave = branch "{ $branch }" is not named as any wave that reads -- nothing to judge, passing with this word
 gate-outside = the message is neither a birth nor transform work -- outside the judgement, passing with this word
 gate-chore = the transform is a chore -- no promises to run (§2.11), passing
+gate-red-pass-ruby = red birth of "{ $scenario }": the test "{ $test }" fails -- and ruby's exit code does not tell a fall from a broken build: the court read minitest's lines or rspec's JSON, and where they do not suffice a failure is taken as a failure (§7.12) -- the commit passes
 gate-red-pass = red birth of "{ $scenario }": the test "{ $test }" truly fails -- the commit passes (§7.12)
 gate-red-mutant = a green birth of "{ $scenario }": the test "{ $test }" is green, and this is the named exception of §6.3 -- the commit records the mutant: { $broke } was broken → the probe named it: { $named }. The machine does not check that the mutant is real: it is the author's word, and the reviewer reads it
 gate-red-green = red birth of "{ $scenario }" claimed, but the test "{ $test }" is green -- an unearned "seen red" does not enter history (§7.12). If this is a court over your own battery or tooling, which cannot be seen failing without breaking the thing it guards, that is the named exception of §6.3: add a line `mutant: <what was broken> -> <how the probe named it>` to the message
@@ -276,12 +330,13 @@ gate-work-untagged = transform "{ $transform }": scenario "{ $scenario }" has no
 gate-work-broken = transform "{ $transform }": the tests do not compile: { $words }
 gate-work-notrun = transform "{ $transform }": the run executed no test named "{ $test }" for scenario "{ $scenario }"
 gate-unknown-slug = "{ $slug }" is neither red: nor a transform of wave { $wave } -- a typo does not pass as "outside the judgement" (§8.4)
-gate-case = "{ $head }" wears capitals -- red: and slugs are written lowercase (§1.2, §8.4); a capitalized twin does not pass as outside the judgement
+gate-case = "{ $head }" wears capitals -- red: and slugs are written lowercase (§1.2, §8.4); a capitalized twin does not pass as outside the judgement (stricter than the letter of the norm, because it names the form and does not forbid capitals -- and a twin is a typo more often than a foreign subject)
 gate-work-vacuum = transform "{ $transform }": no live scenario left to judge -- the withdrawn are outside the judgement (§2.12), passing with this word
 gate-soft = mode: soft -- the same words, a warning only
 gate-hook-installed = the commit-msg hook now calls keel gate -- written to { $path }
-gate-adapter-unjudged = the adapter "{ $name }" is not of this release (it serves "rust") — the commit is not judged: the word stands aloud, the judgement waits for its adapter's wave
+gate-adapter-unjudged = the adapter "{ $name }" is not of this release (it leads { $known }) — the commit is not judged: the word stands aloud, the judgement waits for its adapter's wave
 gate-adapter-absent-name = not named
+gate-adapter-refuses = the adapter "{ $name }" is not of this release (the release leads { $known }) -- a birth or a transform's work this court cannot judge, and a court that cannot judge does not pass (§7.12): install a release that leads this adapter, or name one from the list
 init-hook-off-foreign = the git hook here is not ours and is not touched (§9.7); this project answered hooks = false, so keel installs none of its own
 init-hook-off = the git hook is not installed: this project answered hooks = false, and the answer holds for it too (§9.3)
 init-hook-off-standing = the git hook is left where it stands: this project answered hooks = false, so nobody maintains it now -- remove .git/hooks/commit-msg by hand, or set hooks = true
@@ -313,11 +368,11 @@ check-trust-ci-none = ; ci is a refusal aloud: none
 check-trust-ci-absent = ; ci is not declared
 check-trust-skipped-broken = commands verify/ci not judged: a broken document may hide the very command -- fix the named files first
 check-tags-skipped-no-adapter = test tags not compared: no adapter named in keel.toml -- said aloud, not painted green
-check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not of this release — it serves "rust" (old spelling "cargo"); said aloud, not painted green
+check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not of this release — it leads { $known }; said aloud, not painted green
 check-tags-skipped-refused = test tags not compared: the adapter refused mid-way -- its refusal stands among the findings
 check-scope-compared = scope: branch "{ $branch }" is the wave -- compared against { $base }
-check-scope-base-main = the merge-base with main @ { $sha }
-check-scope-base-first = the first commit of the branch @ { $sha } (no main here)
+check-scope-base-main = the merge-base with the trunk { $trunk } @ { $sha }
+check-scope-base-first = the first commit of the branch @ { $sha } (no trunk -- main or master -- here)
 limit-shallow-diff = not checked: the history is truncated, so vanished documents (§4.12) and code on a plan branch (§4.9) have nothing to be compared against
 limit-no-base = not checked: this clone gives no fork point -- vanished documents (§4.12) and code on a plan branch (§4.9) were not judged
 limit-no-trunk = not checked: this clone knows no main trunk, so there is no fork point -- vanished documents (§4.12) and code on a plan branch (§4.9) were not judged; name the trunk main or fetch origin/main
@@ -355,6 +410,14 @@ check-scope-skipped-not-wave = scope not compared: branch "{ $branch }" is not n
 check-scope-skipped-no-git = scope not compared: git serves no branch for this root -- said aloud, not painted green
 check-scope-skipped-refused = scope not compared: git refused mid-way -- its refusal stands among the findings
 check-header-reads = header reads
+check-number-twice = the number { $number } is held by several waves on disk ({ $count }): { $files } -- one number, one wave (§8.8)
+check-generated-stale = the recorded digest of the generated file "{ $file }" is stale: recorded { $recorded }, the file gives { $actual }
+check-generated-stale-release = the text is the one this release writes: `keel update` re-records it; while the record is foreign the file cannot be known as furniture (§4.8)
+check-generated-stale-hand = the file was edited by a hand -- code, not furniture (§4.8): bring it back with `keel update` as its word says, or record the new one deliberately
+check-chores-heavy = wave { $wave } is chores only, and its weight is full ({ $why }): a wave of chores alone must be light (§2.11)
+check-chores-heavy-transforms = { $count } transforms, a light wave has one
+check-chores-heavy-contract = it creates or changes a contract in its files
+check-chores-heavy-instead = big work without a single promise is a reason to stop: keep one chore transform, or give the wave a scenario (§2.11)
 check-no-documents = no documents yet
 check-checked = what was checked: headers -- vocabulary and shape (chapters 2-4, §7.9); contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6); graph links (chapter 3: cuts, silence, implements, depends_on, successors; §7.2, §10.3); scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8); scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15); trust of verify/ci commands against recorded fingerprints (§7.16, §2.8); the form of contracts held (§7.6, §2.9); header-vs-body both ways (§7.7); closure is judged by keel close (§6.5)
 check-adapter-synonym = adapter = "cargo" is an accepted synonym — the canonical name is the language's: adapter = "rust" (NEW-CONCEPT, Config; wave 0017)
@@ -365,11 +428,18 @@ check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the cont
 check-ref-stale-instead = reread the contract and update the reference deliberately (§5.1); if this wave is already closed, the old revision is legal (§5.6)
 # The verdict's own limits (wave 0031).
 limit-shallow = not checked: the history is shallow -- { $skipped ->
-        [one] { $skipped } check of an old revision was not run
-       *[other] { $skipped } checks of old revisions were not run
-    }, and how many of them this depth COULD have run is not counted; instead: git fetch --unshallow
+        [one] { $skipped } old revision was not verified
+       *[other] { $skipped } old revisions were not verified
+    } (revisions, not references -- as the whole clone counts), and how many of them this depth COULD have verified is not counted; instead: git fetch --unshallow
 limit-base-stale = not checked: local { $trunk } is { $behind } behind { $base } as of the last fetch (this clone knows nothing newer) -- scope was judged against a stale base; instead: git fetch
 limit-base-local-only = not checked: this clone knows no remote { $trunk } -- the base of comparison is local and its freshness cannot be checked
+limit-hook-absent = not held by machine here: keel.toml says hooks = true, but no commit-msg hook of ours stands in this clone -- git does not clone hooks, so the block in AGENTS.md promises a machine that is not on this one: here both rules (sec. 8.4, sec. 7.12) are held by people; instead: keel hook
+limit-ruby-border = not checked: ruby does not tell "failed" from "did not build" by its exit code -- both are 1 (§7.12). The adapter reads the text (SyntaxError, LoadError); where the text does not say, a failure is taken as a failure -- the direction that cannot turn red into green
+limit-ruby-form = not checked in essence: ruby writes no types, so the §7.6 form court compares a method name and its parameters -- and nothing more; green form here means even less about meaning than it does in a tongue with types (§7.8)
+limit-elixir-border = measured: this tongue tells "failed" from "did not build" by its exit code (0 green, 2 failed, 1 did not compile), so sec. 7.12's border about the two being alike does not stand here -- a broken build is judged a broken build, not a red test
+limit-elixir-form = not checked in essence: elixir writes no types in a `def`, so the §7.6 form court compares a name and its parameters -- and nothing more; green form here means even less about meaning than it does in a tongue with types (§7.8)
+limit-elixir-unread = not checked: the adapter does not read { $file } -- ExUnit names tests *_test.exs, and a tag there was not read
+limit-ruby-unread = not checked: test/ and spec/ hold { $count } .rb files this adapter does not read -- it reads *_test.rb (minitest) and *_spec.rb (rspec): { $files }
 limit-unpushed = not checked: this clone does not see branch "{ $branch }" in { $remote } -- whether it is really there was not asked (no network); instead: git push -u { $remote } { $branch }
 limit-ahead = not checked: branch "{ $branch }" differs from { $remote }/{ $branch } as this clone knows them -- this judges what { $remote } may not have yet; instead: git push
 
@@ -386,7 +456,7 @@ check-summary = summary: { $docs ->
     }
 check-next-fix = next step: fix the named files and re-run keel check
 check-next-first-wave = next step: create the first wave in keel/waves/
-check-next-rung = next step: a contract naming a module that does not exist must be a finding off the plan branch, not advice (review 0022 R-13)
+check-next-rung = next step: all green -- plan the next wave (sec. 6.6), or work the current one: keel next
 
 ## close command (§6.5)
 close-title = keel close -- the closure court (§6.5)
@@ -395,7 +465,10 @@ close-test-flaky = { "  " }flaky test: { $test } ({ $file }) -- it failed in som
 close-battery = battery: { $count } tests × { $runs } runs (§7.13) — green only when green in every run
 close-closed = { $wave }: closed -- every live scenario proven, references converge, and the review file lies next to it (the machine did not read it: what stands in it is the reviewer's word, and a person reads that)
 close-closed-unjudged = { $wave }: closed -- every live scenario proven, the review lies next to it; { $count } references not judged: history cannot testify here (§5.6)
-close-closed-light = { $wave }: closed (light) -- chores only, closed by the fact of merge
+close-closed-light = { $wave }: closed (light) -- chores only, closed by the fact of merge (§6.5): the wave file stands in main
+close-awaiting-merge = { $wave }: light -- chores only, will close by the fact of merge (§6.5): the wave file is not in main yet, and the merge is the closure
+close-awaiting-merge-unseen = { $wave }: light -- chores only, will close by the fact of merge (§6.5): there is no trunk (main or master) here, and the court cannot see the fact
+close-held-by-red = { $wave }: does NOT close -- this tree's battery is red ({ $count }), and closing means "passes" (sec. 7.8); the names are above
 close-plan = { $wave }: approved, not started -- a plan without tests is not red (§6.5)
 close-progress = { $wave }: in progress -- the missing, by name:
 close-lack-untagged = scenario "{ $scenario }": no proves tag in the tests (§5.5)
@@ -406,18 +479,25 @@ close-lack-flaky = scenario "{ $scenario }": the test "{ $test }" is green in { 
 close-lack-ref = the reference { $contract }@{ $recorded } does not converge (§6.4)
 close-lack-review-empty = the review file keel/reviews/<wave>.md exists and is empty -- an empty file is not a review (§9.9)
 close-lack-review = the review file keel/reviews/<wave>.md is not next to the wave (§9.9)
-close-price = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; it wants about { $needed } GiB free (measured: one closing leaves 1.26 GiB)
+close-price-nothing-built = the price of this court: the battery runs three times (§7.13); this language builds nothing, so the court asks for no disk
+close-price = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; it wants about { $needed } GiB free (measured on this tree: one closing leaves about { $needed } GiB)
+close-price-light = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; this tongue builds small, so the court asks for no free space
 close-price-paid = price paid: { $target } weighs { $size } GiB
-close-no-room = { $free } GB free on disk, and this court wants about { $needed } GB -- better to refuse now than to die halfway through with "no space left on device"
+close-no-room = { $free } GB free on disk, and this court wants about { $needed } GB -- better to refuse now than to die halfway through with "no space left on device" (stricter than the letter of the norm, because it does not measure the disk -- and a court that died halfway gives no verdict)
 close-no-room-instead = free some space (rm -rf tool/target clears the previous closing's cache) or run the court where there is room
-close-needs-adapter = the closure court needs the rust adapter named in keel.toml (old spelling cargo accepted)
-close-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
+close-needs-adapter = the closure court needs an adapter this release leads, named in keel.toml
+close-needs-adapter-instead = set adapter = one of the names this release knows: { $known } (NEW-CONCEPT, Config)
+close-blockers-light = the blockers of this branch's wave { $wave }: { $count } -- a light wave does not merge with the lacks named above (§6.5, §9.9)
 close-blockers = blockers of this branch's wave { $wave }: { $count } -- a full wave does not merge unproven (§6.5, §9.9)
 close-no-blockers = no blockers: this branch is named as no unclosed wave -- the states above inform
+close-no-blockers-awaiting = no blockers: the wave of this branch, { $wave }, will close by the fact of merge (§6.5) -- the merge is its closure
+close-form-judged = the form court (§7.6): { $count } findings -- the same contracts keel check judges
+close-form-blockers = form the code does not hold: { $count } -- a contract whose form the code does not hold does not merge (§7.6)
 close-verify-count = verify commands judged: { $count }
 close-verify-passed = verify "{ $command }" of { $contract } — passed
 close-verify-failed = verify "{ $command }" of { $contract } — FAILED ({ $words }) — a broken foreign promise does not merge (§2.8)
 close-verify-untrusted = verify "{ $command }" of { $contract } — did not run: not trusted (§7.16); check holds that verdict
+close-red-blockers = the battery saw red: { $count } -- they failed while the court watched, so the wave does not close; whether a scenario claims them is beside the point: a court that saw red and closed is worse than a court that did not run
 close-verify-blockers = broken foreign promises: { $count } — the exit is red
 close-verify-no-words = the command left no words
 close-ci-passed = ci "{ $command }" — passed: the project's own gate is green
@@ -432,12 +512,14 @@ close-plan-own = the wave of this branch is approved, not started -- a plan PR m
 ## map command (§10.7)
 map-title = keel map -- the quality map (§10.7)
 map-view-wave = the map of wave { $wave }: this branch is named as it (§8.2) -- the reviewer package item (§9.9); honesty per row stays the reviewer's work
+map-view-cancelled = wave { $wave } is cancelled -- { $why } (§6.3-a): the map is drawn, and there is nothing to judge
 map-view-project = the project map: branch "{ $branch }" is named as no wave -- per cut, the youngest answering wave's word
+map-project-cancelled = wave { $wave } is cancelled -- { $why } (§6.3-a): its answers are not counted
 map-covered = closed: "{ $scenario }" -- { $proof }
 map-proof-proven = proven (the tag matches, §6.3; the test's green is keel close's court)
 map-proof-unproven = not yet proven (no matching tag)
 map-proof-unread = proof not read (no adapter named in keel.toml)
-map-proof-unknown = proof not read (the named adapter is not of this release — it serves "rust")
+map-proof-unknown = proof not read (the named adapter is not of this release — it leads { $known })
 map-decided = decided: "{ $reason }"
 map-unanswered = no answer -- the silence court is keel check (§10.3)
 map-older = older answers: { $count }
@@ -451,21 +533,22 @@ status-branch-none = git named no branch for this root -- the overview rides wit
 status-branch-broken = the branch "{ $branch }" is named as a wave whose document refused — mend it; the refusal rows stand below
 status-wave-closed = { "  " }{ $wave } — closed structurally: tags match, references converge, and the review file lies next to it
 status-wave-closed-unjudged = { "  " }{ $wave } — closed structurally; { $count } references not judged: history cannot testify here (§5.6)
-status-wave-closed-light = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging closed it (§2.11)
-status-wave-light-own = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§2.11)
+status-wave-closed-light = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging closed it (§6.5): the wave file stands in main
+status-wave-light-own = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§6.5): the wave file is not in main yet
+status-wave-light-unseen = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§6.5): there is no trunk (main or master) here, and the fact cannot be seen
 status-wave-plan = { "  " }{ $wave } — approved, not started (§6.5)
 status-wave-progress = { "  " }{ $wave } — in progress; the lacks, by name:
 status-awaiting = { "  " }awaits its start: the wave { $wave } — the branch "{ $wave }" (§8.2)
 status-counts = counted: closed { $closed }, in progress { $working }, plans { $plans }
 status-no-battery = the stage here is structural (tags, references, the review) — the battery was not run: green tests are judged by close and the hook (§9.2)
 status-next = onwards — keel next
-status-needs-adapter = the stage eye needs the rust adapter named in keel.toml (old spelling cargo accepted): tags are the memory of stages
-status-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
+status-needs-adapter = the stage eye needs an adapter this release leads, named in keel.toml: tags are the memory of stages
+status-needs-adapter-instead = set adapter = one of the names this release knows: { $known } (NEW-CONCEPT, Config)
 
 ## next command (§9.2, §9.10, §8.4)
 next-title = keel next -- one step (§9.2)
-next-needs-adapter = the step hand needs the rust adapter named in keel.toml (old spelling cargo accepted): without tags the stage would be a guess
-next-needs-adapter-instead = set adapter = "rust" — the language's name; "cargo" is an accepted synonym (NEW-CONCEPT, Config); other languages come with their own waves
+next-needs-adapter = the step hand needs an adapter this release leads, named in keel.toml: without tags the stage would be a guess
+next-needs-adapter-instead = set adapter = one of the names this release knows: { $known } (NEW-CONCEPT, Config)
 next-step-fix = the step: mend the document { $file } — { $reason }; instead: { $instead }
 next-step-fix-more = { "  " }and { $count } more { $count ->
         [one] refusal
@@ -473,9 +556,10 @@ next-step-fix-more = { "  " }and { $count } more { $count ->
     } — keel check names them all
 next-step-red = the step: write the test of scenario "{ $scenario }" and commit `red: { $scenario }` — it must fail; the hook lets only a red one through (§7.12, §8.4)
 next-body-label = { "  " }the body of the scenario (@{ $rev }), verbatim:
-next-tag-line = { "  " }the tag in the test: /// proves: { $scenario }@{ $rev }
-next-tests-dir = { "  " }the cargo adapter reads tests in { $dir }
+next-tag-line = { "  " }the tag in the test: { $mark } proves: { $scenario }@{ $rev }
+next-tests-dir = { "  " }the { $adapter } adapter reads tests in { $dir }
 next-step-stale = the step: the revision of scenario "{ $scenario }" drifted — the tag records { $recorded }, the body now gives { $actual }; update the test to the new body and rewrite the tag (§5.5)
+next-step-commit = the step: transform "{ $name }" is done in every file it names, and no commit under its slug stands on the branch -- commit its work as `{ $name }: <words>` (§6.2; several commits are allowed, §2.4); the hook passes only green (§8.4)
 next-step-transform = the step: transform "{ $name }" — work exactly in the named files, then commit `{ $name }: <words>`; the hook lets it through only green (§8.4)
 next-step-chore = the step: chore "{ $name }" ({ $reason }) — work exactly in the named files, then commit `{ $name }: <words>` (§2.11, §8.4)
 next-files-label = { "  " }the files:
@@ -485,7 +569,11 @@ next-contract-label = { "  " }the contract { $contract }@{ $rev }, the current t
 next-contract-missing = the file of contract "{ $contract }" is missing — keel check names the broken reference (§7.1)
 next-run-label = { "  " }the run of its scenarios' tests:
 next-run-none = { "  " }tests of its scenarios do not exist yet — the run appears with the tags (a withdrawn scenario never gets one)
+next-step-review-empty = the step: the review file keel/reviews/{ $wave }.md exists and is empty -- an empty file is no review (§9.9): assemble the package with `keel review` for a fresh agent and put its report into this file
 next-step-review = the step: the wave is assembled — time for the review (§9.9): gather the package with `keel review` for a fresh agent; the report lands at keel/reviews/{ $wave }.md
+next-step-light-contract-chores = the step: the branch of wave { $wave } changes the contract "{ $contract }", and the wave is chores alone without a promise: such a wave owns no contract (§2.11, §6.8) -- give it a scenario or take the change off the branch
+next-step-chores-heavy = the step: wave { $wave } is chores only, and its weight is full ({ $why }): a wave of chores alone must be light (§2.11) -- give it a scenario or keep one chore transform without a contract
+next-step-light-contract = the step: the branch of wave { $wave } changes the contract "{ $contract }", and the wave is light -- only a full wave changes a contract (§6.8, §5.7): name it in the transform's files (the weight becomes full, §8.1) or take the change off the branch
 next-step-pr-light = the step: time for the PR — the light wave rides to its one PR (§6.8), merged by the merge-commit button (§8.7); the merge is its approval and its closure in one (§6.6, §6.5)
 next-step-pr = the step: the review lies next to the wave — time for the PR, merged by the merge-commit button (§8.7); the last word on lacks belongs to keel close
 next-plan-branch = the step: this is the plan branch of wave { $wave } (§8.3) — prove the plan's fullness (keel check, the map), merge the plan PR; the work will ride the branch "{ $wave }"
@@ -505,6 +593,7 @@ init-ignore-stands = ignore rules: the build directory ({ $path }) stands ignore
 init-ignore-exclude-only = ignore rules: { $path } is ignored only by { $source }, which does not travel with the repository — add exactly this line to .gitignore: { $rule }
 init-ignore-no-crate = ignore rules: the adapter found no crate to name a build directory by ({ $error })
 init-ignore-no-adapter = ignore rules: no adapter of this release is named in keel.toml, so there is no build directory to name
+init-ignore-nothing-built = ignore rules: this language builds nothing, so there is no build directory worth ignoring
 init-ignore-unknown-adapter = ignore rules: the adapter is named "{ $name }", and this release does not serve it — its own wave will bring its build directory
 init-ignore-unjudged = ignore rules: git said nothing here ({ $error }) — the rule is not judged
 init-eight-seven = §8.7: turn squash and rebase merging off in the repository settings — the rule is held by the disabled button, not by memory
@@ -544,7 +633,11 @@ newc-skel-body = whose words this contract lets outlive the wave — and why (§
 version-running = keel { $version } -- the binary answering
 version-pin-held = pin keel.toml: "{ $pin }" -- held; the courts judge with this very binary
 version-pin-mismatch = pin keel.toml: "{ $pin }" -- NOT this binary: the courts refuse until the pin and the binary meet
+version-pin-hand = { "  " }to take exactly that one: KEEL_REF="{ $pin }" sh install.sh -- or curl -fsSL { $installer } | sh -s -- { $pin }
+version-pin-hand-border = { "  " }the border: KEEL_REF takes a git ref (a tag or a commit) of this repository BY NAME -- not a verified checksum, and not the number in keel.toml by itself. Where no tag carries that name, install.sh refuses with the list of the ones that do; no v1 tag builds at all, the crate having lived outside tool/ back then
 version-pin-none = the version field is not set -- no pin; the concept advises one: version = "{ $version }"
+version-installed = { "  " }standing here: { $version }  (ref { $ref })
+version-installed-none = { "  " }no version stands here (~/.keel/versions/ is empty)
 version-no-file = keel.toml is absent -- no pin, the binary above runs
 version-unread = keel.toml not read ({ $reason }) -- the pin unknown; the config court says the refusal in full
 
@@ -609,7 +702,16 @@ main-help = keel -- the methodology's tool. Commands:
     keel new contract <slug> [dir] -- a contract's scaffolding
     keel update [dir] -- refresh the generated integrations
     keel version [dir] -- the version and what it holds
-main-usage = instead: keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [--lang <l>] [--adapter <a>] [--mode <m>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <command>] [--trust yes|no] [--no-ask] [dir] | keel setup [the same flags] [dir] | keel concept [dir] | keel trust [dir] | keel hook [dir] | keel cuts [dir] | keel method [§N.M | chapter] [dir] | keel version [dir] | keel update [dir]
+{"  "}
+{"  "}Every command also takes:
+    -C <dir> -- where to work, instead of the current directory
+    --branch <name> -- which branch to believe where git knows none (sec. 4.10)
+{"  "}The reading commands -- check, close, status, next, map, review,
+{"  "}version, cuts, rev, concept, method -- also take:
+    --json -- one JSON package on stdout, for scripts and harnesses
+main-usage = instead (every command also takes -C <dir>, --branch <name>, and the reading ones --json): keel check [dir] | keel rev [--write] [dir] | keel gate <message-file> [dir] | keel close [dir] | keel map [dir] | keel review [dir] | keel status [dir] | keel next [--for <agent>] [dir] | keel plan <slug> [dir] | keel new contract <slug> [dir] | keel init [--lang <l>] [--adapter <a>] [--mode <m>] [--agents <a,b>] [--hooks|--no-hooks] [--version pin] [--ci <command>] [--trust yes|no] [--no-ask] [dir] | keel setup [the same flags] [dir] | keel concept [dir] | keel trust [dir] | keel hook [dir] | keel cuts [dir] | keel method [§N.M | chapter] [dir] | keel version [dir] | keel update [dir]
+main-usage-command = instead, this command takes: { $shape }
+main-branch-ignored = --branch not used: git knows the branch "{ $branch }", and git is the fact here -- the flag answers only where git knows no branch (sec. 4.10)
 
 # The settings wizard (wave 0026)
 ask-lang = Which human language does this project speak? / Якою людською мовою говорить цей проєкт?
@@ -761,3 +863,17 @@ briefing-report =
     misfires on a corner; LIGHT -- a word, a number, tidiness.
     Numbers come ONLY from runs; what you could not measure, say so
     and why.
+adapter-python-failed = pytest did not start: { $error }
+adapter-python-failed-instead = put pytest on PATH -- the adapter calls pytest exactly as a person would in a terminal
+adapter-python-broken = collecting the tests broke: { $error }
+adapter-python-broken-instead = pytest says so with exit code 2, a failure with 1, "no such test" with 4; without a collection there is no verdict for anyone -- mend it and run again
+limit-python-border = measured: this tongue tells five states apart by its exit code (0 green, 1 failed, 2 collection broke, 4 no such test, 5 nothing collected), so sec. 7.12's border about the two being alike does not stand here -- a broken collection is judged broken, and an unknown node "did not run", never green
+limit-python-reads = not checked: the adapter reads only tests/**/test_*.py and *_test.py -- pytest collects them anywhere under rootdir, and unittest without pytest is not read at all; the RSpec-shaped border, named here
+limit-python-unread = not checked: the adapter does not read { $file } -- pytest collects test_*.py and *_test.py, and a tag there was not read
+adapter-javascript-failed = node did not start: { $error }
+adapter-javascript-failed-instead = put node 22+ on PATH -- the adapter calls `node --test` exactly as a person would in a terminal
+adapter-javascript-broken = a file did not load: { $error }
+adapter-javascript-broken-instead = node says so with the same exit code as a failure -- which is why the court reads TAP; without a load there is no verdict for anyone -- mend it and run again
+limit-javascript-border = not checked by exit code: node does not tell "failed" from "did not load" -- both are 1 -- and a name that matches nothing gives 0 and counts the file itself as a passed test; so the verdict is read from TAP (`ok`/`not ok` with the test's name) and the code is never asked
+limit-javascript-reads = not checked: the adapter reads only test/** and tests/** named *.test.js / .mjs / .cjs / .ts / .mts -- node collects wider (*-test.*, *_test.*, test-*.*, anything under test/); two tests of one name in different describes cannot be told apart, since TAP and --test-name-pattern know only the bare name -- so every line of that name is read, and a red among them is red; a t.test subtest holds no tag (the tag goes on the parent test); jest/vitest/mocha are not read
+limit-javascript-unread = not checked: the adapter does not read { $file } -- tests are named *.test.js (or .ts), and a tag there was not read

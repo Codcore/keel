@@ -163,10 +163,13 @@ fn a_plan_branch_carries_no_code() {
          happened (§4.10):\n{said}"
     );
 
-    // The methodology's own furniture is §4.8's list, not whatever a
-    // project happens to have recorded in [generated]: a project
-    // that never ran `keel update` still owns its skill and its
-    // workflow (review 0036 R-12).
+    // The methodology's own furniture is what the tool left in the
+    // form it left it -- §4.8's second sentence: "a file the tool did
+    // not write, or one edited by hand since, is not the
+    // methodology's furniture". A project that never ran `keel
+    // update` owns its skill and its workflow -- as CODE, which a
+    // plan branch does not carry (wave 0052; review 0036 R-12 had
+    // read the paragraph by the names of the files alone).
     let dir = project("furniture");
     git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
     std::fs::write(dir.join("keel/waves/0001-a-wave.md"), WAVE).unwrap();
@@ -181,9 +184,16 @@ fn a_plan_branch_carries_no_code() {
         &["commit", "-q", "-m", "plan: wave 0001 with its furniture"],
     );
     let said = check(&dir);
-    assert!(
-        !said.contains("несе план, а не код"),
-        "the skill, the CI file and AGENTS.md are the methodology's \
-         own furniture on any branch (§4.8):\n{said}"
-    );
+    for file in [
+        ".claude/skills/keel/SKILL.md",
+        ".github/workflows/keel.yml",
+        "AGENTS.md",
+    ] {
+        assert!(
+            said.contains(&format!("{file} — план-гілка несе план, а не код")),
+            "a file under a generated name that the tool never wrote is \
+             the project's code, and a plan branch does not carry it \
+             (§4.8, §4.9): {file}\n{said}"
+        );
+    }
 }

@@ -5,6 +5,7 @@
 use crate::adapter;
 use crate::config;
 use crate::docs::{self, Wave};
+use crate::holding;
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::rev;
@@ -31,6 +32,11 @@ pub(crate) enum State {
         refs_unjudged: u64,
     },
     ClosedLight,
+    /// A wave with nothing to prove whose merge has not happened: the
+    /// fact of §6.5 is the wave file standing in main, and until it
+    /// does the wave WILL close by merge, not is closed. The flag says
+    /// whether a main could be asked at all (wave 0052).
+    AwaitingMerge(bool),
     /// Called off after it was started (§6): nothing to prove and
     /// nothing to wait for, and the reason travels with it.
     Cancelled(String),
@@ -45,14 +51,19 @@ pub(crate) enum State {
 /// inform, they do not punish.
 /// What the closing court wants free before it starts.
 ///
-/// MEASURED, not guessed (review 0031 R-5): one full `keel close` on
-/// this repository leaves 1.26 GiB in the target directory -- the
-/// three battery runs (§7.13) share one target, they do not each
-/// build their own. The first version of this constant said 4 GiB
-/// from the ceiling and refused with 3.5 GiB free, where the work
-/// would have finished with 2.2 GiB to spare. Two gigabytes is the
-/// measured price plus room for a project larger than this one.
-const NEEDED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+/// MEASURED, not guessed (review 0031 R-5), and measured AGAIN
+/// (global review 2026-09-06, methodology R-15; wave 0053): one full
+/// `keel close` on this repository leaves 3.0-3.2 GiB in the target
+/// directory of this generation (the battery of 195 tests, three
+/// runs sharing one target) -- the first measurement, 1.26 GiB,
+/// belonged to a smaller battery and stood in the word for twenty
+/// waves. The first version of this constant said 4 GiB from the
+/// ceiling and refused with 3.5 GiB free, where the work would have
+/// finished with 2.2 GiB to spare; the second said 2 GiB and was
+/// under the measured weight. Three gibibytes is the measured
+/// weight, rounded up to whole gibibytes, and the word carries this
+/// number and no other.
+const NEEDED_BYTES: u64 = 3 * 1024 * 1024 * 1024;
 
 /// Free bytes on the filesystem holding this project, or nothing
 /// when the question cannot be asked -- a court that cannot see the
@@ -113,11 +124,14 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         });
     }
     let config = config::read(root)?;
-    if !config.rust_adapter() {
+    if !config.adapter_known() {
         return Err(Refusal {
             file: root.join("keel.toml"),
             reason: t("close-needs-adapter"),
-            instead: t("close-needs-adapter-instead"),
+            instead: ta(
+                "close-needs-adapter-instead",
+                targs!("known" => crate::config::Language::known()),
+            ),
         });
     }
     let scan = docs::scan(root)?;
@@ -140,11 +154,17 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // root's own target: on a project whose Cargo.toml is at the
     // root, the refusal named a directory that does not exist and
     // the instead swept nothing.
-    let target = adapter::crate_root(root)?.join("target");
+    // A language that builds nothing costs no disk, and this court
+    // stops demanding a crate of it (wave 0038): ruby has no build
+    // directory to measure, to warn about or to sweep.
+    let target = adapter::build_dir(root);
     let needed = NEEDED_BYTES;
-    if let Some(free) = free_bytes(root).filter(|free| *free < needed) {
+    if let adapter::BuildDir::At(target) = &target
+        && adapter::builds_heavily(root)
+        && let Some(free) = free_bytes(root).filter(|free| *free < needed)
+    {
         return Err(Refusal {
-            file: target,
+            file: target.clone(),
             reason: ta(
                 "close-no-room",
                 targs!("free" => gigabytes(free), "needed" => gigabytes(needed)),
@@ -156,16 +176,31 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // review 0031 R-1 measured the whole report, price line included,
     // appearing 101 seconds in -- after the target was already built.
     // A warning that arrives with the bill is not a warning.
-    eprintln!(
-        "{}",
-        ta(
-            "close-price",
-            targs!(
-                "target" => target.display().to_string(),
-                "needed" => gigabytes(NEEDED_BYTES)
+    match &target {
+        adapter::BuildDir::At(target) => eprintln!(
+            "{}",
+            ta(
+                // The measured cost belongs to the tongue that pays
+                // it: keel's own cargo build wants gigabytes, and a
+                // mix project's `_build` measured 148 KiB (review
+                // 0042 R-4 -- the warning was out by four orders of
+                // magnitude, and its "measured" number was cargo's).
+                if adapter::builds_heavily(root) {
+                    "close-price"
+                } else {
+                    "close-price-light"
+                },
+                targs!(
+                    "target" => target.display().to_string(),
+                    "needed" => gigabytes(NEEDED_BYTES)
+                )
             )
-        )
-    );
+        ),
+        adapter::BuildDir::Nothing => eprintln!("{}", t("close-price-nothing-built")),
+        // The adapter could not say where, and will say why itself a
+        // breath later: no price line is honester than a wrong one.
+        adapter::BuildDir::Unknown => {}
+    }
     let found = tags::scan(&adapter::test_files(root)?)?;
     // The battery runs several times before green is believed
     // (§7.13): the adapter keeps its word -- one battery, one cargo
@@ -215,6 +250,62 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         })
         .collect();
     fell.sort();
+    // Counted ONCE (review 0043 R-5). A red test that a scenario of
+    // this branch's own wave claims is already a lack under that
+    // wave, named there with its scenario; adding it here again made
+    // `blockers` say two where one test fell. So the tally below
+    // counts only the reds nobody's promise was already holding.
+    //
+    // And "claims" means what `wave_state` means by it (wave 0050):
+    // a tag of a LIVE scenario of this wave whose revision is the
+    // scenario's current one -- or, where no such tag exists, a tag
+    // of that scenario holding no other wave's legal revision, which
+    // `wave_state` names as this wave's stale record. By the bare
+    // name every tag of every scenario was claimed, withdrawn ones
+    // included, so a red test under a crooked revision or under a
+    // dead promise was neither a lack nor a red nobody claims: the
+    // court printed "red test" and "closed" in one breath (global
+    // review 2026-09-06, bugs cut R-2).
+    let mut claimed: std::collections::BTreeSet<(String, String)> = Default::default();
+    if let Some(slug) = &branch {
+        for wave in scan.waves.iter().filter(|wave| &wave.slug == slug) {
+            let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
+            let revs = rev::scenario_revs(&path)?;
+            for (name, scenario) in &wave.scenarios {
+                if scenario.withdrawn.is_some() {
+                    continue;
+                }
+                let current = revs
+                    .iter()
+                    .find(|(n, _)| n == name)
+                    .map(|(_, r)| r.as_str())
+                    .unwrap_or("");
+                let all: Vec<&TestTag> = found.iter().filter(|t| t.scenario == *name).collect();
+                let mine: Vec<&TestTag> = all
+                    .iter()
+                    .copied()
+                    .filter(|t| rev::matches(&t.rev, current))
+                    .collect();
+                let foreign = |t: &&TestTag| {
+                    legal
+                        .get(name)
+                        .is_some_and(|revs| revs.iter().any(|r| rev::matches(&t.rev, r)))
+                };
+                let named: Vec<&TestTag> = if mine.is_empty() {
+                    all.iter().copied().filter(|t| !foreign(t)).collect()
+                } else {
+                    mine
+                };
+                for tag in named {
+                    claimed.insert((adapter::battery_key(root, &tag.file), tag.test.clone()));
+                }
+            }
+        }
+    }
+    let red_tests = battery
+        .iter()
+        .filter(|(key, runs)| runs.iter().any(|green| !green) && !claimed.contains(*key))
+        .count();
     for line in &fell {
         report.push_str(line);
         report.push('\n');
@@ -265,6 +356,48 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         report.push('\n');
     }
 
+    // The form court of §7.6 (wave 0050), asked here of the same
+    // contracts `keel check` asks it of -- the plan window of §6.5
+    // and a plan branch stay outside it, in check's own words. It
+    // lived in check alone, so a contract promising a unit the code
+    // does not hold was red there and "closed", exit 0, here (global
+    // review 2026-09-06, methodology cut R-2). Every finding is a
+    // blocker by name: a form the code does not hold does not merge.
+    let mut form_blockers = 0usize;
+    if scope::current_branch(root).is_some_and(|b| b.starts_with("plan/")) {
+        report.push_str(&t("check-holding-plan"));
+        report.push('\n');
+    } else {
+        let window = holding::plan_window(root, &scan.waves, &found, &scan.contracts);
+        let judged: Vec<docs::Contract> = scan
+            .contracts
+            .iter()
+            .filter(|c| !window.iter().any(|(slug, _)| slug == &c.slug))
+            .cloned()
+            .collect();
+        let findings = holding::court(root, &config, &judged);
+        report.push_str(&ta(
+            "close-form-judged",
+            targs!("count" => findings.len() as u64),
+        ));
+        report.push('\n');
+        for (place, reason, instead) in findings {
+            report.push_str(&format!(
+                "  {place}: {reason}\n           {}: {instead}\n",
+                t("word-instead")
+            ));
+            form_blockers += 1;
+        }
+        for (contract, wave) in &window {
+            report.push_str("  ");
+            report.push_str(&ta(
+                "check-holding-window",
+                targs!("contract" => contract.clone(), "wave" => wave.clone()),
+            ));
+            report.push('\n');
+        }
+    }
+
     // The project's own ci (wave 0019, the first field's gift)
     // through the same §7.16 gate as verify: a trusted command runs
     // exactly once as the project's own merge gate -- never as a
@@ -297,9 +430,39 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
 
     let mut blockers = 0usize;
     let mut own_plan = false;
+    let mut own_awaiting = false;
+    let mut own_light = false;
     for wave in &scan.waves {
         let state = wave_state(root, wave, &found, &legal, Some(&battery))?;
         let own = branch.as_deref() == Some(wave.slug.as_str());
+        if own && docs::weight(wave) == docs::Weight::Light {
+            own_light = true;
+        }
+        // A wave whose own branch this is does not read as closed
+        // while the court is watching its battery fail. Waves closed
+        // in earlier generations keep their verdict: their promises
+        // were proven at their time, and today's red is not their
+        // lack -- but it IS this one's, whichever promise the red
+        // test belongs to (wave 0043).
+        // A wave that was CANCELLED has nothing to prove, and its
+        // reason is the whole point of the line (review 0043 R-6);
+        // a wave still in work names its own lacks, and a plan has
+        // no tests yet. None of those is "closed", so none of them
+        // is what this rule is for.
+        if own
+            && red_tests > 0
+            && !matches!(
+                state,
+                State::Progress(_) | State::Plan | State::Cancelled(_)
+            )
+        {
+            report.push_str(&ta(
+                "close-held-by-red",
+                targs!("wave" => wave.slug.clone(), "count" => red_tests as u64),
+            ));
+            report.push('\n');
+            continue;
+        }
         match state {
             State::Closed { refs_unjudged: 0 } => {
                 report.push_str(&ta("close-closed", targs!("wave" => wave.slug.clone())));
@@ -319,6 +482,18 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
                     "close-closed-light",
                     targs!("wave" => wave.slug.clone()),
                 ));
+                report.push('\n');
+            }
+            State::AwaitingMerge(seen) => {
+                if own {
+                    own_awaiting = true;
+                }
+                let key = if seen {
+                    "close-awaiting-merge"
+                } else {
+                    "close-awaiting-merge-unseen"
+                };
+                report.push_str(&ta(key, targs!("wave" => wave.slug.clone())));
                 report.push('\n');
             }
             State::Cancelled(why) => {
@@ -349,10 +524,33 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     }
 
     report.push('\n');
+    // The court watched these fail with its own eyes, three runs
+    // each (§7.13), and named them above -- and then closed the wave
+    // anyway, because blockers were counted only from the promises
+    // of the branch's own wave. A red test nobody claims never became
+    // a lack, so a court that SAW red left with 0. Measured in rust,
+    // ruby and elixir alike: the hole was in this court, not in an
+    // adapter (wave 0043). A court that did not run says so and a
+    // person knows they do not know; a court that saw red and left
+    // green passes itself off as read.
+    if red_tests > 0 {
+        report.push_str(&ta(
+            "close-red-blockers",
+            targs!("count" => red_tests as u64),
+        ));
+        report.push('\n');
+    }
     if verify_blockers > 0 {
         report.push_str(&ta(
             "close-verify-blockers",
             targs!("count" => verify_blockers as u64),
+        ));
+        report.push('\n');
+    }
+    if form_blockers > 0 {
+        report.push_str(&ta(
+            "close-form-blockers",
+            targs!("count" => form_blockers as u64),
         ));
         report.push('\n');
     }
@@ -361,12 +559,26 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         report.push('\n');
     }
     if blockers > 0 {
+        // The blockers are named by the wave's own weight (global
+        // review 2026-09-06, methodology R-16: "a full wave" was said
+        // over a light one waiting for its report).
+        let key = if own_light {
+            "close-blockers-light"
+        } else {
+            "close-blockers"
+        };
         report.push_str(&ta(
-            "close-blockers",
+            key,
             targs!("wave" => branch.unwrap_or_default(), "count" => blockers as u64),
         ));
         report.push('\n');
     } else if own_plan {
+        // The honest plan footer stays honest under a red tree
+        // (review 0043 R-7): a plan PR merges as a plan (§6.6), and
+        // sec. 8.3's own words are that a gate always shut stops
+        // being read. The reds are counted above and carry the exit
+        // code themselves -- this line says what KIND of PR this is,
+        // not that all is well.
         // The honest footer for the plan branch (review R-2): a plan
         // PR merges as a plan (§6.6), and the old words would lie.
         report.push_str(&ta(
@@ -374,22 +586,38 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             targs!("wave" => branch.unwrap_or_default()),
         ));
         report.push('\n');
-    } else if verify_blockers == 0 && ci_blocker == 0 {
-        report.push_str(&t("close-no-blockers"));
+    } else if verify_blockers == 0 && form_blockers == 0 && ci_blocker == 0 && red_tests == 0 {
+        // The branch's own wave may be named and unblocked at once:
+        // a light wave waiting for its merge (review 0052 R-13 -- the
+        // old word called such a branch "not named as an unclosed
+        // wave").
+        if own_awaiting {
+            report.push_str(&ta(
+                "close-no-blockers-awaiting",
+                targs!("wave" => branch.unwrap_or_default()),
+            ));
+        } else {
+            report.push_str(&t("close-no-blockers"));
+        }
         report.push('\n');
     }
     // And what the price actually came to (review 0031 R-6: the
     // scenario promised this sentence and the first cut of the work
     // simply did not carry it).
-    report.push_str(&ta(
-        "close-price-paid",
-        targs!(
-            "target" => target.display().to_string(),
-            "size" => tenths_of_gigabyte(directory_bytes(&target))
-        ),
-    ));
-    report.push('\n');
-    Ok((report, blockers + verify_blockers + ci_blocker))
+    if let adapter::BuildDir::At(target) = &target {
+        report.push_str(&ta(
+            "close-price-paid",
+            targs!(
+                "target" => target.display().to_string(),
+                "size" => tenths_of_gigabyte(directory_bytes(target))
+            ),
+        ));
+        report.push('\n');
+    }
+    Ok((
+        report,
+        blockers + verify_blockers + form_blockers + ci_blocker + red_tests,
+    ))
 }
 
 /// Runs one trusted command from the repository's files through
@@ -399,12 +627,19 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
 /// review R-5) -- no raw English inside a localized verdict. A
 /// command that does not start fails with the system's words.
 fn run_command(root: &Path, command: &str) -> Result<(), String> {
-    let out = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(command)
-        .current_dir(root)
-        .output()
-        .map_err(|e| e.to_string())?;
+    let mut child = std::process::Command::new("sh");
+    child.arg("-c").arg(command).current_dir(root);
+    // As clean as the battery (wave 0050): the hook's git variables
+    // and the inherited cargo target are forgotten here too, since a
+    // verify that runs the same crate's tests under a shared cache
+    // gets the shifted verdicts the battery refuses, and one that
+    // asks git for its repository sees the hook's (global review
+    // 2026-09-06, bugs cut R-18).
+    scope::forget_the_hook(&mut child);
+    child
+        .env_remove("CARGO_TARGET_DIR")
+        .env_remove("CARGO_BUILD_TARGET_DIR");
+    let out = child.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         return Ok(());
     }
@@ -516,10 +751,35 @@ pub(crate) fn wave_state(
     // beside it.
     if nothing_to_prove(wave) {
         let report = root.join("keel/reviews").join(format!("{}.md", wave.slug));
-        if report.is_file() {
-            return Ok(State::ClosedLight);
+        // An empty file is no review here either -- one word about
+        // one state in every court (review 0037 R-2 for the full
+        // wave; global review 2026-09-06, methodology R-13; wave 0053).
+        match std::fs::read_to_string(&report) {
+            Err(_) => return Ok(State::Progress(vec![t("close-lack-review")])),
+            Ok(text) if text.split_whitespace().next().is_none() => {
+                return Ok(State::Progress(vec![t("close-lack-review-empty")]));
+            }
+            Ok(_) => {}
         }
-        return Ok(State::Progress(vec![t("close-lack-review")]));
+        // "Closed by the fact of merge" only where the fact
+        // stands: the wave file in main. The first reading
+        // called a chore wave closed the moment its report lay
+        // beside it, on a branch main had never seen (global
+        // review 2026-09-06, methodology R-5).
+        // On the wave's OWN branch the fact is its work in the
+        // trunk, not its file: "its file and its work arrive in
+        // main by one PR" (§6.5; review 0052 R-6).
+        let own = scope::current_branch(root).as_deref() == Some(wave.slug.as_str());
+        let fact = if own {
+            scope::work_in_trunk(root)
+        } else {
+            scope::stands_in_main(root, &format!("keel/waves/{}.md", wave.slug))
+        };
+        return Ok(match fact {
+            Some(true) => State::ClosedLight,
+            Some(false) => State::AwaitingMerge(true),
+            None => State::AwaitingMerge(false),
+        });
     }
 
     let wave_path = root.join("keel/waves").join(format!("{}.md", wave.slug));
@@ -593,11 +853,10 @@ pub(crate) fn wave_state(
         }
         for tag in mine {
             if let Some(battery) = battery {
-                let stem = tag
-                    .file
-                    .file_stem()
-                    .map(|s| s.to_string_lossy().into_owned())
-                    .unwrap_or_default();
+                // The same key the adapter wrote, by the same hand
+                // (review 0045 R-1): a stem alone let two files of one
+                // name share an entry.
+                let stem = adapter::battery_key(root, &tag.file);
                 // Green only when green in every run (§7.13): green
                 // in some runs is a lack with its count, never a
                 // blessing by the one green run; red in all stays red.
