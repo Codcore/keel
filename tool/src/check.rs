@@ -430,6 +430,29 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             )),
         ));
     }
+    // §8.8 by the hand of `keel plan`: two wave files with one number
+    // are a finding here too, with the next free number -- the birth
+    // alone judged this before wave 0052 (methodology R-11).
+    let held = crate::plan::taken(root, "");
+    for (number, stems) in held.doubled() {
+        let next = format!("{:04}", held.next_free(number));
+        let instead = if held.branches_read {
+            ta("plan-number-taken-instead", targs!("next" => next))
+        } else {
+            ta("plan-number-taken-instead-disk", targs!("next" => next))
+        };
+        rows.push((
+            format!("keel/waves/{}.md", stems[0]),
+            Some(format!(
+                "{}\n           {}: {instead}",
+                ta(
+                    "check-number-twice",
+                    targs!("number" => format!("{number:04}"), "files" => stems.join(", ")),
+                ),
+                t("word-instead")
+            )),
+        ));
+    }
 
     // The scope floor (chapter 4): the branch judged against the
     // declared files -- or an honest line that no judging happened.
@@ -726,6 +749,20 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                 wave_path.clone(),
                                 Some(format!(
                                     "{reason}\n           {}: {instead}",
+                                    t("word-instead")
+                                )),
+                            ));
+                        }
+                        // §6.2, judged by the BRANCH and never on main
+                        // (§6.5 judges history by its consequences): a
+                        // transform touched in every file it names and
+                        // closed by no commit under its slug (wave
+                        // 0052, methodology R-9).
+                        for (name, instead) in uncommitted_transforms(root, wave, &sha) {
+                            rows.push((
+                                wave_path.clone(),
+                                Some(format!(
+                                    "{name}\n           {}: {instead}",
                                     t("word-instead")
                                 )),
                             ));
@@ -1228,6 +1265,69 @@ fn untested_scenarios(
 /// demanding a red commit from history that is no longer reachable
 /// would redden the verdict on its own past. That is why the court
 /// asks the BRANCH, not the whole repository.
+/// Transforms touched in every file they name whose slug heads no
+/// commit of the branch (§6.2) -- with the instead. A transform not
+/// yet touched everywhere is the scope court's word, not this one's.
+fn uncommitted_transforms(root: &Path, wave: &docs::Wave, base: &str) -> Vec<(String, String)> {
+    let Some(committed) = scope::slug_commits(root).ok() else {
+        return Vec::new();
+    };
+    let changed: std::collections::BTreeSet<String> =
+        git_out(root, &["diff", "--name-only", "--no-renames", base, "HEAD"])
+            .unwrap_or_default()
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+    let added: std::collections::BTreeSet<String> = git_out(
+        root,
+        &[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--diff-filter=A",
+            base,
+            "HEAD",
+        ],
+    )
+    .unwrap_or_default()
+    .lines()
+    .map(|l| l.trim().to_string())
+    .filter(|l| !l.is_empty())
+    .collect();
+    let mut out = Vec::new();
+    for (name, transform) in &wave.transforms {
+        if transform.files.is_empty() || committed.contains(name.as_str()) {
+            continue;
+        }
+        let mut dirs: std::collections::BTreeMap<&str, usize> = Default::default();
+        for line in &transform.files {
+            if let docs::ScopeLine::OneNewIn(d) = line {
+                *dirs.entry(d.as_str()).or_insert(0) += 1;
+            }
+        }
+        let done = transform.files.iter().all(|line| match line {
+            docs::ScopeLine::Path(p) => changed.contains(p),
+            docs::ScopeLine::OneNewIn(d) => {
+                added.iter().filter(|f| f.starts_with(d.as_str())).count() == dirs[d.as_str()]
+            }
+        });
+        if done {
+            out.push((
+                ta(
+                    "scope-transform-uncommitted",
+                    targs!("name" => name.clone()),
+                ),
+                ta(
+                    "scope-transform-uncommitted-instead",
+                    targs!("name" => name.clone()),
+                ),
+            ));
+        }
+    }
+    out
+}
+
 fn unborn_scenarios(
     root: &Path,
     wave: &docs::Wave,

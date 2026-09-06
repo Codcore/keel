@@ -253,6 +253,24 @@ pub fn contracts_changed(root: &Path) -> Result<Vec<String>, Refusal> {
         .collect())
 }
 
+/// The slugs the branch's commits carry as their subjects' heads --
+/// `<slug>: …` against the base (§6.2: a transform is closed by a
+/// commit under its slug, and several are allowed, §2.4). Nobody
+/// read this before wave 0052: `next` called a transform done by its
+/// touched files, and a branch with all its work in one `wip:`
+/// commit was "time for the PR" (global review 2026-09-06,
+/// methodology R-9).
+pub fn slug_commits(root: &Path) -> Result<BTreeSet<String>, Refusal> {
+    let (base, _) = compare_base(root)?;
+    let subjects = git_line(root, &["log", "--format=%s", &format!("{base}..HEAD")])?;
+    Ok(subjects
+        .lines()
+        .filter_map(|line| line.split_once(':'))
+        .map(|(head, _)| head.trim().to_string())
+        .filter(|head| !head.is_empty())
+        .collect())
+}
+
 /// Whether a file stands in main -- the fact of a merge (§6.5):
 /// `Some(true)` where main (or origin/main) carries it, `Some(false)`
 /// where a main exists and does not, `None` where no main can be

@@ -72,6 +72,14 @@ fn commit_all(dir: &Path) {
     git(dir, &["commit", "-q", "-m", "state"]);
 }
 
+/// The work of a transform, committed under its slug (§6.2): since
+/// wave 0052 `next` reads the slugs of the branch's commits, and work
+/// under any other subject is a transform still open.
+fn commit_as(dir: &Path, subject: &str) {
+    git(dir, &["add", "."]);
+    git(dir, &["commit", "-q", "-m", subject]);
+}
+
 /// proves: next-hands-one-step@82fe98 -- holds §9.2/§9.10/§8.4: on a
 /// wave branch every run hands exactly one step and the package is
 /// self-sufficient -- the birth of a test with the scenario body
@@ -138,9 +146,10 @@ fn next_hands_one_step() {
         "the commit grammar of §8.4 is spelled out:\n{out}"
     );
 
-    // Stage three: the files are touched, the review is missing.
+    // Stage three: the files are touched and the transform is
+    // committed under its slug (§6.2), the review is missing.
     write(&dir, "src/lib.rs", "pub fn grown() {}\n");
-    commit_all(&dir);
+    commit_as(&dir, "t: grown");
     let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
@@ -299,7 +308,7 @@ fn next_hands_one_step_second_birth() {
     );
     commit_all(&dir);
     write(&dir, "src/lib.rs", "pub fn grown() {}\n");
-    commit_all(&dir);
+    commit_as(&dir, "tidy: grown");
     let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
@@ -380,7 +389,7 @@ fn light_pr_words_honest() {
     );
     commit_all(&dir);
     write(&dir, "src/lib.rs", "pub fn grown() {}\n");
-    commit_all(&dir);
+    commit_as(&dir, "tidy: grown");
 
     // First the reviewer, as for every wave (§9.9).
     let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);

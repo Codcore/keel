@@ -315,6 +315,7 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
     }
 
     let (changed, added) = branch_files(root)?;
+    let committed = scope::slug_commits(root)?;
     for (name, transform) in &wave.transforms {
         // Every `one new in` line promises exactly one file (§4.1;
         // review 0012 R-8): any other count leaves the transform the
@@ -332,6 +333,14 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
             }
         });
         if !untouched {
+            // Done in its files -- and closed only by a commit under
+            // its slug (§6.2): the work in a `wip:` commit is not the
+            // transform's commit (wave 0052).
+            if !committed.contains(name.as_str()) {
+                out.push_str(&ta("next-step-commit", targs!("name" => name.clone())));
+                out.push('\n');
+                return Ok(out);
+            }
             continue;
         }
         match &transform.kind {

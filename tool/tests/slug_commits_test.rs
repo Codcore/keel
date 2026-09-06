@@ -158,7 +158,7 @@ fn a_transform_is_closed_by_its_commit() {
 
     let (said, _) = keel(&dir, &["next"]);
     assert!(
-        said.contains("закоммить `work: <слова>`"),
+        said.contains("`work: <слова>`") && said.contains("§6.2"),
         "the step is the commit of the transform under its slug (§6.2):\n{said}"
     );
     assert!(

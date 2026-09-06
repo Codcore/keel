@@ -72,6 +72,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/slug_commits_test.rs
+      - tool/tests/next_test.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:
@@ -167,7 +168,10 @@ exit 0 (R-5): факт merge ніхто не питав, і параграф ц�
 `tool/tests/rev_test.rs` (золота редакція tool-docs). У третю —
 `tool/tests/plan_branch_test.rs`: проба 0036 (R-12) звала скіл, CI-файл
 і `AGENTS.md`, яких інструмент не писав, меблями на план-гілці — проти
-другого речення §4.8; тепер вони код, як каже параграф.
+другого речення §4.8; тепер вони код, як каже параграф. У четверту
+— `tool/tests/next_test.rs`: проби 0012/0037 комітили роботу
+трансформи темою `state`, і `next` звав її зробленою за торкнутими
+файлами; тепер робота коміться під слагом, як §6.2 і §8.4 кажуть.
 
 ## scenario: a-court-that-cannot-judge-does-not-pass
 
