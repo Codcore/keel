@@ -570,7 +570,18 @@ fn main() -> ExitCode {
                     String::new()
                 }
             };
-            keel::i18n::init(&lang);
+            // The language the person just ANSWERED beats the one the
+            // config has -- and where no config stands yet, it is the
+            // only one there is: `keel init --lang uk` wrote the
+            // header of the born keel.toml, and its own report, in
+            // English (review 0055 R-14). The value is only read
+            // here; `from_flags` below still judges it.
+            let answered = given
+                .iter()
+                .find(|(field, _)| field == "lang")
+                .map(|(_, value)| value.clone())
+                .filter(|value| keel::config::LANGUAGES.contains(&value.as_str()));
+            keel::i18n::init(answered.as_deref().unwrap_or(&lang));
             let mut answers = match keel::ask::from_flags(&given) {
                 Ok(answers) => answers,
                 Err(refusal) => {

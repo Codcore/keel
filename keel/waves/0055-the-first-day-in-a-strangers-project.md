@@ -45,8 +45,10 @@ transforms:
       - the-config-is-written-as-toml
     files:
       - tool/src/ask.rs
+      - tool/src/main.rs
       - keel/contracts/tool-ask.md
       - tool/tests/config_quoting_test.rs
+      - tool/tests/hooks_off_test.rs
   the-installer-keeps-its-word:
     implements:
       - the-installer-takes-what-it-promises
@@ -54,6 +56,7 @@ transforms:
       - install.sh
       - keel/contracts/tool-launcher.md
       - tool/tests/installer_word_test.rs
+      - tool/tests/common/versions.rs
   the-report-and-the-refusals-say-what-next:
     implements:
       - the-report-is-committed-and-the-courts-say-how
@@ -67,6 +70,10 @@ transforms:
       - keel/contracts/tool-next.md
       - keel/contracts/tool-close.md
       - tool/tests/report_commit_test.rs
+      - tool/tests/close_test.rs
+      - tool/tests/next_test.rs
+      - tool/tests/reviewer_test.rs
+      - tool/tests/court_words_test.rs
   furniture-of-the-tongue:
     implements:
       - furniture-is-not-drift
@@ -91,11 +98,13 @@ transforms:
       - the-courts-agree-on-one-tree
     files:
       - tool/src/adapter.rs
+      - tool/src/python.rs
       - tool/src/close.rs
       - tool/src/check.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - keel/contracts/tool-adapter-cargo.md
+      - keel/contracts/tool-adapter-python.md
       - keel/contracts/tool-close.md
       - keel/contracts/tool-cli.md
       - tool/tests/one_verdict_test.rs
@@ -110,25 +119,24 @@ transforms:
       - tool/i18n/en.ftl
       - keel/contracts/tool-speak.md
       - keel/contracts/tool-tags.md
+      - keel/contracts/tool-adapter-elixir.md
       - tool/tests/exact_words_test.rs
+      - tool/tests/elixir_border_test.rs
   the-asserts-can-fall:
-    chore: "six negative asserts hunt English phrases the tool never says, and two probes of 0053-0054 hold their clauses by a weaker fact than written: the asserts are made able to fall and dead_assert_test reads English phrases too (final review, tests R-5, R-6)"
+    chore: "negative asserts that hunt English phrases the tool never says, and two probes of 0053-0054 holding their clauses by a weaker fact than written: dead_assert_test reads English negatives too (with the six live ones named), and the two clauses hold what they claim (final review, tests R-5, R-6)"
     files:
       - tool/tests/dead_assert_test.rs
-      - tool/tests/court_words_test.rs
-      - tool/tests/one_home_test.rs
-      - tool/tests/body_test.rs
-      - tool/tests/review_test.rs
-      - tool/tests/rule_truth_test.rs
+      - tool/tests/check_test.rs
       - tool/tests/speak_test.rs
       - tool/tests/own_ci_test.rs
       - tool/tests/norm_marks_test.rs
   the-documents-tell-the-day:
-    chore: "README, the concept and the generated texts say what the tool does on day one: the manual mode and the hooks, the release line, keel update and spike, the frame's own words about red births and the installer (final review, method R-5, R-6, R-7, R-14, R-15, R-16)"
+    chore: "README, the concept and the generated texts say what the tool does on day one: the manual mode and the hooks, the release line, keel update and spike, the frame's own words about red births and the installer (final review, method R-6, R-7, R-15, R-16)"
     files:
       - README.md
       - docs/uk/NEW-CONCEPT.md
       - tool/src/generated.rs
+      - tool/tests/status_test.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS); the final review's three reports queued in BACKLOG, the rows this wave strikes struck"
     files:
@@ -137,7 +145,7 @@ transforms:
       - keel/reviews/0055-the-first-day-in-a-strangers-project.md
 decisions:
   functional.appropriateness: "свідомо без тесту: жодної нової команди — хвиля лагодить те, що фінальні рецензії 2026-09-06 зміряли в чужому проєкті на пʼяти мовах; кожен рядок цитує параграф, який тримає (§4.8, §5.5, §6.2, §7.12, §7.16, §8.4, §9.7, §9.9)"
-  performance.time-behaviour: "свідомо без тесту, і ціна названа: жоден суд не стає повільнішим — читачі виходу бігунів дістають по одній перевірці (позначка S, рядок (skipped), код виходу); проба з harness = false і хук pytest коштують два біги cargo/pytest у батареї"
+  performance.time-behaviour: "зміряно, і ціна названа: рецензент 0055 (R-13) зміряв `keel check` на цьому дереві +3…+7 % — суд питав адаптера про lock-файли на КОЖЕН файл порівняння, а суд закриття спускав два git-процеси на кожну хвилю; обидва місця виправлено (lock-файли — раз на порівняння, звіт — один `git show` на дорозі, що відповідає), решта правок читає той самий вихід бігуна ще однією перевіркою (позначка S, рядки (skipped)/(excluded), код виходу); проба з harness = false і хук pytest коштують два біги cargo/pytest у батареї"
   performance.capacity: "не застосовується"
   performance.resource-utilisation: "не застосовується"
   compatibility.co-existence: "тримає furniture-is-not-drift: lock-файли, які лишає бігун мови, і .gitkeep під keel/ — не дрейф і не змінений контракт; у проєкт користувача інструмент нового не пише"
@@ -154,10 +162,10 @@ decisions:
   security.resistance: "свідомо без окремої роботи, і названо: чужий текст у назвах тестів і в keel.toml проходить через екранування (TOML, регулярні вирази, shell) — грали фінальні рецензенти, тримають старі проби; нових поверхонь хвиля не відкриває"
   maintainability.modularity: "свідомо без тесту: кожна правка живе в модулі, чиє слово вона виправляє — адаптер, ask, holding, gate, next, close, scope, generated, speak; нового модуля нема"
   maintainability.reusability: "не застосовується"
-  maintainability.testability: "тримає the-courts-agree-on-one-tree: мутант cargo exit 101 при зелених вироках, що пережив батарею, дістає пробу з harness = false; дев'ять проб народжуються червоними на першій клаузі (§7.12)"
+  maintainability.testability: "тримає the-courts-agree-on-one-tree: мутант cargo exit 101 при зелених вироках, що пережив батарею, дістає пробу з harness = false; дев'ять проб народжуються справжнім падінням, без жодного рядка mutant: (§7.12; вісім із дев'яти падають на першій клаузі — десята клауза `one_verdict_test` про пояс, який стояв до хвилі)"
   flexibility.scalability: "не застосовується"
   flexibility.replaceability: "не застосовується"
-  safety.operational-constraints: "свідомо без тесту, і названо: реліз 1.0.0 іде наступною легкою хвилею після цієї (рішення оператора 2026-09-06); черга 0056 — решта знахідок фінальних рецензій, названа в BACKLOG поіменно"
+  safety.operational-constraints: "свідомо без тесту, і названо: реліз 1.0.0 іде наступною легкою хвилею після цієї (рішення оператора 2026-09-06); черга після неї — решта знахідок фінальних рецензій, названа в BACKLOG поіменно"
 ---
 
 ## Why
@@ -167,8 +175,8 @@ decisions:
 чужому проєкті, повнота тестів, відповідність методиці — над main із
 хвилями до 0054 (f744252). Разом 5 + 1 важких, 14 + 1 + 4 середніх,
 7 + 4 + 13 легких; ця хвиля бере все, що збреше або впаде завтра в
-чужому проєкті, і слова, які ведуть у нікуди; решта — черга 0056
-(BACKLOG). Кожен рядок нижче зміряно рецензентом у пісочниці, а
+чужому проєкті, і слова, які ведуть у нікуди; решта — черга
+після неї (BACKLOG). Кожен рядок нижче зміряно рецензентом у пісочниці, а
 важкі й перші середні відтворено автором на бінарнику f744252 перед
 планом.
 
@@ -217,8 +225,9 @@ launcher-а про `.keel-current` і `keel.before-launcher` тримає лиш
 проходить як «поза судом»» без «натомість»; `keel next` каже, куди
 ляже звіт, і не каже, яким комітом (R-6; відтворено). Незакомічений
 файл `keel/reviews/<хвиля>.md` — `keel close` читає з робочого дерева
-і каже «closed» (R-7). Відмови hook-а — 34 ключі `gate-*`, з них
-«натомість» несуть чотири (методика R-4).
+і каже «closed» (R-7). Відмови hook-а — 34 ключі `gate-*`; окремий ключ «натомість» має один
+із них, а вплетену пораду несуть чотири тексти (методика R-4; лічено
+рецензентом 0055 R-11).
 
 **Меблі як дрейф.** `keel init` на гілці кладе `keel/contracts/.gitkeep`
 — `check`/`next`/`close` кажуть «гілка легкої хвилі змінює контракт
@@ -271,7 +280,7 @@ AGENTS.md/скіл: «`red:` проходить лише тоді, коли те
 каже; R-6: `own_ci_test` і `norm_marks_test` тримають клаузи «`keel
 check` зелений» слабшим фактом.
 
-**Черга 0056 (BACKLOG, не ця хвиля):** воркспейс з двома крейтами
+**Черга після цієї хвилі (BACKLOG, не ця хвиля):** воркспейс з двома крейтами
 (R-18), стовбур `develop` (R-19), `__pycache__` після `ci` (R-21),
 нормалізація рядків scope (R-22), теги в `src/` (R-24), порада піна
 після 1.0.0 (R-26); методика R-9, R-11, R-12, R-13, R-14, R-17, R-18;
@@ -357,8 +366,9 @@ close зве обіцянку не доведеною; батарея elixir н�
 **Тоді** cargo, що вийшов не нулем без прочитаного червоного, — відмова
 в обох судах, і пробу тримає мутант; pytest, що вийшов не нулем без
 рядка падіння, — не зелений у батареї; `should_panic` — один ключ в
-обох судах; недовірений verify — нестача хвилі в `close`, не «closed»;
-теги скасованої хвилі — не сироти, а «не судиться».
+обох судах; недовірений verify — рядок «не бігала» і **жодного «блокерів
+нема»** під ним у `close` (вирок недовіри лишається за check — обіцянка
+хвилі 0010 жива); теги скасованої хвилі — не сироти, а «не судиться».
 
 ## scenario: the-words-lead-somewhere
 
@@ -421,8 +431,9 @@ rspec, node) перед судами; Claude-hook — `keel next --for claude`;
 
 `adapter.rs`: ключ cargo без « - should panic»; `python.rs`/`adapter`:
 не нульовий вихід без рядка падіння — відмова батареї, як у cargo;
-`close.rs`: недовірений verify — нестача; `check.rs`: теги скасованої
-хвилі — «не судиться», не сироти. Слова. Контракти cargo, close, cli.
+`close.rs`: недовірений verify чи ci — власний рядок і жодного «блокерів
+нема» під ним (exit лишається за check, §7.16 і хвиля 0010); `check.rs`:
+теги скасованої хвилі — «не судиться», не сироти. Слова. Контракти cargo, close, cli.
 Проба з `harness = false` (мутант тестів R-1 — червонить).
 
 ## transform: the-words-are-exact
@@ -434,10 +445,18 @@ UTF-8 з «натомість»; `quoted_after` читає екрановану 
 
 ## transform: the-asserts-can-fall
 
-Шість негативних `contains` — на слова, які інструмент каже, або
-позитивні; `dead_assert_test` читає й англійські фрази; `own_ci_test`
-тримає імʼя інструмента в паніці і `keel check` над деревом;
-`norm_marks_test` жене `keel check`.
+`dead_assert_test` читає й англійські негативні `contains`: фраза, якої
+нема ніде — ні в словах інструмента, ні в документах, ні у власній
+пісочниці проби, — знахідка; шість живих названо поіменно з причиною.
+Два мертві асерти (`check_test`, `speak_test`) стають живими —
+позитивними. `own_ci_test` тримає імʼя інструмента в паніці;
+`norm_marks_test` жене `keel check` і читає два рядки норми.
+
+**Зміряно (дрейф, §4.6):** план назвав пʼять проб, у яких мертвих
+асертів не виявилось (`court_words`, `one_home`, `body`, `review`,
+`rule_truth`) — їхні негативи або складаються з частин під час бігу,
+або стережуть текст норми; замість них у списку `check_test`, де
+мертвий асерт справді стояв.
 
 ## transform: the-documents-tell-the-day
 
@@ -447,5 +466,5 @@ README: `manual` і хук сесії, лінія релізу без install.sh
 
 ## transform: journal
 
-Записи журналу, три звіти фінальних рецензій у BACKLOG (черга 0056
-поіменно), файл рецензії.
+Записи журналу, три звіти фінальних рецензій у BACKLOG (черга після
+цієї хвилі, поіменно), файл рецензії.

@@ -90,7 +90,9 @@ pub fn world(dir: &Path) -> World {
     // A tree that keeps a `tool/answers` file makes the binary answer
     // THAT instead of the manifest's number, so a probe can tell a
     // release named by the binary's answer from one named by the
-    // manifest (review 0048 R-8).
+    // manifest (review 0048 R-8). And it says which KEEL_HOME it was
+    // handed, so a probe can hold that the launcher exports its home
+    // rather than merely setting it (wave 0055).
     let stub = dir.join("stub");
     fs::create_dir_all(&stub).unwrap();
     let script = "#!/bin/sh\n\
@@ -100,7 +102,7 @@ pub fn world(dir: &Path) -> World {
          if [ -f \"$root/tool/answers\" ]; then version=$(cat \"$root/tool/answers\"); fi\n\
          out=\"$root/tool/target/release\"\n\
          mkdir -p \"$out\"\n\
-         printf '#!/bin/sh\\necho \"keel %s\"\\necho \"args: $*\"\\n' \"$version\" > \"$out/keel\"\n\
+         printf '#!/bin/sh\\necho \"keel %s\"\\necho \"args: $*\"\\necho \"home: ${KEEL_HOME:-unset}\"\\n' \"$version\" > \"$out/keel\"\n\
          chmod +x \"$out/keel\"\n";
     fs::write(stub.join("cargo"), script).unwrap();
     // And a `curl` that never leaves the machine: a `file://` address

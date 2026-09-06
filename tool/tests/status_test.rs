@@ -131,6 +131,13 @@ fn status_tells_where() {
     // With its report the chore wave closes, and the plan that
     // depends on it becomes ready.
     write(&dir, "keel/reviews/0060-light.md", "# Рецензія\n\nok\n");
+    // In history, where wave 0055 made the courts read it: a
+    // report no commit carries merges with nothing (§9.9).
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "the report of the reviewer rides in"],
+    );
     let (out, err, code) = keel(&["status", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "still a green overview:\n{out}");
@@ -236,6 +243,13 @@ fn status_tells_where_second_birth() {
          (§9.9):\n{out}"
     );
     write(&dir, "keel/reviews/0900-l.md", "# Рецензія\n\nok\n");
+    // In history, where wave 0055 made the courts read it: a
+    // report no commit carries merges with nothing (§9.9).
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "the report of the reviewer rides in"],
+    );
     let (out, err, _) = keel(&["status", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(

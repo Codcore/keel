@@ -192,8 +192,9 @@ pub fn plan_findings(
         &["diff", "--name-only", "--no-renames", &base, "HEAD"],
     )?;
     let mut out = Vec::new();
+    let locks = crate::adapter::lockfiles(root);
     for file in changed_raw.lines().map(str::trim) {
-        if file.is_empty() || furniture(root, config, file) {
+        if file.is_empty() || furniture(root, config, file, &locks) {
             continue;
         }
         // The finding is hung on the file it accuses: review 0036
@@ -220,10 +221,19 @@ pub fn plan_findings(
 /// 0052). One reading now, `generated::is_furniture`, for both
 /// courts. A project's own file under a generated name that the tool
 /// never wrote is code here -- named in the contract.
-fn furniture(root: &Path, config: &Config, file: &str) -> bool {
+fn furniture(root: &Path, config: &Config, file: &str, locks: &[String]) -> bool {
     file.starts_with("keel/")
         || file == "keel.toml"
         || crate::generated::is_furniture(root, config, file)
+        // The tongue's own, named by the adapter (wave 0055): a lock
+        // file the runner writes without being asked is not this
+        // wave's work, and the first build through the hook made one
+        // in a stranger's project (final review 2026-09-06, bugs
+        // R-20). Asked ONCE per comparison, not once per file: the
+        // question costs a manifest read and a directory walk, and
+        // `keel check` grew three to seven percent slower before this
+        // (review 0055 R-13).
+        || locks.iter().any(|lock| lock == file)
 }
 
 /// The contracts the branch changed against the base: a fact of the
@@ -249,6 +259,13 @@ pub fn contracts_changed(root: &Path) -> Result<Vec<String>, Refusal> {
         .lines()
         .map(str::trim)
         .filter(|l| !l.is_empty())
+        // A contract is a DOCUMENT (§2.9): `keel init` leaves
+        // `keel/contracts/.gitkeep` so the standing empty directory
+        // outlives git, and all three courts then called a light
+        // wave's branch a contract change and led it to a full wave
+        // -- on the first day in a stranger's project (final review
+        // 2026-09-06, bugs R-8; wave 0055).
+        .filter(|l| l.ends_with(".md"))
         .map(str::to_string)
         .collect())
 }
@@ -399,13 +416,14 @@ pub fn findings(
     }
 
     let mut out = Vec::new();
+    let locks = crate::adapter::lockfiles(root);
 
     // Drift (§4.6): touched yet never declared. A *new* file inside a
     // `one new in` directory is judged by the count below, not here;
     // an old file changed there is drift like anywhere else -- the
     // promise spoke only of one new file.
     for file in &changed {
-        if file.is_empty() || declared.contains(file) || furniture(root, config, file) {
+        if file.is_empty() || declared.contains(file) || furniture(root, config, file, &locks) {
             continue;
         }
         if added.contains(file) && dirs.keys().any(|d| file.starts_with(d)) {

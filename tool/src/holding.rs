@@ -372,22 +372,32 @@ fn comparability(root: &Path, config: &Config, module: &str) -> Comparability {
 /// A match is a match only on token boundaries (0010 review
 /// R-3/R-6): `pub fn run` is not satisfied by `run_all`, and the
 /// verdict words tell divergence from disappearance apart.
+///
+/// The boundary is a CHAR, on both sides, and so is the step past a
+/// match that failed it (wave 0055). Read in bytes, the step landed
+/// inside a multi-byte letter and the slice panicked -- `keel check`
+/// and `keel close` died with "byte index 23 is not a char boundary"
+/// over an export beginning with `ü` and a source carrying its longer
+/// twin (final review 2026-09-06, bugs R-3); and a byte of `é` before
+/// the name is not ASCII-alphanumeric, so `éünïcode` held the promise
+/// `ünïcode`. Rust, ruby, elixir, python and node all spell names
+/// with letters outside ASCII.
 fn found_bounded(haystack: &str, needle: &str) -> bool {
     if needle.is_empty() {
         return false;
     }
-    let ident = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
-    let bytes = haystack.as_bytes();
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let step = needle.chars().next().map_or(1, char::len_utf8);
     let mut from = 0;
     while let Some(pos) = haystack[from..].find(needle) {
         let at = from + pos;
         let end = at + needle.len();
-        let before_ok = at == 0 || !ident(bytes[at - 1]);
-        let after_ok = end >= bytes.len() || !ident(bytes[end]);
+        let before_ok = !haystack[..at].chars().next_back().is_some_and(ident);
+        let after_ok = !haystack[end..].chars().next().is_some_and(ident);
         if before_ok && after_ok {
             return true;
         }
-        from = at + 1;
+        from = at + step;
     }
     false
 }

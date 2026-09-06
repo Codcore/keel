@@ -904,7 +904,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let judged = match (&config.adapter, &found_tags) {
         (None, _) => Err(t("check-tags-skipped-no-adapter")),
         (Some(_), Some(Ok(found))) if known => {
-            match tag_rows(root, &scan.waves, found, &mut tags_checked) {
+            match tag_rows(
+                root,
+                &scan.waves,
+                found,
+                &mut tags_checked,
+                &mut extra_limits,
+            ) {
                 Ok(tag_findings) => Ok((found, tag_findings)),
                 Err(refusal) => {
                     push_refusal_row(&mut rows, root, &refusal);
@@ -1640,6 +1646,7 @@ fn tag_rows(
     waves: &[docs::Wave],
     found: &[tags::TestTag],
     checked: &mut u64,
+    unjudged: &mut Vec<String>,
 ) -> Result<Vec<(String, String)>, Refusal> {
     // Live revisions and withdrawn ones are kept apart. Review 0035
     // R-4: one set keyed by the bare NAME meant a scenario withdrawn
@@ -1662,6 +1669,19 @@ fn tag_rows(
         }
     }
     let gone = fully_withdrawn(waves);
+    // The scenarios of waves called off: their tags are not orphans
+    // (§6.3-a puts such a wave outside judgement WHOLE), and this
+    // court reddened them as tags "no wave knows" -- while the wave
+    // that knows them stood right there, called off (final review
+    // 2026-09-06, methodology R-2; wave 0055). They are not judged,
+    // and that is said aloud among the limits rather than counted
+    // green.
+    let mut called_off: std::collections::BTreeMap<&str, &str> = Default::default();
+    for wave in waves.iter().filter(|w| w.cancelled.is_some()) {
+        for (name, _) in &wave.scenarios {
+            called_off.insert(name.as_str(), wave.slug.as_str());
+        }
+    }
 
     let mut out = Vec::new();
     for tag in found {
@@ -1687,6 +1707,16 @@ fn tag_rows(
             continue;
         }
         match revs.get(&tag.scenario) {
+            None if called_off.contains_key(tag.scenario.as_str()) => {
+                let wave = called_off[tag.scenario.as_str()];
+                let line = ta(
+                    "limit-tags-cancelled",
+                    targs!("test" => tag.test.clone(), "scenario" => tag.scenario.clone(), "wave" => wave.to_string()),
+                );
+                if !unjudged.contains(&line) {
+                    unjudged.push(line);
+                }
+            }
             None => out.push((
                 shown.display().to_string(),
                 format!(

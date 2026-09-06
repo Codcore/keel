@@ -9,8 +9,9 @@ exports:
   - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>"
   - "pub enum BuildDir { At(PathBuf), Nothing, Unknown }"
   - "pub fn build_dir(root: &Path) -> BuildDir"
+  - "pub fn lockfiles(root: &Path) -> Vec<String>"
   - "pub fn tests_dir(root: &Path) -> Result<PathBuf, Refusal>"
-  - "pub fn run_line(root: &Path, file: &Path, test: &str) -> String"
+  - "pub fn run_line(root: &Path, file: &Path, test: &str, line: usize) -> String"
   - "pub const BUILD_DIR: &str"
 ---
 
@@ -112,3 +113,11 @@ exports:
   репозиторій — рецензія 0021 R-3 виміряла це живцем (36 падінь і
   байт, що доїхав у чуже дерево).
   Модуль нічого не пише.
+
+**`#[should_panic]` — імʼя з суфіксом, і суфікс не наш** (хвиля 0055):
+cargo пише рядок вироку як `test it_panics - should panic ... ok`, і
+перше читання лишало все це іменем — суд закриття казав «батарея не
+виконала тесту "it_panics"», поки ворота, які женуть один тест за
+іменем, були зелені (фінальна рецензія 2026-09-06, баги R-9). Ключ
+батареї несе імʼя, яке може стояти в тезі `proves:`, — суфікс cargo
+знімається.

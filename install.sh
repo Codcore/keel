@@ -221,7 +221,12 @@ install_launcher() {
     # (review 0041 R-8).
     printf '%s\n' "#!/bin/sh" > "$1"
     printf '%s\n' "# keel launcher -- written by install.sh, do not edit." >> "$1"
-    printf '%s\n' "KEEL_HOME=\"\${KEEL_HOME:-$KEEL_HOME}\"" >> "$1"
+    # Exported, not merely set (wave 0055): the binary it hands over
+    # to reads KEEL_HOME too -- `keel version` lists the versions of
+    # its home -- and a home set in this shell alone left the binary
+    # reading ~/.keel and finding no version from inside its own home
+    # (final review 2026-09-06, bugs R-11).
+    printf '%s\n' "export KEEL_HOME=\"\${KEEL_HOME:-$KEEL_HOME}\"" >> "$1"
     cat >> "$1" <<'LAUNCHER'
 #
 # It reads the `version` a project pins in keel.toml and runs exactly
@@ -663,6 +668,16 @@ lead_branch() {
 
 if [ -d "$SOURCE/.git" ]; then
     echo "keel: updating $SOURCE"
+    # The repository this run names is the one the clone follows
+    # (wave 0055): a KEEL_REPO given while a clone stood was ignored
+    # in silence, and the run said "installed" over a tree from
+    # somewhere else (final review 2026-09-06, bugs R-10). A change of
+    # source is said aloud, by both addresses.
+    was="$(git -C "$SOURCE" remote get-url origin 2>/dev/null || true)"
+    if [ -n "$was" ] && [ "$was" != "$REPO" ]; then
+        echo "keel: the source now follows $REPO (it followed $was)"
+        git -C "$SOURCE" remote set-url origin "$REPO"
+    fi
     git -C "$SOURCE" fetch --quiet --tags origin
     if [ -z "$KEEL_REF" ]; then
         lead_branch
@@ -683,7 +698,16 @@ fi
 lead_road=""
 if [ -n "$KEEL_REF" ]; then
     wanted="$KEEL_REF"
-    if ! git -C "$SOURCE" rev-parse --verify --quiet "$wanted^{commit}" >/dev/null; then
+    # A branch of the remote lives in a clone as origin/<name>, and
+    # the remote's tip of it is what the name means (wave 0055): the
+    # advice `KEEL_REF="<ref>" sh install.sh` -- the launcher's and
+    # `keel version`'s own -- named a branch this check refused as
+    # "no such version", because a fresh clone carries only main as
+    # a local branch (final review 2026-09-06, bugs R-5). A tag and a
+    # commit resolve by themselves, below.
+    if git -C "$SOURCE" rev-parse --verify --quiet "refs/remotes/origin/$wanted^{commit}" >/dev/null; then
+        wanted="origin/$KEEL_REF"
+    elif ! git -C "$SOURCE" rev-parse --verify --quiet "$wanted^{commit}" >/dev/null; then
         if [ -n "$release_asked" ] && git -C "$SOURCE" rev-parse --verify --quiet "$release_asked^{commit}" >/dev/null; then
             wanted="$release_asked"
         elif [ -n "$release_asked" ]; then

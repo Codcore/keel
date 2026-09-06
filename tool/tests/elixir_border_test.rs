@@ -447,9 +447,23 @@ fn the_battery_believes_mix_and_not_the_source() {
     let dir = project("exnext", &test_file_of(&rev));
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
     let (said, _) = keel(&dir, &["next"]);
+    // Wave 0055: the line handed to a person is the line the court
+    // itself runs -- by file and line. `--only` stood here until
+    // then, and over a name with letters past ASCII it excludes
+    // everything, so the advice led nowhere (final review
+    // 2026-09-06, bugs R-12).
+    // The whole command, as this probe has always held it -- only the
+    // command itself changed (review 0055 R-7: the first cut of the
+    // wave left a prefix here, and the number nothing held).
+    let source = std::fs::read_to_string(dir.join("test/toy_test.exs")).unwrap();
+    let declared = source
+        .lines()
+        .position(|line| line.trim_start().starts_with("test \""))
+        .expect("the fixture declares a test")
+        + 1;
     assert!(
-        said.contains("mix test --only 'test:test it works'"),
-        "next hands the tongue's own run line:\n{said}"
+        said.contains(&format!("mix test test/toy_test.exs:{declared}")),
+        "next hands the tongue's own run line, by file and line:\n{said}"
     );
     assert!(
         !said.contains("cargo test"),

@@ -184,12 +184,12 @@ outside `tool/`, so `KEEL_REF=v0.8.9` refuses by name. The number and the tag
 are the operator's line, in this order: bump the crate's version in one commit;
 push the tag `v<version>` on that commit — the workflow builds the release, and
 `release.sh --tag` refuses a tree that answers another number; then bump the pin
-in `keel.toml`, and this repository's CI takes the release road. Until then
-keel's own CI installs by the pin `0.1.0`, which is neither a tag nor a release:
-`install.sh` builds the branch the remote leads with and accepts it only because
-that tree answers `0.1.0`. The installer the generated CI step fetches comes
-from `main`, unpinned: a project pinned to an older keel still runs today's
-script.
+in `keel.toml`, and this repository's CI takes the release road. Since wave 0053 this
+repository's own CI does not install keel at all: it BUILDS the tool from the
+checked-out tree and puts that binary on PATH, so a branch is judged by its own
+binary and not by whatever `main` would fetch. A stranger's project still gets
+the installer step, and the installer it fetches comes from `main`, unpinned: a
+project pinned to an older keel still runs today's script.
 
 **One tool in this repository.** The first implementation — `keel.py` and its
 Python tests in `tests/` — lived at the root beside the crate for forty waves,
@@ -542,7 +542,7 @@ refuses to overwrite it, saying so — it never touches what it did not write.
 |---|---|
 | `strict` (default) | the agent, on its own judgement |
 | `soft` | the agent, on its own judgement, and the commit court is advisory |
-| `manual` | only you, by typing the slash command |
+| `manual` | only you, by typing the slash command — the session hook still puts the step into the agent's context, in every mode |
 
 Two things this table used to claim and does not:
 

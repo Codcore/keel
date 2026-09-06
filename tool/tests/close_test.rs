@@ -305,6 +305,10 @@ fn closure_needs_review_file() {
         "and is not closed by the fact of merge before that:\n{out}"
     );
     write(&dir, "keel/reviews/0013-tidy.md", "# Рецензія\n\nok\n");
+    // Committed, because §9.9 puts the record into history and wave
+    // 0055 made both courts read it there: a report lying in the
+    // working tree merges with nothing.
+    commit_all(&dir);
     let (out2, err2, _) = keel(&["close", dir.to_str().unwrap()]);
     let out2 = format!("{out2}{err2}");
     // With the report the merge is its closure -- and "closed by the
@@ -327,8 +331,9 @@ fn closure_needs_review_file() {
         "and once the wave file stands in main, merging closed it:\n{out3}"
     );
 
-    // The report lands next to the wave -- closed.
+    // The report lands next to the wave, in history -- closed.
     write(&dir, "keel/reviews/0010-full.md", "# Рецензія\n\nok\n");
+    commit_all(&dir);
     let (out, err, _code) = keel(&["close", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(

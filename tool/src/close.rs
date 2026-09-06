@@ -60,10 +60,13 @@ pub(crate) enum State {
 /// waves. The first version of this constant said 4 GiB from the
 /// ceiling and refused with 3.5 GiB free, where the work would have
 /// finished with 2.2 GiB to spare; the second said 2 GiB and was
-/// under the measured weight. Three gibibytes is the measured
-/// weight, rounded up to whole gibibytes, and the word carries this
-/// number and no other.
-const NEEDED_BYTES: u64 = 3 * 1024 * 1024 * 1024;
+/// under the measured weight; the third said 3 GiB and was under it
+/// again -- a closing of wave 0055 left 3.7 GiB in this project's own
+/// target (review 0055 R-10), and a guard that undercounts by a
+/// quarter lets through exactly the run it stands to stop. The
+/// number is the measured weight rounded up to whole gibibytes, and
+/// the word carries this number and no other.
+const NEEDED_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 /// Free bytes on the filesystem holding this project, or nothing
 /// when the question cannot be asked -- a court that cannot see the
@@ -318,6 +321,10 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // The project's ci follows through the same gate (wave 0019).
     let mut verify_count: u64 = 0;
     let mut verify_blockers = 0usize;
+    // Counted apart from the broken ones: a promise whose proof did
+    // not run is not a broken promise, and one word for both would
+    // say of a distrusted command that it failed (wave 0055).
+    let mut verify_unrun = 0usize;
     let mut verify_lines: Vec<String> = Vec::new();
     for contract in &scan.contracts {
         if contract.withdrawn.is_some() {
@@ -328,10 +335,18 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         };
         verify_count += 1;
         if !crate::trust::trusted(&config, command) {
+            // A proof that did not run is not a proof, and this
+            // court says so in its footer too (wave 0055): it used to
+            // print "no blockers" right under the row naming the
+            // command that did not run (final review 2026-09-06, bugs
+            // R-13). The VERDICT of distrust stays check's, as wave
+            // 0010 promised -- this court does not duplicate the
+            // finding, and its exit is unchanged.
             verify_lines.push(ta(
                 "close-verify-untrusted",
                 targs!("command" => command.clone(), "contract" => contract.slug.clone()),
             ));
+            verify_unrun += 1;
             continue;
         }
         match run_command(root, command) {
@@ -404,14 +419,24 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // contract's proof; untrusted, none, undecided and absent are
     // each a word, never a run. "Trusted" means "runs".
     let mut ci_blocker = 0usize;
+    let mut ci_unrun = false;
     let ci_line = match config.ci.as_deref() {
         None => t("close-ci-absent"),
         Some("") => t("close-ci-undecided"),
         Some("none") => t("close-ci-none"),
-        Some(command) if !crate::trust::trusted(&config, command) => ta(
-            "close-ci-untrusted",
-            targs!("command" => command.to_string()),
-        ),
+        Some(command) if !crate::trust::trusted(&config, command) => {
+            // The exit stays check's: wave 0010 promised that
+            // distrust is check's verdict and this court does not
+            // duplicate the finding, and that promise is alive. What
+            // wave 0055 ends is the CONTRADICTION -- the footer said
+            // "no blockers" under a row saying a proof did not run
+            // (final review 2026-09-06, bugs R-13).
+            ci_unrun = true;
+            ta(
+                "close-ci-untrusted",
+                targs!("command" => command.to_string()),
+            )
+        }
         Some(command) => match run_command(root, command) {
             Ok(()) => ta("close-ci-passed", targs!("command" => command.to_string())),
             Err(words) => {
@@ -547,6 +572,21 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         ));
         report.push('\n');
     }
+    if verify_unrun > 0 {
+        report.push_str(&ta(
+            "close-verify-unproven",
+            targs!("count" => verify_unrun as u64),
+        ));
+        report.push('\n');
+    }
+    // The project's own gate, when trust does not let it run: the
+    // first cut of this wave took the "no blockers" footer away and
+    // put nothing in its place, so a person running only this court
+    // saw a closed wave and no summary line at all (review 0055 R-6).
+    if ci_unrun {
+        report.push_str(&t("close-ci-unproven"));
+        report.push('\n');
+    }
     if form_blockers > 0 {
         report.push_str(&ta(
             "close-form-blockers",
@@ -586,7 +626,13 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             targs!("wave" => branch.unwrap_or_default()),
         ));
         report.push('\n');
-    } else if verify_blockers == 0 && form_blockers == 0 && ci_blocker == 0 && red_tests == 0 {
+    } else if verify_blockers == 0
+        && verify_unrun == 0
+        && !ci_unrun
+        && form_blockers == 0
+        && ci_blocker == 0
+        && red_tests == 0
+    {
         // The branch's own wave may be named and unblocked at once:
         // a light wave waiting for its merge (review 0052 R-13 -- the
         // old word called such a branch "not named as an unclosed
@@ -735,6 +781,53 @@ pub(crate) fn nothing_to_prove(wave: &docs::Wave) -> bool {
     wave.scenarios.is_empty()
 }
 
+/// The review report of a wave as HISTORY carries it (§9.9; wave
+/// 0055).
+///
+/// `None` where no commit carries the file. The final review of
+/// 2026-09-06 (bugs R-7) measured the closing court reading the
+/// working tree: a report written and never committed made a wave
+/// "closed", and the merge that followed carried no record at all --
+/// the very thing §9.9 puts into history. Where there is no history
+/// to ask -- no git, or a repository whose HEAD is not born yet --
+/// the file on disk is all there is, and it is read.
+pub(crate) fn report_text(root: &Path, slug: &str) -> Option<String> {
+    let relative = format!("keel/reviews/{slug}.md");
+    // One git call on the road that answers (review 0055 R-13: this
+    // court asks it once per wave, and asking twice doubled the
+    // processes a `keel status` over fifty-five waves spends).
+    //
+    // `HEAD:<path>` is read from the top of the WORK TREE, not from
+    // the directory git was pointed at: a keel project living in a
+    // subdirectory of a bigger repository had its report in history
+    // and this court could not see it (review 0055 R-3). `HEAD:./…`
+    // is git's own spelling for "relative to here".
+    let shown = scope::git_at(root)
+        .arg("show")
+        .arg(format!("HEAD:./{relative}"))
+        .output();
+    match shown {
+        Ok(out) if out.status.success() => {
+            return Some(String::from_utf8_lossy(&out.stdout).into_owned());
+        }
+        // git ran and did not find it: absent from history -- unless
+        // there is no history to ask, and then the file on disk is
+        // all there is.
+        Ok(_) => {
+            let born = scope::git_at(root)
+                .args(["rev-parse", "--verify", "--quiet", "HEAD"])
+                .output()
+                .is_ok_and(|out| out.status.success());
+            if born {
+                return None;
+            }
+        }
+        // git did not run at all.
+        Err(_) => {}
+    }
+    std::fs::read_to_string(root.join(&relative)).ok()
+}
+
 pub(crate) fn wave_state(
     root: &Path,
     wave: &docs::Wave,
@@ -750,16 +843,16 @@ pub(crate) fn wave_state(
     // 2026-09-04): merging is its closure only once the report lies
     // beside it.
     if nothing_to_prove(wave) {
-        let report = root.join("keel/reviews").join(format!("{}.md", wave.slug));
         // An empty file is no review here either -- one word about
         // one state in every court (review 0037 R-2 for the full
-        // wave; global review 2026-09-06, methodology R-13; wave 0053).
-        match std::fs::read_to_string(&report) {
-            Err(_) => return Ok(State::Progress(vec![t("close-lack-review")])),
-            Ok(text) if text.split_whitespace().next().is_none() => {
+        // wave; global review 2026-09-06, methodology R-13; wave 0053),
+        // and a file no commit carries is not one at all (wave 0055).
+        match report_text(root, &wave.slug) {
+            None => return Ok(State::Progress(vec![t("close-lack-review")])),
+            Some(text) if text.split_whitespace().next().is_none() => {
                 return Ok(State::Progress(vec![t("close-lack-review-empty")]));
             }
-            Ok(_) => {}
+            Some(_) => {}
         }
         // "Closed by the fact of merge" only where the fact
         // stands: the wave file in main. The first reading
@@ -927,12 +1020,12 @@ pub(crate) fn wave_state(
     // one -- review 0037 R-2 measured `: > file` passing the gate,
     // with the verdict then claiming "the review report is beside
     // it", which is more than the machine ever looked at.
-    match std::fs::read_to_string(root.join("keel/reviews").join(format!("{}.md", wave.slug))) {
-        Err(_) => lacks.push(t("close-lack-review")),
-        Ok(text) if text.split_whitespace().next().is_none() => {
+    match report_text(root, &wave.slug) {
+        None => lacks.push(t("close-lack-review")),
+        Some(text) if text.split_whitespace().next().is_none() => {
             lacks.push(t("close-lack-review-empty"))
         }
-        Ok(_) => {}
+        Some(_) => {}
     }
 
     if lacks.is_empty() {

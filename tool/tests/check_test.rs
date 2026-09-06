@@ -113,9 +113,15 @@ fn check_reports_every_file() {
         out.contains("held (§7.6") || out.contains("форми контрактів (§7.6"),
         "contract holding among the checked now:\n{out}"
     );
+    // What wave 0011 promised, said the way this release says it:
+    // the things NOT checked are counted in the summary, never left
+    // to a reader to notice. (The old assert hunted "not yet
+    // checked", which no line of this tool has said for many waves --
+    // an assert that cannot fail; final review 2026-09-06, tests
+    // R-5.)
     assert!(
-        !out.contains("not yet checked"),
-        "the unchecked line has left the report (0011):\n{out}"
+        out.contains("not checked (above)"),
+        "the summary counts what was not checked (0011):\n{out}"
     );
 
     // Without the broken file -- exit 0; honesty about the unchecked stays.
