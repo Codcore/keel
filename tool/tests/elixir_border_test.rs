@@ -452,9 +452,18 @@ fn the_battery_believes_mix_and_not_the_source() {
     // then, and over a name with letters past ASCII it excludes
     // everything, so the advice led nowhere (final review
     // 2026-09-06, bugs R-12).
+    // The whole command, as this probe has always held it -- only the
+    // command itself changed (review 0055 R-7: the first cut of the
+    // wave left a prefix here, and the number nothing held).
+    let source = std::fs::read_to_string(dir.join("test/toy_test.exs")).unwrap();
+    let declared = source
+        .lines()
+        .position(|line| line.trim_start().starts_with("test \""))
+        .expect("the fixture declares a test")
+        + 1;
     assert!(
-        said.contains("mix test test/toy_test.exs:"),
-        "next hands the tongue's own run line:\n{said}"
+        said.contains(&format!("mix test test/toy_test.exs:{declared}")),
+        "next hands the tongue's own run line, by file and line:\n{said}"
     );
     assert!(
         !said.contains("cargo test"),

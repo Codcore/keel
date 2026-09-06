@@ -243,11 +243,21 @@ fn the_words_lead_somewhere() {
         );
         let (said, code) = keel(&dir, &["next"]);
         assert_eq!(code, 0, "the step is given:\n{said}");
+        // The LINE, not merely the shape of the line: `mix test
+        // <file>:<wrong line>` runs another test entirely (measured),
+        // and the number was the whole point of the change -- yet
+        // nothing held it (review 0055 R-7).
+        let source = fs::read_to_string(dir.join("test/toy_test.exs")).unwrap();
+        let declared = source
+            .lines()
+            .position(|line| line.trim_start().starts_with("test \""))
+            .expect("the fixture declares a test")
+            + 1;
         assert!(
-            said.contains("mix test test/toy_test.exs:"),
-            "the run line is the one the court runs -- by file and line \
-             (`--only` over a name past ASCII excludes everything, \
-             measured):\n{said}"
+            said.contains(&format!("mix test test/toy_test.exs:{declared}")),
+            "the run line is the one the court runs -- by file and by \
+             the line the declaration stands on ({declared}); `--only` \
+             over a name past ASCII excludes everything, measured:\n{said}"
         );
         assert!(
             !said.contains("--only"),
