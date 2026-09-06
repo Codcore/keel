@@ -400,17 +400,18 @@ fn test_target(crate_dir: &Path, file: &Path) -> Result<String, Refusal> {
         .unwrap_or(file)
         .to_string_lossy()
         .replace('\\', "/");
+    // `path = "./tests/w_test.rs"` is the same file to cargo (measured:
+    // `cargo test --test renamed` runs it), so the leading `./` is not
+    // part of the comparison (review 0051 R-8).
+    let same = |declared: &str| {
+        declared.replace('\\', "/").trim_start_matches("./") == relative.trim_start_matches("./")
+    };
     let renamed = value
         .get("test")
         .and_then(|t| t.as_array())
         .into_iter()
         .flatten()
-        .find(|table| {
-            table
-                .get("path")
-                .and_then(|p| p.as_str())
-                .is_some_and(|p| p.replace('\\', "/") == relative)
-        })
+        .find(|table| table.get("path").and_then(|p| p.as_str()).is_some_and(same))
         .and_then(|table| table.get("name").and_then(|n| n.as_str()))
         .map(str::to_string);
     Ok(renamed.unwrap_or(stem))

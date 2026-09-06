@@ -225,7 +225,7 @@ pub fn ran(said: &str) -> Vec<(String, String, String)> {
         if let Some((first, rest)) = trimmed.split_once(' ')
             && VERDICTS.contains(&first)
         {
-            let node = rest.split(" - ").next().unwrap_or(rest).trim();
+            let node = summary_node(rest);
             if let Some((file, name)) = node.split_once("::") {
                 take(file, name, first);
             }
@@ -254,6 +254,52 @@ pub fn ran(said: &str) -> Vec<(String, String, String)> {
         }
     }
     out
+}
+
+/// The node of a `-rA` summary line, after its verdict word: the
+/// node runs up to its function name and its `[params]`, and only
+/// then may ` - <message>` follow. Cutting at the first ` - ` lost a
+/// node whose DIRECTORY carried the dash (`tests/my - dir/…`) --
+/// which only the progress line saved, and a project `addopts = "-q"`
+/// silences that line (review 0051 R-14). A line without `::` keeps
+/// the old cut.
+fn summary_node(rest: &str) -> &str {
+    let rest = rest.trim();
+    let Some(sep) = rest.find("::") else {
+        return rest.split(" - ").next().unwrap_or(rest).trim();
+    };
+    let bytes = rest.as_bytes();
+    let mut end = sep + 2;
+    // The function (or `Class::method`) name: identifier characters
+    // and further `::`.
+    while end < bytes.len() {
+        let c = rest[end..].chars().next().unwrap();
+        if c.is_alphanumeric() || c == '_' || c == ':' {
+            end += c.len_utf8();
+        } else {
+            break;
+        }
+    }
+    // `[params]`, with the brackets balanced: an id may carry ` - `.
+    if bytes.get(end) == Some(&b'[') {
+        let mut depth = 0usize;
+        let mut at = end;
+        for (offset, c) in rest[end..].char_indices() {
+            match c {
+                '[' => depth += 1,
+                ']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        at = end + offset + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        end = if at > end { at } else { rest.len() };
+    }
+    rest[..end].trim()
 }
 
 /// What a run came to, read from how pytest left -- and, where a

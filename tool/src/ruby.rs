@@ -567,6 +567,16 @@ fn strip_ansi(text: &str) -> String {
 /// spec_helper`). `SPEC_OPTS` is dropped: rspec reads it, and a
 /// `--tag` there filtered the run away (measured). `--no-color`, or
 /// the error's words carry colour codes.
+/// This run's own directory in the system's temp dir, removed when
+/// the run is over -- however it is over.
+struct Home(std::path::PathBuf);
+
+impl Drop for Home {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 /// What one rspec run said: its JSON (from the file), and its voice
 /// on stdout and stderr, where a load error is narrated.
 struct Said {
@@ -591,7 +601,13 @@ fn rspec(root: &Path, args: &[String]) -> Result<Said, Refusal> {
         reason: ta("adapter-rspec-tmp", targs!("error" => e.to_string())),
         instead: t("adapter-rspec-tmp-instead"),
     })?;
-    let out_file = home.join("out.json");
+    // And gone with the run whichever way the run ends: the first
+    // reading removed it after a successful launch only, and a
+    // refusal -- rspec not on PATH -- left it standing in the shared
+    // temp dir (review 0051 R-5). The guard removes it on every road
+    // out of this function, the `?` ones included.
+    let home = Home(home);
+    let out_file = home.0.join("out.json");
     let mut command = Command::new("rspec");
     command
         .args(["--format", "json", "--out"])
@@ -615,7 +631,7 @@ fn rspec(root: &Path, args: &[String]) -> Result<Said, Refusal> {
         instead: t("adapter-rspec-failed-instead"),
     })?;
     let json = std::fs::read_to_string(&out_file);
-    let _ = std::fs::remove_dir_all(&home);
+    drop(home);
     let voice = format!(
         "{}{}",
         String::from_utf8_lossy(&out.stdout),

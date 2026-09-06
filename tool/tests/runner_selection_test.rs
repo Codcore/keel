@@ -124,6 +124,57 @@ fn both_courts_green(dir: &Path, what: &str) {
 fn a_test_is_selected_as_its_runner_selects_it() {
     let rev = keel::rev::text_rev(BODY);
 
+    // --- elixir: the line is exact -- a red one-liner right above the
+    // tagged test and one right below, so a line off by one runs a red
+    // test and the gate says so (review 0051 R-4; the closing court
+    // is not asked here: it refuses a red test nobody claims, which is
+    // its own court) ---
+    if common::machine_has("mix").ready() {
+        let dir = keel_sandbox("selectline");
+        std::fs::create_dir_all(dir.join("lib")).unwrap();
+        std::fs::create_dir_all(dir.join("test")).unwrap();
+        std::fs::write(
+            dir.join("mix.exs"),
+            "defmodule Toy.MixProject do\n  use Mix.Project\n  def project, do: [app: :toy, version: \"0.1.0\", elixir: \"~> 1.14\"]\n  def application, do: []\nend\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("lib/toy.ex"),
+            "defmodule Toy do\n  def works, do: true\nend\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("test/test_helper.exs"), "ExUnit.start()\n").unwrap();
+        std::fs::write(
+            dir.join("test/toy_test.exs"),
+            format!("defmodule ToyTest do\n  use ExUnit.Case\n\n  test \"falls above\", do: assert(false)\n  # proves: it-works@{rev}\n  test \"ünïcode holds\", do: assert(Toy.works())\n  test \"falls below\", do: assert(false)\nend\n"),
+        )
+        .unwrap();
+        frame(&dir, "elixir", "lib/toy.ex");
+        let (said, code) = gate(&dir);
+        assert_eq!(
+            code, 0,
+            "elixir: the gate runs the tagged line and no neighbour:\n{said}"
+        );
+        assert!(
+            !said.contains("не виконав") && !said.contains("падає"),
+            "elixir: neither `not run` nor a neighbour's red:\n{said}"
+        );
+    }
+    // The rule under it: a line that names no test -- mix says "All
+    // tests have been excluded" and leaves with 0 -- is `not run`, not
+    // green (contract tool-adapter-elixir; review 0051 R-12: the
+    // mutant without this branch survived every probe of the wave).
+    assert!(
+        matches!(
+            keel::elixir::classify(
+                "Excluding tags: [:test]\nIncluding tags: [line: \"1\"]\n\nAll tests have been excluded.\n\nFinished in 0.00s\n0 tests, 0 failures\n",
+                0
+            ),
+            keel::adapter::Outcome::NotRun
+        ),
+        "a line that names no test is `not run`, whatever the exit code"
+    );
+
     // --- elixir: a name beyond ASCII, selected by the file's line ---
     if common::machine_has("mix").ready() {
         let dir = keel_sandbox("selectelixir");
@@ -210,6 +261,58 @@ fn a_test_is_selected_as_its_runner_selects_it() {
     .unwrap();
     frame(&dir, "rust", "src/lib.rs");
     both_courts_green(&dir, "cargo");
+    // The same target spelled `./tests/w_test.rs`, which cargo accepts
+    // as the same file (review 0051 R-8).
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[[test]]\nname = \"renamed\"\npath = \"./tests/w_test.rs\"\n",
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &[
+            "commit",
+            "-q",
+            "--no-verify",
+            "-m",
+            "work: the path spelled with ./",
+        ],
+    );
+    let (said, code) = gate(&dir);
+    assert_eq!(
+        code, 0,
+        "cargo: `./tests/w_test.rs` names the same target:\n{said}"
+    );
+
+    // The `-rA` summary read by node shape, not cut at the first ` - `:
+    // a dash in the directory, a dash in a parametrize id, and the
+    // message after (review 0051 R-14; a project `addopts = "-q"`
+    // silences the progress line that used to save it).
+    let ran = keel::python::ran(
+        "PASSED tests/my - dir/test_x.py::test_a\nFAILED tests/x.py::test_b[c - d] - AssertionError: x - y\nERROR tests/x.py::TestK::test_c - boom - twice\n",
+    );
+    assert_eq!(
+        ran,
+        vec![
+            (
+                "tests/my - dir/test_x.py".to_string(),
+                "test_a".to_string(),
+                "PASSED".to_string()
+            ),
+            (
+                "tests/x.py".to_string(),
+                "test_b[c - d]".to_string(),
+                "FAILED".to_string()
+            ),
+            (
+                "tests/x.py".to_string(),
+                "TestK::test_c".to_string(),
+                "ERROR".to_string()
+            ),
+        ],
+        "the node is read whole: the dash in a directory or an id is not the message"
+    );
 
     // --- pytest: a directory with a space ---
     if common::machine_has("pytest").ready() {
@@ -233,6 +336,77 @@ fn a_test_is_selected_as_its_runner_selects_it() {
         .unwrap();
         frame(&dir, "python", "src/toy/__init__.py");
         both_courts_green(&dir, "python");
+    }
+
+    // --- rspec: the directory of the run is gone on a refusal too
+    // (review 0051 R-5), and a temp dir that cannot be written is
+    // named for what it is (R-9) ---
+    if common::machine_has("ruby").ready() {
+        let dir = keel_sandbox("selectrspectmp");
+        std::fs::create_dir_all(dir.join("lib")).unwrap();
+        std::fs::create_dir_all(dir.join("spec")).unwrap();
+        std::fs::create_dir_all(dir.join("tmp")).unwrap();
+        std::fs::write(dir.join("lib/toy.rb"), "module Toy\nend\n").unwrap();
+        std::fs::write(
+            dir.join("spec/toy_spec.rb"),
+            format!(
+                "RSpec.describe Toy do\n  # proves: it-works@{rev}\n  it \"works\" do\n  end\nend\n"
+            ),
+        )
+        .unwrap();
+        frame(&dir, "ruby", "lib/toy.rb");
+        let msg = dir.join("COMMIT_EDITMSG");
+        std::fs::write(&msg, "work: тіло\n").unwrap();
+        // A PATH with git on it and no rspec: the run is refused
+        // before rspec speaks, and the court still knows its branch.
+        std::fs::create_dir_all(dir.join("bin")).unwrap();
+        let git_path = String::from_utf8(
+            Command::new("sh")
+                .args(["-c", "command -v git"])
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(git_path.trim(), dir.join("bin/git")).unwrap();
+        let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+            .args(["gate", msg.to_str().unwrap(), dir.to_str().unwrap()])
+            .env("PATH", dir.join("bin"))
+            .env("TMPDIR", dir.join("tmp"))
+            .output()
+            .unwrap();
+        let said = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_ne!(out.status.code(), Some(0), "rspec is not there:\n{said}");
+        let left: Vec<_> = std::fs::read_dir(dir.join("tmp"))
+            .unwrap()
+            .flatten()
+            .collect();
+        assert!(
+            left.is_empty(),
+            "and the run's directory is gone with the refusal: {left:?}\n{said}"
+        );
+        // A temp dir that does not exist: the refusal says so, and the
+        // instead speaks of TMPDIR, not of a name already taken.
+        let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+            .args(["gate", msg.to_str().unwrap(), dir.to_str().unwrap()])
+            .env("TMPDIR", dir.join("nowhere"))
+            .output()
+            .unwrap();
+        let said = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_ne!(out.status.code(), Some(0), "no temp dir, no run:\n{said}");
+        assert!(
+            said.contains("тимчасову теку для JSON rspec не створити") && said.contains("TMPDIR"),
+            "the refusal names the directory it could not make and the instead names TMPDIR:\n{said}"
+        );
     }
 
     // --- rspec: the JSON lies in a directory of its own, made for
