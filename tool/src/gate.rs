@@ -34,10 +34,11 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
     // 0, over a red test (global review 2026-09-06, bugs R-5; wave
     // 0052). Under `verbatim` a `#` subject is neither a birth nor
     // work, and the court is only stricter.
+    let comment = comment_mark(root);
     let subject = message
         .lines()
         .map(str::trim)
-        .find(|line| !line.is_empty() && !line.starts_with('#'))
+        .find(|line| !line.is_empty() && !line.starts_with(comment.as_str()))
         .unwrap_or("")
         .to_string();
     let mutant = mutant_line(&message);
@@ -103,20 +104,28 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
             .adapter
             .clone()
             .unwrap_or_else(|| t("gate-adapter-absent-name"));
-        if claims(&subject, wave) {
-            Verdict::Refuse(ta(
+        match claim(&subject, wave) {
+            // What this court would have to RUN it cannot: a refusal.
+            Claim::Birth | Claim::Work => Verdict::Refuse(ta(
                 "gate-adapter-refuses",
                 targs!("name" => name, "known" => crate::config::Language::known()),
-            ))
-        } else {
-            let report = format!(
-                "{mode_line}\n{}\n",
-                ta(
-                    "gate-adapter-unjudged",
-                    targs!("name" => name, "known" => crate::config::Language::known()),
-                )
-            );
-            return Ok((report, 0));
+            )),
+            // What it judges without running -- a chore has no test
+            // to run, a typo is a typo under any adapter -- it judges
+            // as under a known one (review 0052 R-1, R-11: the first
+            // reading refused a chore, and dressed `docs: x` and
+            // `Work: x` in the adapter's words).
+            Claim::Chore | Claim::Typo => judge(root, wave, &subject, mutant)?,
+            Claim::Outside => {
+                let report = format!(
+                    "{mode_line}\n{}\n",
+                    ta(
+                        "gate-adapter-unjudged",
+                        targs!("name" => name, "known" => crate::config::Language::known()),
+                    )
+                );
+                return Ok((report, 0));
+            }
         }
     } else {
         judge(root, wave, &subject, mutant)?
@@ -143,22 +152,66 @@ enum Verdict {
     Refuse(String),
 }
 
-/// Whether the subject claims something this court judges: a birth,
-/// a transform of the wave, or the slug-shaped and capitalized twins
-/// that `judge` refuses as typos. Everything else is outside the
-/// judgement.
-fn claims(subject: &str, wave: &docs::Wave) -> bool {
+/// What the subject claims, as this court sorts it.
+enum Claim {
+    /// `red: <scenario>` -- a test must be run.
+    Birth,
+    /// `<transform>: …` of a transform with promises -- tests must run.
+    Work,
+    /// `<transform>: …` of a chore -- nothing to run (§2.11).
+    Chore,
+    /// A slug-shaped head unknown to the wave, or the capitalized
+    /// twin of a birth or a transform -- refused as a typo without
+    /// running anything (§8.4).
+    Typo,
+    /// Everything else: merge commits, records of decisions.
+    Outside,
+}
+
+fn claim(subject: &str, wave: &docs::Wave) -> Claim {
     if subject.starts_with("red: ") {
-        return true;
+        return Claim::Birth;
     }
     let Some((head, _)) = subject.split_once(':') else {
-        return false;
+        return Claim::Outside;
     };
     let head = head.trim();
+    if docs::slug_ok(head) {
+        return match wave.transforms.iter().find(|(n, _)| n == head) {
+            Some((_, transform)) => match transform.kind {
+                docs::TransformKind::Implements(_) => Claim::Work,
+                docs::TransformKind::Chore(_) => Claim::Chore,
+            },
+            None => Claim::Typo,
+        };
+    }
     let lower = head.to_lowercase();
-    docs::slug_ok(head)
-        || (docs::slug_ok(&lower)
-            && (lower == "red" || wave.transforms.iter().any(|(n, _)| *n == lower)))
+    if docs::slug_ok(&lower) && (lower == "red" || wave.transforms.iter().any(|(n, _)| *n == lower))
+    {
+        return Claim::Typo;
+    }
+    Claim::Outside
+}
+
+/// The mark git strips a comment line by: `core.commentString`, else
+/// `core.commentChar`, else `#`. A project that set `;` had its
+/// editor's comment block read as the subject again -- the very bug
+/// wave 0052 closed, under another sign (review 0052 R-3). `auto`
+/// is git choosing a sign the message does not contain, which the
+/// hook cannot see: read as `#`, and named a border.
+fn comment_mark(root: &Path) -> String {
+    for key in ["core.commentString", "core.commentChar"] {
+        let out = scope::git_at(root).args(["config", "--get", key]).output();
+        if let Ok(out) = out
+            && out.status.success()
+        {
+            let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !value.is_empty() && value != "auto" {
+                return value;
+            }
+        }
+    }
+    "#".to_string()
 }
 
 /// The judgement proper, mode-blind: what the message claims against

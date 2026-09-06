@@ -132,7 +132,8 @@ fn a_court_that_cannot_judge_does_not_pass() {
         );
     }
     // A slug-shaped head unknown to the wave (`docs: …`) is a typo
-    // refusal on any adapter (§8.4); outside the judgement is a
+    // refusal on any adapter (§8.4), in the typo's own words -- not
+    // the adapter's (review 0052 R-11); outside the judgement is a
     // message with no such head at all.
     let (said, code) = gate(&dir, "Merge branch 'main' into 0001-a-wave\n");
     assert_eq!(
@@ -142,6 +143,41 @@ fn a_court_that_cannot_judge_does_not_pass() {
     assert!(
         said.contains("не суджений"),
         "with the word that the adapter is not this release's:\n{said}"
+    );
+    let (said, code) = gate(&dir, "docs: words only\n");
+    assert_ne!(
+        code, 0,
+        "a slug the wave does not know is a typo refusal:\n{said}"
+    );
+    assert!(
+        said.contains("одрук") && !said.contains("не цього релізу"),
+        "in the typo's words, not the adapter's:\n{said}"
+    );
+    let (said, code) = gate(&dir, "Work: тіло\n");
+    assert_ne!(code, 0, "the capitalized twin is a typo refusal:\n{said}");
+    assert!(
+        said.contains("великі літери") && !said.contains("не цього релізу"),
+        "in the twin's words, not the adapter's:\n{said}"
+    );
+    // A chore has nothing to run, so the court CAN judge it under any
+    // adapter: the pass with the chore's word, as under a known one
+    // (review 0052 R-1: the first reading refused it).
+    let chores = plain_wave().replacen(
+        "transforms:\n",
+        "transforms:\n  tidy:\n    chore: \"прибирання\"\n    files:\n      - README.md\n",
+        1,
+    ) + "## transform: tidy\nтіло\n";
+    let dir = crate_with("cannotchore", "go", &chores);
+    std::fs::write(dir.join("tests/w_test.rs"), &red).unwrap();
+    settle(&dir);
+    let (said, code) = gate(&dir, "tidy: прибрано\n");
+    assert_eq!(
+        code, 0,
+        "a chore under an adapter this release does not lead passes:\n{said}"
+    );
+    assert!(
+        said.contains("chore") && said.contains("§2.11"),
+        "with the chore's own word:\n{said}"
     );
 
     // --- a wave header the reader cannot read: the branch IS the
@@ -177,5 +213,21 @@ fn a_court_that_cannot_judge_does_not_pass() {
     assert!(
         said.contains("падає") && !said.contains("поза судом"),
         "the court read the subject, not the comment:\n{said}"
+    );
+    // And the comment mark is git's own: a project that set
+    // `core.commentChar` to `;` strips `;` lines, not `#` ones
+    // (review 0052 R-3).
+    git(&dir, &["config", "core.commentChar", ";"]);
+    let (said, code) = gate(
+        &dir,
+        "\n; Please enter the commit message for your changes.\n; Lines starting with ';' will be ignored.\nwork: typed after an Enter\n",
+    );
+    assert_ne!(
+        code, 0,
+        "under `core.commentChar = ;` the subject git records is still `work: …`:\n{said}"
+    );
+    assert!(
+        said.contains("падає") && !said.contains("поза судом"),
+        "the court read git's own comment mark:\n{said}"
     );
 }
