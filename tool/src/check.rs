@@ -453,7 +453,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 "{}\n           {}: {instead}",
                 ta(
                     "check-number-twice",
-                    targs!("number" => format!("{number:04}"), "files" => stems.join(", ")),
+                    targs!("number" => format!("{number:04}"), "count" => stems.len() as u64, "files" => stems.join(", ")),
                 ),
                 t("word-instead")
             )),

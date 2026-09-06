@@ -174,12 +174,15 @@ fn the_weight_comes_from_the_file() {
 
     // Two transforms make a wave full -- the FIRST clause of §6.8,
     // which review 0036 R-3 (M8) measured held by nothing at all.
+    // Two chores and nothing else: full by the count alone (§6.8), so
+    // a weight that stopped counting transforms would turn this
+    // fixture green (review 0052 R-14).
     let dir = project("twotransforms");
     git(&dir, &["checkout", "-q", "-b", "0004-d-wave"]);
     std::fs::write(
         dir.join("keel/waves/0004-d-wave.md"),
         format!(
-            "---\nscenarios:\n  gone:\n    covers: []\n    withdrawn: \"знято до старту\"\ntransforms:\n  one:\n    chore: \"перша\"\n    files:\n      - src/lib.rs\n  two:\n    chore: \"друга\"\n    files:\n      - README.md\n{}---\n\n## scenario: gone\nбуло\n\n## transform: one\nтіло\n\n## transform: two\nтіло\n",
+            "---\ntransforms:\n  one:\n    chore: \"перша\"\n    files:\n      - src/lib.rs\n  two:\n    chore: \"друга\"\n    files:\n      - README.md\n{}---\n\n## transform: one\nтіло\n\n## transform: two\nтіло\n",
             decided()
         ),
     )

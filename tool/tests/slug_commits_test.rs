@@ -256,4 +256,12 @@ fn two_waves_with_one_number_are_red() {
         said.contains("0002"),
         "with the same next free number:\n{said}"
     );
+    // The branches count for the next free number too (review 0052
+    // R-12, M19): a branch named 0002-other moves it to 0003.
+    git(&dir, &["branch", "0002-other"]);
+    let (said, _) = keel(&dir, &["check"]);
+    assert!(
+        said.contains("0003"),
+        "the next free number reads the branches, as `keel plan` does:\n{said}"
+    );
 }

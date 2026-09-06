@@ -111,7 +111,7 @@ fn scope_both_ways() {
         "the comparison said aloud:\n{out}"
     );
     assert!(
-        out.contains("merge-base with main"),
+        out.contains("merge-base with the trunk"),
         "the base named:\n{out}"
     );
     assert!(
@@ -225,7 +225,7 @@ fn scope_both_ways() {
         "the base comes from origin/main, no drift flood:\n{out}"
     );
     assert!(
-        out.contains("merge-base with main"),
+        out.contains("merge-base with the trunk"),
         "the base still named as main's:\n{out}"
     );
 
