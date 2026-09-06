@@ -956,10 +956,18 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // (review R-4): a broken document may hide the very command a
     // record answers to, so a skipped court is said aloud instead of
     // an invented door.
-    let trust_court = if scan.refusals.is_empty() {
+    // Trust with nothing declared -- no verify command in a live
+    // contract and no ci in keel.toml -- has nothing to judge and
+    // does not apply, like tags without a wave (review 0054 R-2: the
+    // checked line claimed trust over a project that declared none).
+    let trust_declared =
+        !trust::live_commands(config, &scan.contracts).is_empty() || config.ci.is_some();
+    let trust_court = if !scan.refusals.is_empty() {
+        Court::Unjudged
+    } else if trust_declared {
         Court::Judged
     } else {
-        Court::Unjudged
+        Court::NotApplicable
     };
     let trust_status = if !scan.refusals.is_empty() {
         t("check-trust-skipped-broken")
@@ -1134,6 +1142,11 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             Court::Unjudged => limits.push(ta("check-unjudged", targs!("what" => status))),
         }
     }
+    // One reason, one line (review 0054 R-8): two courts asking the
+    // same comparison pushed the same limit twice, and the count
+    // named one thing as two.
+    let mut seen: std::collections::BTreeSet<String> = Default::default();
+    limits.retain(|limit| seen.insert(limit.clone()));
     for row in &measured {
         writeln!(report, "{row}").unwrap();
     }

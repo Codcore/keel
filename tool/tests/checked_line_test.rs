@@ -119,9 +119,9 @@ fn check_says_only_what_it_judged() {
     );
     let line = checked_line(&said);
     assert!(
-        !line.contains("scope гілки") && !line.contains("тегах тестів"),
-        "the line naming what was checked does not name the scope court or the tag court, \
-         which stood down:\n{line}"
+        !line.contains("scope гілки") && !line.contains("тегах тестів") && !line.contains("довіра"),
+        "the line naming what was checked does not name the scope court, the tag court or the \
+         trust court -- two stood down, the third had nothing declared (review 0054 R-2):\n{line}"
     );
 
     // --- git and an adapter: the same courts ran, and the line says
@@ -168,4 +168,84 @@ fn check_says_only_what_it_judged() {
             .count(),
         "and the summary still counts exactly the limit lines:\n{said}"
     );
+
+    // --- the courts that do not apply say so and are not counted;
+    // the ones that stood down over something are (review 0054 R-5,
+    // R-8) ---
+    let counted = |said: &str| {
+        (
+            summary_unchecked(said),
+            said.lines()
+                .filter(|l| l.starts_with("не перевірено"))
+                .count(),
+        )
+    };
+    // A plan branch: the form court does not run (§8.3) -- printed,
+    // not counted; and on a trunk named otherwise the comparison
+    // that could not happen is one line, not two.
+    git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
+    let (said, _) = keel(&dir, &["check"]);
+    assert!(
+        said.contains("суд форми не біжить"),
+        "the plan branch says the form court does not run:\n{said}"
+    );
+    let (number, lines) = counted(&said);
+    assert_eq!(number, lines, "and the count is the lines:\n{said}");
+    assert!(
+        !checked_line(&said).contains("тримання форми"),
+        "and the form court is not among the checked:\n{said}"
+    );
+    git(&dir, &["branch", "-m", "main", "trunk"]);
+    let (said, _) = keel(&dir, &["check"]);
+    // The remote's absence is its own limit; the trunk's absence --
+    // the comparison that could not happen -- is one line, though two
+    // courts asked for it.
+    let about_trunk = said
+        .lines()
+        .filter(|l| l.starts_with("не перевірено") && l.contains("стовбура"))
+        .count();
+    assert_eq!(
+        about_trunk, 1,
+        "a comparison that could not happen is counted once (review 0054 R-8):\n{said}"
+    );
+    let (number, lines) = counted(&said);
+    assert_eq!(number, lines, "and the count is the lines:\n{said}");
+    git(&dir, &["branch", "-m", "trunk", "main"]);
+    // Research (§4.13): scope is outside judgement by design.
+    git(&dir, &["checkout", "-q", "-b", "spike/idea"]);
+    let (said, _) = keel(&dir, &["check"]);
+    assert!(said.contains("§4.13"), "research is named:\n{said}");
+    let (number, lines) = counted(&said);
+    assert_eq!(number, lines, "and not counted as unchecked:\n{said}");
+    // A broken document: trust over rubble stands down, counted.
+    git(&dir, &["checkout", "-q", "main"]);
+    std::fs::write(dir.join("keel/contracts/broken.md"), "---\nmodule: X\n").unwrap();
+    let (said, _) = keel(&dir, &["check"]);
+    assert!(
+        said.lines()
+            .any(|l| l.starts_with("не перевірено") && l.contains("verify/ci")),
+        "trust over a broken document is a counted stand-down:\n{said}"
+    );
+    let (number, lines) = counted(&said);
+    assert_eq!(number, lines, "and the count is the lines:\n{said}");
+    std::fs::remove_file(dir.join("keel/contracts/broken.md")).unwrap();
+    // The branch of a cancelled wave: outside judgement, not counted.
+    let cancelled = std::fs::read_to_string(dir.join("keel/waves/0001-a-wave.md"))
+        .unwrap()
+        .replacen(
+            "---\nscenarios:",
+            "---\ncancelled: \"передумали\"\nscenarios:",
+            1,
+        );
+    git(&dir, &["checkout", "-q", "0001-a-wave"]);
+    std::fs::write(dir.join("keel/waves/0001-a-wave.md"), cancelled).unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "--no-verify", "-m", "called off"]);
+    let (said, _) = keel(&dir, &["check"]);
+    assert!(
+        said.contains("скасован"),
+        "the cancelled wave's branch is named:\n{said}"
+    );
+    let (number, lines) = counted(&said);
+    assert_eq!(number, lines, "and not counted as unchecked:\n{said}");
 }

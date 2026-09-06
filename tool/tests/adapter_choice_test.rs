@@ -161,10 +161,23 @@ fn the_adapter_is_chosen_by_name() {
             .any(|l| l.starts_with("не перевірено") && l.contains("теги тестів не звірялись")),
         "the tag court's stand-down is a line counted as not checked:\n{said}"
     );
-    assert!(
-        said.contains(&format!("{unchecked} ре")) || said.contains(&format!("{unchecked} річ")),
+    let summary = said
+        .lines()
+        .find(|l| l.starts_with("підсумок"))
+        .expect("a summary line");
+    let counted: usize = summary
+        .split(',')
+        .find(|piece| piece.contains("не перевірено"))
+        .and_then(|piece| {
+            piece
+                .split_whitespace()
+                .find_map(|word| word.parse::<usize>().ok())
+        })
+        .unwrap_or(0);
+    assert_eq!(
+        counted, unchecked,
         "and the summary counts that stand-down rather than reading \
-         as a clean green ({unchecked} lines):\n{said}"
+         as a clean green:\n{said}"
     );
 }
 
