@@ -132,15 +132,32 @@ fn a_court_stricter_than_the_norm_says_so() {
     ] {
         let word = entry(&uk, key);
         assert!(
-            word.contains("суворіше за букву") && word.contains("бо"),
+            word.contains("суворіше за букву") && word.contains(", бо "),
             "{key} (uk) says it is stricter than the letter, and why:\n{word}"
         );
         let word = entry(&en, key);
         assert!(
-            word.contains("stricter than the letter") && word.contains("because"),
+            word.contains("stricter than the letter") && word.contains(", because "),
             "{key} (en) says it is stricter than the letter, and why:\n{word}"
         );
     }
+    // The red birth's words in both tongues (review 0053 R-5: the
+    // English side was held by nothing).
+    let word = entry(&uk, "gate-red-pass-ruby");
+    assert!(
+        word.contains("не розрізняє") && word.contains("§7.12"),
+        "gate-red-pass-ruby (uk) carries ruby's border:\n{word}"
+    );
+    let word = entry(&en, "gate-red-pass-ruby");
+    assert!(
+        word.contains("does not tell a fall from a broken build") && word.contains("§7.12"),
+        "gate-red-pass-ruby (en) carries ruby's border:\n{word}"
+    );
+    assert!(
+        entry(&uk, "gate-red-pass").contains("справді падає")
+            && entry(&en, "gate-red-pass").contains("truly fails"),
+        "and the plain word stays plain in both tongues"
+    );
 
     // --- the red birth's word carries the tongue's border: over
     // ruby a fall is not told from a broken build by the exit code
