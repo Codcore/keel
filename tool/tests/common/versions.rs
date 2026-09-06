@@ -42,6 +42,16 @@ pub fn git(dir: &Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
+/// The target rustc names this machine by -- the word a release is
+/// named with (wave 0048), asked of rustc itself and never guessed.
+pub fn host() -> String {
+    let out = Command::new("rustc").arg("-vV").output().unwrap();
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .find_map(|line| line.strip_prefix("host: ").map(str::to_string))
+        .expect("rustc names a host")
+}
+
 fn crate_file(version: &str) -> String {
     format!("[package]\nname = \"keel\"\nversion = \"{version}\"\n")
 }

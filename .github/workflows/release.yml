@@ -1,0 +1,37 @@
+# Release (wave 0048): on a tag `v*`, build the tool on each target,
+# attest where it came from, and publish the archives with their
+# checksums. The build is `release.sh` -- the same script a person
+# runs -- so what the release carries is what `sh release.sh` writes.
+name: release
+on:
+  push:
+    tags:
+      - "v*"
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      # The toolchain rust-toolchain.toml names, not whatever stable
+      # is today (wave 0044).
+      - run: rustup show active-toolchain || rustup toolchain install
+      - run: sh release.sh --out dist
+      # Provenance: GitHub signs what this job built, and
+      # `gh attestation verify <archive> --repo Codcore/keel` checks
+      # it. The launcher checks the sha256 beside the archive, not
+      # this signature -- gh is not a thing every machine has.
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/keel-*.tar.gz
+      - run: gh release create "$GITHUB_REF_NAME" --verify-tag --notes "keel $GITHUB_REF_NAME" dist/* || gh release upload "$GITHUB_REF_NAME" dist/*
+        env:
+          GH_TOKEN: ${{ github.token }}

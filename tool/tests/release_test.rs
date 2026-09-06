@@ -13,16 +13,15 @@
 mod common;
 
 use common::sandbox;
-use common::versions::world;
+use common::versions::{host, world};
 use std::path::Path;
 use std::process::Command;
 
-/// The real release.sh, run in a tree with the stub cargo first on PATH.
+/// The real release.sh -- the copy standing in the tree it releases,
+/// as the workflow and a person have it -- with the stub cargo first
+/// on PATH.
 fn release(tree: &Path, stub: &Path, args: &[&str]) -> (String, i32) {
-    let script = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("release.sh");
+    let script = tree.join("release.sh");
     let path = format!(
         "{}:{}",
         stub.display(),
@@ -60,16 +59,6 @@ fn sh(dir: &Path, line: &str) -> (String, i32) {
         ),
         out.status.code().unwrap_or(-1),
     )
-}
-
-/// The target rustc names this machine by -- the same word the script
-/// must use.
-fn host() -> String {
-    let out = Command::new("rustc").arg("-vV").output().unwrap();
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .find_map(|line| line.strip_prefix("host: ").map(str::to_string))
-        .expect("rustc names a host")
 }
 
 /// proves: a-release-is-built-by-one-script@27bfe9
