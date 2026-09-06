@@ -236,3 +236,137 @@ fn the_launcher_fetches_a_missing_version_aloud() {
         "a ref takes the git road, and no release URL is built from it:\n{said}"
     );
 }
+
+/// The real install.sh against the world, with the release server set
+/// and the stub `cargo` on PATH or not -- without it, the only road
+/// to a binary is the release.
+fn install_with(w: &World, git_ref: &str, releases: &str, cargo_on_path: bool) -> (String, i32) {
+    let installer = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("install.sh");
+    let inherited = std::env::var("PATH").unwrap_or_default();
+    let path = if cargo_on_path {
+        format!("{}:{inherited}", w.stub.display())
+    } else {
+        // Every real cargo off the PATH too: a bare PATH of the
+        // system's own directories, which carry git, tar and sha256sum
+        // but no cargo (asserted below).
+        inherited
+            .split(':')
+            .filter(|dir| !dir.contains("cargo") && !dir.contains("rustup"))
+            .collect::<Vec<_>>()
+            .join(":")
+    };
+    let out = Command::new("sh")
+        .arg(installer)
+        .current_dir(&w.dir)
+        .env("PATH", path)
+        .env("KEEL_REPO", &w.repo)
+        .env("KEEL_HOME", &w.home)
+        .env("KEEL_BIN", &w.bin)
+        .env("KEEL_REF", git_ref)
+        .env("KEEL_RELEASES", releases)
+        .output()
+        .unwrap();
+    (
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        ),
+        out.status.code().unwrap_or(-1),
+    )
+}
+
+/// proves: the-installer-takes-the-release-before-the-source@7dd774
+#[test]
+fn the_installer_takes_the_release_before_the_source() {
+    let dir = sandbox("installrelease");
+    let w = world(&dir);
+    let releases = serve(&dir, "v2.0.0", "2.0.0", false);
+
+    // The PATH without cargo really has none -- or the case below
+    // proves nothing.
+    let bare: String = std::env::var("PATH")
+        .unwrap_or_default()
+        .split(':')
+        .filter(|dir| !dir.contains("cargo") && !dir.contains("rustup"))
+        .collect::<Vec<_>>()
+        .join(":");
+    let out = Command::new("sh")
+        .args(["-c", "command -v cargo"])
+        .env("PATH", &bare)
+        .output()
+        .unwrap();
+    assert!(
+        !out.status.success(),
+        "the bare PATH must not carry cargo, or this probe measures nothing"
+    );
+
+    // A version tag with a published release: installed from the
+    // archive -- no cargo, no clone, no build -- with its records, and
+    // the launcher runs it.
+    let (said, code) = install_with(&w, "v2.0.0", &releases, false);
+    assert_eq!(code, 0, "the release is taken without cargo:\n{said}");
+    assert!(
+        said.contains("fetched") && said.contains("v2.0.0") && said.contains("verified"),
+        "and the installer says it took the release and checked it:\n{said}"
+    );
+    let home = w.home.join("versions").join("v2.0.0");
+    assert!(
+        home.join("keel").is_file(),
+        "the binary stands in its home:\n{said}"
+    );
+    assert_eq!(
+        fs::read_to_string(home.join(".keel-version"))
+            .unwrap()
+            .trim(),
+        "2.0.0"
+    );
+    assert_eq!(
+        fs::read_to_string(home.join(".keel-ref")).unwrap().trim(),
+        "v2.0.0"
+    );
+    let sum = fs::read_to_string(home.join(".keel-sum")).unwrap();
+    assert_eq!(
+        sum.trim().len(),
+        64,
+        "the binary's sha256 is recorded: {sum}"
+    );
+    assert!(
+        !w.home.join("source").exists(),
+        "no clone was made for a release that was there:\n{said}"
+    );
+    let plain = project(&dir, "plain", "2.0.0");
+    let tmp = dir.join("tmp");
+    fs::create_dir_all(&tmp).unwrap();
+    let (said, code) = launch(&w, &plain, &releases, &tmp, &["--version"]);
+    assert_eq!(code, 0, "{said}");
+    assert!(said.contains("keel 2.0.0"), "the launcher runs it:\n{said}");
+
+    // A ref with no release -- the older tag has no archive on the
+    // server -- is built from source, as before the wave, and the
+    // installer says why.
+    let (said, code) = install_with(&w, &w.old_ref, &releases, true);
+    assert_eq!(
+        code, 0,
+        "a ref without a release still installs from git:\n{said}"
+    );
+    assert!(
+        said.contains("no release") && said.contains("building"),
+        "and the road taken is said aloud:\n{said}"
+    );
+    let old_home = w.home.join("versions").join(&w.old_ref);
+    assert_eq!(
+        fs::read_to_string(old_home.join(".keel-version"))
+            .unwrap()
+            .trim(),
+        w.old_version,
+        "built and recorded as before"
+    );
+    assert!(
+        w.home.join("source").join(".git").is_dir(),
+        "through the one clone the git road keeps"
+    );
+}
