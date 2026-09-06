@@ -119,6 +119,60 @@ fn a_release_is_built_by_one_script() {
         "the binary inside answers the version in the archive's name:\n{version}"
     );
 
+    // The version is what the BUILT binary answers, never the
+    // manifest's number (review 0048 R-8): a tree whose manifest says
+    // 9.9.9 and whose binary answers 2.0.0 releases 2.0.0.
+    std::fs::write(tree.join("tool/answers"), "2.0.0\n").unwrap();
+    std::fs::write(
+        tree.join("tool/Cargo.toml"),
+        "[package]\nname = \"keel\"\nversion = \"9.9.9\"\n",
+    )
+    .unwrap();
+    let (said, code) = release(&tree, &w.stub, &["--out", "dist2"]);
+    assert_eq!(code, 0, "{said}");
+    assert!(
+        tree.join("dist2").join(&name).is_file() && !said.contains("9.9.9"),
+        "the archive carries the binary's own answer, not the manifest's:\n{said}"
+    );
+
+    // The tag being released must be the binary's version with a `v`
+    // in front: a release under `v3.0.0` whose binary answers 2.0.0
+    // is one no pin ever finds (review 0048 R-1) -- refused, and
+    // nothing written.
+    let (said, code) = release(&tree, &w.stub, &["--out", "dist3", "--tag", "v3.0.0"]);
+    assert_ne!(
+        code, 0,
+        "a tag the tree does not answer to is refused:\n{said}"
+    );
+    assert!(
+        said.contains("v3.0.0") && said.contains("2.0.0") && said.contains("tag the commit"),
+        "and the refusal names both numbers and what to do:\n{said}"
+    );
+    assert!(
+        !tree.join("dist3").exists()
+            || std::fs::read_dir(tree.join("dist3"))
+                .unwrap()
+                .next()
+                .is_none(),
+        "nothing is written under a wrong tag"
+    );
+    let (said, code) = release(&tree, &w.stub, &["--out", "dist4", "--tag", "v2.0.0"]);
+    assert_eq!(code, 0, "the matching tag passes:\n{said}");
+    assert!(tree.join("dist4").join(&name).is_file());
+
+    // `--out` without a value is the script's word, not the shell's
+    // (review 0048 R-12); and no `--out` at all lands inside the
+    // ignored build tree, never in `git status` (R-11).
+    let (said, code) = release(&tree, &w.stub, &["--out"]);
+    assert_eq!(code, 2, "{said}");
+    assert!(said.contains("--out needs a directory"), "{said}");
+    let (said, code) = release(&tree, &w.stub, &[]);
+    assert_eq!(code, 0, "{said}");
+    assert!(
+        tree.join("tool/target/dist").join(&name).is_file(),
+        "the default out is tool/target/dist, inside the build tree:\n{said}"
+    );
+
     // The workflow runs THIS script on a tag, attests what it built,
     // and publishes the archives with their checksums -- held by its
     // text, since neither a tag push nor `gh` runs here.
@@ -134,9 +188,20 @@ fn a_release_is_built_by_one_script() {
         "it runs on a version tag:\n{flow}"
     );
     assert!(
-        flow.contains("sh release.sh"),
-        "it builds with the one script:\n{flow}"
+        flow.contains("sh release.sh") && flow.contains("--tag \"$GITHUB_REF_NAME\""),
+        "it builds with the one script, and hands it the tag being released:\n{flow}"
     );
+    for os in [
+        "ubuntu-latest",
+        "ubuntu-24.04-arm",
+        "macos-latest",
+        "macos-15-intel",
+    ] {
+        assert!(
+            flow.contains(os),
+            "it builds every target the launcher can name -- {os}:\n{flow}"
+        );
+    }
     assert!(
         flow.contains("attest-build-provenance"),
         "it attests the provenance of what it built:\n{flow}"

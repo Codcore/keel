@@ -1,11 +1,12 @@
 #!/bin/sh
 # Keel release: one script, the same for the workflow and for a person.
 #
-#   sh release.sh [--out <dir>]
+#   sh release.sh [--out <dir>] [--tag <tag>]
 #
 # Builds the tool in `tool/` (cargo, release), asks the binary its
 # version and rustc the target, and writes into the out directory
-# (`dist/` by default):
+# (`tool/target/dist/` by default -- inside the ignored build tree, so
+# a release never lands in `git status`):
 #
 #   keel-<version>-<target>.tar.gz     one file inside: `keel`
 #   keel-<version>-<target>.tar.gz.sha256
@@ -18,12 +19,25 @@
 # What is measured aloud rather than assumed: the version is what the
 # BUILT binary answers, never a number copied out of a manifest; the
 # target is rustc's own word for this machine.
+#
+# `--tag <tag>` is what the workflow passes: the tag being released.
+# The archive is named by the binary's version, and the launcher asks
+# for `<tag>/keel-<version>-<target>.tar.gz` -- so a tag whose tree
+# answers another number would publish a release no pin ever finds
+# (review 0048 R-1). With `--tag`, `v<version>` must equal the tag,
+# or this refuses and writes nothing.
 set -eu
 
-out="dist"
+out=""
+tag=""
 while [ $# -gt 0 ]; do
     case "$1" in
-        --out) out="$2"; shift 2 ;;
+        --out)
+            [ $# -ge 2 ] || { echo "release.sh: --out needs a directory" >&2; exit 2; }
+            out="$2"; shift 2 ;;
+        --tag)
+            [ $# -ge 2 ] || { echo "release.sh: --tag needs a tag" >&2; exit 2; }
+            tag="$2"; shift 2 ;;
         *) echo "release.sh: unknown argument $1" >&2; exit 2 ;;
     esac
 done
@@ -31,6 +45,7 @@ done
 here="$(cd "$(dirname "$0")" && pwd)"
 manifest="$here/tool/Cargo.toml"
 [ -f "$manifest" ] || { echo "release.sh: no tool/Cargo.toml beside this script" >&2; exit 1; }
+[ -n "$out" ] || out="$here/tool/target/dist"
 
 for tool in cargo rustc tar; do
     command -v "$tool" >/dev/null 2>&1 || { echo "release.sh: $tool is required and was not found" >&2; exit 1; }
@@ -58,6 +73,11 @@ binary="$here/tool/target/release/keel"
 
 version="$("$binary" --version | head -1 | awk '{print $2}')"
 [ -n "$version" ] || { echo "release.sh: the binary answers no version" >&2; exit 1; }
+if [ -n "$tag" ] && [ "$tag" != "v$version" ]; then
+    echo "release.sh: the tree at $tag answers keel $version -- a release under $tag would" >&2
+    echo "release.sh: never be found by a pin; tag the commit whose crate says ${tag#v}" >&2
+    exit 1
+fi
 
 mkdir -p "$out"
 name="keel-$version-$target.tar.gz"

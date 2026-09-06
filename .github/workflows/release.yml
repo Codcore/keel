@@ -15,16 +15,24 @@ jobs:
   build:
     strategy:
       matrix:
+        # The four targets the launcher can name: linux x86_64 and
+        # aarch64, macOS arm64 and x86_64 (review 0048 R-7 -- the
+        # launcher named four, and the first matrix built two).
         include:
           - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
           - os: macos-latest
+          - os: macos-15-intel
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       # The toolchain rust-toolchain.toml names, not whatever stable
       # is today (wave 0044).
       - run: rustup show active-toolchain || rustup toolchain install
-      - run: sh release.sh --out dist
+      # The tag being released goes to the script, which refuses a
+      # tree whose binary answers another number: a release the pin
+      # would never find is worse than none (review 0048 R-1).
+      - run: sh release.sh --out dist --tag "$GITHUB_REF_NAME"
       # Provenance: GitHub signs what this job built, and
       # `gh attestation verify <archive> --repo Codcore/keel` checks
       # it. The launcher checks the sha256 beside the archive, not
