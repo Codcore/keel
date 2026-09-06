@@ -171,13 +171,13 @@ const BODY_UK: &str = r#"# keel (згенеровано — не правити 
 (§8.6). `keel plan` кладе риштування і ніколи не зміст."#;
 
 /// What the machine really holds, per mode (review 0022 R-10).
-const RULE_STRICT_EN: &str = r#"Two rules a machine holds here, so no memory has to: a scenario is born red -- the commit `red: <scenario>` passes the commit-msg hook only when its test really fails -- and the work commit `<transform>: <words>` passes only when that scenario's tests are green. Ask `keel next` instead of guessing the order."#;
+const RULE_STRICT_EN: &str = r#"Two rules a machine holds here, so no memory has to: a scenario is born red -- the commit `red: <scenario>` passes the commit-msg hook when its test really fails -- or, over a court of the tooling itself that cannot be seen failing, when the message carries a `mutant: <what was broken> -> <how the probe named it>` line (§6.3) -- and the work commit `<transform>: <words>` passes only when that scenario's tests are green. Ask `keel next` instead of guessing the order."#;
 
 const RULE_SOFT_EN: &str = r#"Two rules stand here as warnings (`mode = "soft"`): a scenario is born red -- the commit `red: <scenario>` is judged, and a commit that has not earned it is told so aloud without being blocked -- and the same for the work commit `<transform>: <words>`. The words are the machine's; holding to them is yours. Ask `keel next` instead of guessing the order."#;
 
 const RULE_MANUAL_EN: &str = r#"The commit judgement is off in this project (`mode = "manual"`): the two rules -- a scenario born red, and work committed only over green tests -- are held by people alone here. `keel close` still judges before a merge. Ask `keel next` instead of guessing the order."#;
 
-const RULE_STRICT_UK: &str = r#"Два правила тримає тут машина, і памʼять їх тримати не мусить: сценарій народжується червоним — commit `red: <сценарій>` проходить крізь commit-msg hook лише тоді, коли його тест справді падає, — а робочий commit `<трансформа>: <слова>` проходить лише зеленими тестами того сценарію. Питай `keel next`, а не вгадуй порядок."#;
+const RULE_STRICT_UK: &str = r#"Два правила тримає тут машина, і памʼять їх тримати не мусить: сценарій народжується червоним — commit `red: <сценарій>` проходить крізь commit-msg hook тоді, коли його тест справді падає, — або, над судом самого інструментарію, якого не побачити червоним, коли в повідомленні стоїть рядок `mutant: <що зламано> -> <як проба це назвала>` (§6.3), — а робочий commit `<трансформа>: <слова>` проходить лише зеленими тестами того сценарію. Питай `keel next`, а не вгадуй порядок."#;
 
 const RULE_SOFT_UK: &str = r#"Два правила стоять тут попередженням (`mode = "soft"`): сценарій народжується червоним — commit `red: <сценарій>` судиться, і незароблене кажеться вголос, але не заслоняє commit, — те саме для робочого commit-а `<трансформа>: <слова>`. Слова — машинні, тримати їх — твоє. Питай `keel next`, а не вгадуй порядок."#;
 
@@ -579,8 +579,10 @@ fn workflow(root: &Path, config: &Config) -> String {
     );
     let installer_step = format!(
         "      - name: the tool itself\n\
-             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Clones the method into ~/.keel, then builds it from source.\n\
-             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# It needs git and cargo on the runner, and cargo writes\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Takes the published release of the pinned version where one stands\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# (curl, tar, a checksum -- no build); where none does, it clones\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# into the tool's home and builds from source, needing git and\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# cargo on the runner -- and cargo writes\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# its own registry into CARGO_HOME while it does.\n\
              {pin}\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: |\n\
