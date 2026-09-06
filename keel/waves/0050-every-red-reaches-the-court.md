@@ -51,6 +51,7 @@ transforms:
       - tool/i18n/en.ftl
       - tool/tests/every_red_test.rs
       - tool/tests/vanished_tongues_test.rs
+      - tool/tests/machine_test.rs
       - keel/waves/0006-wave-closure.md
       - keel/waves/0016-drifted-records.md
       - tool/tests/next_test.rs
