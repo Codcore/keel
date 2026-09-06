@@ -62,6 +62,7 @@ transforms:
       - keel/contracts/tool-generated.md
       - tool/tests/own_ci_test.rs
       - tool/tests/generated_stands_test.rs
+      - tool/tests/machine_test.rs
   the-courts-hold-their-mutants:
     implements:
       - the-courts-hold-their-mutants
@@ -179,7 +180,11 @@ R-25): `close.rs runs.len() == BATTERY_RUNS && all green → all green`
 пісочницю маркери розкладки, які читає генератор (урок 0044), а
 генератор тепер читає ще один — `install.sh` у корені, мітку того, що
 репозиторій і є інструмент; без нього копія — чужий проєкт, суджений
-проти власного файлу інструмента.
+проти власного файлу інструмента. Туди ж — `tool/tests/machine_test.rs`
+(після рецензії, батареєю під `CI=true`): проба 0044 пускає
+дитину-пробу без `mix` і без `node` і чекає пропуску, а дитина
+успадковувала `CI` машини — тепер дитина «поза раннером» біжить без
+`CI`, а друга дитина під `CI=true` мусить упасти поіменно.
 
 ## scenario: the-word-is-the-courts-word
 
