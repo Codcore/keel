@@ -61,6 +61,7 @@ transforms:
       - tool/i18n/en.ftl
       - keel/contracts/tool-generated.md
       - tool/tests/own_ci_test.rs
+      - tool/tests/generated_stands_test.rs
   the-courts-hold-their-mutants:
     implements:
       - the-courts-hold-their-mutants
@@ -172,7 +173,12 @@ R-25): `close.rs runs.len() == BATTERY_RUNS && all green → all green`
 `tool/src/status.rs`: план назвав його, бо `status` казав про порожній
 файл рецензії своїм словом, — а вирок один для всіх судів виносить
 `close::wave_state`, яким `status` і так читає стан хвилі, тож рука до
-`status.rs` не торкнулась, і імʼя стояло б даремно (§4.4).
+`status.rs` не торкнулась, і імʼя стояло б даремно (§4.4). У третю
+дописано `tool/tests/generated_stands_test.rs`: проба 0035 несе в
+пісочницю маркери розкладки, які читає генератор (урок 0044), а
+генератор тепер читає ще один — `install.sh` у корені, мітку того, що
+репозиторій і є інструмент; без нього копія — чужий проєкт, суджений
+проти власного файлу інструмента.
 
 ## scenario: the-word-is-the-courts-word
 
