@@ -377,6 +377,25 @@ fn the_weight_is_read_from_the_branch_too() {
         "once the work is in the trunk the branch sees the fact:\n{said}"
     );
 
+    // --- a fresh clone often has no local main, only origin/main:
+    // the fact is read there (review 0052 R-12, M13) ---
+    let dir = crate_with(
+        "weightorigin",
+        "rust",
+        &chore_wave(&[("tidy", "src/lib.rs")]),
+    );
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "all on main"]);
+    git(&dir, &["checkout", "-q", "-b", "elsewhere"]);
+    git(&dir, &["update-ref", "refs/remotes/origin/main", "main"]);
+    git(&dir, &["branch", "-q", "-D", "main"]);
+    let (said, _) = keel(&dir, &["status"]);
+    assert!(
+        said.contains("закрита фактом merge (§6.5)"),
+        "origin/main carries the fact where no local main exists:\n{said}"
+    );
+
     // --- no trunk at all: the court says it cannot see the fact
     // (review 0052 R-12, M12) ---
     let dir = crate_with(
