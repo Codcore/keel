@@ -146,7 +146,11 @@ fn the_installer_takes_what_it_promises() {
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
     );
-    assert_eq!(out.status.code(), Some(0), "the launcher runs from its baked-in home:\n{said}");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "the launcher runs from its baked-in home:\n{said}"
+    );
     assert!(
         said.contains(&format!("home: {}", w.home.display())),
         "and the binary it runs sees that home -- exported, not merely \
@@ -158,15 +162,15 @@ fn the_installer_takes_what_it_promises() {
     // not "nothing is installed" (review 0041 R-10).
     fs::remove_file(w.home.join(".keel-current")).unwrap();
     let (said, code) = run_in(&w, &project, &["--version"]);
-    assert_eq!(code, 2, "without a current version the launcher refuses:\n{said}");
+    assert_eq!(
+        code, 2,
+        "without a current version the launcher refuses:\n{said}"
+    );
     assert!(
         said.contains("no version is marked current"),
         "and says which of the two reasons it is:\n{said}"
     );
-    assert!(
-        said.contains("2.0.0"),
-        "naming what stands here:\n{said}"
-    );
+    assert!(said.contains("2.0.0"), "naming what stands here:\n{said}");
 
     // A stranger's `keel` on PATH is replaced, said aloud, and a copy
     // kept (review 0041 R-7).
@@ -175,7 +179,10 @@ fn the_installer_takes_what_it_promises() {
     fs::create_dir_all(&w.bin).unwrap();
     fs::write(w.bin.join("keel"), "#!/bin/sh\necho stranger\n").unwrap();
     let (said, code) = install(&w, None);
-    assert_eq!(code, 0, "the install stands over a stranger's keel:\n{said}");
+    assert_eq!(
+        code, 0,
+        "the install stands over a stranger's keel:\n{said}"
+    );
     assert!(
         said.contains("is not this launcher; replacing it"),
         "and says the stranger was replaced:\n{said}"
@@ -187,7 +194,10 @@ fn the_installer_takes_what_it_promises() {
     );
     let launcher = fs::read_to_string(w.bin.join("keel")).unwrap();
     assert!(
-        launcher.lines().take(2).any(|line| line.contains("keel launcher")),
+        launcher
+            .lines()
+            .take(2)
+            .any(|line| line.contains("keel launcher")),
         "and the launcher stands where the stranger stood:\n{launcher}"
     );
 }

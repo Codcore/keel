@@ -54,6 +54,7 @@ transforms:
       - install.sh
       - keel/contracts/tool-launcher.md
       - tool/tests/installer_word_test.rs
+      - tool/tests/common/versions.rs
   the-report-and-the-refusals-say-what-next:
     implements:
       - the-report-is-committed-and-the-courts-say-how
