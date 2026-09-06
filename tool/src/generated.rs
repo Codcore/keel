@@ -630,15 +630,36 @@ pub fn digest(text: &str) -> String {
 /// there, cannot be read, or has no block.
 fn answering_digest(root: &Path, config: &Config, name: &str) -> Option<String> {
     let text = std::fs::read_to_string(root.join(name)).ok()?;
+    digest_of(root, config, name, &text)
+}
+
+/// The same digest over the file as the branch COMMITTED it -- what
+/// `git show HEAD:<file>` gives. The courts of scope judge commits
+/// (§4.5), and reading the working tree let a hand-edited file
+/// committed on the branch pass green once the tree was put back
+/// (review 0052 R-4). None where HEAD carries no such file.
+fn committed_digest(root: &Path, config: &Config, name: &str) -> Option<String> {
+    let out = crate::scope::git_at(root)
+        .args(["show", &format!("HEAD:{name}")])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    digest_of(root, config, name, &text)
+}
+
+fn digest_of(root: &Path, config: &Config, name: &str, text: &str) -> Option<String> {
     let block = artefacts(root, config)
         .into_iter()
         .any(|(path, kind, _)| path == name && matches!(kind, Kind::Block))
         || (name == "AGENTS.md");
     if block {
-        let (from, to) = span(&text)?;
+        let (from, to) = span(text)?;
         Some(digest(&text[from..to]))
     } else {
-        Some(digest(&text))
+        Some(digest(text))
     }
 }
 
@@ -662,7 +683,10 @@ pub fn is_furniture(root: &Path, config: &Config, rel: &str) -> bool {
     if recorded.is_none() && fresh.is_none() {
         return false;
     }
-    let Some(actual) = answering_digest(root, config, rel) else {
+    // The file as the branch committed it, never as the tree has it
+    // right now (review 0052 R-4). The record itself is read from
+    // keel.toml as it stands -- named a border.
+    let Some(actual) = committed_digest(root, config, rel) else {
         // Removed by a person while its record stands: a decision,
         // not code (the `write` school).
         return recorded.is_some();

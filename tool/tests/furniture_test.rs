@@ -209,6 +209,35 @@ fn furniture_is_known_by_its_digest() {
         "a generated file edited by a hand is code, and undeclared code is drift:\n{said}"
     );
     assert_eq!(code, 1, "and the check is red:\n{said}");
+    assert!(
+        said.contains("правлений рукою"),
+        "and the stale record says the text is a hand's (review 0052 R-12):\n{said}"
+    );
+    // The court judges what the branch COMMITTED (§4.5): the tree put
+    // back to the release's text does not clear the committed hand,
+    // and a hand only in the tree is not the branch's drift (review
+    // 0052 R-4).
+    git(&dir, &["show", "HEAD~1:.claude/settings.json"]);
+    let out = Command::new("git")
+        .args(["show", "HEAD~1:.claude/settings.json"])
+        .current_dir(&*dir)
+        .output()
+        .unwrap();
+    std::fs::write(dir.join(".claude/settings.json"), out.stdout).unwrap();
+    let (said, code) = keel(&dir, &["check"]);
+    assert!(
+        said.contains(&drift_line(".claude/settings.json")),
+        "the committed hand is drift whatever the tree says now:\n{said}"
+    );
+    assert_eq!(code, 1, "and the check is red:\n{said}");
+    git(&dir, &["reset", "-q", "--hard", "HEAD~1"]);
+    hand_edit(&dir);
+    let (said, _) = keel(&dir, &["check"]);
+    assert!(
+        !said.contains(&drift_line(".claude/settings.json")),
+        "a hand only in the tree is not the branch's drift:\n{said}"
+    );
+    git(&dir, &["checkout", "-q", "--", ".claude/settings.json"]);
 
     // --- the plan branch judges by the same digest: `keel update`
     // there is furniture, a hand there is code (§4.8, §4.9) ---
@@ -410,5 +439,70 @@ fn furniture_is_known_by_its_digest() {
         said.contains(".claude/settings.json") && said.contains("000000000000"),
         "a stale recorded digest is named with the file, even when the text matches the release:\n{said}"
     );
+    assert!(
+        said.contains("keel update") && said.contains("реліз"),
+        "and its instead says the text is the release's, to be re-recorded (review 0052 R-12):\n{said}"
+    );
     assert_eq!(code, 1, "and the check is red:\n{said}");
+
+    // --- a light wave keeps its first commit even where its file
+    // changed on main before the branch: the fork point would hide
+    // that growth (review 0052 R-12, M25) ---
+    let dir = crate_with("furnlightmain", "rust", &plain_wave());
+    std::fs::remove_file(dir.join("keel/waves/0001-a-wave.md")).unwrap();
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    let light = |files: &str| {
+        format!(
+            "---\ntransforms:\n  tidy:\n    chore: \"прибирання\"\n    files:\n{files}{}---\n\n## transform: tidy\nтіло\n",
+            decisions_except(&[])
+        )
+    };
+    std::fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        light("      - src/lib.rs\n"),
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &[
+            "commit",
+            "-q",
+            "--no-verify",
+            "-m",
+            "the light wave, on main",
+        ],
+    );
+    std::fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        light("      - src/lib.rs\n      - Cargo.toml\n"),
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &[
+            "commit",
+            "-q",
+            "--no-verify",
+            "-m",
+            "Cargo.toml added on main",
+        ],
+    );
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        "pub fn works() -> bool { true }\n// tidy\n",
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "--no-verify", "-m", "tidy: work"]);
+    let (said, code) = keel(&dir, &["review"]);
+    assert_eq!(code, 0, "the package assembles:\n{said}");
+    assert!(
+        said.contains("Cargo.toml — дописаний після якоря") && !said.contains("точці розгалуження"),
+        "a light wave's anchor is its first commit, not the fork point:\n{said}"
+    );
 }
