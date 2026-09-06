@@ -18,11 +18,11 @@ transforms:
       - what-is-not-code-is-not-read
     files:
       - tool/src/tags.rs
-      - tool/src/docs.rs
       - tool/src/rev.rs
+      - tool/src/ruby.rs
       - keel/contracts/tool-tags.md
-      - keel/contracts/tool-docs.md
       - keel/contracts/tool-rev.md
+      - keel/contracts/tool-adapter-ruby.md
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/name_readers_test.rs

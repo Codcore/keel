@@ -33,6 +33,21 @@ pub fn scan(files: &[PathBuf]) -> Result<Vec<TestTag>, Refusal> {
 /// (§7.15).
 pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
     let mut out = Vec::new();
+    // A byte-order mark is not the first character of a tag: it hid a
+    // first-line tag in silence (global review 2026-09-06, bugs R-26).
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+    // Rust: the contents of string, raw-string and char literals are
+    // blanked before the lines are read -- a `// proves:` line inside
+    // an `r#"…"#` fixture was a tag over the next fn (bugs R-15). The
+    // comments stay, because the tags live in them; the newlines
+    // stay, because the lines are what is read.
+    let blanked;
+    let text = if file.extension().and_then(|e| e.to_str()) == Some("rs") {
+        blanked = blank_rust_literals(text);
+        blanked.as_str()
+    } else {
+        text
+    };
     {
         let marks = marks(file);
         let declares = declares(file);
@@ -127,12 +142,16 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 continue;
             }
             if python {
+                // The decorator's parentheses are counted in CODE: a
+                // `(` inside one of its strings (`["f(x", "g(y"]`) is
+                // text, and counting it left the tag with "no test
+                // function right after it" (bugs R-20).
                 if decorating > 0 {
-                    decorating += parens(trimmed);
+                    decorating += parens(&blank_quoted(trimmed));
                     continue;
                 }
                 if trimmed.starts_with('@') {
-                    decorating = parens(trimmed).max(0);
+                    decorating = parens(&blank_quoted(trimmed)).max(0);
                     continue;
                 }
             }
@@ -146,7 +165,11 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 if let Some(terminator) = ruby_heredoc(&code) {
                     heredoc_end = Some(terminator);
                 }
-                let (opens, ends) = ruby_depth(&code);
+                // Depth is counted over the code with its strings
+                // blanked: `it "syncs end-to-end"` and `expect("the
+                // end")` carry the word `end` as text, and counting
+                // it closed the group early (bugs R-9).
+                let (opens, ends) = ruby_depth(&blank_quoted(&code));
                 let mut named: Option<String> = None;
                 if let Some(group) = spec_group(&code, &groups) {
                     groups.push((group, depth));
@@ -197,34 +220,50 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 }
                 named
             } else if elixir {
-                // A `describe` opens a group whose name ExUnit puts
-                // in front of every test inside it; `end` closes the
-                // innermost block, and only a describe's own end
-                // clears the group -- so the depth is counted.
-                if let Some(group) = describe_name(trimmed) {
-                    describing = Some((group, depth));
-                }
-                if trimmed.starts_with("end") || trimmed == "end" {
-                    // The depth recorded when the block opened is
-                    // the depth OUTSIDE it; its own `do` raised the
-                    // count by one, so the `end` that closes it sits
-                    // one deeper. Off by that one, the group leaked to
-                    // the end of the module and named every test after
-                    // it wrongly -- and a scenario was called proven by
-                    // a test that had just failed (review 0042 R-1).
-                    if let Some((_, opened)) = &describing
-                        && depth == *opened + 1
-                    {
-                        describing = None;
+                // A comment is not code: `# TODO: decide what to do`
+                // opened a block and gave the next test a group it
+                // did not have (bugs R-10).
+                if trimmed.starts_with('#') {
+                    None
+                } else {
+                    // A `describe` opens a group whose name ExUnit puts
+                    // in front of every test inside it; `end` closes the
+                    // innermost block, and only a describe's own end
+                    // clears the group -- so the depth is counted.
+                    if let Some(group) = describe_name(trimmed) {
+                        describing = Some((group, depth));
                     }
-                    depth = depth.saturating_sub(1);
-                } else if trimmed.ends_with(" do") || trimmed.ends_with(" do:") || trimmed == "do" {
-                    depth += 1;
+                    // `end` as a WORD: `endpoint = …` starts with the
+                    // letters and closes nothing (bugs R-10).
+                    let first_word: String = trimmed
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric() || *c == '_')
+                        .collect();
+                    if first_word == "end" {
+                        // The depth recorded when the block opened is
+                        // the depth OUTSIDE it; its own `do` raised the
+                        // count by one, so the `end` that closes it sits
+                        // one deeper. Off by that one, the group leaked to
+                        // the end of the module and named every test after
+                        // it wrongly -- and a scenario was called proven by
+                        // a test that had just failed (review 0042 R-1).
+                        if let Some((_, opened)) = &describing
+                            && depth == *opened + 1
+                        {
+                            describing = None;
+                        }
+                        depth = depth.saturating_sub(1);
+                    } else if trimmed.ends_with(" do")
+                        || trimmed.ends_with(" do:")
+                        || trimmed == "do"
+                    {
+                        depth += 1;
+                    }
+                    test_name(trimmed).map(|name| match &describing {
+                        Some((group, _)) => format!("{group} {name}"),
+                        None => name,
+                    })
                 }
-                test_name(trimmed).map(|name| match &describing {
-                    Some((group, _)) => format!("{group} {name}"),
-                    None => name,
-                })
             } else if javascript {
                 match js_call(trimmed) {
                     Some(JsCall::Named(name)) => Some(name),
@@ -979,11 +1018,178 @@ fn fn_name(trimmed: &str, declares: &[&str]) -> Option<String> {
                 .contains(&"fn ")
                 .then(|| trimmed.find(" fn ").map(|i| &trimmed[i + " fn ".len()..]))?
         })?;
+    // Letters beyond ASCII are letters: `def test_ünïcode` is what
+    // pytest and minitest name the test, and cutting it to `test_`
+    // selected nothing (bugs R-19).
     let name: String = after
         .chars()
-        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
         .collect();
     if name.is_empty() { None } else { Some(name) }
+}
+
+/// The line with the CONTENTS of its quoted strings blanked -- the
+/// quotes stay, the escapes are honoured -- so a reader that counts
+/// words or parentheses counts code and not text.
+fn blank_quoted(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut quote: Option<char> = None;
+    let mut chars = line.chars();
+    while let Some(ch) = chars.next() {
+        match quote {
+            Some(q) => {
+                if ch == '\\' {
+                    out.push(' ');
+                    if chars.next().is_some() {
+                        out.push(' ');
+                    }
+                } else if ch == q {
+                    quote = None;
+                    out.push(ch);
+                } else {
+                    out.push(' ');
+                }
+            }
+            None => {
+                if ch == '"' || ch == '\'' {
+                    quote = Some(ch);
+                }
+                out.push(ch);
+            }
+        }
+    }
+    out
+}
+
+/// Rust text with the contents of its literals blanked and everything
+/// else -- comments above all, where the tags live -- kept as it is.
+/// Strings with their escapes, raw strings with their hashes, byte
+/// strings, char literals; a lifetime (`'a`) is not a literal. The
+/// newlines inside a literal stay, so a line still counts from the
+/// top.
+fn blank_rust_literals(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let n = chars.len();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0usize;
+    let blank = |out: &mut String, c: char| out.push(if c == '\n' { '\n' } else { ' ' });
+    while i < n {
+        let c = chars[i];
+        let next = chars.get(i + 1).copied();
+        // Comments are kept whole: a quote inside one opens nothing.
+        if c == '/' && next == Some('/') {
+            while i < n && chars[i] != '\n' {
+                out.push(chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+        if c == '/' && next == Some('*') {
+            let mut depth = 0usize;
+            loop {
+                if i >= n {
+                    break;
+                }
+                if chars[i] == '/' && chars.get(i + 1) == Some(&'*') {
+                    depth += 1;
+                    out.push('/');
+                    out.push('*');
+                    i += 2;
+                } else if chars[i] == '*' && chars.get(i + 1) == Some(&'/') {
+                    depth -= 1;
+                    out.push('*');
+                    out.push('/');
+                    i += 2;
+                    if depth == 0 {
+                        break;
+                    }
+                } else {
+                    out.push(chars[i]);
+                    i += 1;
+                }
+            }
+            continue;
+        }
+        let word_before = i > 0 && (chars[i - 1].is_alphanumeric() || chars[i - 1] == '_');
+        // Raw strings: r"…", r#"…"#, br"…", br#"…"#.
+        if !word_before && (c == 'r' || (c == 'b' && next == Some('r'))) {
+            let mut j = i + if c == 'b' { 2 } else { 1 };
+            let mut hashes = 0usize;
+            while chars.get(j) == Some(&'#') {
+                hashes += 1;
+                j += 1;
+            }
+            if chars.get(j) == Some(&'"') {
+                out.extend(chars[i..=j].iter());
+                i = j + 1;
+                loop {
+                    if i >= n {
+                        break;
+                    }
+                    if chars[i] == '"' && (0..hashes).all(|h| chars.get(i + 1 + h) == Some(&'#')) {
+                        out.push('"');
+                        for _ in 0..hashes {
+                            out.push('#');
+                        }
+                        i += 1 + hashes;
+                        break;
+                    }
+                    blank(&mut out, chars[i]);
+                    i += 1;
+                }
+                continue;
+            }
+        }
+        // Strings: "…" and b"…", escapes honoured.
+        if c == '"' || (c == 'b' && next == Some('"') && !word_before) {
+            if c == 'b' {
+                out.push('b');
+                i += 1;
+            }
+            out.push('"');
+            i += 1;
+            while i < n {
+                if chars[i] == '\\' {
+                    blank(&mut out, chars[i]);
+                    if i + 1 < n {
+                        blank(&mut out, chars[i + 1]);
+                    }
+                    i += 2;
+                    continue;
+                }
+                if chars[i] == '"' {
+                    out.push('"');
+                    i += 1;
+                    break;
+                }
+                blank(&mut out, chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+        // Char literals ('a', '\n', '\'') against lifetimes ('a).
+        if c == '\'' {
+            let literal_end = if next == Some('\\') {
+                (i + 2..n.min(i + 12)).find(|&k| chars[k] == '\'')
+            } else if chars.get(i + 2) == Some(&'\'') && next.is_some_and(|ch| ch != '\'') {
+                Some(i + 2)
+            } else {
+                None
+            };
+            if let Some(end) = literal_end {
+                out.push('\'');
+                for &ch in &chars[i + 1..end] {
+                    blank(&mut out, ch);
+                }
+                out.push('\'');
+                i = end + 1;
+                continue;
+            }
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
 }
 
 fn dangling(file: &Path, scenario: &str, rev: &str) -> Refusal {

@@ -32,24 +32,14 @@ pub fn scenario_revs(path: &Path) -> Result<Vec<(String, String)>, Refusal> {
     let wave = docs::read_wave(path)?;
     let text = read(path)?;
 
-    let mut sections: Vec<(String, String)> = Vec::new();
-    let mut current: Option<(String, String)> = None;
-    for line in text.lines() {
-        if let Some(rest) = line.strip_prefix("## ") {
-            if let Some(section) = current.take() {
-                sections.push(section);
-            }
-            if let Some(name) = rest.strip_prefix("scenario: ") {
-                current = Some((name.trim().to_string(), String::new()));
-            }
-        } else if let Some((_, body)) = current.as_mut() {
-            body.push_str(line);
-            body.push('\n');
-        }
-    }
-    if let Some(section) = current.take() {
-        sections.push(section);
-    }
+    let sections: Vec<(String, String)> = headings(&text)
+        .into_iter()
+        .filter_map(|(heading, body)| {
+            heading
+                .strip_prefix("scenario: ")
+                .map(|name| (name.trim().to_string(), body))
+        })
+        .collect();
 
     for (name, _) in &sections {
         if sections.iter().filter(|(n, _)| n == name).count() > 1 {
@@ -90,7 +80,53 @@ pub fn scenario_revs(path: &Path) -> Result<Vec<(String, String)>, Refusal> {
 /// Prefix comparison (§5.2): a record of four to six characters
 /// passes when it matches the start of the current revision.
 pub fn matches(recorded: &str, actual: &str) -> bool {
-    (4..=6).contains(&recorded.len()) && actual.starts_with(recorded)
+    // Hex is a number: `FA2916` and `fa2916` are one revision, and a
+    // reader that took the tag and then called it stale against its
+    // own lowercase said two things about one record (global review
+    // 2026-09-06, bugs R-26).
+    (4..=6).contains(&recorded.len())
+        && actual
+            .to_ascii_lowercase()
+            .starts_with(&recorded.to_ascii_lowercase())
+}
+
+/// The `## ` headings of a body, with their sections' text, read
+/// outside fenced blocks: a line that opens or closes a ``` or ~~~
+/// fence toggles the state, and a `## scenario:` inside a fence is
+/// an example, not a section (global review 2026-09-06, bugs R-23).
+/// Both readers of a wave's body -- the revisions and the
+/// header-vs-body court -- read by this one hand.
+pub(crate) fn headings(text: &str) -> Vec<(String, String)> {
+    let mut sections: Vec<(String, String)> = Vec::new();
+    let mut current: Option<(String, String)> = None;
+    let mut fence: Option<&str> = None;
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        let opener = ["```", "~~~"].into_iter().find(|f| trimmed.starts_with(f));
+        match (fence, opener) {
+            (None, Some(f)) => fence = Some(f),
+            (Some(f), Some(o)) if o == f => fence = None,
+            _ => {}
+        }
+        if fence.is_none()
+            && opener.is_none()
+            && let Some(rest) = line.strip_prefix("## ")
+        {
+            if let Some(section) = current.take() {
+                sections.push(section);
+            }
+            current = Some((rest.trim().to_string(), String::new()));
+            continue;
+        }
+        if let Some((_, body)) = current.as_mut() {
+            body.push_str(line);
+            body.push('\n');
+        }
+    }
+    if let Some(section) = current.take() {
+        sections.push(section);
+    }
+    sections
 }
 
 /// The `keel rev` report: current revisions of every document, in
@@ -203,8 +239,8 @@ pub fn body_court(path: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Ref
     let mut body_scenarios: Vec<String> = Vec::new();
     let mut body_transforms: Vec<String> = Vec::new();
     let mut out = Vec::new();
-    for part in text.split("\n## ").skip(1) {
-        let heading = part.lines().next().unwrap_or("").trim();
+    for (heading, _) in headings(&text) {
+        let heading = heading.as_str();
         if let Some(name) = heading.strip_prefix("scenario: ") {
             body_scenarios.push(name.trim().to_string());
         } else if let Some(name) = heading.strip_prefix("transform: ") {

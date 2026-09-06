@@ -325,22 +325,13 @@ fn verdict_in(line: &str) -> Option<(String, bool)> {
 /// "green" and let work through a gate over a test that never ran.
 /// What ruby said is asked before how it left.
 pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
-    // Nothing ran: the file did not parse, or a require failed.
-    if said.contains("SyntaxError")
-        || said.contains("LoadError")
-        || said.contains("cannot load such file")
-    {
-        return crate::adapter::Outcome::BuildBroken(
-            said.lines()
-                .find(|line| {
-                    line.contains("SyntaxError")
-                        || line.contains("LoadError")
-                        || line.contains("cannot load such file")
-                })
-                .unwrap_or("")
-                .trim()
-                .to_string(),
-        );
+    // Nothing ran: the file did not parse, or a require failed --
+    // known by the SHAPE of ruby's own line, not by a word in it:
+    // `flunk "this is not a LoadError"` said the word in a failure
+    // message and was read as a broken build (global review
+    // 2026-09-06, bugs R-22; wave 0051).
+    if let Some(line) = said.lines().find(|line| broken_line(line)) {
+        return crate::adapter::Outcome::BuildBroken(line.trim().to_string());
     }
     // Minitest ran and named nothing: the method does not exist. The
     // SUMMARY line says it -- `0 runs, 0 assertions, …` -- and only
@@ -368,6 +359,21 @@ pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
         return crate::adapter::Outcome::Green;
     }
     crate::adapter::Outcome::Failed
+}
+
+/// Whether a line is ruby's own word about a build that broke: the
+/// exception class in parentheses at the end (`… (LoadError)`, `…
+/// (SyntaxError)`), the parser's `: syntax error` and the loader's
+/// `cannot load such file --`. A failure message that merely contains
+/// the word is a failure. The border is text: a test that prints
+/// ruby's very shape reads as a broken build, and is named.
+fn broken_line(line: &str) -> bool {
+    let trimmed = line.trim_end();
+    trimmed.ends_with("(LoadError)")
+        || trimmed.ends_with("(SyntaxError)")
+        || trimmed.contains(": syntax error")
+        || trimmed.contains("syntax errors found")
+        || trimmed.contains("cannot load such file --")
 }
 
 /// Whether minitest spoke its summary line at all -- `3 runs, 3
