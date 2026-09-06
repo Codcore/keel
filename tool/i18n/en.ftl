@@ -428,9 +428,9 @@ check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the cont
 check-ref-stale-instead = reread the contract and update the reference deliberately (§5.1); if this wave is already closed, the old revision is legal (§5.6)
 # The verdict's own limits (wave 0031).
 limit-shallow = not checked: the history is shallow -- { $skipped ->
-        [one] { $skipped } check of an old revision was not run
-       *[other] { $skipped } checks of old revisions were not run
-    }, and how many of them this depth COULD have run is not counted; instead: git fetch --unshallow
+        [one] { $skipped } old revision was not verified
+       *[other] { $skipped } old revisions were not verified
+    } (revisions, not references -- as the whole clone counts), and how many of them this depth COULD have verified is not counted; instead: git fetch --unshallow
 limit-base-stale = not checked: local { $trunk } is { $behind } behind { $base } as of the last fetch (this clone knows nothing newer) -- scope was judged against a stale base; instead: git fetch
 limit-base-local-only = not checked: this clone knows no remote { $trunk } -- the base of comparison is local and its freshness cannot be checked
 limit-hook-absent = not held by machine here: keel.toml says hooks = true, but no commit-msg hook of ours stands in this clone -- git does not clone hooks, so the block in AGENTS.md promises a machine that is not on this one: here both rules (sec. 8.4, sec. 7.12) are held by people; instead: keel hook
