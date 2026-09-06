@@ -13,7 +13,7 @@
 mod common;
 
 use common::sandbox;
-use common::versions::{World, install, world};
+use common::versions::{World, host, install, world};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -34,26 +34,23 @@ fn sh(dir: &Path, line: &str) -> (String, i32) {
     )
 }
 
-fn host() -> String {
-    let out = Command::new("rustc").arg("-vV").output().unwrap();
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .find_map(|line| line.strip_prefix("host: ").map(str::to_string))
-        .expect("rustc names a host")
-}
-
 /// A release server: `<dir>/<tag>/keel-<version>-<host>.tar.gz` and its
 /// `.sha256`, built the way release.sh builds them, holding a `keel`
-/// that answers `keel <version>`. `tamper` writes a checksum that is
+/// that answers `keel <answers>` -- the tag's own version unless a
+/// probe wants a binary that lies. `tamper` writes a checksum that is
 /// not the archive's.
 fn serve(dir: &Path, tag: &str, version: &str, tamper: bool) -> String {
+    serve_answering(dir, tag, version, version, tamper)
+}
+
+fn serve_answering(dir: &Path, tag: &str, version: &str, answers: &str, tamper: bool) -> String {
     let home = dir.join("releases").join(tag);
     fs::create_dir_all(&home).unwrap();
     let build = dir.join(format!("build-{tag}"));
     fs::create_dir_all(&build).unwrap();
     fs::write(
         build.join("keel"),
-        format!("#!/bin/sh\necho \"keel {version}\"\necho \"args: $*\"\n"),
+        format!("#!/bin/sh\necho \"keel {answers}\"\necho \"args: $*\"\n"),
     )
     .unwrap();
     let name = format!("keel-{version}-{}.tar.gz", host());
@@ -74,6 +71,22 @@ fn serve(dir: &Path, tag: &str, version: &str, tamper: bool) -> String {
         .unwrap();
     }
     format!("file://{}", dir.join("releases").display())
+}
+
+/// A release whose archive is random bytes and whose `.sha256` is of
+/// something else: a launcher that checks BEFORE unpacking speaks of
+/// the checksum; one that unpacks first speaks of the unpacking
+/// (review 0048 R-5).
+fn serve_garbage(dir: &Path, tag: &str, version: &str) {
+    let home = dir.join("releases").join(tag);
+    fs::create_dir_all(&home).unwrap();
+    let name = format!("keel-{version}-{}.tar.gz", host());
+    fs::write(home.join(&name), b"this is not a gzip archive at all\n").unwrap();
+    fs::write(
+        home.join(format!("{name}.sha256")),
+        format!("{}  {name}\n", "0".repeat(64)),
+    )
+    .unwrap();
 }
 
 /// The installed launcher, run in a project, with the release server
@@ -215,16 +228,96 @@ fn the_launcher_fetches_a_missing_version_aloud() {
         "and the temp dir is clean after a refusal: {leftovers:?}"
     );
 
-    // No release for the pin: a refusal with the ready command, as
-    // before -- never another version run in silence.
+    // The order is checksum FIRST, unpacking after (review 0048 R-5):
+    // an archive that is garbage under a wrong checksum is refused
+    // for the checksum, and never unpacked.
+    serve_garbage(&dir, "v5.0.0", "5.0.0");
+    let garbage = project(&dir, "garbage", "5.0.0");
+    let (said, code) = launch(&w, &garbage, &releases, &tmp, &["--version"]);
+    assert_eq!(code, 2, "{said}");
+    assert!(
+        said.contains("does not match its published checksum") && !said.contains("did not unpack"),
+        "the checksum is judged before anything is unpacked:\n{said}"
+    );
+
+    // A release whose binary answers another number than its tag
+    // (review 0048 R-2): refused, nothing installed -- and so never
+    // fetched again and again on every run.
+    serve_answering(&dir, "v6.0.0", "6.0.0", "6.0.1", false);
+    let lying = project(&dir, "lying", "6.0.0");
+    let (said, code) = launch(&w, &lying, &releases, &tmp, &["--version"]);
+    assert_eq!(
+        code, 2,
+        "a release that answers another version refuses:\n{said}"
+    );
+    assert!(
+        said.contains("answers 6.0.1") && said.contains("nothing was installed"),
+        "and says which number it answered:\n{said}"
+    );
+    assert!(!w.home.join("versions").join("v6.0.0").exists());
+
+    // A temp dir that cannot be made (review 0048 R-3): a refusal that
+    // names it, nothing fetched into `/`, nothing installed -- not a
+    // success with litter, which is what a function run as an `if`
+    // condition does when its `mktemp` fails and nobody looks. A pin
+    // not yet installed, so the road is walked at all.
+    serve(&dir, "v8.0.0", "8.0.0", false);
+    let nowhere = dir.join("nowhere").join("deeper");
+    let (said, code) = launch(
+        &w,
+        &project(&dir, "notmp", "8.0.0"),
+        &releases,
+        &nowhere,
+        &["--version"],
+    );
+    assert_eq!(
+        code, 2,
+        "a temp dir that cannot be made is a refusal:\n{said}"
+    );
+    assert!(
+        said.contains("temp dir")
+            && said.contains("nothing was installed")
+            && !said.contains("verified"),
+        "and it names the temp dir, and claims no fetch:\n{said}"
+    );
+    let litter = Path::new("/").join(format!("keel-8.0.0-{}.tar.gz", host()));
+    let littered = litter.exists();
+    let _ = fs::remove_file(&litter);
+    let _ = fs::remove_file(Path::new("/").join(format!("keel-8.0.0-{}.tar.gz.sha256", host())));
+    assert!(
+        !littered,
+        "no archive was written into / in place of the temp dir"
+    );
+    assert!(
+        !w.home.join("versions").join("v8.0.0").exists(),
+        "and no home was made"
+    );
+
+    // No release for the pin: a refusal that says what would work --
+    // a ref, or waiting for the release -- not the install command
+    // that walks to the same 404 (review 0048 R-13); never another
+    // version run in silence.
     let missing = project(&dir, "missing", "4.0.0");
     let (said, code) = launch(&w, &missing, &releases, &tmp, &["--version"]);
     assert_eq!(code, 2, "a pin with no release refuses:\n{said}");
     assert!(
-        said.contains("no release") && said.contains("v4.0.0") && said.contains("KEEL_REF="),
-        "naming what was not there and the command that installs by hand:\n{said}"
+        said.contains("no release") && said.contains("v4.0.0") && said.contains("pin a ref"),
+        "naming what was not there and the road that works:\n{said}"
+    );
+    assert!(
+        !said.contains("KEEL_REF=\"4.0.0\""),
+        "and not the command that would fail the same way:\n{said}"
     );
     assert!(!said.contains("keel 1.0.0"), "{said}");
+
+    // And nothing in this world ever asked github.com for anything:
+    // the world's own release server, an empty directory, stands in
+    // KEEL_RELEASES for every install and launch (review 0048 R-4).
+    assert!(
+        !dir.join("curl-http.log").exists(),
+        "no http(s) request left this machine:\n{}",
+        fs::read_to_string(dir.join("curl-http.log")).unwrap_or_default()
+    );
 
     // A pin that is a git ref, not a version: not turned into a
     // release address at all -- the old road, with its own refusal.
@@ -368,5 +461,51 @@ fn the_installer_takes_the_release_before_the_source() {
     assert!(
         w.home.join("source").join(".git").is_dir(),
         "through the one clone the git road keeps"
+    );
+
+    // A version with no release and no tag of that name -- keel's own
+    // pin `0.1.0` is one (review 0048 R-14) -- is built from the
+    // branch the remote leads with, and counts only if that branch
+    // answers the version: the world's head is moved to answer 3.0.0
+    // with no tag, so a pin of 3.0.0 takes that road, and 7.7.7 is
+    // refused with the road that works.
+    let empty = format!("file://{}", dir.join("empty-releases").display());
+    fs::create_dir_all(dir.join("empty-releases")).unwrap();
+    fs::write(
+        w.repo.join("tool/Cargo.toml"),
+        "[package]\nname = \"keel\"\nversion = \"3.0.0\"\n",
+    )
+    .unwrap();
+    common::versions::git(&w.repo, &["add", "-A"]);
+    common::versions::git(&w.repo, &["commit", "-q", "-m", "three, untagged"]);
+    let (said, code) = install_with(&w, "3.0.0", &empty, true);
+    assert_eq!(
+        code, 0,
+        "the lead branch answers 3.0.0, so 3.0.0 installs from it:\n{said}"
+    );
+    assert!(
+        said.contains("branch the remote leads with") && said.contains("3.0.0"),
+        "and the road is said aloud:\n{said}"
+    );
+    let home = w.home.join("versions").join("v3.0.0");
+    assert_eq!(
+        fs::read_to_string(home.join(".keel-version"))
+            .unwrap()
+            .trim(),
+        "3.0.0"
+    );
+    assert_eq!(
+        fs::read_to_string(home.join(".keel-ref")).unwrap().trim(),
+        "v3.0.0"
+    );
+    let (said, code) = install_with(&w, "7.7.7", &empty, true);
+    assert_ne!(code, 0, "a version nothing answers to is refused:\n{said}");
+    assert!(
+        said.contains("answers keel 3.0.0, not 7.7.7") && said.contains("pin a ref"),
+        "with what the branch answers and what would work:\n{said}"
+    );
+    assert!(
+        !w.home.join("versions").join("v7.7.7").exists(),
+        "and no home is left"
     );
 }
