@@ -509,7 +509,8 @@ run() {
 
 if [ -n "$pin" ]; then
     # A pin may name the ref or the version. Two homes can answer for
-    # one crate version -- on keel itself EVERY ref answers 0.1.0 --
+    # one crate version -- on keel itself every ref answered 0.1.0
+    # until the release of v1.0.0 (wave 0056) --
     # and picking one of them by glob order is exactly the silent
     # wrong binary this launcher exists to prevent (review 0041 R-1).
     matched=""
