@@ -86,6 +86,19 @@ fn the_old_revisions_count_once() {
     git(&dir, &["init", "-q", "-b", "main"]);
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "old contract"]);
+    // A second old revision of the same contract, true in history
+    // too: two revisions are two, however the references fall
+    // (review 0053 R-8 -- a count that ignored the revision passed
+    // the first reading).
+    std::fs::write(
+        dir.join("keel/contracts/anchor.md"),
+        "---\nmodule: toy\nexports: [\"pub fn one()\"]\n---\n\nmiddle words\n",
+    )
+    .unwrap();
+    let middle_rev = keel::rev::contract_rev(&dir.join("keel/contracts/anchor.md")).unwrap();
+    assert_ne!(old_rev, middle_rev, "two texts, two revisions");
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "middle contract"]);
     let rev = keel::rev::text_rev(BODY);
     std::fs::write(
         dir.join("tests/w_test.rs"),
@@ -97,7 +110,7 @@ fn the_old_revisions_count_once() {
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
         format!(
-            "---\nscenarios:\n  first:\n    proves: anchor@{old_rev}\n    covers: [functional.correctness]\n  second:\n    proves: anchor@{old_rev}\n    covers: [functional.completeness]\ntransforms:\n  work:\n    implements:\n      - first\n      - second\n    contracts: [anchor@{old_rev}]\n    files:\n      - src/lib.rs\n{}---\n\n## scenario: first\n{BODY}## scenario: second\n{BODY}## transform: work\nтіло роботи\n",
+            "---\nscenarios:\n  first:\n    proves: anchor@{old_rev}\n    covers: [functional.correctness]\n  second:\n    proves: anchor@{middle_rev}\n    covers: [functional.completeness]\ntransforms:\n  work:\n    implements:\n      - first\n      - second\n    contracts: [anchor@{old_rev}]\n    files:\n      - src/lib.rs\n{}---\n\n## scenario: first\n{BODY}## scenario: second\n{BODY}## transform: work\nтіло роботи\n",
             decisions_except(&["functional.correctness", "functional.completeness"])
         ),
     )
@@ -131,12 +144,14 @@ fn the_old_revisions_count_once() {
         .and_then(|word| word.parse().ok())
         .expect("the line counts the old revisions");
     assert_eq!(
-        count, 1,
-        "one contract at one old revision is ONE old revision, however many references hold it:\n{said}"
+        count, 2,
+        "one contract at two old revisions is TWO old revisions, however many references hold each (three hold the first, one the second):\n{said}"
     );
-    let rows = said
-        .lines()
-        .filter(|l| l.contains(&format!("anchor@{old_rev}")) && l.contains("стара"))
-        .count();
-    assert_eq!(rows, 1, "and it is listed once:\n{said}");
+    let rows = |revision: &str| {
+        said.lines()
+            .filter(|l| l.contains(&format!("anchor@{revision}")) && l.contains("стара"))
+            .count()
+    };
+    assert_eq!(rows(&old_rev), 1, "and the first is listed once:\n{said}");
+    assert_eq!(rows(&middle_rev), 1, "and the second once:\n{said}");
 }

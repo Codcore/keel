@@ -74,6 +74,19 @@ pub fn draw(root: &Path) -> Result<String, Refusal> {
         // one per wave.
         let mut per_wave: Vec<(&docs::Wave, Vec<(String, String)>)> = Vec::new();
         for wave in &scan.waves {
+            // A cancelled wave is outside judgement whole (§6.3-a):
+            // its answers do not count for the project's map, and the
+            // map says so by name instead of reading them as live
+            // (review 0053 R-4 measured the youngest, cancelled wave
+            // answering a cut on main in silence).
+            if let Some(why) = &wave.cancelled {
+                report.push_str(&ta(
+                    "map-project-cancelled",
+                    targs!("wave" => wave.slug.clone(), "why" => why.clone()),
+                ));
+                report.push('\n');
+                continue;
+            }
             let wave_path = root.join("keel/waves").join(format!("{}.md", wave.slug));
             per_wave.push((wave, rev::scenario_revs(&wave_path)?));
         }

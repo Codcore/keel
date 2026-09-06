@@ -487,7 +487,7 @@ close-no-room = { $free } GB free on disk, and this court wants about { $needed 
 close-no-room-instead = free some space (rm -rf tool/target clears the previous closing's cache) or run the court where there is room
 close-needs-adapter = the closure court needs an adapter this release leads, named in keel.toml
 close-needs-adapter-instead = set adapter = one of the names this release knows: { $known } (NEW-CONCEPT, Config)
-close-blockers-light = blockers of this branch's wave { $wave }: { $count } -- a light wave does not merge without its review report (§9.9)
+close-blockers-light = the blockers of this branch's wave { $wave }: { $count } -- a light wave does not merge with the lacks named above (§6.5, §9.9)
 close-blockers = blockers of this branch's wave { $wave }: { $count } -- a full wave does not merge unproven (§6.5, §9.9)
 close-no-blockers = no blockers: this branch is named as no unclosed wave -- the states above inform
 close-no-blockers-awaiting = no blockers: the wave of this branch, { $wave }, will close by the fact of merge (§6.5) -- the merge is its closure
@@ -514,6 +514,7 @@ map-title = keel map -- the quality map (§10.7)
 map-view-wave = the map of wave { $wave }: this branch is named as it (§8.2) -- the reviewer package item (§9.9); honesty per row stays the reviewer's work
 map-view-cancelled = wave { $wave } is cancelled -- { $why } (§6.3-a): the map is drawn, and there is nothing to judge
 map-view-project = the project map: branch "{ $branch }" is named as no wave -- per cut, the youngest answering wave's word
+map-project-cancelled = wave { $wave } is cancelled -- { $why } (§6.3-a): its answers are not counted
 map-covered = closed: "{ $scenario }" -- { $proof }
 map-proof-proven = proven (the tag matches, §6.3; the test's green is keel close's court)
 map-proof-unproven = not yet proven (no matching tag)

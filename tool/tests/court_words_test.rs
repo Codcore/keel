@@ -136,13 +136,45 @@ fn the_word_is_the_courts_word() {
         "a cancelled wave is judged no more, not refused:\n{said}"
     );
     assert!(
-        said.contains("скасован") && said.contains("§6.3"),
-        "review says the wave is cancelled, with the paragraph:\n{said}"
+        said.contains("скасован") && said.contains("§6.3") && said.contains("пакет не збирається"),
+        "review says the wave is cancelled, with the paragraph, and builds no package:\n{said}"
+    );
+    assert!(
+        !said.lines().any(|l| l.starts_with("## ")),
+        "and no section of a package follows the word (review 0053 R-2: the map's line \
+         inside a full package satisfied the first reading):\n{said}"
     );
     let (said, _) = keel(&dir, &["map"]);
     assert!(
         said.contains("скасован"),
         "and the map of its branch says so too:\n{said}"
+    );
+    // On main the project's map read the youngest, cancelled wave as
+    // the one that answered (review 0053 R-4): its answers do not
+    // count, and the map names it (§6.3-а).
+    git(&dir, &["checkout", "-q", "main"]);
+    std::fs::write(
+        dir.join("keel/waves/0000-an-older-wave.md"),
+        plain_wave().replace("it-works", "it-worked"),
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "--no-verify", "-m", "an older wave"],
+    );
+    let (said, _) = keel(&dir, &["map"]);
+    assert!(
+        said.contains("0001-a-wave") && said.contains("скасован") && said.contains("не рахуються"),
+        "on main the map names the cancelled wave and does not count its answers:\n{said}"
+    );
+    let correctness = said
+        .lines()
+        .find(|l| l.trim_start().starts_with("functional.correctness"))
+        .expect("the cut is on the map");
+    assert!(
+        correctness.contains("it-worked") && !correctness.contains("it-works"),
+        "the older, live wave answers the cut, not the cancelled one:\n{correctness}"
     );
 
     // --- an empty review file is one word in every court (§9.9) ---
@@ -166,6 +198,14 @@ fn the_word_is_the_courts_word() {
         said.contains("порожній файл не рецензія"),
         "and status says the same word:\n{said}"
     );
+    // A file of whitespace alone is as empty as none (review 0053
+    // R-8): the court reads the text, not the byte count.
+    std::fs::write(dir.join("keel/reviews/0001-a-wave.md"), "  \n\n\t\n").unwrap();
+    let (said, _) = keel(&dir, &["status"]);
+    assert!(
+        said.contains("порожній файл не рецензія"),
+        "a whitespace-only report is the same empty file:\n{said}"
+    );
 
     // --- the blockers of a light wave are called by its weight ---
     let dir = crate_with("wordlight", "rust", &chore_wave());
@@ -184,9 +224,46 @@ fn the_word_is_the_courts_word() {
         "the missing report blocks the light wave's own branch:\n{said}"
     );
     assert!(
-        said.contains("блокер") && !said.contains("повна хвиля"),
-        "and the blockers line does not call it a full wave:\n{said}"
+        said.contains("блокер") && said.contains("легка хвиля") && !said.contains("повна хвиля"),
+        "and the blockers line calls it by its weight, not a full wave:\n{said}"
     );
+    // The word names the weight and no single cause (review 0053
+    // R-3): a light wave with its report in place and a red test was
+    // told it "does not merge without the review's report".
+    let dir = crate_with("wordlightred", "rust", &plain_wave());
+    let rev = keel::rev::text_rev(BODY);
+    std::fs::write(
+        dir.join("tests/w_test.rs"),
+        format!(
+            "/// proves: it-works@{rev}\n#[test]\nfn it_works() {{\n    panic!(\"red\");\n}}\n"
+        ),
+    )
+    .unwrap();
+    settle(&dir);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(code, 1, "the red test blocks the light wave:\n{said}");
+    assert!(
+        said.contains("не доведено") && said.contains("легка хвиля") && !said.contains("без звіту"),
+        "the blockers word names the weight and not a cause the lacks above did not name:\n{said}"
+    );
+    for (tongue, text, weight, other) in [
+        (
+            "uk",
+            source("tool/i18n/uk.ftl"),
+            "легка хвиля",
+            "повна хвиля",
+        ),
+        ("en", source("tool/i18n/en.ftl"), "light wave", "full wave"),
+    ] {
+        let word = text
+            .lines()
+            .find(|l| l.starts_with("close-blockers-light ="))
+            .expect("the light word exists");
+        assert!(
+            word.contains(weight) && !word.contains(other) && word.contains("§6.5"),
+            "{tongue}: the light word says light, not full, and names the closing paragraph (review 0053 R-5):\n{word}"
+        );
+    }
 
     // --- the usage line has one shape in both tongues ---
     let uk = source("tool/i18n/uk.ftl");
@@ -203,6 +280,38 @@ fn the_word_is_the_courts_word() {
         "both tongues name `keel next --for` alike"
     );
     assert!(usage(&uk) > 0, "and the usage line names `--for` at all");
+    // The whole shape, not one flag (review 0053 R-8): the same
+    // commands in the same order, with the same number of brackets.
+    let shape = |text: &str| -> (Vec<String>, usize) {
+        let line = text
+            .lines()
+            .find(|l| l.starts_with("main-usage ="))
+            .unwrap_or("");
+        let commands = line
+            .split(" | ")
+            .map(|piece| {
+                let mut words = piece.split_whitespace().skip_while(|w| *w != "keel");
+                format!(
+                    "{} {}",
+                    words.next().unwrap_or(""),
+                    words.next().unwrap_or("")
+                )
+            })
+            .collect();
+        (
+            commands,
+            line.matches('[').count() + line.matches('<').count(),
+        )
+    };
+    assert_eq!(
+        shape(&uk),
+        shape(&en),
+        "both tongues name the same commands in the same order, with the same brackets"
+    );
+    assert!(
+        shape(&uk).0.len() >= 20,
+        "and the usage names every command"
+    );
 
     // --- no refusal speaks past the vocabulary: every reason and
     // instead in the sources goes through i18n. The one named border
