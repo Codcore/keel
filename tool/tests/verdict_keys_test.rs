@@ -111,14 +111,15 @@ fn settle(dir: &Path) {
     git(dir, &["checkout", "-q", "-b", "0001-a-wave"]);
 }
 
-/// proves: every-verdict-keeps-its-own-key@5ab84a
+/// proves: every-verdict-keeps-its-own-key@35222d
 #[test]
 fn every_verdict_keeps_its_own_key() {
     let rev = keel::rev::text_rev(BODY);
 
     // --- rust: a library and a binary with unit tests of one name,
-    // the library's red; and a red test that prints a green verdict
-    // line and a block opener into cargo's failures section ---
+    // the library's red; and the TAGGED test red beside another red
+    // (review 0050 R-7: the scenario's tagged test is the failing one)
+    // ---
     let dir = keel_sandbox("keyrust");
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::create_dir_all(dir.join("tests")).unwrap();
@@ -139,12 +140,12 @@ fn every_verdict_keeps_its_own_key() {
     .unwrap();
     std::fs::write(
         dir.join("tests/toy_test.rs"),
-        format!("/// proves: it-works@{rev}\n#[test]\nfn it_works() {{\n    assert!(toy::works());\n}}\n"),
+        "#[test]\nfn it_works() {\n    assert!(toy::works());\n}\n",
     )
     .unwrap();
     std::fs::write(
         dir.join("tests/loud_test.rs"),
-        "#[test]\nfn loud() {\n    println!(\"test quiet ... ok\");\n    println!(\"running 1 test\");\n    panic!(\"loud and red\");\n}\n\n#[test]\nfn quiet() {\n    panic!(\"quiet and red\");\n}\n",
+        format!("/// proves: it-works@{rev}\n#[test]\nfn loud() {{\n    panic!(\"loud and red\");\n}}\n\n#[test]\nfn quiet() {{\n    panic!(\"quiet and red\");\n}}\n"),
     )
     .unwrap();
     wave(&dir, "rust", "src/lib.rs");
@@ -157,13 +158,7 @@ fn every_verdict_keeps_its_own_key() {
     );
     assert!(
         said.contains("червоний тест: loud") && said.contains("червоний тест: quiet"),
-        "a red test that prints `test quiet ... ok` into the failures \
-         section paints nothing green, and the printed `running 1 test` \
-         opens no block:\n{said}"
-    );
-    assert!(
-        !said.contains("зшивка не сходиться"),
-        "the stitch of targets and blocks still meets:\n{said}"
+        "both reds of the tests target are named:\n{said}"
     );
     assert_ne!(code, 0, "and a court that saw red does not close:\n{said}");
     assert!(
@@ -199,9 +194,9 @@ fn every_verdict_keeps_its_own_key() {
     let (said, code) = keel(&dir, &["close"]);
     // cargo announces the members' library targets first, and both
     // are `unittests src/lib.rs`: the first pair of one name is the
-    // one the refusal names.
+    // one the refusal names (review 0050 R-8: by its name).
     assert!(
-        said.contains("оголошує ціль") && said.contains("двічі"),
+        said.contains("оголошує ціль \"unittests src/lib.rs\"") && said.contains("двічі"),
         "two targets of one name are refused by that name:\n{said}"
     );
     assert_ne!(code, 0, "and the refusal is not a closure:\n{said}");
@@ -209,6 +204,86 @@ fn every_verdict_keeps_its_own_key() {
         !said.contains("закрита"),
         "no verdict reads as closure:\n{said}"
     );
+
+    // --- rust: a test's CHILD writes into the stream past libtest --
+    // `failures:` before the verdicts (review 0050 R-1: the first cut
+    // of this wave hid every verdict after that word, and the red
+    // below it vanished; the base saw it) ---
+    let dir = keel_sandbox("keychild");
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::create_dir_all(dir.join("tests")).unwrap();
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("src/lib.rs"), "pub fn works() -> bool { true }\n").unwrap();
+    std::fs::write(
+        dir.join("tests/toy_test.rs"),
+        format!("/// proves: it-works@{rev}\n#[test]\nfn it_works() {{\n    assert!(toy::works());\n}}\n"),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("tests/child_test.rs"),
+        "#[test]\nfn a_loud_child() {\n    let _ = std::process::Command::new(\"sh\")\n        .arg(\"-c\")\n        .arg(\"echo failures:\")\n        .status();\n    std::thread::sleep(std::time::Duration::from_millis(200));\n}\n\n#[test]\nfn b_really_red() {\n    std::thread::sleep(std::time::Duration::from_millis(400));\n    panic!(\"red behind a child's word\");\n}\n",
+    )
+    .unwrap();
+    wave(&dir, "rust", "src/lib.rs");
+    settle(&dir);
+    let (said, code) = keel(&dir, &["close"]);
+    assert!(
+        said.contains("червоний тест: b_really_red"),
+        "a `failures:` a child printed hides no verdict below it:\n{said}"
+    );
+    assert_ne!(code, 0, "and the wave does not close over the red:\n{said}");
+    assert!(
+        !said.contains("закрита"),
+        "no verdict reads as closure:\n{said}"
+    );
+
+    // --- rust: forged lines -- a verdict a child prints, a block
+    // opener and a verdict a failing test prints into its failures
+    // section -- do not add up to cargo's own closing numbers, and
+    // that is a refusal, never a phantom green ---
+    for (name, tests) in [
+        (
+            "keyforgedchild",
+            "#[test]\nfn honest() {\n    let _ = std::process::Command::new(\"sh\").arg(\"-c\").arg(\"echo 'test ghost ... ok'\").status();\n    std::thread::sleep(std::time::Duration::from_millis(200));\n}\n",
+        ),
+        (
+            "keyforgedself",
+            "#[test]\nfn loud() {\n    println!(\"test quiet ... ok\");\n    println!(\"running 1 test\");\n    panic!(\"loud and red\");\n}\n",
+        ),
+    ] {
+        let dir = keel_sandbox(name);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::create_dir_all(dir.join("tests")).unwrap();
+        std::fs::write(
+            dir.join("Cargo.toml"),
+            "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("src/lib.rs"), "pub fn works() -> bool { true }\n").unwrap();
+        std::fs::write(
+            dir.join("tests/toy_test.rs"),
+            format!("/// proves: it-works@{rev}\n#[test]\nfn it_works() {{\n    assert!(toy::works());\n}}\n"),
+        )
+        .unwrap();
+        std::fs::write(dir.join("tests/forged_test.rs"), tests).unwrap();
+        wave(&dir, "rust", "src/lib.rs");
+        settle(&dir);
+        let (said, code) = keel(&dir, &["close"]);
+        assert!(
+            said.contains("не сходяться з підсумком cargo") || said.contains("зшивка не сходиться"),
+            "{name}: a forged line is caught by cargo's own numbers or by the \
+             stitch:\n{said}"
+        );
+        assert_ne!(code, 0, "{name}: and refused, not counted:\n{said}");
+        assert!(
+            !said.contains("закрита"),
+            "{name}: no verdict reads as closure:\n{said}"
+        );
+    }
 
     // --- python: green in the body, ERROR at teardown -- pytest says
     // two words about one node, and the second is red ---
@@ -293,6 +368,40 @@ fn every_verdict_keeps_its_own_key() {
             !said.contains("закрита"),
             "no verdict reads as closure:\n{said}"
         );
+
+        // And a GREEN test named as its file: node gives it no
+        // `location:` either, so the file's own declarations decide
+        // -- both courts say green over one tree (review 0050 R-2).
+        let dir = keel_sandbox("keyjsgreen");
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::create_dir_all(dir.join("test")).unwrap();
+        std::fs::write(
+            dir.join("package.json"),
+            "{ \"name\": \"toy\", \"version\": \"0.1.0\", \"type\": \"module\" }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("src/toy.js"),
+            "export function works() {\n  return true;\n}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("test/toy.test.js"),
+            format!(
+                "import {{ test }} from 'node:test';\nimport assert from 'node:assert';\nimport {{ works }} from '../src/toy.js';\n\n// proves: it-works@{rev}\ntest('test/toy.test.js', () => {{\n  assert.ok(works());\n}});\n"
+            ),
+        )
+        .unwrap();
+        wave(&dir, "javascript", "src/toy.js");
+        settle(&dir);
+        let (said, code) = gate(&dir);
+        assert_eq!(code, 0, "the gate sees the green test by its name:\n{said}");
+        let (said, code) = keel(&dir, &["close"]);
+        assert!(
+            said.contains("0001-a-wave: закрита"),
+            "and the battery counts it as the test the file declares:\n{said}"
+        );
+        assert_eq!(code, 0, "the two courts agree on one tree:\n{said}");
     }
 
     // --- ruby: minitest required without `minitest/autorun` -- ruby

@@ -288,6 +288,10 @@ adapter-cargo-failed = cargo відмовляє: { $error }
 adapter-cargo-failed-instead = судові потрібен робочий cargo (журнал А3); зроби так, щоб cargo тут відповідав, і повтори
 adapter-battery-mismatch = cargo оголошує { $stems } цілей і друкує { $blocks } блоків вироків — зшивка не сходиться (ціль із harness = false?)
 adapter-battery-mismatch-instead = суд не судить по зсунутому шву; віддай тій цілі harness або жени її окремо, тоді повтори keel close
+adapter-battery-counts = cargo нарахував у блоці { $passed } зелених і { $failed } червоних, а читач прочитав { $green } і { $red } — рядки вироків не сходяться з підсумком cargo
+adapter-battery-counts-instead = тест, що пише в stdout повз libtest (дитина-процес), міг підробити рядок вироку чи блоку; зроби його мовчазним або жени окремо, тоді повтори keel close
+adapter-cargo-red-unseen = cargo вийшов із { $code }, а читач не побачив жодного червоного вироку — бінарник тестів упав до підсумку або говорить незнайомою формою
+adapter-cargo-red-unseen-instead = жени `cargo test --no-fail-fast` рукою і подивись, що впало; без прочитаного червоного суд не судить
 adapter-battery-alike = cargo оголошує ціль "{ $target }" двічі — вироки двох цілей з одним іменем не розрізнити (воркспейс?)
 adapter-battery-alike-instead = цей реліз веде один крейт: жени члени воркспейсу окремо, кожен зі своїм keel.toml, або дай цілям різні імена — тоді повтори keel close
 

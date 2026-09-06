@@ -226,14 +226,21 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // alone threw out a red test NAMED as its file with it (global
         // review 2026-09-06, bugs cut R-21). Measured on node 22: the
         // file's own line never carries a `location:`, a failed test
-        // always does -- so a red under the file's name is a test, and
-        // the file line stays out. A GREEN test named as its file has
-        // no location either and is read as the file line: it is not
-        // counted, the court says its tag ran nothing, and the wave
-        // stays open -- the safe side of the border, named in the
-        // contract.
+        // always does; a GREEN test carries none either -- so the
+        // reader of declarations decides that case: a test the file
+        // DECLARES under the file's own name is a test (review 0050
+        // R-2, where the gate said green and the battery said "not
+        // run" over one tree). Only a line no declaration answers for
+        // is the file's own.
+        let declared_as_file = std::fs::read_to_string(&file)
+            .unwrap_or_default()
+            .lines()
+            .any(|line| matches!(crate::tags::js_call(line), Some(crate::tags::JsCall::Named(name)) if name == shown));
         for entry in tap(&said) {
-            if entry.suite || entry.skipped || (entry.name == shown && !entry.located) {
+            if entry.suite
+                || entry.skipped
+                || (entry.name == shown && !entry.located && !declared_as_file)
+            {
                 continue;
             }
             out.entry((key.clone(), entry.name))

@@ -99,6 +99,26 @@ pub fn battery_key(root: &Path, file: &Path) -> String {
         .replace('\\', "/")
 }
 
+/// cargo's own count from a block's closing line -- `ok. 2 passed; 0
+/// failed; 0 ignored; …` or `FAILED. 1 passed; 1 failed; …` -- as
+/// (passed, failed). None where the line is not that shape.
+fn result_counts(rest: &str) -> Option<(u64, u64)> {
+    let mut passed = None;
+    let mut failed = None;
+    for part in rest.split(';') {
+        let mut words = part.split_whitespace().rev();
+        let (Some(word), Some(number)) = (words.next(), words.next()) else {
+            continue;
+        };
+        match word {
+            "passed" => passed = number.parse().ok(),
+            "failed" => failed = number.parse().ok(),
+            _ => {}
+        }
+    }
+    Some((passed?, failed?))
+}
+
 /// Whether this tongue's build is the kind that wants gigabytes.
 /// cargo's is; mix's `_build` measured 148 KiB on the same battery
 /// (review 0042 R-4). A warning four orders of magnitude out is not
@@ -446,29 +466,43 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     let stdout = String::from_utf8_lossy(&out.stdout);
     let mut verdicts: BTreeMap<(String, String), bool> = BTreeMap::new();
     let mut block: usize = 0;
-    // The `failures:` section of a block repeats whatever the failed
-    // tests printed, and a test may print anything -- `test quiet ...
-    // ok`, `running 1 test` (bugs cut R-16). Nothing in it is a
-    // verdict or a block opener; it ends at cargo's own `test result:`
-    // line. The border is text: a test that prints THAT line too is
-    // read past, and the stitch below is what still stands.
-    let mut in_failures = false;
+    let mut closed: usize = 0;
+    // What the reader counted in the current block, checked against
+    // cargo's own closing line of that block -- `test result: FAILED.
+    // 1 passed; 1 failed; …`. A test may print anything into this
+    // stream past libtest (a child process, review 0050 R-1): a
+    // verdict line it forges, a `failures:` it echoes, a `running 1
+    // test` -- and the first cut of this wave hid every verdict after
+    // a `failures:` line, so a child that printed the word made the
+    // red below it vanish. The numbers cargo counted are the court
+    // now: a block whose read verdicts do not add up to them, a
+    // closing line cargo did not print, or an exit 101 with no red
+    // read at all -- each a refusal aloud, never a guess.
+    let mut counted = (0u64, 0u64);
     for line in stdout.lines() {
         let trimmed = line.trim();
-        if in_failures {
-            if trimmed.starts_with("test result:") {
-                in_failures = false;
-            }
-            continue;
-        }
-        if trimmed == "failures:" {
-            in_failures = true;
-            continue;
-        }
         if trimmed.starts_with("running ") && trimmed.ends_with("tests")
             || trimmed == "running 1 test"
         {
             block += 1;
+            counted = (0, 0);
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("test result: ") {
+            let Some((passed, failed)) = result_counts(rest) else {
+                continue;
+            };
+            if (passed, failed) != counted {
+                return Err(Refusal {
+                    file: crate_dir,
+                    reason: ta(
+                        "adapter-battery-counts",
+                        targs!("passed" => passed, "failed" => failed, "green" => counted.0, "red" => counted.1),
+                    ),
+                    instead: t("adapter-battery-counts-instead"),
+                });
+            }
+            closed += 1;
             continue;
         }
         if let Some(rest) = trimmed.strip_prefix("test ")
@@ -479,25 +513,28 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
                 v if v.starts_with("FAILED") => false,
                 _ => continue, // ignored and friends are no verdict
             };
+            if green {
+                counted.0 += 1;
+            } else {
+                counted.1 += 1;
+            }
             let target = block
                 .checked_sub(1)
                 .and_then(|i| targets.get(i))
                 .cloned()
                 .unwrap_or_default();
-            // Red wins where one key is spoken of twice: a verdict is
-            // never overwritten by a later green.
-            verdicts
-                .entry((target, name.trim().to_string()))
-                .and_modify(|was| *was = *was && green)
-                .or_insert(green);
+            // One key, one verdict: cargo names a test once per
+            // target, and the numbers above are what hold the text.
+            verdicts.insert((target, name.trim().to_string()), green);
         }
     }
     // The stitch holds only when every announced target printed its
-    // verdict block: a harness = false target prints "Running" and
-    // no block, shifting every later verdict onto the wrong target --
-    // up to blessing a wave with a red tagged test (review R-1). A
-    // seam that does not meet is a refusal, not a guess.
-    if block != targets.len() {
+    // verdict block and every block its closing line: a harness =
+    // false target prints "Running" and no block, shifting every
+    // later verdict onto the wrong target -- up to blessing a wave
+    // with a red tagged test (review R-1). A seam that does not meet
+    // is a refusal, not a guess.
+    if block != targets.len() || closed != block {
         return Err(Refusal {
             file: crate_dir,
             reason: ta(
@@ -505,6 +542,19 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
                 targs!("stems" => targets.len() as u64, "blocks" => block as u64),
             ),
             instead: t("adapter-battery-mismatch-instead"),
+        });
+    }
+    // cargo left red and the reader saw none: whatever it was -- a
+    // binary that crashed before its closing line, a shape this
+    // reader does not know -- it is not a green battery.
+    if !out.status.success() && !verdicts.values().any(|green| !green) {
+        return Err(Refusal {
+            file: crate_dir,
+            reason: ta(
+                "adapter-cargo-red-unseen",
+                targs!("code" => out.status.code().unwrap_or(-1) as i64),
+            ),
+            instead: t("adapter-cargo-red-unseen-instead"),
         });
     }
     if verdicts.is_empty() && !out.status.success() {
