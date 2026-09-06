@@ -163,3 +163,105 @@ fn the_generated_ci_runs_where_it_is_born() {
         "the file says how an edited copy is kept for good:\n{text}"
     );
 }
+
+/// proves: the-generated-close-knows-its-branch@159b6e -- on a
+/// pull_request event actions/checkout leaves a detached HEAD, and the
+/// generated file named the branch for `keel check` alone: `keel
+/// close` counted the blockers of "its own" wave, found no branch,
+/// and left with "no blockers", exit 0, over a wave in progress
+/// (global review 2026-09-06, bugs cut R-4).
+#[test]
+fn the_generated_close_knows_its_branch() {
+    let text = workflow(&born("cibranch", Some("rust")));
+    let Some(close_step) = text.find("- name: the closure court") else {
+        panic!("the closure court step:\n{text}");
+    };
+    let Some(close_run) = text[close_step..].find("run: keel close") else {
+        panic!("the closure court runs keel close:\n{text}");
+    };
+    assert!(
+        text[close_step..close_step + close_run].contains("KEEL_BRANCH"),
+        "the close step carries the branch the way the check step does:\n{text}"
+    );
+    // The first step's comment tells the truth since wave 0048: the
+    // installer takes a published release where one exists, and
+    // builds from source otherwise.
+    assert!(
+        !text.contains("There is no released binary yet"),
+        "the comment no longer denies the release road:\n{text}"
+    );
+    assert!(
+        text.contains("builds it from source"),
+        "and still says what happens without one:\n{text}"
+    );
+
+    // This repository's own generated file was rewritten by `keel
+    // update`, so both courts here carry the branch too.
+    let own = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../.github/workflows/keel.yml"
+    ))
+    .unwrap();
+    assert_eq!(
+        own.matches("KEEL_BRANCH").count(),
+        2,
+        "keel's own workflow names the branch for check and for close"
+    );
+
+    // And close over a detached HEAD with the branch named counts the
+    // blockers of that wave -- the wave is in work: proven, but no
+    // review beside it.
+    let dir = sandbox("cidetached");
+    fs::create_dir_all(dir.join("keel/waves")).unwrap();
+    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
+    fs::create_dir_all(dir.join("keel/reviews")).unwrap();
+    fs::create_dir_all(dir.join("src")).unwrap();
+    fs::create_dir_all(dir.join("tests")).unwrap();
+    fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
+    fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    fs::write(dir.join("src/lib.rs"), "pub fn works() -> bool { true }\n").unwrap();
+    let body = "тіло обіцянки\n\n";
+    let mut d = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        if *cut != "functional.correctness" {
+            d.push_str(&format!("  {cut}: \"не про цю пісочницю\"\n"));
+        }
+    }
+    fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        format!(
+            "---\nscenarios:\n  it-works:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-works\n    files:\n      - src/lib.rs\n{d}---\n\n## scenario: it-works\n{body}## transform: work\nтіло роботи\n"
+        ),
+    )
+    .unwrap();
+    let rev = keel::rev::text_rev(body);
+    fs::write(
+        dir.join("tests/toy_test.rs"),
+        format!("/// proves: it-works@{rev}\n#[test]\nfn it_works() {{\n    assert!(toy::works());\n}}\n"),
+    )
+    .unwrap();
+    git(&dir, &["-c", "user.email=keel@test", "-c", "user.name=keel-test", "init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["-c", "user.email=keel@test", "-c", "user.name=keel-test", "commit", "-q", "-m", "base"]);
+    git(&dir, &["checkout", "-q", "--detach"]);
+    let named = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["close", dir.to_str().unwrap()])
+        .env("KEEL_BRANCH", "0001-a-wave")
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&named.stdout),
+        String::from_utf8_lossy(&named.stderr)
+    );
+    assert!(
+        said.contains("блокери хвилі цієї гілки 0001-a-wave"),
+        "with the branch named, the detached close counts that wave's \
+         blockers:\n{said}"
+    );
+    assert_ne!(named.status.code(), Some(0), "and leaves red:\n{said}");
+}
