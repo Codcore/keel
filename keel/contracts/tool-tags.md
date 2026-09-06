@@ -1,7 +1,7 @@
 ---
 module: keel::tags
 exports:
-  - "pub struct TestTag { pub file: PathBuf, pub test: String, pub scenario: String, pub rev: String }"
+  - "pub struct TestTag { pub file: PathBuf, pub test: String, pub scenario: String, pub rev: String, pub line: usize }"
   - "pub fn scan(files: &[PathBuf]) -> Result<Vec<TestTag>, Refusal>"
   - "pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal>"
 ---
