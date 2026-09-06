@@ -454,17 +454,19 @@ check` prints that border itself, next to a second one: ruby writes no types, so
 the §7.6 form court compares a method name and its parameters and nothing more.
 
 Adding a language is a module, a row in `Language::NAMES`, the dictionary in
-both tongues, and **nineteen** places where something branches on the tongue —
+both tongues, and **twenty** places where something branches on the tongue —
 counted off the source rather than guessed: the number that stood here before
 was six beside a list of seven, then fourteen while wave 0044 was adding three
 more, seventeen by review 0045, and review 0046 found the grep
 (`grep -n 'language_of(root)\|config.language()' tool/src/*.rs`) giving more
 lines than the hand count, because `check` asks once per tongue for the
-tongue's own limits — so the list is the count, and the grep (twenty lines
-today) is how to find what the list missed:
+tongue's own limits — so the list is the count, and the grep (twenty-one
+lines today) is how to find what the list missed:
 
 `adapter::builds_heavily`, `build_dir`, `tests_dir`, `run_line`, `test_files`,
-`run_test`, `run_all`; `config::battery_command`; `holding::comparability` (the
+`run_test`, `run_all`, and `is_test_path` (wave 0050 — which path of a tree is
+a test file, asked by the §7.15 court of a tree that is not on disk);
+`config::battery_command`; `holding::comparability` (the
 module layout) and `holding::strip_comments` (the comment shape);
 `tags::scan_text` (the declaration shape), `tags::marks` and `tags::declares`
 (these three keyed by the file's extension, never by the project's config — see
@@ -481,6 +483,7 @@ What an adapter has to answer is small and written down:
 | question | why |
 |---|---|
 | where do the test files live | the `proves:` tags are read from them (§5.5) |
+| which path of a tree is a test file | §7.15 judges the tree at the fork point, which is not on disk |
 | how to run exactly one test | the red birth is judged by watching it fail (§7.12) |
 | how to run the whole battery | `keel close` runs it three times (§7.13) |
 | how to read a module's source | a contract's `exports` are compared against it (§7.6) |
