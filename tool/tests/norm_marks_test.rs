@@ -74,10 +74,14 @@ fn the_norm_names_what_holds_it() {
         word.contains("superseded_by") && word.contains("§6.8") && word.contains("revert"),
         "§6.3-b (en) says the same:\n{word}"
     );
+    // §6.3-а ends where it always did -- at the withdrawn promise of
+    // §2.12 -- and no longer with the sentence that called the
+    // rollback uncovered (asserted by the ending, not by a phrase the
+    // tool never says: dead_assert_test reads `contains` only).
     let word = paragraph(&uk, "**§6.3-а.");
     assert!(
-        !word.contains("не покриті"),
-        "§6.3-а (uk) no longer says the rollback is uncovered:\n{word}"
+        word.trim_end().ends_with("(§2.12)."),
+        "§6.3-а (uk) ends at §2.12, without the sentence that called the rollback uncovered:\n{word}"
     );
 
     // --- the translation records the Ukrainian revision as it now
