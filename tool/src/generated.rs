@@ -730,6 +730,17 @@ fn workflow(root: &Path, config: &Config) -> String {
         _ => String::new(),
     };
     let battery = match config.language() {
+        // ruby has two readings, and `keel close` runs both: a
+        // project that keeps spec/ got a step that ran minitest alone
+        // and said nothing of the specs (review 0055 R-9). The step a
+        // person reads in the log now runs what the closing court
+        // runs.
+        Some(Language::Ruby) if root.join("spec").is_dir() => format!(
+            "      - name: the battery\n        run: |\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}{}\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}rspec\n{inside}",
+            Language::Ruby.battery_command()
+        ),
         Some(language) => format!(
             "      - name: the battery\n        run: {}\n{inside}",
             language.battery_command()

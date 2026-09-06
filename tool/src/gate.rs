@@ -13,6 +13,7 @@ use crate::scope;
 use crate::tags;
 use crate::targs;
 use std::path::Path;
+use std::process::Command;
 
 /// Judges the commit message from the file (as the commit-msg hook
 /// hands it over) and returns the report plus the exit code, the
@@ -498,16 +499,20 @@ const MARK: &str = "# keel gate -- the commit judged by the machine";
 /// answers; where neither does, the refusal is keel's own, and
 /// carries what to do instead (§9.7).
 fn hook_text() -> String {
-    let named = hook_keel();
+    let quoted = shell_quoted(&hook_keel());
     format!(
         "#!/bin/sh\n\
          {MARK} (Keel v2, journal A3).\n\
          # The path is the keel that installed this hook: a GUI client runs\n\
-         # hooks with its own PATH, where it is often not to be found.\n\
-         KEEL=\"{named}\"\n\
+         # hooks with its own PATH, where it is often not to be found. It is\n\
+         # written once, in single quotes, and never pasted into a message:\n\
+         # a directory name is somebody else's text (review 0055 R-4).\n\
+         KEEL_HERE={quoted}\n\
+         KEEL=\"$KEEL_HERE\"\n\
          [ -x \"$KEEL\" ] || KEEL=\"$(command -v keel 2>/dev/null)\"\n\
          if [ -z \"$KEEL\" ]; then\n\
-         \u{20}\u{20}\u{20}\u{20}echo \"keel: the commit court did not run: keel is neither at {named}\" >&2\n\
+         \u{20}\u{20}\u{20}\u{20}echo \"keel: the commit court did not run: keel is neither at\" >&2\n\
+         \u{20}\u{20}\u{20}\u{20}echo \"keel:   $KEEL_HERE\" >&2\n\
          \u{20}\u{20}\u{20}\u{20}echo \"keel: nor on the PATH this program runs hooks with\" >&2\n\
          \u{20}\u{20}\u{20}\u{20}echo \"keel: instead: install it again (sh install.sh), then run keel hook here --\" >&2\n\
          \u{20}\u{20}\u{20}\u{20}echo \"keel: or add the directory keel stands in to that PATH\" >&2\n\
@@ -524,7 +529,12 @@ fn hook_keel() -> String {
     if let Some(path) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&path) {
             let candidate = dir.join("keel");
-            if candidate.is_file() {
+            // A file named `keel` is not a keel: the installer asks
+            // the same question of the binary it copies, and this
+            // court used to take the first name it met -- a
+            // stranger's script became the commit court of the
+            // repository, and said so to nobody (review 0055 R-4).
+            if candidate.is_file() && answers_as_keel(&candidate) {
                 return candidate.display().to_string();
             }
         }
@@ -532,6 +542,29 @@ fn hook_keel() -> String {
     std::env::current_exe()
         .map(|path| path.display().to_string())
         .unwrap_or_else(|_| "keel".to_string())
+}
+
+/// Whether the file at this path calls itself keel when asked. The
+/// launcher answers this too, so a launcher on PATH is taken over
+/// this very binary, as it should be: it is the hand that picks the
+/// version a project pins.
+fn answers_as_keel(path: &Path) -> bool {
+    let mut command = Command::new(path);
+    command.arg("--version");
+    crate::scope::forget_the_hook(&mut command);
+    command.output().is_ok_and(|out| {
+        out.status.success() && String::from_utf8_lossy(&out.stdout).starts_with("keel ")
+    })
+}
+
+/// A path a shell will hand on whole, whatever stands in it: single
+/// quotes, with any quote inside closed, escaped and reopened. The
+/// first cut of this wave pasted the path into the hook inside
+/// double quotes, so `$( )` in a directory name ran on every commit
+/// and a quote broke the script into a court that passed everything
+/// (review 0055 R-4).
+fn shell_quoted(word: &str) -> String {
+    format!("'{}'", word.replace('\'', "'\\''"))
 }
 
 /// Writes `.git/hooks/commit-msg` calling `keel gate`. A repeated

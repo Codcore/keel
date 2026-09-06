@@ -250,4 +250,91 @@ fn the_generated_frame_carries_the_tongue() {
         "a message outside the judgement passes, as it does on a \
          person's PATH:\n{said}"
     );
+
+    // -- and the path it names is a path, not somebody's script -----
+    // A file named `keel` is not a keel: the first cut of this wave
+    // took the first name on PATH, so a stranger's script became the
+    // commit court of a repository (review 0055 R-4).
+    let stranger = dir.join("fakebin");
+    fs::create_dir_all(&stranger).unwrap();
+    fs::write(
+        stranger.join("keel"),
+        "#!/bin/sh\necho \"I am a stranger named keel\"\n",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(stranger.join("keel")).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(stranger.join("keel"), perms).unwrap();
+    }
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["hook", dir.to_str().unwrap()])
+        .env(
+            "PATH",
+            format!(
+                "{}:{}",
+                stranger.display(),
+                std::env::var("PATH").unwrap_or_default()
+            ),
+        )
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "the hook is installed");
+    let text = fs::read_to_string(&hook).unwrap();
+    assert!(
+        !text.contains(stranger.join("keel").to_str().unwrap()),
+        "a file that merely bears the name is not the court: it is \
+         asked who it is, as the installer asks the binary it \
+         copies:\n{text}"
+    );
+
+    // And a directory name is somebody else's text: it goes into the
+    // hook in single quotes, and never into a message.
+    let odd = dir.join("b$(touch ".to_owned() + dir.join("PWNED").to_str().unwrap() + ")d");
+    fs::create_dir_all(&odd).unwrap();
+    fs::copy(env!("CARGO_BIN_EXE_keel"), odd.join("keel")).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(odd.join("keel")).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(odd.join("keel"), perms).unwrap();
+    }
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["hook", dir.to_str().unwrap()])
+        .env(
+            "PATH",
+            format!(
+                "{}:{}",
+                odd.display(),
+                std::env::var("PATH").unwrap_or_default()
+            ),
+        )
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "the hook is installed over the odd path"
+    );
+    let out = Command::new("/bin/sh")
+        .arg(&hook)
+        .arg(&msg)
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        !dir.join("PWNED").exists(),
+        "what a directory is called does not run on every commit:\n{said}"
+    );
+    assert!(
+        !said.contains("Syntax error") && !said.contains("not found"),
+        "and the court itself still runs:\n{said}"
+    );
 }
