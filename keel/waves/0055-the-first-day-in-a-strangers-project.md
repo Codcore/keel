@@ -120,14 +120,10 @@ transforms:
       - tool/tests/exact_words_test.rs
       - tool/tests/elixir_border_test.rs
   the-asserts-can-fall:
-    chore: "six negative asserts hunt English phrases the tool never says, and two probes of 0053-0054 hold their clauses by a weaker fact than written: the asserts are made able to fall and dead_assert_test reads English phrases too (final review, tests R-5, R-6)"
+    chore: "negative asserts that hunt English phrases the tool never says, and two probes of 0053-0054 holding their clauses by a weaker fact than written: dead_assert_test reads English negatives too (with the six live ones named), and the two clauses hold what they claim (final review, tests R-5, R-6)"
     files:
       - tool/tests/dead_assert_test.rs
-      - tool/tests/court_words_test.rs
-      - tool/tests/one_home_test.rs
-      - tool/tests/body_test.rs
-      - tool/tests/review_test.rs
-      - tool/tests/rule_truth_test.rs
+      - tool/tests/check_test.rs
       - tool/tests/speak_test.rs
       - tool/tests/own_ci_test.rs
       - tool/tests/norm_marks_test.rs
@@ -444,10 +440,18 @@ UTF-8 з «натомість»; `quoted_after` читає екрановану 
 
 ## transform: the-asserts-can-fall
 
-Шість негативних `contains` — на слова, які інструмент каже, або
-позитивні; `dead_assert_test` читає й англійські фрази; `own_ci_test`
-тримає імʼя інструмента в паніці і `keel check` над деревом;
-`norm_marks_test` жене `keel check`.
+`dead_assert_test` читає й англійські негативні `contains`: фраза, якої
+нема ніде — ні в словах інструмента, ні в документах, ні у власній
+пісочниці проби, — знахідка; шість живих названо поіменно з причиною.
+Два мертві асерти (`check_test`, `speak_test`) стають живими —
+позитивними. `own_ci_test` тримає імʼя інструмента в паніці;
+`norm_marks_test` жене `keel check` і читає два рядки норми.
+
+**Зміряно (дрейф, §4.6):** план назвав пʼять проб, у яких мертвих
+асертів не виявилось (`court_words`, `one_home`, `body`, `review`,
+`rule_truth`) — їхні негативи або складаються з частин під час бігу,
+або стережуть текст норми; замість них у списку `check_test`, де
+мертвий асерт справді стояв.
 
 ## transform: the-documents-tell-the-day
 
