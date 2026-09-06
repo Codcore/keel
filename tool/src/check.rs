@@ -241,6 +241,11 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let mut refs_unjudged: u64 = 0;
     let mut refs_no_history: u64 = 0;
     let mut historic_items: Vec<String> = Vec::new();
+    // The same count on a cut-short clone: the skipped number must
+    // be the number the whole clone would have checked (wave 0033),
+    // so it counts revisions, not rows, exactly as the historic one.
+    let mut unjudged_items: std::collections::BTreeSet<(String, String, String)> =
+        Default::default();
     for wave in &scan.waves {
         // A wave called off is outside judgement whole (§6.3-a):
         // review 0037 R-1 measured this court and the §7.7 one below
@@ -299,14 +304,28 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                             refs_no_history += 1;
                             None
                         } else if shallow {
-                            refs_unjudged += 1;
+                            if unjudged_items.insert((
+                                wave.slug.clone(),
+                                reference.slug.clone(),
+                                reference.rev.clone(),
+                            )) {
+                                refs_unjudged += 1;
+                            }
                             None
                         } else if closed && revision_in_history(root, &relative, &reference.rev) {
-                            refs_historic += 1;
-                            historic_items.push(ta(
+                            // One old revision, however many
+                            // references of the header hold it: the
+                            // line counted rows -- 169 on this tree
+                            // for 88 revisions (global review
+                            // 2026-09-06, methodology R-14; wave 0053).
+                            let item = ta(
                                 "check-refs-historic-item",
                                 targs!("wave" => wave.slug.clone(), "contract" => reference.slug.clone(), "recorded" => reference.rev.clone()),
-                            ));
+                            );
+                            if !historic_items.contains(&item) {
+                                refs_historic += 1;
+                                historic_items.push(item);
+                            }
                             None
                         } else {
                             Some((

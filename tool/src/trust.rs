@@ -167,8 +167,8 @@ pub fn record(root: &Path) -> Result<String, Refusal> {
     let path = root.join("keel.toml");
     let text = std::fs::read_to_string(&path).map_err(|e| Refusal {
         file: path.clone(),
-        reason: format!("keel.toml cannot be read: {e}"),
-        instead: "check the path and file permissions".to_string(),
+        reason: ta("docs-unreadable", targs!("error" => e.to_string())),
+        instead: t("docs-unreadable-instead"),
     })?;
     let written = crate::confedit::upsert(&text, "trust", &to_write);
     // The net under the surgery (review R-1): the result must still
@@ -184,8 +184,8 @@ pub fn record(root: &Path) -> Result<String, Refusal> {
     }
     std::fs::write(&path, written).map_err(|e| Refusal {
         file: path.clone(),
-        reason: format!("keel.toml cannot be written: {e}"),
-        instead: "check the file permissions".to_string(),
+        reason: ta("trust-unwritable", targs!("error" => e.to_string())),
+        instead: t("trust-unwritable-instead"),
     })?;
 
     for (command, print) in &to_write {

@@ -411,6 +411,63 @@ fn pinned_node(root: &Path) -> Option<&'static str> {
         .find(|file| root.join(file).is_file())
 }
 
+/// Is this repository the tool itself? Asked by two marks, both at
+/// hand: the crate the adapter found is named `keel`, and the
+/// published installer's own file lies at the root -- a stranger's
+/// crate that merely shares the name has no install.sh of ours for
+/// the step to replace. Read with the TOML reader, as the toolchain
+/// pin is (wave 0053).
+fn the_tool_itself(root: &Path, where_crate: Option<&str>) -> bool {
+    let manifest = match where_crate {
+        Some(dir) => root.join(dir).join("Cargo.toml"),
+        None => root.join("Cargo.toml"),
+    };
+    let Ok(text) = std::fs::read_to_string(manifest) else {
+        return false;
+    };
+    let named = toml::from_str::<toml::Value>(&text)
+        .ok()
+        .and_then(|value| Some(value.get("package")?.get("name")?.as_str()? == "keel"))
+        .unwrap_or(false);
+    let installer = INSTALLER.rsplit('/').next().unwrap_or("install.sh");
+    named && root.join(installer).is_file()
+}
+
+/// The tongues the battery judges, set up on the runner before the
+/// courts that run it (wave 0053): the closure court runs the
+/// battery, and under a declared runner (`CI` is set) a probe whose
+/// tongue is missing fails by name instead of skipping -- so a
+/// closure over a runner lacking one would be red for the wrong
+/// reason. Only the tool's own workflow carries them: a stranger's
+/// battery speaks one tongue, its own.
+const TONGUES: &str = "      # The tongues the battery judges (wave 0053): the closure court\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# runs the battery, and under a declared runner (CI is set) a\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# probe whose tongue is missing fails by name instead of\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# skipping -- so every tongue is here before the courts.\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: ruby\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}uses: ruby/setup-ruby@v1\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}ruby-version: \"3.3\"\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: rspec\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: gem install rspec --no-document\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: elixir\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}uses: erlef/setup-beam@v1\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}otp-version: \"26\"\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}elixir-version: \"1.16\"\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: hex\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: mix local.hex --force\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: python\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}uses: actions/setup-python@v5\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}python-version: \"3.12\"\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: pytest\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: pip install pytest\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: node\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}uses: actions/setup-node@v4\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}node-version: \"22\"\n";
+
 /// Is this a channel NAME, and nothing a shell would read as more
 /// than one? The whole of the value must be it -- a prefix that
 /// looks right is exactly how the injection above got in.
@@ -462,6 +519,65 @@ fn workflow(root: &Path, config: &Config) -> String {
         Where::Inside(dir) => Some(dir.clone()),
         _ => None,
     };
+    // This repository is the tool itself: a branch is judged by its
+    // own binary, built from the checked-out tree, never by the one
+    // upstream main's install.sh would put on PATH -- a PR judged by
+    // a binary that is not in it judges the wrong thing (global
+    // review 2026-09-06, tests R-10; wave 0053). The file says so in
+    // its own head, and the tongues the battery judges follow the
+    // step, because the closure court below runs that battery.
+    let own = the_tool_itself(root, where_crate.as_deref());
+    let manifest = match where_crate.as_deref() {
+        Some(dir) => format!("{dir}/Cargo.toml"),
+        None => "Cargo.toml".to_string(),
+    };
+    let built = match where_crate.as_deref() {
+        Some(dir) => format!("{dir}/target/debug/keel"),
+        None => "target/debug/keel".to_string(),
+    };
+    let header = if own {
+        "# This repository is the tool: the first steps name the toolchain\n\
+         # this project pins and build keel from the checked-out tree, so a\n\
+         # branch is judged by its own binary and not by the one the\n\
+         # published installer would fetch; the steps after them put the\n\
+         # tongues the battery judges on the runner; the rest judge with it.\n\
+         # If you already put `keel` on PATH some other way, replace the\n\
+         # build step with yours -- the courts below do not care how it got\n\
+         # there. To keep an edited copy for good, delete this file's line\n\
+         # from [generated] in keel.toml as well: otherwise `keel update`\n\
+         # will keep saying it did not overwrite you.\n"
+    } else {
+        "# The first step installs the tool; the rest judge with it.\n\
+         # It takes the published release of the pinned version where one\n\
+         # exists, and builds it from source otherwise: that road needs git\n\
+         # and cargo on the runner, and it costs minutes on a cold cache. If\n\
+         # your project already puts `keel` on PATH some other\n\
+         # way, replace this step with yours -- the courts below do not care\n\
+         # how it got there. To keep an edited copy for good, delete this\n\
+         # file's line from [generated] in keel.toml as well: otherwise\n\
+         # `keel update` will keep saying it did not overwrite you.\n"
+    };
+    let own_step = format!(
+        "      - name: the tool itself\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Built from this tree: this repository IS the tool, and a\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# branch is judged by its own binary (wave 0053). It needs\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# cargo on the runner; the battery below reuses what it built.\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: |\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}cargo build --manifest-path {manifest}\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}install -D {built} \"$HOME/.local/bin/keel\"\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n\
+             {TONGUES}"
+    );
+    let installer_step = format!(
+        "      - name: the tool itself\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Clones the method into ~/.keel, then builds it from source.\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# It needs git and cargo on the runner, and cargo writes\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# its own registry into CARGO_HOME while it does.\n\
+             {pin}\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: |\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}curl -fsSL {INSTALLER} | sh\n\
+             \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n"
+    );
     // And which toolchain judged, for a tongue that has one. A
     // verdict from whatever the runner had that day is repeatable
     // only by accident; where the project pins nothing -- or pins
@@ -507,9 +623,9 @@ fn workflow(root: &Path, config: &Config) -> String {
         },
         _ => String::new(),
     };
-    let courts = match config.language() {
+    let battery = match config.language() {
         Some(language) => format!(
-            "{toolchain}      - name: the battery\n        run: {}\n{inside}",
+            "      - name: the battery\n        run: {}\n{inside}",
             language.battery_command()
         ),
         None => "      # No battery step: keel.toml names no adapter this\n\
@@ -518,18 +634,20 @@ fn workflow(root: &Path, config: &Config) -> String {
                  \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# where it can; add your own step here otherwise.\n"
             .to_string(),
     };
+    // The tool's own workflow names the toolchain FIRST and builds
+    // with it (review 0053 R-12: the pin step stood after the courts
+    // it should have judged with); a stranger's names it before the
+    // battery, as before -- its install step needs no toolchain of
+    // the project's.
+    let (install, courts) = if own {
+        (format!("{toolchain}{own_step}"), battery)
+    } else {
+        (installer_step, format!("{toolchain}{battery}"))
+    };
     format!(
         "# keel (generated -- do not edit; keel update rewrites this file)\n\
          #\n\
-         # The first step installs the tool; the rest judge with it.\n\
-         # It takes the published release of the pinned version where one\n\
-         # exists, and builds it from source otherwise: that road needs git\n\
-         # and cargo on the runner, and it costs minutes on a cold cache. If\n\
-         # your project already puts `keel` on PATH some other\n\
-         # way, replace this step with yours -- the courts below do not care\n\
-         # how it got there. To keep an edited copy for good, delete this\n\
-         # file's line from [generated] in keel.toml as well: otherwise\n\
-         # `keel update` will keep saying it did not overwrite you.\n\
+         {header}\
          name: keel\n\
          \n\
          on:\n\
@@ -543,14 +661,7 @@ fn workflow(root: &Path, config: &Config) -> String {
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- uses: actions/checkout@v4\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}fetch-depth: 0\n\
-         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the tool itself\n\
-         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Clones the method into ~/.keel, then builds it from source.\n\
-         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# It needs git and cargo on the runner, and cargo writes\n\
-         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# its own registry into CARGO_HOME while it does.\n\
-         {pin}\
-         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: |\n\
-         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}curl -fsSL {INSTALLER} | sh\n\
-         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}echo \"$HOME/.local/bin\" >> \"$GITHUB_PATH\"\n\
+         {install}\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the documents judged\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# On a pull_request event actions/checkout leaves a\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# detached HEAD and git serves no branch, so the scope\n\

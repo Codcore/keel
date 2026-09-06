@@ -50,8 +50,17 @@ fn no_generated_file_is_edited_by_hand() {
     // pins (wave 0044). A copy carrying only keel.toml would be a
     // world thinner than the one it judges, and the probe would
     // report drift that is only its own fixture's (the lesson of
-    // review 0041). So the markers travel with it.
-    for marker in ["Cargo.toml", "tool/Cargo.toml", "rust-toolchain.toml"] {
+    // review 0041). So the markers travel with it -- and since wave
+    // 0053 the installer's own file too: with it and a crate named
+    // keel, the workflow builds the tool from the tree instead of
+    // fetching it, and a copy without it would be a stranger's
+    // project judged against the tool's own file.
+    for marker in [
+        "Cargo.toml",
+        "tool/Cargo.toml",
+        "rust-toolchain.toml",
+        "install.sh",
+    ] {
         let from = repo.join(marker);
         if !from.is_file() {
             continue;

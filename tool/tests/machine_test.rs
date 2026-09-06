@@ -94,9 +94,14 @@ fn a_probe_without_its_tool_stops_aloud() {
     // probe exists to read: without it the assertion below was
     // satisfied by a TEST NAME that happens to contain "mix", and a
     // mutation that made the skip name the wrong tool survived.
+    // Off a declared runner: the child must not inherit this
+    // machine's `CI`, or the skip it plays turns into the fall of
+    // wave 0053 (the same trap review 0053 R-1 found in the probe of
+    // the runner itself; measured under `CI=true` before the merge).
     let out = Command::new(&probe)
         .args(["--test-threads", "1", "--nocapture"])
         .env("PATH", &bare_path)
+        .env_remove("CI")
         .output()
         .unwrap();
     let said = format!(
@@ -116,6 +121,29 @@ fn a_probe_without_its_tool_stops_aloud() {
         "and it says aloud WHAT it lacked, in the skip itself and not \
          merely in a test's name, so a person reading the log knows \
          what was not judged:\n{said}"
+    );
+    // On a declared runner the same lack is a fall by name (wave
+    // 0053): a runner that promised the whole battery and has no
+    // elixir is the runner's fault, and the log names the tool.
+    let out = Command::new(&probe)
+        .args(["--test-threads", "1", "--nocapture"])
+        .env("PATH", &bare_path)
+        .env("CI", "true")
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_ne!(
+        out.status.code().unwrap_or(-1),
+        0,
+        "under CI the probe without its tool goes red instead of skipping:\n{said}"
+    );
+    assert!(
+        said.contains("on a declared runner (CI is set)") && said.contains("`mix`"),
+        "and the fall names the runner's lack:\n{said}"
     );
 
     // The fifth tongue's probe, under a PATH without node (review
@@ -137,6 +165,7 @@ fn a_probe_without_its_tool_stops_aloud() {
     let out = Command::new(&probe)
         .args(["--test-threads", "1", "--nocapture"])
         .env("PATH", &bare_path)
+        .env_remove("CI")
         .output()
         .unwrap();
     let said = format!(

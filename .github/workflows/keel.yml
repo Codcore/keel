@@ -1,14 +1,15 @@
 # keel (generated -- do not edit; keel update rewrites this file)
 #
-# The first step installs the tool; the rest judge with it.
-# It takes the published release of the pinned version where one
-# exists, and builds it from source otherwise: that road needs git
-# and cargo on the runner, and it costs minutes on a cold cache. If
-# your project already puts `keel` on PATH some other
-# way, replace this step with yours -- the courts below do not care
-# how it got there. To keep an edited copy for good, delete this
-# file's line from [generated] in keel.toml as well: otherwise
-# `keel update` will keep saying it did not overwrite you.
+# This repository is the tool: the first steps name the toolchain
+# this project pins and build keel from the checked-out tree, so a
+# branch is judged by its own binary and not by the one the
+# published installer would fetch; the steps after them put the
+# tongues the battery judges on the runner; the rest judge with it.
+# If you already put `keel` on PATH some other way, replace the
+# build step with yours -- the courts below do not care how it got
+# there. To keep an edited copy for good, delete this file's line
+# from [generated] in keel.toml as well: otherwise `keel update`
+# will keep saying it did not overwrite you.
 name: keel
 
 on:
@@ -22,16 +23,46 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: the toolchain this project pins
+        # rust-toolchain.toml names 1.94.1; rustup honours it on
+        # its own, and this line says aloud WHICH one judged, so a
+        # verdict here is the same verdict on any other machine.
+        run: rustup toolchain install 1.94.1 --profile minimal
       - name: the tool itself
-        # Clones the method into ~/.keel, then builds it from source.
-        # It needs git and cargo on the runner, and cargo writes
-        # its own registry into CARGO_HOME while it does.
-        # keel.toml pins this version, so the step fetches it.
-        env:
-          KEEL_REF: "0.1.0"
+        # Built from this tree: this repository IS the tool, and a
+        # branch is judged by its own binary (wave 0053). It needs
+        # cargo on the runner; the battery below reuses what it built.
         run: |
-          curl -fsSL https://raw.githubusercontent.com/Codcore/keel/main/install.sh | sh
+          cargo build --manifest-path tool/Cargo.toml
+          install -D tool/target/debug/keel "$HOME/.local/bin/keel"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # The tongues the battery judges (wave 0053): the closure court
+      # runs the battery, and under a declared runner (CI is set) a
+      # probe whose tongue is missing fails by name instead of
+      # skipping -- so every tongue is here before the courts.
+      - name: ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - name: rspec
+        run: gem install rspec --no-document
+      - name: elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "26"
+          elixir-version: "1.16"
+      - name: hex
+        run: mix local.hex --force
+      - name: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pytest
+        run: pip install pytest
+      - name: node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: the documents judged
         # On a pull_request event actions/checkout leaves a
         # detached HEAD and git serves no branch, so the scope
@@ -48,11 +79,6 @@ jobs:
         env:
           KEEL_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: keel close .
-      - name: the toolchain this project pins
-        # rust-toolchain.toml names 1.94.1; rustup honours it on
-        # its own, and this line says aloud WHICH one judged, so a
-        # verdict here is the same verdict on any other machine.
-        run: rustup toolchain install 1.94.1 --profile minimal
       - name: the battery
         run: cargo test --no-fail-fast
         working-directory: tool

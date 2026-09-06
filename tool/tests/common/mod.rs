@@ -120,10 +120,24 @@ impl Machine {
     /// shows it and where a runner's log keeps it -- and the caller
     /// returns having judged nothing, which is not the same as
     /// having judged and found nothing wrong.
+    ///
+    /// Under a DECLARED runner it is not a stop either: GitHub Actions
+    /// and its kin set `CI`, and a runner that promised the whole
+    /// battery and lacks a tongue is the runner's fault, not the
+    /// machine's shape -- eleven probes skipped themselves on this
+    /// repository's own runner in silence, and its battery was
+    /// narrower than the courts' (global review 2026-09-06, tests
+    /// R-10; wave 0053). There a missing tool fails the probe by name.
     pub fn ready(self) -> bool {
         match self {
             Machine::Has => true,
             Machine::Lacks(why) => {
+                if std::env::var_os("CI").is_some_and(|set| !set.is_empty()) {
+                    panic!(
+                        "on a declared runner (CI is set) a missing tool is a fall, \
+                         not a skip: {why}"
+                    );
+                }
                 eprintln!("skipped, and said aloud: {why}");
                 false
             }

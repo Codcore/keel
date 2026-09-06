@@ -48,7 +48,17 @@ pub fn draw(root: &Path) -> Result<String, Refusal> {
     if let Some(slug) = scope::branch_wave(root, &scan.waves) {
         let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
         report.push_str(&ta("map-view-wave", targs!("wave" => slug.clone())));
-        report.push_str("\n\n");
+        report.push('\n');
+        // Called off: the map is still drawn, and the word stands
+        // over it (§6.3-a; wave 0053).
+        if let Some(why) = &wave.cancelled {
+            report.push_str(&ta(
+                "map-view-cancelled",
+                targs!("wave" => slug.clone(), "why" => why.clone()),
+            ));
+            report.push('\n');
+        }
+        report.push('\n');
         let wave_path = root.join("keel/waves").join(format!("{}.md", slug));
         let revs = rev::scenario_revs(&wave_path)?;
         for cut in graph::cuts() {
@@ -64,6 +74,19 @@ pub fn draw(root: &Path) -> Result<String, Refusal> {
         // one per wave.
         let mut per_wave: Vec<(&docs::Wave, Vec<(String, String)>)> = Vec::new();
         for wave in &scan.waves {
+            // A cancelled wave is outside judgement whole (§6.3-a):
+            // its answers do not count for the project's map, and the
+            // map says so by name instead of reading them as live
+            // (review 0053 R-4 measured the youngest, cancelled wave
+            // answering a cut on main in silence).
+            if let Some(why) = &wave.cancelled {
+                report.push_str(&ta(
+                    "map-project-cancelled",
+                    targs!("wave" => wave.slug.clone(), "why" => why.clone()),
+                ));
+                report.push('\n');
+                continue;
+            }
             let wave_path = root.join("keel/waves").join(format!("{}.md", wave.slug));
             per_wave.push((wave, rev::scenario_revs(&wave_path)?));
         }

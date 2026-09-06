@@ -100,7 +100,7 @@ rev-transform-no-body = transform "{ $name }" is declared in the header but has 
 rev-transform-no-body-instead = write the section -- the work's words live in the body -- or remove the declaration
 rev-orphan-section = the body carries an orphan section "## { $kind }: { $name }" -- "{ $name }" is declared by no header entry, and an orphan does not live in silence (§7.7)
 rev-orphan-section-instead = declare it in the header, or remove the section deliberately
-rev-nearmiss = the heading "## { $heading }" spells the section word without its space -- not recognised as a section, and not free prose either (§7.7)
+rev-nearmiss = the heading "## { $heading }" spells the section word without its space -- not recognised as a section, and not free prose either (§7.7; stricter than the letter of the norm, because it judges sections and not typos in headings -- and such a heading would otherwise stay silent)
 rev-nearmiss-instead = write "## scenario: <name>" / "## transform: <name>" with the space, or rename the heading away from the section words
 rev-dup-transform = the body carries the "## transform: { $name }" section more than once — "{ $name }" is not guessed between (§7.7)
 rev-dup-transform-instead = keep one section: the methodology will not guess which body carries the work's words (§2.10)
@@ -122,13 +122,13 @@ rev-write-none = nothing has drifted in the open waves — every record they hol
 rev-write-count = records rewritten: { $count }
 
 ## graph module
-graph-scenario-twice = scenario "{ $scenario }" lives in more than one wave: { $waves } -- a test tag is a bare name, so the machine cannot tell whose promise it proves, and one test closes both
+graph-scenario-twice = scenario "{ $scenario }" lives in more than one wave: { $waves } -- a test tag is a bare name, so the machine cannot tell whose promise it proves, and one test closes both (stricter than the letter of the norm, because it does not forbid two waves one name -- and the court does not guess whose promise was proven)
 graph-scenario-twice-instead = give the scenarios different names: one name, one home
-graph-name-taken = the name "{ $name }" is worn by a promise of wave { $wave } and by a contract at once -- and a test tag is a bare name, so whose revision it holds cannot be seen
+graph-name-taken = the name "{ $name }" is worn by a promise of wave { $wave } and by a contract at once -- and a test tag is a bare name, so whose revision it holds cannot be seen (stricter than the letter of the norm, because it does not divide names between promises and contracts -- and the court does not guess whose revision a tag holds)
 graph-name-taken-instead = rename one of the two: scenario names and contract slugs live in one namespace
 graph-unknown-cut = "{ $holder }" points at a cut "{ $slug }" that is not in the vocabulary
 graph-unknown-cut-instead = the forty cuts ship with the release (§3.4); pick one of them or fix the typo
-graph-double-cover = the cut "{ $slug }" has { $count } live covers: scenarios { $holders } (§10.3 -- exactly one answer)
+graph-double-cover = the cut "{ $slug }" has { $count } live covers: scenarios { $holders } (§10.3 -- exactly one answer; stricter than the letter of the norm, because it asks an answer for every cut and does not forbid two -- and two live covers hide which promise is judged)
 graph-double-cover-instead = keep one cover; the other scenario stands on its proves or another cut (§3.3)
 graph-double-decided = the cut "{ $slug }" is closed by scenario "{ $holder }" and decided at once (§10.3)
 graph-double-decided-instead = drop the decisions line -- the scenario answers; or withdraw the cover deliberately (§2.12)
@@ -210,6 +210,8 @@ trust-nothing-new = nothing new to trust: every verify/ci command already carrie
 trust-approves = the lines land in the diff the merge approves (§7.16)
 trust-no-config = keel.toml is not here -- nowhere to prepare the trust line
 trust-no-config-instead = create the config first: the trust command invents nothing
+trust-unwritable = keel.toml cannot be written: { $error }
+trust-unwritable-instead = check the file permissions
 trust-surgery-broken = the surgery cannot keep this file's shape ({ $error }) -- nothing was written
 trust-surgery-broken-instead = tidy the [trust] block by hand, then run keel trust again
 
@@ -259,6 +261,7 @@ review-impact-stale = stale against the new text
 review-diff-header = ## The full branch diff (against { $base })
 review-diff-empty = empty
 review-diff-unverified = ## The full branch diff: not verified — no fork point
+review-cancelled = wave { $wave } is cancelled -- { $why } (§6.3-a): no package is assembled, there is nothing to judge
 review-not-wave = the branch "{ $branch }" is not named as a wave (§8.2) — the package does not guess which wave it is for
 review-not-wave-instead = checkout the wave's branch: the package is assembled for the branch's wave (§9.9)
 review-scenarios-none = none — a chore wave promises no scenarios (§6.8)
@@ -310,6 +313,7 @@ gate-manual = mode: manual -- the judgement is off, discipline by hand (as in v1
 gate-not-wave = branch "{ $branch }" is not named as any wave that reads -- nothing to judge, passing with this word
 gate-outside = the message is neither a birth nor transform work -- outside the judgement, passing with this word
 gate-chore = the transform is a chore -- no promises to run (§2.11), passing
+gate-red-pass-ruby = red birth of "{ $scenario }": the test "{ $test }" fails -- and ruby's exit code does not tell a fall from a broken build: the court read minitest's lines or rspec's JSON, and where they do not suffice a failure is taken as a failure (§7.12) -- the commit passes
 gate-red-pass = red birth of "{ $scenario }": the test "{ $test }" truly fails -- the commit passes (§7.12)
 gate-red-mutant = a green birth of "{ $scenario }": the test "{ $test }" is green, and this is the named exception of §6.3 -- the commit records the mutant: { $broke } was broken → the probe named it: { $named }. The machine does not check that the mutant is real: it is the author's word, and the reviewer reads it
 gate-red-green = red birth of "{ $scenario }" claimed, but the test "{ $test }" is green -- an unearned "seen red" does not enter history (§7.12). If this is a court over your own battery or tooling, which cannot be seen failing without breaking the thing it guards, that is the named exception of §6.3: add a line `mutant: <what was broken> -> <how the probe named it>` to the message
@@ -326,7 +330,7 @@ gate-work-untagged = transform "{ $transform }": scenario "{ $scenario }" has no
 gate-work-broken = transform "{ $transform }": the tests do not compile: { $words }
 gate-work-notrun = transform "{ $transform }": the run executed no test named "{ $test }" for scenario "{ $scenario }"
 gate-unknown-slug = "{ $slug }" is neither red: nor a transform of wave { $wave } -- a typo does not pass as "outside the judgement" (§8.4)
-gate-case = "{ $head }" wears capitals -- red: and slugs are written lowercase (§1.2, §8.4); a capitalized twin does not pass as outside the judgement
+gate-case = "{ $head }" wears capitals -- red: and slugs are written lowercase (§1.2, §8.4); a capitalized twin does not pass as outside the judgement (stricter than the letter of the norm, because it names the form and does not forbid capitals -- and a twin is a typo more often than a foreign subject)
 gate-work-vacuum = transform "{ $transform }": no live scenario left to judge -- the withdrawn are outside the judgement (§2.12), passing with this word
 gate-soft = mode: soft -- the same words, a warning only
 gate-hook-installed = the commit-msg hook now calls keel gate -- written to { $path }
@@ -424,9 +428,9 @@ check-ref-stale = wave { $wave }: recorded { $contract }@{ $recorded }, the cont
 check-ref-stale-instead = reread the contract and update the reference deliberately (§5.1); if this wave is already closed, the old revision is legal (§5.6)
 # The verdict's own limits (wave 0031).
 limit-shallow = not checked: the history is shallow -- { $skipped ->
-        [one] { $skipped } check of an old revision was not run
-       *[other] { $skipped } checks of old revisions were not run
-    }, and how many of them this depth COULD have run is not counted; instead: git fetch --unshallow
+        [one] { $skipped } old revision was not verified
+       *[other] { $skipped } old revisions were not verified
+    } (revisions, not references -- as the whole clone counts), and how many of them this depth COULD have verified is not counted; instead: git fetch --unshallow
 limit-base-stale = not checked: local { $trunk } is { $behind } behind { $base } as of the last fetch (this clone knows nothing newer) -- scope was judged against a stale base; instead: git fetch
 limit-base-local-only = not checked: this clone knows no remote { $trunk } -- the base of comparison is local and its freshness cannot be checked
 limit-hook-absent = not held by machine here: keel.toml says hooks = true, but no commit-msg hook of ours stands in this clone -- git does not clone hooks, so the block in AGENTS.md promises a machine that is not on this one: here both rules (sec. 8.4, sec. 7.12) are held by people; instead: keel hook
@@ -476,13 +480,14 @@ close-lack-ref = the reference { $contract }@{ $recorded } does not converge (§
 close-lack-review-empty = the review file keel/reviews/<wave>.md exists and is empty -- an empty file is not a review (§9.9)
 close-lack-review = the review file keel/reviews/<wave>.md is not next to the wave (§9.9)
 close-price-nothing-built = the price of this court: the battery runs three times (§7.13); this language builds nothing, so the court asks for no disk
-close-price = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; it wants about { $needed } GiB free (measured: one closing leaves 1.26 GiB)
+close-price = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; it wants about { $needed } GiB free (measured on this tree: one closing leaves about { $needed } GiB)
 close-price-light = the price of this court: the battery runs three times (§7.13) into its OWN { $target } -- an inherited cache shifts verdicts (§6.7), so that is a decision, not a defect; this tongue builds small, so the court asks for no free space
 close-price-paid = price paid: { $target } weighs { $size } GiB
-close-no-room = { $free } GB free on disk, and this court wants about { $needed } GB -- better to refuse now than to die halfway through with "no space left on device"
+close-no-room = { $free } GB free on disk, and this court wants about { $needed } GB -- better to refuse now than to die halfway through with "no space left on device" (stricter than the letter of the norm, because it does not measure the disk -- and a court that died halfway gives no verdict)
 close-no-room-instead = free some space (rm -rf tool/target clears the previous closing's cache) or run the court where there is room
 close-needs-adapter = the closure court needs an adapter this release leads, named in keel.toml
 close-needs-adapter-instead = set adapter = one of the names this release knows: { $known } (NEW-CONCEPT, Config)
+close-blockers-light = the blockers of this branch's wave { $wave }: { $count } -- a light wave does not merge with the lacks named above (§6.5, §9.9)
 close-blockers = blockers of this branch's wave { $wave }: { $count } -- a full wave does not merge unproven (§6.5, §9.9)
 close-no-blockers = no blockers: this branch is named as no unclosed wave -- the states above inform
 close-no-blockers-awaiting = no blockers: the wave of this branch, { $wave }, will close by the fact of merge (§6.5) -- the merge is its closure
@@ -507,7 +512,9 @@ close-plan-own = the wave of this branch is approved, not started -- a plan PR m
 ## map command (§10.7)
 map-title = keel map -- the quality map (§10.7)
 map-view-wave = the map of wave { $wave }: this branch is named as it (§8.2) -- the reviewer package item (§9.9); honesty per row stays the reviewer's work
+map-view-cancelled = wave { $wave } is cancelled -- { $why } (§6.3-a): the map is drawn, and there is nothing to judge
 map-view-project = the project map: branch "{ $branch }" is named as no wave -- per cut, the youngest answering wave's word
+map-project-cancelled = wave { $wave } is cancelled -- { $why } (§6.3-a): its answers are not counted
 map-covered = closed: "{ $scenario }" -- { $proof }
 map-proof-proven = proven (the tag matches, §6.3; the test's green is keel close's court)
 map-proof-unproven = not yet proven (no matching tag)
@@ -562,6 +569,7 @@ next-contract-label = { "  " }the contract { $contract }@{ $rev }, the current t
 next-contract-missing = the file of contract "{ $contract }" is missing — keel check names the broken reference (§7.1)
 next-run-label = { "  " }the run of its scenarios' tests:
 next-run-none = { "  " }tests of its scenarios do not exist yet — the run appears with the tags (a withdrawn scenario never gets one)
+next-step-review-empty = the step: the review file keel/reviews/{ $wave }.md exists and is empty -- an empty file is no review (§9.9): assemble the package with `keel review` for a fresh agent and put its report into this file
 next-step-review = the step: the wave is assembled — time for the review (§9.9): gather the package with `keel review` for a fresh agent; the report lands at keel/reviews/{ $wave }.md
 next-step-light-contract-chores = the step: the branch of wave { $wave } changes the contract "{ $contract }", and the wave is chores alone without a promise: such a wave owns no contract (§2.11, §6.8) -- give it a scenario or take the change off the branch
 next-step-chores-heavy = the step: wave { $wave } is chores only, and its weight is full ({ $why }): a wave of chores alone must be light (§2.11) -- give it a scenario or keep one chore transform without a contract

@@ -23,7 +23,6 @@ transforms:
       - tool/src/map.rs
       - tool/src/next.rs
       - tool/src/close.rs
-      - tool/src/status.rs
       - tool/src/trust.rs
       - tool/src/check.rs
       - tool/src/docs.rs
@@ -62,6 +61,8 @@ transforms:
       - tool/i18n/en.ftl
       - keel/contracts/tool-generated.md
       - tool/tests/own_ci_test.rs
+      - tool/tests/generated_stands_test.rs
+      - tool/tests/machine_test.rs
   the-courts-hold-their-mutants:
     implements:
       - the-courts-hold-their-mutants
@@ -156,8 +157,9 @@ ruby, де падіння від зламу не відрізнити кодом
 бінарник; коментар «builds it from source» правдивий лише наполовину.
 
 **Проби, яких нема.** `every-reading-command-answers-in-json` (0040)
-обіцяє «без --json побайтово те саме», а assert зник між red і HEAD
-(тести R-9). Launcher: «невідомий target» і «сервер недосяжний» не
+обіцяє «без --json побайтово те саме» і сталість пакета між бігами;
+побайтовий assert стоїть у пробі 0040 і досі, а assert сталості зник
+між red і HEAD (тести R-9; рецензія 0053 R-6 уточнила, котрий). Launcher: «невідомий target» і «сервер недосяжний» не
 грані — `uname` не шимиться (R-12). Мутації, що вижили батарею (баги
 R-25): `close.rs runs.len() == BATTERY_RUNS && all green → all green`
 — біг, що загубив вирок, зелений; `KEEL_BRANCH` прибрано з
@@ -168,6 +170,21 @@ R-25): `close.rs runs.len() == BATTERY_RUNS && all green → all green`
 «перетини scope паралельних хвиль» — ні в коді, ні в черзі (R-19).
 §7.1 проти §7.10 і §8.6 без позначки «текстове» (R-20) — суперечність
 самої норми: її текст — рядок оператора, не цієї хвилі.
+
+**Дрейф (§4.6), названий уголос.** З першої трансформи знято
+`tool/src/status.rs`: план назвав його, бо `status` казав про порожній
+файл рецензії своїм словом, — а вирок один для всіх судів виносить
+`close::wave_state`, яким `status` і так читає стан хвилі, тож рука до
+`status.rs` не торкнулась, і імʼя стояло б даремно (§4.4). У третю
+дописано `tool/tests/generated_stands_test.rs`: проба 0035 несе в
+пісочницю маркери розкладки, які читає генератор (урок 0044), а
+генератор тепер читає ще один — `install.sh` у корені, мітку того, що
+репозиторій і є інструмент; без нього копія — чужий проєкт, суджений
+проти власного файлу інструмента. Туди ж — `tool/tests/machine_test.rs`
+(після рецензії, батареєю під `CI=true`): проба 0044 пускає
+дитину-пробу без `mix` і без `node` і чекає пропуску, а дитина
+успадковувала `CI` машини — тепер дитина «поза раннером» біжить без
+`CI`, а друга дитина під `CI=true` мусить упасти поіменно.
 
 ## scenario: the-word-is-the-courts-word
 

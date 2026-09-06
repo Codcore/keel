@@ -29,4 +29,34 @@ jobs:
       - run: rustup show active-toolchain || rustup toolchain install
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
+      # The battery judges five tongues, and a probe whose runner is
+      # not on the machine says so and skips -- here eleven probes
+      # skipped themselves in silence, so this file judged a narrower
+      # battery than the courts do (global review 2026-09-06, tests
+      # R-10; wave 0053). The runner declares itself (CI is set), and
+      # under a declared runner a missing tool fails the probe by name
+      # -- so every tongue is set up before the battery runs.
+      - name: ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - name: rspec
+        run: gem install rspec --no-document
+      - name: elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "26"
+          elixir-version: "1.16"
+      - name: hex
+        run: mix local.hex --force
+      - name: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pytest
+        run: pip install pytest
+      - name: node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - run: cargo test
