@@ -179,12 +179,20 @@ builds from git only where no release answers. The launcher checks the sha256,
 not the signature: `gh attestation verify` does that, and `gh` is not a thing
 every machine has.
 
-**No published tag carries the current layout yet** — keel v1 kept the crate
-outside `tool/`, so `KEEL_REF=v0.8.9` refuses by name. The number and the tag
-are the operator's line, in this order: bump the crate's version in one commit;
-push the tag `v<version>` on that commit — the workflow builds the release, and
-`release.sh --tag` refuses a tree that answers another number; then bump the pin
-in `keel.toml`, and this repository's CI takes the release road. Since wave 0053 this
+**The first release is `v1.0.0`** (the operator's decision of 2026-09-06).
+Before it, no published tag carried this layout — keel v1 kept the crate
+outside `tool/`, so `KEEL_REF=v0.8.9` still refuses by name — and a project's
+pin could only name a branch or a commit. Now the pin is a version: the
+launcher and `install.sh` take the published archive and its `.sha256` and
+build nothing. A version pin still names ONE home: on a machine carrying both
+the release and a build of the branch, two homes answer `1.0.0`, and the
+launcher refuses by name and says to pin the ref instead (review 0041 R-1) --
+that machine is keel's own developer, not a corner. The order for the next
+number is the operator's line: bump the crate's version and this project's own
+pin in ONE commit (the pin court compares the pin with the binary built from
+that same tree), then push the tag `v<version>` on the merged commit — the
+workflow builds the four targets, and `release.sh --tag` refuses a tree that
+answers another number. Since wave 0053 this
 repository's own CI does not install keel at all: it BUILDS the tool from the
 checked-out tree and puts that binary on PATH, so a branch is judged by its own
 binary and not by whatever `main` would fetch. A stranger's project still gets

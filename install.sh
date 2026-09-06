@@ -509,7 +509,8 @@ run() {
 
 if [ -n "$pin" ]; then
     # A pin may name the ref or the version. Two homes can answer for
-    # one crate version -- on keel itself EVERY ref answers 0.1.0 --
+    # one crate version -- on keel itself every ref answered 0.1.0
+    # until the release of v1.0.0 (wave 0056) --
     # and picking one of them by glob order is exactly the silent
     # wrong binary this launcher exists to prevent (review 0041 R-1).
     matched=""
@@ -691,9 +692,11 @@ fi
 # The tree to build: the ref as given; a version's own tag (`2.0.0`
 # is `v2.0.0`); or -- for a version with no release and no tag -- the
 # branch the remote leads with, which counts only if what it builds
-# answers that version (review 0048 R-14: keel's own CI installs by
-# the pin `0.1.0`, which is neither a tag nor a release, and the tree
-# at main answers exactly that). Any other ref that is not there is a
+# answers that version (review 0048 R-14 measured this road on keel
+# itself, whose pin was then `0.1.0`: neither a tag nor a release,
+# and the tree at main answered exactly that; since v1.0.0 keel's own
+# pin names a released version, so the road stands for projects that
+# have not released yet). Any other ref that is not there is a
 # refusal by name, never a silent build of whatever main is.
 lead_road=""
 if [ -n "$KEEL_REF" ]; then

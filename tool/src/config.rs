@@ -225,9 +225,12 @@ impl Config {
     /// means the pin holds or none is set.
     /// A pin may name the crate version OR the git ref this binary
     /// was installed under (wave 0041, review R-1). On keel itself
-    /// every ref answers `0.1.0` -- the crate version has not moved
-    /// in 495 commits -- so a pin that could only name the version
-    /// could not tell two installed releases apart at all. The ref is
+    /// every ref answered `0.1.0` until the release of v1.0.0 (wave
+    /// 0056) -- the crate version had not moved in 495 commits -- so
+    /// a pin that could only name the version could not tell two
+    /// installed releases apart at all. The release moved the number
+    /// and did not end that case: a build of the branch main answers
+    /// `1.0.0` exactly as the release does. The ref is
     /// what the installer wrote to the disk beside the binary --
     /// `.keel-ref` in the version's own home -- and the binary reads
     /// it there itself (wave 0050). It used to take the launcher's

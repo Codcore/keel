@@ -69,11 +69,12 @@ pub fn world(dir: &Path) -> World {
     git(&repo, &["commit", "-q", "-m", "the new one"]);
     git(&repo, &["tag", "v2.0.0"]);
     // A THIRD ref that answers with a crate version already taken --
-    // which is keel's own everyday shape, not a corner: the crate
-    // version has not moved in 495 commits, so every ref of it
-    // answers 0.1.0. Review 0041 R-1: the fixture used to give each
-    // ref its own number, so the collision could not happen in it at
-    // all, and the launcher's silent pick went unseen.
+    // which is keel's own everyday shape, not a corner: every ref
+    // answered 0.1.0 until v1.0.0, and since the release a build of
+    // main answers 1.0.0 as the tag v1.0.0 does. Review 0041 R-1:
+    // the fixture used to give each ref its own number, so the
+    // collision could not happen in it at all, and the launcher's
+    // silent pick went unseen.
     fs::write(repo.join("tool/same.txt"), "a later commit\n").unwrap();
     fs::write(repo.join("tool/Cargo.toml"), crate_file("2.0.0")).unwrap();
     git(&repo, &["add", "-A"]);

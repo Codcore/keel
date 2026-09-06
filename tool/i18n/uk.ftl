@@ -675,7 +675,7 @@ version-running = keel { $version } — бінарник, що відповід�
 version-pin-held = пін keel.toml: "{ $pin }" — тримається; суди судять саме цим бінарником
 version-pin-mismatch = пін keel.toml: "{ $pin }" — не цей бінарник: суди відмовляють, доки пін і бінарник не зійдуться
 version-pin-hand = { "  " }взяти саме її: KEEL_REF="{ $pin }" sh install.sh — або curl -fsSL { $installer } | sh -s -- { $pin }
-version-pin-hand-border = { "  " }межа: KEEL_REF бере git ref (tag або коміт) цього репозиторію за іменем — не перевірений checksum і не число з keel.toml саме собою. Якщо теґа з таким іменем нема, install.sh відмовляє переліком тих, що є; жоден теґ v1 не збереться, бо крейт тоді жив поза tool/
+version-pin-hand-border = { "  " }межа: KEEL_REF бере git ref (tag або коміт) цього репозиторію за іменем і збирає з джерела — checksum там не звіряє ніхто. Саме число піна веде іншою дорогою: опублікований реліз, його архів і .sha256; нема релізу на це число — нема й тієї дороги, лишається назвати ref. Якщо теґа з таким іменем нема, install.sh відмовляє переліком тих, що є; теґи старого покоління (v0.8.11 і нижче) не збираються зовсім, бо крейт тоді жив поза tool/
 version-pin-none = поле version не задано — піна нема; концепт радить пін: version = "{ $version }"
 version-installed = { "  " }стоїть тут: { $version }  (ref { $ref })
 version-installed-none = { "  " }тут не стоїть жодної версії (у ~/.keel/versions/ порожньо)

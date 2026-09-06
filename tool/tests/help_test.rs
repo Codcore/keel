@@ -133,9 +133,12 @@ fn the_tool_answers_when_asked_for_help() {
     // R-15).
     let (said, code) = keel(&["--version", there]);
     assert_eq!(code, 0, "`keel --version` answers:\n{said}");
+    // The version the crate carries, whatever it is: `keel 0.` held
+    // while the number had not moved in fifty-five waves, and the
+    // first release (wave 0056) made it a lie the moment it shipped.
     assert!(
-        said.contains("keel 0."),
-        "and what it answers is the version:\n{said}"
+        said.contains(&format!("keel {}", env!("CARGO_PKG_VERSION"))),
+        "and what it answers is the version this crate carries:\n{said}"
     );
     for line in [vec!["check", "--help"], vec!["check", there, "-h"]] {
         let (said, code) = keel(&line);
