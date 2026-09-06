@@ -529,9 +529,15 @@ fn the_methodology_speaks_the_project_language() {
     // The mouth says the English text IS a translation -- before
     // review 0029 R-1 it said no translation exists, printed over the
     // English contents it had just served.
+    // The source line names the text a translation AND the tongue it
+    // follows -- held by what it says, not by a phrase this tool has
+    // never said (the old half hunted "does not translate", an
+    // assert that could not fail; final review 2026-09-06, tests
+    // R-5).
     assert!(
-        said_en.contains("translation") && !said_en.contains("does not translate"),
-        "the source line names the text a translation:\n{said_en}"
+        said_en.contains("translation") && said_en.contains("Ukrainian"),
+        "the source line names the text a translation of the Ukrainian \
+         one:\n{said_en}"
     );
     assert_eq!(
         keel::speak::methods().len(),

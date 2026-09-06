@@ -1033,7 +1033,30 @@ pub fn describe_name(trimmed: &str) -> Option<String> {
 fn quoted_after(trimmed: &str, word: &str) -> Option<String> {
     let rest = trimmed.strip_prefix(word)?.trim_start();
     let rest = rest.strip_prefix('"')?;
-    let (name, tail) = rest.split_once('"')?;
+    // The closing quote is the first UNESCAPED one: `test "it's
+    // \"quoted\"" do` is one name, and splitting at the first quote
+    // cut it in the middle -- the tag above it then had "no test
+    // right after it" and the whole court refused (final review
+    // 2026-09-06, bugs R-17; wave 0055). The name is unescaped as
+    // ExUnit reads it, since that is the name a `proves:` tag must
+    // carry.
+    let mut name = String::new();
+    let mut chars = rest.char_indices();
+    let mut closed: Option<usize> = None;
+    while let Some((at, ch)) = chars.next() {
+        match ch {
+            '\\' => match chars.next() {
+                Some((_, escaped)) => name.push(escaped),
+                None => return None,
+            },
+            '"' => {
+                closed = Some(at);
+                break;
+            }
+            _ => name.push(ch),
+        }
+    }
+    let tail = &rest[closed? + 1..];
     // `do` may sit on the line or open a block on the next; what must
     // not follow is more of the string.
     if name.is_empty() {
@@ -1041,7 +1064,7 @@ fn quoted_after(trimmed: &str, word: &str) -> Option<String> {
     }
     let tail = tail.trim();
     if tail.is_empty() || tail.starts_with("do") || tail.starts_with(',') {
-        Some(name.to_string())
+        Some(name)
     } else {
         None
     }
@@ -1192,9 +1215,26 @@ fn dangling(file: &Path, scenario: &str, rev: &str) -> Refusal {
 }
 
 fn read(path: &Path) -> Result<String, Refusal> {
-    std::fs::read_to_string(path).map_err(|e| Refusal {
-        file: path.to_path_buf(),
-        reason: ta("docs-unreadable", targs!("error" => e.to_string())),
-        instead: t("docs-unreadable-instead"),
-    })
+    match std::fs::read(path) {
+        // The bytes are the trouble, not the path: a test file in
+        // latin-1 gave "stream did not contain valid UTF-8" with the
+        // advice "check the path and access permissions" -- for a
+        // fault it did not have (final review 2026-09-06, bugs R-16;
+        // wave 0055). The file opened and was read; what it holds is
+        // not text this reader can read, and the word says which
+        // file and what to do with it.
+        Ok(bytes) => String::from_utf8(bytes).map_err(|e| Refusal {
+            file: path.to_path_buf(),
+            reason: ta(
+                "tags-not-utf8",
+                targs!("at" => e.utf8_error().valid_up_to() as u64),
+            ),
+            instead: t("tags-not-utf8-instead"),
+        }),
+        Err(e) => Err(Refusal {
+            file: path.to_path_buf(),
+            reason: ta("docs-unreadable", targs!("error" => e.to_string())),
+            instead: t("docs-unreadable-instead"),
+        }),
+    }
 }

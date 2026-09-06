@@ -221,7 +221,12 @@ install_launcher() {
     # (review 0041 R-8).
     printf '%s\n' "#!/bin/sh" > "$1"
     printf '%s\n' "# keel launcher -- written by install.sh, do not edit." >> "$1"
-    printf '%s\n' "KEEL_HOME=\"\${KEEL_HOME:-$KEEL_HOME}\"" >> "$1"
+    # Exported, not merely set (wave 0055): the binary it hands over
+    # to reads KEEL_HOME too -- `keel version` lists the versions of
+    # its home -- and a home set in this shell alone left the binary
+    # reading ~/.keel and finding no version from inside its own home
+    # (final review 2026-09-06, bugs R-11).
+    printf '%s\n' "export KEEL_HOME=\"\${KEEL_HOME:-$KEEL_HOME}\"" >> "$1"
     cat >> "$1" <<'LAUNCHER'
 #
 # It reads the `version` a project pins in keel.toml and runs exactly
@@ -504,7 +509,8 @@ run() {
 
 if [ -n "$pin" ]; then
     # A pin may name the ref or the version. Two homes can answer for
-    # one crate version -- on keel itself EVERY ref answers 0.1.0 --
+    # one crate version -- on keel itself every ref answered 0.1.0
+    # until the release of v1.0.0 (wave 0056) --
     # and picking one of them by glob order is exactly the silent
     # wrong binary this launcher exists to prevent (review 0041 R-1).
     matched=""
@@ -663,6 +669,16 @@ lead_branch() {
 
 if [ -d "$SOURCE/.git" ]; then
     echo "keel: updating $SOURCE"
+    # The repository this run names is the one the clone follows
+    # (wave 0055): a KEEL_REPO given while a clone stood was ignored
+    # in silence, and the run said "installed" over a tree from
+    # somewhere else (final review 2026-09-06, bugs R-10). A change of
+    # source is said aloud, by both addresses.
+    was="$(git -C "$SOURCE" remote get-url origin 2>/dev/null || true)"
+    if [ -n "$was" ] && [ "$was" != "$REPO" ]; then
+        echo "keel: the source now follows $REPO (it followed $was)"
+        git -C "$SOURCE" remote set-url origin "$REPO"
+    fi
     git -C "$SOURCE" fetch --quiet --tags origin
     if [ -z "$KEEL_REF" ]; then
         lead_branch
@@ -676,14 +692,25 @@ fi
 # The tree to build: the ref as given; a version's own tag (`2.0.0`
 # is `v2.0.0`); or -- for a version with no release and no tag -- the
 # branch the remote leads with, which counts only if what it builds
-# answers that version (review 0048 R-14: keel's own CI installs by
-# the pin `0.1.0`, which is neither a tag nor a release, and the tree
-# at main answers exactly that). Any other ref that is not there is a
+# answers that version (review 0048 R-14 measured this road on keel
+# itself, whose pin was then `0.1.0`: neither a tag nor a release,
+# and the tree at main answered exactly that; since v1.0.0 keel's own
+# pin names a released version, so the road stands for projects that
+# have not released yet). Any other ref that is not there is a
 # refusal by name, never a silent build of whatever main is.
 lead_road=""
 if [ -n "$KEEL_REF" ]; then
     wanted="$KEEL_REF"
-    if ! git -C "$SOURCE" rev-parse --verify --quiet "$wanted^{commit}" >/dev/null; then
+    # A branch of the remote lives in a clone as origin/<name>, and
+    # the remote's tip of it is what the name means (wave 0055): the
+    # advice `KEEL_REF="<ref>" sh install.sh` -- the launcher's and
+    # `keel version`'s own -- named a branch this check refused as
+    # "no such version", because a fresh clone carries only main as
+    # a local branch (final review 2026-09-06, bugs R-5). A tag and a
+    # commit resolve by themselves, below.
+    if git -C "$SOURCE" rev-parse --verify --quiet "refs/remotes/origin/$wanted^{commit}" >/dev/null; then
+        wanted="origin/$KEEL_REF"
+    elif ! git -C "$SOURCE" rev-parse --verify --quiet "$wanted^{commit}" >/dev/null; then
         if [ -n "$release_asked" ] && git -C "$SOURCE" rev-parse --verify --quiet "$release_asked^{commit}" >/dev/null; then
             wanted="$release_asked"
         elif [ -n "$release_asked" ]; then

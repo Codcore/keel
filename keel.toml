@@ -9,7 +9,7 @@ agents = ["claude", "cursor"]
 # Пін інструмента (щабель 16, хвиля 0018): точна версія бінарника;
 # зміна піна — рядок diff-а, затверджений merge-ом (NEW-CONCEPT,
 # «Дистрибуція»).
-version = "0.1.0"
+version = "1.0.0"
 # Власний gate проєкту (щабель 17, хвиля 0019): close жене його крізь
 # довіру §7.16 — fmt над крейтом інструмента.
 ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
@@ -21,9 +21,9 @@ ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
 "cargo test --manifest-path tool/Cargo.toml --test release_test --test launcher_fetch_test" = "9806d99959b0"
 
 [generated]
-"AGENTS.md" = "4baf7dd8b4d7"
-".claude/skills/keel/SKILL.md" = "64cf79a82114"
-".agents/skills/keel/SKILL.md" = "64cf79a82114"
-".claude/settings.json" = "344054776a92"
+"AGENTS.md" = "4ed1ba26b22d"
+".claude/skills/keel/SKILL.md" = "f89e91e2f5e3"
+".agents/skills/keel/SKILL.md" = "f89e91e2f5e3"
+".claude/settings.json" = "e98a63206d67"
 ".cursor/hooks.json" = "181fd6a6effd"
 ".github/workflows/keel.yml" = "c6030541c388"

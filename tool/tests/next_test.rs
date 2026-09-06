@@ -159,10 +159,17 @@ fn next_hands_one_step() {
 
     // Stage four: the review lies next to the wave -- time for the PR.
     write(&dir, "keel/reviews/0070-w.md", "# Рецензія\n\nok\n");
+    // The record rides a commit (wave 0055): §9.9 puts it into
+    // history, and both courts read it there -- the subject carries
+    // no slug, which is one of the two ways the step itself names.
+    commit_as(&dir, "the report of the reviewer rides in");
     let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
+    // The words followed the mechanism in wave 0055: the report is
+    // read from the branch's history, and the step says that.
     assert!(
-        out.contains("time for the PR") && out.contains("the review lies next to the wave"),
+        out.contains("time for the PR")
+            && out.contains("the review report stands in the branch's history"),
         "the reviewed FULL wave hears its own words exactly, not a shared substring (0016 R-4):\n{out}"
     );
 
@@ -316,6 +323,10 @@ fn next_hands_one_step_second_birth() {
         "a light wave is read by a person too (§9.9):\n{out}"
     );
     write(&dir, "keel/reviews/0500-l.md", "# Рецензія\n\nok\n");
+    // The record rides a commit (wave 0055): §9.9 puts it into
+    // history, and both courts read it there -- the subject carries
+    // no slug, which is one of the two ways the step itself names.
+    commit_as(&dir, "the report of the reviewer rides in");
     let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(
@@ -401,6 +412,10 @@ fn light_pr_words_honest() {
     );
 
     write(&dir, "keel/reviews/0800-l.md", "# Рецензія\n\nok\n");
+    // The record rides a commit (wave 0055): §9.9 puts it into
+    // history, and both courts read it there -- the subject carries
+    // no slug, which is one of the two ways the step itself names.
+    commit_as(&dir, "the report of the reviewer rides in");
     let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert!(

@@ -111,9 +111,25 @@ fn the_own_ci_runs_the_same_battery() {
         Some(value) => unsafe { std::env::set_var("CI", value) },
         None => unsafe { std::env::remove_var("CI") },
     }
+    let words = fell
+        .err()
+        .map(|payload| {
+            payload
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                .unwrap_or_default()
+        })
+        .unwrap_or_else(|| {
+            panic!("on the runner (CI set) a missing tool fails the probe instead of skipping it")
+        });
+    // BY NAME, which is what makes a red runner readable at all: the
+    // first reading held only that it fell (final review 2026-09-06,
+    // tests R-6).
     assert!(
-        fell.is_err(),
-        "on the runner (CI set) a missing tool fails the probe by name instead of skipping it"
+        words.contains("keel-no-such-tool-anywhere") && words.contains("CI"),
+        "and the fall names the tool that was missing and why it is a \
+         fall here:\n{words}"
     );
 
     // --- keel's own workflow judges the branch by the branch's own

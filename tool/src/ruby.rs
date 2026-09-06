@@ -262,10 +262,20 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         );
         let mut ran = 0usize;
         for line in said.lines() {
-            let Some((name, green)) = verdict_in(line) else {
+            let Some((name, mark)) = verdict_in(line) else {
                 continue;
             };
             ran += 1;
+            // A skipped test did not run: it is in the battery neither
+            // as green nor as red, exactly as python's and node's
+            // skips are not (waves 0045, 0046) -- and the closing
+            // court then says "did not run" of the promise it was to
+            // prove (wave 0055).
+            let green = match mark {
+                Mark::Green => true,
+                Mark::Fallen => false,
+                Mark::Skipped => continue,
+            };
             // Two classes in one file may name a method alike. The
             // safe direction joins them: green only if both were.
             let key = (stem.clone(), name);
@@ -304,12 +314,23 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     Ok(out)
 }
 
+/// What one `-v` line came to: green, fallen, or skipped -- and a
+/// skip is its own state, not a red one. Minitest's `S` was read as
+/// "not the dot" and so as red, and `keel close` called a skipped
+/// test one that "fell in every run" (final review 2026-09-06, bugs
+/// R-2, R-25; wave 0055).
+enum Mark {
+    Green,
+    Fallen,
+    Skipped,
+}
+
 /// One line of minitest's verbose voice: `ToyTest#test_it_works =
 /// 0.00 s = .`, and green is the bare dot -- `F` failed, `E` errored,
 /// `S` was skipped, and none of the three proves a promise. Anything
 /// that is not that shape is not a verdict: the failure reports below
 /// carry `Class#method` too, and were read as verdicts once.
-fn verdict_in(line: &str) -> Option<(String, bool)> {
+fn verdict_in(line: &str) -> Option<(String, Mark)> {
     let trimmed = line.trim();
     let (head, mark) = trimmed.rsplit_once(" = ")?;
     let (name, timing) = head.rsplit_once(" = ")?;
@@ -320,7 +341,12 @@ fn verdict_in(line: &str) -> Option<(String, bool)> {
     if method.is_empty() {
         return None;
     }
-    Some((method.to_string(), mark.trim() == "."))
+    let mark = match mark.trim() {
+        "." => Mark::Green,
+        "S" => Mark::Skipped,
+        _ => Mark::Fallen,
+    };
+    Some((method.to_string(), mark))
 }
 
 /// What a run came to, read from what ruby said.
@@ -349,6 +375,13 @@ pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
         .lines()
         .any(|line| line.trim_start().starts_with("0 runs,"))
     {
+        return crate::adapter::Outcome::NotRun;
+    }
+    // Every run was a skip: `1 runs, 0 assertions, 0 failures, 0
+    // errors, 1 skips`, and minitest leaves with 0. A skip is not a
+    // run -- `skip "later"` in the one test `-n` named blessed work at
+    // the gate (final review 2026-09-06, bugs R-2; wave 0055).
+    if all_skipped(said) {
         return crate::adapter::Outcome::NotRun;
     }
     // No summary line at all and a clean exit: minitest never ran.
@@ -385,6 +418,26 @@ fn broken_line(line: &str) -> bool {
 /// Whether minitest spoke its summary line at all -- `3 runs, 3
 /// assertions, 0 failures, …` -- the one line every run prints, a run
 /// of zero tests included.
+/// Whether minitest's summary line says every run was a skip:
+/// `N runs, …, N skips` with N above zero. Only that line: the speed
+/// line says `runs/s` and never `runs, `.
+fn all_skipped(said: &str) -> bool {
+    said.lines().any(|line| {
+        let Some((runs, rest)) = line.trim_start().split_once(" runs, ") else {
+            return false;
+        };
+        let Ok(runs) = runs.parse::<usize>() else {
+            return false;
+        };
+        let skips = rest
+            .rsplit(", ")
+            .next()
+            .and_then(|last| last.trim_end().strip_suffix(" skips"))
+            .and_then(|n| n.parse::<usize>().ok());
+        runs > 0 && skips == Some(runs)
+    })
+}
+
 fn summarised(said: &str) -> bool {
     said.lines().any(|line| {
         let trimmed = line.trim_start();

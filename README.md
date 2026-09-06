@@ -179,30 +179,54 @@ builds from git only where no release answers. The launcher checks the sha256,
 not the signature: `gh attestation verify` does that, and `gh` is not a thing
 every machine has.
 
-**No published tag carries the current layout yet** — keel v1 kept the crate
-outside `tool/`, so `KEEL_REF=v0.8.9` refuses by name. The number and the tag
-are the operator's line, in this order: bump the crate's version in one commit;
-push the tag `v<version>` on that commit — the workflow builds the release, and
-`release.sh --tag` refuses a tree that answers another number; then bump the pin
-in `keel.toml`, and this repository's CI takes the release road. Until then
-keel's own CI installs by the pin `0.1.0`, which is neither a tag nor a release:
-`install.sh` builds the branch the remote leads with and accepts it only because
-that tree answers `0.1.0`. The installer the generated CI step fetches comes
-from `main`, unpinned: a project pinned to an older keel still runs today's
-script.
+**The first release is `v1.0.0`** (the operator's decision of 2026-09-06).
+Before it, no published tag carried this layout — keel v1 kept the crate
+outside `tool/`, so `KEEL_REF=v0.8.9` still refuses by name — and a project's
+pin could only name a branch or a commit. Now the pin is a version: the
+launcher and `install.sh` take the published archive and its `.sha256` and
+build nothing. A version pin still names ONE home: on a machine carrying both
+the release and a build of the branch, two homes answer `1.0.0`, and the
+launcher refuses by name and says to pin the ref instead (review 0041 R-1) --
+that machine is keel's own developer, not a corner. The order for the next
+number is the operator's line: bump the crate's version and this project's own
+pin in ONE commit (the pin court compares the pin with the binary built from
+that same tree), then push the tag `v<version>` on the merged commit — the
+workflow builds the four targets, and `release.sh --tag` refuses a tree that
+answers another number. Since wave 0053 this
+repository's own CI does not install keel at all: it BUILDS the tool from the
+checked-out tree and puts that binary on PATH, so a branch is judged by its own
+binary and not by whatever `main` would fetch. A stranger's project still gets
+the installer step, and the installer it fetches comes from `main`, unpinned: a
+project pinned to an older keel still runs today's script.
 
 **One tool in this repository.** The first implementation — `keel.py` and its
 Python tests in `tests/` — lived at the root beside the crate for forty waves,
 and no court said which of the two was current. Wave 0049 took it out; it is
 in the history up to that wave, and the v0.8.x tags still carry it.
 
+**v1 is frozen** (the operator's decisions 5 and 7 of the concept): its last
+tag is `v0.8.11` (the archive branch's head calls itself 0.8.41 without a tag),
+and only a critical patch would touch it; development is in v2. The branch `skarha-nazyvaye-prychynu` is the archive of the analysis
+that led to v2 and stays as a reference. Where a v1 command went:
+
+| v1 | v2 |
+|---|---|
+| `keel gaps` | `keel check` — one command, the stage decides what it judges |
+| `keel mutate` | the red commit `red: <scenario>` — the hook judges the fall |
+| `keel show` | `keel status` |
+| `keel hooks` / `keel skills` | `keel init` and `keel update` write them; `keel hook` puts the commit-msg hook back |
+| `keel hook <event>` | the generated agent configs call `keel next --for <agent>` |
+| `keel check --fast` | not carried: the commit-msg hook (`keel gate`) is the fast court |
+| `keel new wave` | `keel plan <slug>` |
+
 ## For scripts
 
 Every command takes `-C <dir>` (where to work) and `--branch <name>` (which
 branch to believe **where git does not know it** — a CI checkout with a detached
-HEAD). `--branch` never overrules git: where git has a branch, git is the fact,
-and the tool says aloud that the flag was not used rather than dropping the word
-in silence.
+HEAD); the environment variable `KEEL_BRANCH` says the same thing, and the
+generated workflow sets it. `--branch` never overrules git: where git has a
+branch, git is the fact, and the tool says aloud that the flag was not used
+rather than dropping the word in silence.
 
 The reading commands — `check`, `close`, `status`, `next`, `map`, `review`,
 `version`, `cuts`, `rev` — also take `--json`, and then print one JSON object
@@ -270,11 +294,12 @@ directory.
 
 What is **not** there, so nobody looks for it: `keel check --fast` — the v1
 subset for pre-commit is not carried, the commit-msg hook (`keel gate`) is the
-fast court; and a court over the scope intersections of parallel waves — `check`
-judges one branch against its trunk, and whether two open waves declaring one
-file deserve a court of their own is an operator's line in BACKLOG. The commands
-of the first tool (`gaps`, `mutate`, `show`, `hooks`, `skills`, `hook <event>`)
-live in `docs/uk/README.md` as history, and the concept says where each went.
+fast court. What **is** there since wave 0054 and easy to miss: the crossing
+court of §8.8 — two open waves declaring one scope line with no `depends_on`
+between them are a finding of `check`, on the plan branch and on main alike.
+The commands of the first tool (`gaps`, `mutate`, `show`, `hooks`, `skills`,
+`hook <event>`) live in `docs/uk/README.md` as history, and the concept says
+where each went.
 
 ## What the courts actually check
 
@@ -525,7 +550,7 @@ refuses to overwrite it, saying so — it never touches what it did not write.
 |---|---|
 | `strict` (default) | the agent, on its own judgement |
 | `soft` | the agent, on its own judgement, and the commit court is advisory |
-| `manual` | only you, by typing the slash command |
+| `manual` | only you, by typing the slash command — the session hook still puts the step into the agent's context, in every mode |
 
 Two things this table used to claim and does not:
 

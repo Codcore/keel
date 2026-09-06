@@ -154,6 +154,40 @@ pub fn battery_dir(root: &Path) -> Option<PathBuf> {
     }
 }
 
+/// The files this tongue's own runner leaves in a project, as paths
+/// relative to the root: lock files, and nothing else (wave 0055).
+///
+/// A runner writes them without being asked -- the first `red:`
+/// commit through the hook builds the crate, and `Cargo.lock`
+/// appeared under an author who had touched nothing of the sort, so
+/// every court called it drift the wave never declared (final review
+/// 2026-09-06, bugs R-20). They are the tongue's furniture, as the
+/// frame's own files are the methodology's (§4.8): outside scope in
+/// both directions, and named here rather than known by heart in
+/// three courts. What a lock file RECORDS still comes from a
+/// manifest, and a manifest no transform names is drift like any
+/// other file -- so nothing about a dependency slips past unseen.
+pub fn lockfiles(root: &Path) -> Vec<String> {
+    match language_of(root) {
+        Some(Language::Ruby) => vec!["Gemfile.lock".to_string()],
+        Some(Language::Elixir) => vec!["mix.lock".to_string()],
+        // npm's own; yarn and pnpm are named as a border in
+        // tool-scope, not read here.
+        Some(Language::JavaScript) => vec!["package-lock.json".to_string()],
+        // pytest locks nothing: what it leaves is a directory, and
+        // build directories are ignore rules, not scope (wave 0045).
+        Some(Language::Python) => Vec::new(),
+        _ => match crate_root(root) {
+            Ok(dir) => {
+                let relative = dir.strip_prefix(root).unwrap_or(Path::new(""));
+                let lock = relative.join("Cargo.lock");
+                vec![lock.to_string_lossy().replace('\\', "/")]
+            }
+            Err(_) => Vec::new(),
+        },
+    }
+}
+
 pub fn build_dir(root: &Path) -> BuildDir {
     match language_of(root) {
         // pytest builds nothing -- and, told so, writes nothing
@@ -186,13 +220,18 @@ pub fn tests_dir(root: &Path) -> Result<PathBuf, Refusal> {
 
 /// The command a person would type to run exactly this one test --
 /// the very one `run_test` runs, in the tongue's own words.
-pub fn run_line(root: &Path, file: &Path, test: &str) -> String {
+pub fn run_line(root: &Path, file: &Path, test: &str, line: usize) -> String {
     let relative = file.strip_prefix(root).unwrap_or(file);
     match language_of(root) {
-        Some(Language::Elixir) => format!(
-            "mix test --only {}",
-            shell_quoted(&format!("test:test {test}"))
-        ),
+        // By file and line, which is what `run_test` runs (wave
+        // 0051): `--only 'test:test <name>'` over a name with letters
+        // past ASCII excludes everything -- "no test was executed" --
+        // and the hand of §9.2 handed a person exactly that line
+        // while the court beside it ran another (final review
+        // 2026-09-06, bugs R-12; wave 0055).
+        Some(Language::Elixir) => {
+            format!("mix test {}:{line}", relative.display())
+        }
         Some(Language::Python) => format!("pytest {}::{test}", relative.display()),
         Some(Language::JavaScript) => format!(
             "node --test --test-name-pattern={} {}",
@@ -548,6 +587,18 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         if let Some(rest) = trimmed.strip_prefix("test ")
             && let Some((name, verdict)) = rest.rsplit_once(" ... ")
         {
+            // `#[should_panic]` is written by cargo into the verdict
+            // line -- `test it_panics - should panic ... ok` -- and
+            // the first reading kept the whole of it as the name, so
+            // the closing court said the battery ran no test of the
+            // tag's name while the gate, which runs one test by name,
+            // was green (final review 2026-09-06, bugs R-9; wave
+            // 0055). The suffix is cargo's word about the test, not
+            // part of what anyone may write in a `proves:` tag.
+            let name = name
+                .trim()
+                .strip_suffix(" - should panic")
+                .unwrap_or(name.trim());
             let green = match verdict.trim() {
                 "ok" => true,
                 v if v.starts_with("FAILED") => false,
@@ -565,7 +616,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
                 .unwrap_or_default();
             // One key, one verdict: cargo names a test once per
             // target, and the numbers above are what hold the text.
-            verdicts.insert((target, name.trim().to_string()), green);
+            verdicts.insert((target, name.to_string()), green);
         }
     }
     // The stitch holds only when every announced target printed its

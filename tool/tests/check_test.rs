@@ -97,9 +97,13 @@ fn check_reports_every_file() {
         out.contains("green form is not yet meaning") || out.contains("зелена форма — ще не сенс"),
         "the §7.8 border named aloud:\n{out}"
     );
+    // The tag court is named either way (wave 0054): among the
+    // checked where an adapter read the tags, and -- as here, with no
+    // keel.toml and so no adapter -- as a stand-down counted among
+    // the things not checked, never inside a static claim.
     assert!(
-        out.contains("test tags (§5.5"),
-        "test tags among the checked since the tag floor:\n{out}"
+        out.contains("not checked: test tags not compared"),
+        "the tag court's stand-down is counted, not claimed as checked:\n{out}"
     );
     assert!(
         out.contains("links (chapter 3"),
@@ -109,9 +113,15 @@ fn check_reports_every_file() {
         out.contains("held (§7.6") || out.contains("форми контрактів (§7.6"),
         "contract holding among the checked now:\n{out}"
     );
+    // What wave 0011 promised, said the way this release says it:
+    // the things NOT checked are counted in the summary, never left
+    // to a reader to notice. (The old assert hunted "not yet
+    // checked", which no line of this tool has said for many waves --
+    // an assert that cannot fail; final review 2026-09-06, tests
+    // R-5.)
     assert!(
-        !out.contains("not yet checked"),
-        "the unchecked line has left the report (0011):\n{out}"
+        out.contains("not checked (above)"),
+        "the summary counts what was not checked (0011):\n{out}"
     );
 
     // Without the broken file -- exit 0; honesty about the unchecked stays.
@@ -258,11 +268,14 @@ fn plural_forms_correct() {
         let dir = keel_sandbox(&format!("plural-{n}"));
         write(&dir, "keel.toml", "lang = \"uk\"\n");
         for i in 1..=n {
+            // Each wave over its own file: two open waves over one
+            // file are a finding since wave 0054 (§8.8), and this
+            // probe counts documents, not crossings.
             write(
                 &dir,
                 &format!("keel/waves/000{i}-w.md"),
                 &format!(
-                    "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a]}}\n{}---\n\n## transform: t\n\ntidy work\n",
+                    "---\ntransforms:\n  t: {{chore: \"tidy\", files: [a{i}]}}\n{}---\n\n## transform: t\n\ntidy work\n",
                     all_decided()
                 ),
             );
@@ -363,7 +376,7 @@ fn contract_refs_verified() {
         &dir,
         "keel/waves/0006-gone.md",
         &format!(
-            "---\nscenarios:\n  s:\n    proves: anchor@beef00\n    withdrawn: \"знято\"\ntransforms:\n  t: {{chore: \"tidy\", files: [lib/a.ex]}}\n{}---\n\n## scenario: s\n\nbody\n\n## transform: t\n\nwork\n",
+            "---\nscenarios:\n  s:\n    proves: anchor@beef00\n    withdrawn: \"знято\"\ntransforms:\n  t: {{chore: \"tidy\", files: [lib/b.ex]}}\n{}---\n\n## scenario: s\n\nbody\n\n## transform: t\n\nwork\n",
             all_decided()
         ),
     );
