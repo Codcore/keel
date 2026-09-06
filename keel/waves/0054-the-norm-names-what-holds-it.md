@@ -46,6 +46,7 @@ transforms:
       - the-root-copy-does-not-drift
     files:
       - tool/tests/root_copy_test.rs
+      - METHODOLOGY.md
   the-concept-and-the-readme-tell-the-truth:
     chore: "the concept's rows about checksum, the price of a tongue and the frame flags say what is measured, and the README carries the operator's decisions 5 and 7 about v1 (§2.10; queue rows NEW-CONCEPT.md:166, :198, :333, :383, :393)"
     files:
@@ -168,7 +169,10 @@ R-11 зміряла шість місць коду; «`-C` і `--branch` з ко
 `tool/tests/adapter_choice_test.rs`: проба 0038 тримала «1 річ не
 перевірено» над проєктом без адаптера, і трималась лише тим, що поруч
 стояла інша межа, — тепер стояння суду тегів осторонь саме лічиться,
-і проба тримає рівність числа рядкам «не перевірено».
+і проба тримає рівність числа рядкам «не перевірено». У четверту
+дописано `METHODOLOGY.md`: передмова копії називає пробу, яка тримає
+її тіло, — рядок, без якого читач копії не знав би, що її хтось
+судить (тіло копії й далі йде за en у першій трансформі).
 
 ## scenario: the-norm-names-what-holds-it
 

@@ -12,7 +12,9 @@
 > a finding the tool reports.
 >
 > This file is a copy of `docs/en/METHODOLOGY-V2.md`, kept in the root so a
-> reader meets it beside the README.
+> reader meets it beside the README. A probe of the tool's own battery
+> (`tool/tests/root_copy_test.rs`) holds its body equal to the source from
+> the first chapter on; only this preamble is the copy's own.
 
 ---
 
