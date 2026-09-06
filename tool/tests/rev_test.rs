@@ -30,8 +30,9 @@ fn revision_recipe_reproduced() {
     assert_eq!(
         rev::contract_rev(&root.join("keel/contracts/tool-docs.md")).unwrap(),
         // 2ab9a9 until wave 0052 wrote the weight's reason (`heavy`)
-        // into the contract.
-        "f53b8f"
+        // into the contract; f53b8f until its fourth transform wrote
+        // the number's one hand.
+        "df690e"
     );
     assert_eq!(
         rev::contract_rev(&root.join("keel/contracts/tool-config.md")).unwrap(),
