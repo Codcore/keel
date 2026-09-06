@@ -262,6 +262,58 @@ fn the_battery_hears_no_word_from_outside() {
         );
     }
 
+    // --- ruby: neither reading hears the words either -- a minitest
+    // test and an rspec example both tagged, both asking for a silent
+    // environment (review 0050 R-5, mutation M18) ---
+    if common::machine_has("rspec").ready() {
+        let dir = keel_sandbox("wordrbenv");
+        std::fs::create_dir_all(dir.join("lib")).unwrap();
+        std::fs::create_dir_all(dir.join("test")).unwrap();
+        std::fs::create_dir_all(dir.join("spec")).unwrap();
+        std::fs::write(
+            dir.join("lib/toy.rb"),
+            "module Toy\n  def self.works\n    true\n  end\nend\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("test/toy_test.rb"),
+            format!(
+                "require \"minitest/autorun\"\nrequire_relative \"../lib/toy\"\n\nclass ToyTest < Minitest::Test\n  # proves: it-works@{rev}\n  def test_it_works\n    %w[GIT_DIR GIT_WORK_TREE KEEL_BRANCH KEEL_RUNNING_REF].each do |name|\n      assert_nil ENV[name], \"#{{name}} reached the battery\"\n    end\n    assert Toy.works\n  end\nend\n"
+            ),
+        )
+        .unwrap();
+        std::fs::write(dir.join(".rspec"), "--require spec_helper\n").unwrap();
+        std::fs::write(
+            dir.join("spec/spec_helper.rb"),
+            "require \"toy\"\n\nRSpec.configure do |config|\n  config.color = false\nend\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("spec/toy_spec.rb"),
+            format!(
+                "RSpec.describe Toy do\n  # proves: it-works@{rev}\n  it \"works\" do\n    %w[GIT_DIR GIT_WORK_TREE KEEL_BRANCH KEEL_RUNNING_REF].each do |name|\n      expect(ENV[name]).to be_nil\n    end\n    expect(Toy.works).to be(true)\n  end\nend\n"
+            ),
+        )
+        .unwrap();
+        frame(&dir, "lang = \"uk\"\nadapter = \"ruby\"\n", "lib/toy.rb");
+        settle(&dir);
+        let env = [
+            ("KEEL_RUNNING_REF", "a word of the launcher".to_string()),
+            ("KEEL_BRANCH", "0001-a-wave".to_string()),
+            ("GIT_DIR", dir.join(".git").display().to_string()),
+            ("GIT_WORK_TREE", dir.display().to_string()),
+        ];
+        let (said, code) = keel(&dir, &["close"], &env);
+        assert!(
+            said.contains("0001-a-wave: закрита"),
+            "minitest and rspec children hear none of the words:\n{said}"
+        );
+        assert_eq!(
+            code, 0,
+            "nothing red under a loud environment, in ruby:\n{said}"
+        );
+    }
+
     // --- the pin court: a word in the air sways nothing; the file
     // the installer wrote beside the binary does ---
     let dir = keel_sandbox("wordpin");
@@ -326,9 +378,13 @@ fn the_battery_hears_no_word_from_outside() {
     let verify =
         "test -z \"$CARGO_TARGET_DIR\" && test -z \"$GIT_DIR\" && test -z \"$KEEL_RUNNING_REF\"";
     let fingerprint = keel::trust::fingerprint(verify);
+    // The project's own ci runs through the same hand (review 0050
+    // R-8): the same command, trusted once, as the merge gate.
     frame(
         &dir,
-        &format!("lang = \"uk\"\nadapter = \"rust\"\n\n[trust]\n'{verify}' = \"{fingerprint}\"\n"),
+        &format!(
+            "lang = \"uk\"\nadapter = \"rust\"\nci = '{verify}'\n\n[trust]\n'{verify}' = \"{fingerprint}\"\n"
+        ),
         "src/lib.rs",
     );
     std::fs::write(
@@ -348,6 +404,10 @@ fn the_battery_hears_no_word_from_outside() {
         said.contains("контракту clean — пройшла"),
         "verify runs without the hook's git and without the shared \
          target:\n{said}"
+    );
+    assert!(
+        said.contains("пройшов: власний gate проєкту зелений"),
+        "and so does the project's ci:\n{said}"
     );
     assert!(
         said.contains("0001-a-wave: закрита"),
