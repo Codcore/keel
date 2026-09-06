@@ -57,6 +57,19 @@ fn disarmed(
     test_path: &str,
     test_body: &str,
 ) -> common::Sandbox {
+    disarmed_with(name, adapter, source, test_path, test_body, &[])
+}
+
+/// The same, with more files standing at the base and kept on the
+/// branch.
+fn disarmed_with(
+    name: &str,
+    adapter: &str,
+    source: (&str, &str),
+    test_path: &str,
+    test_body: &str,
+    also: &[(&str, &str)],
+) -> common::Sandbox {
     let dir = keel_sandbox(name);
     std::fs::write(
         dir.join("keel.toml"),
@@ -81,6 +94,10 @@ fn disarmed(
     .unwrap();
     std::fs::create_dir_all(dir.join(test_path).parent().unwrap()).unwrap();
     std::fs::write(dir.join(test_path), test_body).unwrap();
+    for (path, text) in also {
+        std::fs::create_dir_all(dir.join(path).parent().unwrap()).unwrap();
+        std::fs::write(dir.join(path), text).unwrap();
+    }
     git(&dir, &["init", "-q", "-b", "main"]);
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "base with the tag"]);
@@ -172,4 +189,28 @@ fn a_vanished_tag_is_red_in_every_tongue() {
             "{adapter}: and so is the file that carried the tag:\n{said}"
         );
     }
+
+    // A tag-shaped line in a file NO adapter reads -- `src/toy/legacy.py`
+    // at the base, deleted on the branch -- is not a vanished tag: the
+    // court asks the adapter which path is a test file, and this one
+    // is not (review 0050 R-4, mutation M14).
+    let dir = disarmed_with(
+        "vanlegacy",
+        "python",
+        ("src/toy/__init__.py", "def works():\n    return True\n"),
+        "src/toy/legacy.py",
+        &format!("# proves: it-works@{rev}\ndef test_legacy():\n    pass\n"),
+        &[(
+            "tests/test_toy.py",
+            &format!(
+                "from toy import works\n\n\n# proves: it-works@{rev}\ndef test_it_works():\n    assert works()\n"
+            ),
+        )],
+    );
+    let (said, code) = check(&dir);
+    assert!(
+        !said.contains("точці розгалуження"),
+        "python: a deleted non-test file raises no §7.15 finding:\n{said}"
+    );
+    assert_eq!(code, 0, "python: and the check is green:\n{said}");
 }

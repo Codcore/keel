@@ -202,6 +202,65 @@ fn close_asks_the_form_of_every_contract() {
         "a form the code does not hold does not merge:\n{said}"
     );
 
+    // The window of §6.5 (review 0050 R-3): a contract grown ahead of
+    // the code by a plan not yet started is not judged for form in
+    // close either -- said in check's own words -- and the first tag
+    // of that wave brings the court back.
+    let window = keel_sandbox("closewindow");
+    let wave1 = format!(
+        "---\nscenarios:\n  s:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - s\n    files:\n      - src/lib.rs\n{}---\n\n## scenario: s\n{BODY}## transform: work\nтіло роботи\n",
+        decisions_except(&["functional.correctness"])
+    );
+    crate_under(&window, &wave1);
+    std::fs::write(
+        window.join("tests/toy_test.rs"),
+        format!("/// proves: s@{rev}\n#[test]\nfn holds_s() {{\n    assert!(toy::works());\n}}\n"),
+    )
+    .unwrap();
+    std::fs::write(
+        window.join("keel/contracts/grown.md"),
+        "---\nmodule: toy\nexports:\n  - \"pub fn later() -> bool\"\n---\n\nОбіцянка, яку ростить план.\n",
+    )
+    .unwrap();
+    let grown_rev = keel::rev::contract_rev(&window.join("keel/contracts/grown.md")).unwrap();
+    std::fs::write(
+        window.join("keel/waves/0002-plan.md"),
+        format!(
+            "---\nscenarios:\n  later:\n    proves: grown@{grown_rev}\n    covers: [functional.correctness]\ntransforms:\n  work2:\n    implements:\n      - later\n    files:\n      - src/lib.rs\n{}---\n\n## scenario: later\n\nтіло пізнішої обіцянки\n\n## transform: work2\nтіло\n",
+            decisions_except(&["functional.correctness"])
+        ),
+    )
+    .unwrap();
+    settle(&window);
+    let (said, code) = keel(&window, &["close"]);
+    assert!(
+        said.contains("grown — форма не судиться") && said.contains("0002-plan"),
+        "inside the window the form is not judged, and close says so in \
+         check's words:\n{said}"
+    );
+    assert!(
+        !said.contains("обіцяє \"later\""),
+        "and raises no form finding there:\n{said}"
+    );
+    assert_eq!(
+        code, 0,
+        "a plan grows its contract ahead of the code lawfully:\n{said}"
+    );
+    let later_rev = keel::rev::text_rev("тіло пізнішої обіцянки\n");
+    std::fs::write(
+        window.join("tests/later_test.rs"),
+        format!("/// proves: later@{later_rev}\n#[test]\nfn holds_later() {{}}\n"),
+    )
+    .unwrap();
+    git(&window, &["add", "-A"]);
+    git(&window, &["commit", "-q", "-m", "the plan starts"]);
+    let (said, code) = keel(&window, &["close"]);
+    assert!(
+        said.contains("обіцяє \"later\"") && said.contains("§7.6"),
+        "the first tag of the wave brings the form court back:\n{said}"
+    );
+    assert_ne!(code, 0, "and the unheld form blocks:\n{said}");
+
     // On a plan branch the form is not judged -- exports grow ahead of
     // the code by design (§4.9) -- and close says so in check's words.
     git(&dir, &["checkout", "-q", "-b", "plan/0002-next"]);
