@@ -516,10 +516,28 @@ fn char_literal(chars: &[char], i: usize) -> Option<usize> {
     }
 }
 
+/// Whether the reader keeps the comments or strips them. The form
+/// court reads code and strips them; the tag reader reads the
+/// comments -- that is where the tags live -- and blanks the literals
+/// with the SAME hand: one reader of rust, not two (review 0051 R-3:
+/// the second copy did not know the C-string prefixes of Rust 1.77,
+/// `c"…"` and `cr#"…"#`, and read a tag out of one).
+#[derive(Clone, Copy)]
+pub(crate) enum Comments {
+    Strip,
+    Keep,
+}
+
 /// Rust, read as rust reads it: nested block comments, raw strings
 /// with their hash count, ordinary strings with their escapes, and
 /// char literals told from lifetimes.
 fn strip_rust(source: &str) -> String {
+    read_rust(source, Comments::Strip)
+}
+
+/// The one pass over rust: literals blanked to their newlines,
+/// comments stripped or kept whole as asked.
+pub(crate) fn read_rust(source: &str, comments: Comments) -> String {
     let chars: Vec<char> = source.chars().collect();
     let n = chars.len();
     let mut out = String::with_capacity(source.len());
@@ -531,7 +549,10 @@ fn strip_rust(source: &str) -> String {
             while i < n && chars[i] != '\n' {
                 i += 1;
             }
-            only_newlines(&mut out, &chars, from, i);
+            match comments {
+                Comments::Strip => only_newlines(&mut out, &chars, from, i),
+                Comments::Keep => out.extend(&chars[from..i]),
+            }
             continue;
         }
         if ch == '/' && chars.get(i + 1) == Some(&'*') {
@@ -552,8 +573,13 @@ fn strip_rust(source: &str) -> String {
                     i += 1;
                 }
             }
-            only_newlines(&mut out, &chars, from, i);
-            out.push(' ');
+            match comments {
+                Comments::Strip => {
+                    only_newlines(&mut out, &chars, from, i);
+                    out.push(' ');
+                }
+                Comments::Keep => out.extend(&chars[from..i.min(n)]),
+            }
             continue;
         }
         if let Some((hashes, after)) = raw_open(&chars, i) {

@@ -455,4 +455,22 @@ fn what_rspec_is_handed() {
         !Path::new(out_path).starts_with(&*dir),
         "the JSON file lives outside the project: {out_path}"
     );
+    // And in a directory made for this run alone (wave 0051, global
+    // review R-26): not a bare file under a predictable name in the
+    // shared temp dir.
+    let parent = Path::new(out_path)
+        .parent()
+        .expect("the JSON has a directory");
+    assert!(
+        parent
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.starts_with("keel-rspec-")),
+        "the JSON lies in this run's own directory: {out_path}"
+    );
+    assert!(
+        !parent.exists(),
+        "and that directory is gone after the run: {}",
+        parent.display()
+    );
 }

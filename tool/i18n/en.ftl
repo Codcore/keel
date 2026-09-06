@@ -273,6 +273,8 @@ adapter-rspec-failed = rspec did not start: { $error }
 adapter-rspec-failed-instead = put rspec on PATH -- the adapter calls it exactly as a person would in a terminal; it writes its JSON to a file outside the project, and without the file there is no verdict
 adapter-rspec-broken = rspec did not load the examples: { $error }
 adapter-rspec-broken-instead = ruby does not build ahead: a file that did not load gives no example a verdict -- mend it and run again
+adapter-rspec-tmp = the temporary directory for rspec's JSON cannot be made: { $error }
+adapter-rspec-tmp-instead = the directory must be new and this run's own: either something already stands under that name in the system's temp dir -- remove it -- or the temp dir itself (TMPDIR) is missing or not writable -- create it or change TMPDIR; then retry
 limit-rspec-border = not checked: ruby's second reading -- rspec -- reads spec/**/*_spec.rb and names an example by its full description, as rspec does (groups joined by a space; none only after a module constant before #…, ::… or .… -- rspec's own rule, measured); one example runs by the id a `--dry-run` gives it, the verdict comes from JSON, and pending did not run; one-liner examples `it { "{ … }" }` have no name and hold no tag, nor do examples inside shared_examples; a `describe` with a non-literal argument (described_class) gives its group no name; an example named at run time and a group named by a variable or a value constant are refusals aloud; spec/support/ and spec_helper.rb are not read; where a project sets example_status_persistence_file_path, its file (spec/examples.txt by default) lies there after a run -- the project writes it, not the adapter; the generated CI runs minitest -- this release writes no rspec step, add it yourself
 adapter-elixir-failed = mix did not start: { $error }
 adapter-elixir-failed-instead = put elixir and mix on PATH -- the adapter calls mix exactly as a person would in a terminal
@@ -290,6 +292,8 @@ adapter-battery-counts = cargo counted { $passed } green and { $failed } red in 
 adapter-battery-counts-instead = a test that writes to stdout past libtest (a child process) may have forged a verdict or block line; make it silent or run it apart, then retry keel close
 adapter-cargo-red-unseen = cargo left with { $code } and the reader saw no red verdict at all -- the test binary fell before its closing line, or speaks a shape this reader does not know
 adapter-cargo-red-unseen-instead = run `cargo test --no-fail-fast` by hand and see what fell; without a red it has read the court does not judge
+adapter-cargo-manifest = Cargo.toml does not parse as TOML: { $error }
+adapter-cargo-manifest-instead = mend the manifest -- the test target's name is read from `[[test]]`, and the court will not guess the stem in its place
 adapter-battery-alike = cargo announces the target "{ $target }" twice -- the verdicts of two targets of one name cannot be told apart (a workspace?)
 adapter-battery-alike-instead = this release leads one crate: run the workspace members apart, each with its own keel.toml, or give the targets different names -- then retry keel close
 

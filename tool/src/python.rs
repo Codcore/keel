@@ -214,26 +214,92 @@ pub fn ran(said: &str) -> Vec<(String, String, String)> {
             out.push((file.to_string(), name.to_string(), verdict.to_string()));
         }
     };
+    // A node is read as a WHOLE: a directory with a space in it cut
+    // the node in two words and the battery lost the test (global
+    // review 2026-09-06 R-17; wave 0051).
     for line in said.lines() {
         let trimmed = line.trim();
-        let mut words = trimmed.split_whitespace();
-        let (Some(first), Some(second)) = (words.next(), words.next()) else {
-            continue;
-        };
-        if VERDICTS.contains(&first) {
-            // The summary shape: verdict first, node second. A
-            // SKIPPED line carries `file:line` and no node, and is
-            // left out here by its shape.
-            if let Some((file, name)) = second.split_once("::") {
+        // The summary shape: the verdict first, then the node, then
+        // maybe ` - <message>`. A SKIPPED line carries `file:line`
+        // and no node, and is left out here by its shape.
+        if let Some((first, rest)) = trimmed.split_once(' ')
+            && VERDICTS.contains(&first)
+        {
+            let node = summary_node(rest);
+            if let Some((file, name)) = node.split_once("::") {
                 take(file, name, first);
             }
-        } else if VERDICTS.contains(&second)
-            && let Some((file, name)) = first.split_once("::")
-        {
-            take(file, name, second);
+            continue;
+        }
+        // The progress shape: the node, then the verdict, then the
+        // percentage -- the verdict is the LAST verdict word in it.
+        let Some((cut, verdict)) = VERDICTS
+            .iter()
+            .filter_map(|v| {
+                trimmed
+                    .rfind(&format!(" {v}"))
+                    .filter(|&at| {
+                        let after = &trimmed[at + 1 + v.len()..];
+                        after.is_empty() || after.starts_with(' ')
+                    })
+                    .map(|at| (at, *v))
+            })
+            .max()
+        else {
+            continue;
+        };
+        let node = trimmed[..cut].trim();
+        if let Some((file, name)) = node.split_once("::") {
+            take(file, name, verdict);
         }
     }
     out
+}
+
+/// The node of a `-rA` summary line, after its verdict word: the
+/// node runs up to its function name and its `[params]`, and only
+/// then may ` - <message>` follow. Cutting at the first ` - ` lost a
+/// node whose DIRECTORY carried the dash (`tests/my - dir/…`) --
+/// which only the progress line saved, and a project `addopts = "-q"`
+/// silences that line (review 0051 R-14). A line without `::` keeps
+/// the old cut.
+fn summary_node(rest: &str) -> &str {
+    let rest = rest.trim();
+    let Some(sep) = rest.find("::") else {
+        return rest.split(" - ").next().unwrap_or(rest).trim();
+    };
+    let bytes = rest.as_bytes();
+    let mut end = sep + 2;
+    // The function (or `Class::method`) name: identifier characters
+    // and further `::`.
+    while end < bytes.len() {
+        let c = rest[end..].chars().next().unwrap();
+        if c.is_alphanumeric() || c == '_' || c == ':' {
+            end += c.len_utf8();
+        } else {
+            break;
+        }
+    }
+    // `[params]`, with the brackets balanced: an id may carry ` - `.
+    if bytes.get(end) == Some(&b'[') {
+        let mut depth = 0usize;
+        let mut at = end;
+        for (offset, c) in rest[end..].char_indices() {
+            match c {
+                '[' => depth += 1,
+                ']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        at = end + offset + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        end = if at > end { at } else { rest.len() };
+    }
+    rest[..end].trim()
 }
 
 /// What a run came to, read from how pytest left -- and, where a

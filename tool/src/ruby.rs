@@ -167,7 +167,12 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
     }
     let relative = tag.file.strip_prefix(root).unwrap_or(&tag.file);
     let mut command = Command::new("ruby");
+    // The encoding of the arguments is the adapter's word to its
+    // child, not the machine's locale: under `LANG=` ruby read `-n
+    // test_ünïcode` in ASCII-8BIT and selected nothing (global review
+    // 2026-09-06 R-19; wave 0051), while `-E UTF-8` runs it.
     command
+        .args(["-E", "UTF-8"])
         .arg("-Itest")
         .arg(relative)
         .arg("-n")
@@ -239,6 +244,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         let stem = crate::adapter::battery_key(root, &file);
         let mut command = Command::new("ruby");
         command
+            .args(["-E", "UTF-8"])
             .arg("-Itest")
             .arg(relative)
             .arg("-v")
@@ -325,22 +331,13 @@ fn verdict_in(line: &str) -> Option<(String, bool)> {
 /// "green" and let work through a gate over a test that never ran.
 /// What ruby said is asked before how it left.
 pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
-    // Nothing ran: the file did not parse, or a require failed.
-    if said.contains("SyntaxError")
-        || said.contains("LoadError")
-        || said.contains("cannot load such file")
-    {
-        return crate::adapter::Outcome::BuildBroken(
-            said.lines()
-                .find(|line| {
-                    line.contains("SyntaxError")
-                        || line.contains("LoadError")
-                        || line.contains("cannot load such file")
-                })
-                .unwrap_or("")
-                .trim()
-                .to_string(),
-        );
+    // Nothing ran: the file did not parse, or a require failed --
+    // known by the SHAPE of ruby's own line, not by a word in it:
+    // `flunk "this is not a LoadError"` said the word in a failure
+    // message and was read as a broken build (global review
+    // 2026-09-06, bugs R-22; wave 0051).
+    if let Some(line) = said.lines().find(|line| broken_line(line)) {
+        return crate::adapter::Outcome::BuildBroken(line.trim().to_string());
     }
     // Minitest ran and named nothing: the method does not exist. The
     // SUMMARY line says it -- `0 runs, 0 assertions, …` -- and only
@@ -368,6 +365,21 @@ pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
         return crate::adapter::Outcome::Green;
     }
     crate::adapter::Outcome::Failed
+}
+
+/// Whether a line is ruby's own word about a build that broke: the
+/// exception class in parentheses at the end (`… (LoadError)`, `…
+/// (SyntaxError)`), the parser's `: syntax error` and the loader's
+/// `cannot load such file --`. A failure message that merely contains
+/// the word is a failure. The border is text: a test that prints
+/// ruby's very shape reads as a broken build, and is named.
+fn broken_line(line: &str) -> bool {
+    let trimmed = line.trim_end();
+    trimmed.ends_with("(LoadError)")
+        || trimmed.ends_with("(SyntaxError)")
+        || trimmed.contains(": syntax error")
+        || trimmed.contains("syntax errors found")
+        || trimmed.contains("cannot load such file --")
 }
 
 /// Whether minitest spoke its summary line at all -- `3 runs, 3
@@ -555,6 +567,16 @@ fn strip_ansi(text: &str) -> String {
 /// spec_helper`). `SPEC_OPTS` is dropped: rspec reads it, and a
 /// `--tag` there filtered the run away (measured). `--no-color`, or
 /// the error's words carry colour codes.
+/// This run's own directory in the system's temp dir, removed when
+/// the run is over -- however it is over.
+struct Home(std::path::PathBuf);
+
+impl Drop for Home {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 /// What one rspec run said: its JSON (from the file), and its voice
 /// on stdout and stderr, where a load error is narrated.
 struct Said {
@@ -564,11 +586,28 @@ struct Said {
 
 fn rspec(root: &Path, args: &[String]) -> Result<Said, Refusal> {
     static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let out_file = std::env::temp_dir().join(format!(
-        "keel-rspec-{}-{}.json",
+    // A directory of this run's own, created exclusively -- a file
+    // under a name anyone could have set up in advance in the shared
+    // temp dir was the classic race (global review 2026-09-06 R-26;
+    // wave 0051). `create_dir` refuses what already stands there, a
+    // symlink included, and that refusal is said aloud.
+    let home = std::env::temp_dir().join(format!(
+        "keel-rspec-{}-{}",
         std::process::id(),
         COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
+    std::fs::create_dir(&home).map_err(|e| Refusal {
+        file: home.clone(),
+        reason: ta("adapter-rspec-tmp", targs!("error" => e.to_string())),
+        instead: t("adapter-rspec-tmp-instead"),
+    })?;
+    // And gone with the run whichever way the run ends: the first
+    // reading removed it after a successful launch only, and a
+    // refusal -- rspec not on PATH -- left it standing in the shared
+    // temp dir (review 0051 R-5). The guard removes it on every road
+    // out of this function, the `?` ones included.
+    let home = Home(home);
+    let out_file = home.0.join("out.json");
     let mut command = Command::new("rspec");
     command
         .args(["--format", "json", "--out"])
@@ -592,7 +631,7 @@ fn rspec(root: &Path, args: &[String]) -> Result<Said, Refusal> {
         instead: t("adapter-rspec-failed-instead"),
     })?;
     let json = std::fs::read_to_string(&out_file);
-    let _ = std::fs::remove_file(&out_file);
+    drop(home);
     let voice = format!(
         "{}{}",
         String::from_utf8_lossy(&out.stdout),
