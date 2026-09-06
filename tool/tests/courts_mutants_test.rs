@@ -3,7 +3,11 @@
 //! Born green (§6.3, the named exception): each case here is a
 //! mutant that survived the battery or a clause that had no assert
 //! (global review 2026-09-06, tests R-9, R-12; bugs R-25), and the
-//! commit of this birth records every mutant played against it.
+//! commit of this birth records every mutant played against it. One
+//! precision from review 0053 (R-6): the byte-for-byte assert of
+//! wave 0040 had NOT vanished -- `json_out_test` still kills the
+//! json mutant on the base -- what vanished was the constancy of the
+//! package between two runs, and that is what the first case holds.
 //!
 //! proves tags -- revisions per §5.3-§5.4, verified by `keel rev`.
 
