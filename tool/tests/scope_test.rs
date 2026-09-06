@@ -102,7 +102,7 @@ fn scope_both_ways() {
     write(&dir, "lib/a.txt", "one, changed\n"); // declared and touched
     write(&dir, "lib/c.txt", "drift\n"); // touched, never declared
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "work"]);
+    git(&dir, &["commit", "-q", "-m", "t: work"]);
 
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 1, "both sides make the run red:\n{out}");
@@ -143,12 +143,12 @@ fn scope_both_ways() {
     write(&dir, "lib/a.txt", "one\n");
     write(&dir, "lib/b.txt", "two\n");
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "everything at once"]);
+    git(&dir, &["commit", "-q", "-m", "t: everything at once"]);
     // A second commit drifting -- the fallback base judges both ways
     // too (review R-9).
     write(&dir, "lib/z.txt", "stranger\n");
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "drift"]);
+    git(&dir, &["commit", "-q", "-m", "t: drift"]);
 
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(
@@ -185,7 +185,10 @@ fn scope_both_ways() {
     );
     write(&dir, "lib/файл.txt", "one, changed\n");
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "work"]);
+    // Under the transform's slug: since wave 0052 a transform done in
+    // its files and closed by no commit under its slug is a finding
+    // of §6.2, and this fixture is the lawful branch.
+    git(&dir, &["commit", "-q", "-m", "t: work"]);
 
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(
@@ -211,7 +214,7 @@ fn scope_both_ways() {
     );
     write(&dir, "lib/a.txt", "one, changed\n");
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "work"]);
+    git(&dir, &["commit", "-q", "-m", "t: work"]);
     // The clone shape: origin/main knows the base, local main is gone.
     git(&dir, &["update-ref", "refs/remotes/origin/main", "main"]);
     git(&dir, &["branch", "-q", "-D", "main"]);
@@ -242,7 +245,7 @@ fn scope_both_ways() {
     );
     git(&dir, &["mv", "lib/old.txt", "lib/new.txt"]);
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "rename"]);
+    git(&dir, &["commit", "-q", "-m", "t: rename"]);
 
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(
@@ -267,7 +270,7 @@ fn scope_both_ways() {
     );
     write(&dir, "lib/a.txt", "one, changed\n");
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "work"]);
+    git(&dir, &["commit", "-q", "-m", "t: work"]);
 
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "keel/ stays outside, both ways (§4.8):\n{out}");
@@ -299,7 +302,7 @@ fn one_new_in_counted() {
             write(&dir, rel, text);
         }
         git(&dir, &["add", "."]);
-        git(&dir, &["commit", "-q", "-m", "work"]);
+        git(&dir, &["commit", "-q", "-m", "t: work"]);
         dir
     };
     let one_line = "      - one new in priv/migrations/\n";
@@ -403,7 +406,7 @@ fn scope_honest_when_unknown() {
     git(&dir, &["checkout", "-q", "-b", "just-work"]);
     write(&dir, "lib/c.txt", "stranger\n");
     git(&dir, &["add", "."]);
-    git(&dir, &["commit", "-q", "-m", "work"]);
+    git(&dir, &["commit", "-q", "-m", "t: work"]);
 
     let (out, _err, code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "not compared is not red:\n{out}");
@@ -449,7 +452,7 @@ fn scope_honest_when_unknown() {
     git(&parent, &["checkout", "-q", "-b", "0005-scope-w"]);
     write(&parent, "proj/lib/a.txt", "one, changed\n");
     git(&parent, &["add", "."]);
-    git(&parent, &["commit", "-q", "-m", "work"]);
+    git(&parent, &["commit", "-q", "-m", "t: work"]);
 
     let root = parent.join("proj");
     fs::create_dir_all(root.join("keel/contracts")).unwrap();
