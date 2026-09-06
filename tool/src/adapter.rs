@@ -154,6 +154,40 @@ pub fn battery_dir(root: &Path) -> Option<PathBuf> {
     }
 }
 
+/// The files this tongue's own runner leaves in a project, as paths
+/// relative to the root: lock files, and nothing else (wave 0055).
+///
+/// A runner writes them without being asked -- the first `red:`
+/// commit through the hook builds the crate, and `Cargo.lock`
+/// appeared under an author who had touched nothing of the sort, so
+/// every court called it drift the wave never declared (final review
+/// 2026-09-06, bugs R-20). They are the tongue's furniture, as the
+/// frame's own files are the methodology's (§4.8): outside scope in
+/// both directions, and named here rather than known by heart in
+/// three courts. What a lock file RECORDS still comes from a
+/// manifest, and a manifest no transform names is drift like any
+/// other file -- so nothing about a dependency slips past unseen.
+pub fn lockfiles(root: &Path) -> Vec<String> {
+    match language_of(root) {
+        Some(Language::Ruby) => vec!["Gemfile.lock".to_string()],
+        Some(Language::Elixir) => vec!["mix.lock".to_string()],
+        // npm's own; yarn and pnpm are named as a border in
+        // tool-scope, not read here.
+        Some(Language::JavaScript) => vec!["package-lock.json".to_string()],
+        // pytest locks nothing: what it leaves is a directory, and
+        // build directories are ignore rules, not scope (wave 0045).
+        Some(Language::Python) => Vec::new(),
+        _ => match crate_root(root) {
+            Ok(dir) => {
+                let relative = dir.strip_prefix(root).unwrap_or(Path::new(""));
+                let lock = relative.join("Cargo.lock");
+                vec![lock.to_string_lossy().replace('\\', "/")]
+            }
+            Err(_) => Vec::new(),
+        },
+    }
+}
+
 pub fn build_dir(root: &Path) -> BuildDir {
     match language_of(root) {
         // pytest builds nothing -- and, told so, writes nothing

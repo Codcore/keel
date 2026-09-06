@@ -224,6 +224,12 @@ fn furniture(root: &Path, config: &Config, file: &str) -> bool {
     file.starts_with("keel/")
         || file == "keel.toml"
         || crate::generated::is_furniture(root, config, file)
+        // The tongue's own, named by the adapter (wave 0055): a lock
+        // file the runner writes without being asked is not this
+        // wave's work, and the first build through the hook made one
+        // in a stranger's project (final review 2026-09-06, bugs
+        // R-20).
+        || crate::adapter::lockfiles(root).iter().any(|lock| lock == file)
 }
 
 /// The contracts the branch changed against the base: a fact of the
@@ -249,6 +255,13 @@ pub fn contracts_changed(root: &Path) -> Result<Vec<String>, Refusal> {
         .lines()
         .map(str::trim)
         .filter(|l| !l.is_empty())
+        // A contract is a DOCUMENT (§2.9): `keel init` leaves
+        // `keel/contracts/.gitkeep` so the standing empty directory
+        // outlives git, and all three courts then called a light
+        // wave's branch a contract change and led it to a full wave
+        // -- on the first day in a stranger's project (final review
+        // 2026-09-06, bugs R-8; wave 0055).
+        .filter(|l| l.ends_with(".md"))
         .map(str::to_string)
         .collect())
 }

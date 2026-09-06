@@ -9,6 +9,7 @@ exports:
   - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>"
   - "pub enum BuildDir { At(PathBuf), Nothing, Unknown }"
   - "pub fn build_dir(root: &Path) -> BuildDir"
+  - "pub fn lockfiles(root: &Path) -> Vec<String>"
   - "pub fn tests_dir(root: &Path) -> Result<PathBuf, Refusal>"
   - "pub fn run_line(root: &Path, file: &Path, test: &str) -> String"
   - "pub const BUILD_DIR: &str"
