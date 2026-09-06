@@ -197,8 +197,8 @@ and no court said which of the two was current. Wave 0049 took it out; it is
 in the history up to that wave, and the v0.8.x tags still carry it.
 
 **v1 is frozen** (the operator's decisions 5 and 7 of the concept): its last
-release is `v0.8.11`, and only a critical patch would touch it; development is
-in v2. The branch `skarha-nazyvaye-prychynu` is the archive of the analysis
+tag is `v0.8.11` (the archive branch's head calls itself 0.8.41 without a tag),
+and only a critical patch would touch it; development is in v2. The branch `skarha-nazyvaye-prychynu` is the archive of the analysis
 that led to v2 and stays as a reference. Where a v1 command went:
 
 | v1 | v2 |
@@ -286,11 +286,12 @@ directory.
 
 What is **not** there, so nobody looks for it: `keel check --fast` — the v1
 subset for pre-commit is not carried, the commit-msg hook (`keel gate`) is the
-fast court; and a court over the scope intersections of parallel waves — `check`
-judges one branch against its trunk, and whether two open waves declaring one
-file deserve a court of their own is an operator's line in BACKLOG. The commands
-of the first tool (`gaps`, `mutate`, `show`, `hooks`, `skills`, `hook <event>`)
-live in `docs/uk/README.md` as history, and the concept says where each went.
+fast court. What **is** there since wave 0054 and easy to miss: the crossing
+court of §8.8 — two open waves declaring one scope line with no `depends_on`
+between them are a finding of `check`, on the plan branch and on main alike.
+The commands of the first tool (`gaps`, `mutate`, `show`, `hooks`, `skills`,
+`hook <event>`) live in `docs/uk/README.md` as history, and the concept says
+where each went.
 
 ## What the courts actually check
 
