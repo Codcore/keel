@@ -61,7 +61,7 @@ transforms:
       - keel/reviews/0054-the-norm-names-what-holds-it.md
 decisions:
   functional.appropriateness: "свідомо без тесту: жодної нової команди — хвиля править текст норми, додає один суд у check і робить чесними його слова; кожен рядок цитує параграф, який тримає (§6.3, §7.1, §7.10, §8.6, §8.8, конституція п. 6)"
-  performance.time-behaviour: "свідомо без тесту, і ціна названа: суд перетинів читає шапки вже прочитаних хвиль — O(хвиль × файлів), жодного бігу git чи тестів"
+  performance.time-behaviour: "свідомо без тесту, і ціна названа: суд перетинів читає шапки вже прочитаних хвиль — O(відкритих² × рядків scope) плюс обхід depends_on на пару, жодного бігу git чи тестів"
   performance.capacity: "не застосовується"
   performance.resource-utilisation: "не застосовується"
   compatibility.co-existence: "свідомо без тесту: жодних нових файлів у проєкті користувача — змінюються слова check-а, тексти норми цього репозиторію і його README"
@@ -84,7 +84,7 @@ decisions:
   maintainability.modularity: "свідомо без тесту: суд перетинів живе в graph поруч із іншими судами між хвилями; жодного нового модуля"
   maintainability.reusability: "не застосовується"
   maintainability.analysability: "тримає two-open-waves-do-not-share-a-file: знахідка називає файл і обидві хвилі поіменно"
-  maintainability.testability: "свідомо без тесту: чотири проби народжуються червоними на своїй першій клаузі (§7.12); проби норми й копії читають файли репозиторію, як generated_stands_test"
+  maintainability.testability: "свідомо без тесту: три проби народжуються червоними на своїй першій клаузі (§7.12), четверта — копії — зеленою за винятком §6.3 з мутантом у коміті народження; проби норми й копії читають файли репозиторію, як generated_stands_test"
   flexibility.adaptability: "не застосовується"
   flexibility.scalability: "не застосовується"
   flexibility.installability: "не застосовується"
