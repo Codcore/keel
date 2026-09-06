@@ -31,8 +31,9 @@ fn revision_recipe_reproduced() {
         rev::contract_rev(&root.join("keel/contracts/tool-docs.md")).unwrap(),
         // 2ab9a9 until wave 0052 wrote the weight's reason (`heavy`)
         // into the contract; f53b8f until its fourth transform wrote
-        // the number's one hand.
-        "df690e"
+        // the number's one hand; df690e until review 0052 asked the
+        // exports to name `weight` and `heavy`.
+        "22b7a7"
     );
     assert_eq!(
         rev::contract_rev(&root.join("keel/contracts/tool-config.md")).unwrap(),

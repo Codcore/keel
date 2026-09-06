@@ -392,15 +392,21 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 .transforms
                 .iter()
                 .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
-        if chores_only && let Some(heavy) = docs::heavy(wave) {
-            let why = match heavy {
-                docs::Heavy::Transforms(count) => ta(
+        // A wave with no scenario cannot withdraw one, so that road
+        // of `heavy` never leads here (review 0052 R-8).
+        let why = if chores_only {
+            match docs::heavy(wave) {
+                Some(docs::Heavy::Transforms(count)) => Some(ta(
                     "check-chores-heavy-transforms",
                     targs!("count" => count as u64),
-                ),
-                docs::Heavy::Withdraws => t("check-chores-heavy-withdraws"),
-                docs::Heavy::Contract => t("check-chores-heavy-contract"),
-            };
+                )),
+                Some(docs::Heavy::Contract) => Some(t("check-chores-heavy-contract")),
+                Some(docs::Heavy::Withdraws) | None => None,
+            }
+        } else {
+            None
+        };
+        if let Some(why) = why {
             rows.push((
                 wave_path.clone(),
                 Some(format!(
@@ -675,9 +681,19 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                         // human look skipped (global review
                         // 2026-09-06, methodology R-3; wave 0052).
                         if docs::weight(wave) == docs::Weight::Light {
+                            // The instead must lead somewhere lawful
+                            // (§9.7): a wave with no promise cannot
+                            // name the contract and stay light --
+                            // §2.11 would take it (review 0052 R-5).
+                            let chores_only = wave.scenarios.is_empty();
                             match scope::contracts_changed(root) {
                                 Ok(contracts) => {
                                     for contract in contracts {
+                                        let instead = if chores_only {
+                                            t("scope-light-contract-instead-chores")
+                                        } else {
+                                            t("scope-light-contract-instead")
+                                        };
                                         rows.push((
                                             wave_path.clone(),
                                             Some(format!(
@@ -687,7 +703,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                                     targs!("wave" => slug.clone(), "contract" => contract),
                                                 ),
                                                 t("word-instead"),
-                                                t("scope-light-contract-instead"),
+                                                instead,
                                             )),
                                         ));
                                     }
@@ -769,7 +785,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                         }
                         let short = sha.get(..7).unwrap_or(&sha).to_string();
                         let base_text = if from_main {
-                            ta("check-scope-base-main", targs!("sha" => short))
+                            ta(
+                                "check-scope-base-main",
+                                targs!("sha" => short, "trunk" => scope::trunk(root).unwrap_or_default()),
+                            )
                         } else {
                             ta("check-scope-base-first", targs!("sha" => short))
                         };

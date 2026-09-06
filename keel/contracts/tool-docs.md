@@ -4,6 +4,8 @@ exports:
   - "pub fn read_wave(path: &Path) -> Result<Wave, Refusal>"
   - "pub fn read_contract(path: &Path) -> Result<Contract, Refusal>"
   - "pub fn scan(root: &Path) -> Result<Scan, Refusal>"
+  - "pub fn weight(wave: &Wave) -> Weight"
+  - "pub fn heavy(wave: &Wave) -> Option<Heavy>"
 ---
 
 Суворе читання документів методики — єдині двері, якими інструмент

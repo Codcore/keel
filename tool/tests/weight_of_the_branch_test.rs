@@ -172,6 +172,45 @@ fn the_weight_is_read_from_the_branch_too() {
         !said.contains("легка хвиля їде в свій один PR"),
         "and `next` does not lead a contract change to one PR:\n{said}"
     );
+    // The instead of a wave without a promise does not send it to
+    // name the contract -- §2.11 would take it there (review 0052
+    // R-5); and where it is named anyway, `next` reads §2.11 as
+    // `check` does, never "time for the PR".
+    assert!(
+        said.contains("дай їй сценарій") || said.contains("§2.11"),
+        "a chores-only wave is told to get a promise or drop the change:\n{said}"
+    );
+    std::fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        chore_wave(&[("tidy", "src/lib.rs")]).replacen(
+            "      - src/lib.rs\n",
+            "      - src/lib.rs\n      - keel/contracts/ext.md\n",
+            1,
+        ),
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &[
+            "commit",
+            "-q",
+            "--no-verify",
+            "-m",
+            "tidy: the contract named",
+        ],
+    );
+    let (said, code) = keel(&dir, &["check"]);
+    assert!(
+        said.contains("§2.11") && said.contains("контракт"),
+        "a chores-only wave that names a contract is §2.11's finding:\n{said}"
+    );
+    assert_eq!(code, 1, "and the check is red:\n{said}");
+    let (said, _) = keel(&dir, &["next"]);
+    assert!(
+        said.contains("§2.11") && !said.contains("час PR"),
+        "and `next` leads where `check` does, not to the PR (§9.2):\n{said}"
+    );
 
     // --- two chore transforms: a wave of chores alone must be light,
     // and light means one transform (§2.11) ---
@@ -252,4 +291,120 @@ fn the_weight_is_read_from_the_branch_too() {
         said.contains("закрита фактом merge (§6.5)"),
         "at main the fact stands, and the wave is closed by it:\n{said}"
     );
+
+    // --- the trunk is what the repository calls it: `master` too
+    // (review 0052 R-2) ---
+    let dir = crate_with(
+        "weightmaster",
+        "rust",
+        &chore_wave(&[("tidy", "src/lib.rs")]),
+    );
+    git(&dir, &["init", "-q", "-b", "master"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "all on master"]);
+    let (said, _) = keel(&dir, &["status"]);
+    assert!(
+        said.contains("закрита фактом merge (§6.5)"),
+        "a repository whose trunk is master sees the fact too:\n{said}"
+    );
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        "pub fn works() -> bool { true }\n// x\n",
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "--no-verify", "-m", "tidy: x"]);
+    let (said, _) = keel(&dir, &["check"]);
+    assert!(
+        said.contains("стовбуром master"),
+        "and the base of a comparison is named by the trunk's name:\n{said}"
+    );
+
+    // --- on the wave's own branch the fact is its WORK in the
+    // trunk, not its file (§6.5; review 0052 R-6) ---
+    let dir = crate_with(
+        "weightfilefirst",
+        "rust",
+        &chore_wave(&[("tidy", "src/lib.rs")]),
+    );
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "the wave file on main, by hand"],
+    );
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    std::fs::write(
+        dir.join("src/lib.rs"),
+        "pub fn works() -> bool { true }\n// tidy\n",
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "--no-verify", "-m", "tidy: work"]);
+    let (said, _) = keel(&dir, &["status"]);
+    assert!(
+        said.contains("закриється фактом merge") && !said.contains("закрита фактом merge"),
+        "the file in main is not the fact while the work is not:\n{said}"
+    );
+    assert!(
+        said.contains("у роботі 1"),
+        "and the wave is counted as in work, not closed (review 0052 R-12):\n{said}"
+    );
+    let (said, code) = keel(&dir, &["close"]);
+    assert!(
+        !said.contains("закрита (легка)") && said.contains("закриється фактом merge"),
+        "close says the same on the branch (review 0052 R-13 -- the branch IS named as this wave):\n{said}"
+    );
+    assert_eq!(code, 0, "and blocks nothing:\n{said}");
+    git(&dir, &["checkout", "-q", "main"]);
+    git(
+        &dir,
+        &[
+            "merge",
+            "-q",
+            "--no-ff",
+            "--no-verify",
+            "-m",
+            "merge",
+            "0001-a-wave",
+        ],
+    );
+    git(&dir, &["checkout", "-q", "0001-a-wave"]);
+    let (said, _) = keel(&dir, &["status"]);
+    assert!(
+        said.contains("закрита фактом merge (§6.5)"),
+        "once the work is in the trunk the branch sees the fact:\n{said}"
+    );
+
+    // --- no trunk at all: the court says it cannot see the fact
+    // (review 0052 R-12, M12) ---
+    let dir = crate_with(
+        "weightnogit",
+        "rust",
+        &chore_wave(&[("tidy", "src/lib.rs")]),
+    );
+    let (said, _) = keel(&dir, &["status"]);
+    assert!(
+        said.contains("закриється фактом merge") && said.contains("стовбура"),
+        "without git the fact is not claimed, and the reason is said:\n{said}"
+    );
+
+    // --- a chore wave that withdraws a promise is not "chores alone"
+    // (§2.11 as read: without a single promise; review 0052 R-12, M07) ---
+    let withdrawn = chore_wave(&[("tidy", "src/lib.rs")]).replacen(
+        "---\ntransforms:",
+        "---\nscenarios:\n  gone:\n    covers: []\n    withdrawn: \"знято до старту\"\ntransforms:",
+        1,
+    ) + "## scenario: gone\nбуло\n";
+    let dir = crate_with("weightwithdrawn", "rust", &withdrawn);
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    let (said, code) = keel(&dir, &["check"]);
+    assert!(
+        !said.contains("§2.11"),
+        "a withdrawn promise is a promise spoken of:\n{said}"
+    );
+    assert_eq!(code, 0, "and the wave is lawful, full by §6.8:\n{said}");
 }

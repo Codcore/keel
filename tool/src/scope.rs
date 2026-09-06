@@ -277,24 +277,59 @@ pub fn slug_commits(root: &Path) -> Result<BTreeSet<String>, Refusal> {
 /// asked at all -- and the caller says that aloud rather than
 /// claiming a merge it cannot see (wave 0052, methodology R-5).
 pub fn stands_in_main(root: &Path, rel: &str) -> Option<bool> {
-    for main in ["main", "origin/main"] {
+    let trunk = trunk(root)?;
+    let there = git_at(root)
+        .args(["cat-file", "-e", &format!("{trunk}:{rel}")])
+        .output()
+        .ok()?;
+    Some(there.status.success())
+}
+
+/// Whether the branch's own work is already in the trunk -- HEAD an
+/// ancestor of it (§6.5: "its file AND its work arrive in main by one
+/// PR"; review 0052 R-6 measured a wave file put on main by hand
+/// calling the unmerged work closed). None where no trunk can be
+/// asked.
+pub fn work_in_trunk(root: &Path) -> Option<bool> {
+    let trunk = trunk(root)?;
+    let out = git_at(root)
+        .args(["merge-base", "--is-ancestor", "HEAD", &trunk])
+        .output()
+        .ok()?;
+    Some(out.status.success())
+}
+
+/// What this repository calls its trunk -- ONE hand for the base of
+/// every comparison and for the fact of a merge (review 0052 R-2: the
+/// courts of scope knew `main` and `origin/main` alone while `check`
+/// had its own reading with `master`, and a repository on `master`
+/// never saw a light wave closed): `main`, else `master`, locally;
+/// else `origin/main`, `origin/master`; else what `origin/HEAD`
+/// points at. None where none exists -- and the caller says so.
+pub fn trunk(root: &Path) -> Option<String> {
+    for name in ["main", "master", "origin/main", "origin/master"] {
         let known = git_at(root)
             .args([
                 "rev-parse",
                 "--verify",
                 "--quiet",
-                &format!("{main}^{{commit}}"),
+                &format!("{name}^{{commit}}"),
             ])
             .output()
             .ok()?;
-        if !known.status.success() {
-            continue;
+        if known.status.success() {
+            return Some(name.to_string());
         }
-        let there = git_at(root)
-            .args(["cat-file", "-e", &format!("{main}:{rel}")])
-            .output()
-            .ok()?;
-        return Some(there.status.success());
+    }
+    let head = git_at(root)
+        .args(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+        .output()
+        .ok()?;
+    if head.status.success() {
+        let name = String::from_utf8_lossy(&head.stdout).trim().to_string();
+        if !name.is_empty() {
+            return Some(name);
+        }
     }
     None
 }
@@ -305,10 +340,10 @@ pub fn stands_in_main(root: &Path, rel: &str) -> Option<bool> {
 /// Returns the sha and whether main gave it, so the report can say
 /// what it took (the wave's own caveat).
 pub fn compare_base(root: &Path) -> Result<(String, bool), Refusal> {
-    for main in ["main", "origin/main"] {
-        if let Ok(sha) = git_line(root, &["merge-base", main, "HEAD"]) {
-            return Ok((sha, true));
-        }
+    if let Some(trunk) = trunk(root)
+        && let Ok(sha) = git_line(root, &["merge-base", &trunk, "HEAD"])
+    {
+        return Ok((sha, true));
     }
     let roots = git_line(root, &["rev-list", "--max-parents=0", "HEAD"])?;
     let sha = roots.lines().last().unwrap_or("").trim().to_string();

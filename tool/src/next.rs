@@ -445,9 +445,38 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
     // wave whose branch changed a contract does not ride to one PR
     // -- the step is to name the contract, or to take the change off
     // the branch (wave 0052).
-    if light && let Some(contract) = scope::contracts_changed(root)?.first() {
+    // §2.11 read here as `check` reads it (review 0052 R-5: `next`
+    // said "time for the PR" over the very wave `check` reddened): a
+    // wave with no promise whose transforms are chores must be light.
+    let chores_only = wave.scenarios.is_empty()
+        && !wave.transforms.is_empty()
+        && wave
+            .transforms
+            .iter()
+            .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
+    if chores_only && let Some(heavy) = docs::heavy(wave) {
+        let why = match heavy {
+            docs::Heavy::Transforms(count) => ta(
+                "check-chores-heavy-transforms",
+                targs!("count" => count as u64),
+            ),
+            docs::Heavy::Contract | docs::Heavy::Withdraws => t("check-chores-heavy-contract"),
+        };
         out.push_str(&ta(
-            "next-step-light-contract",
+            "next-step-chores-heavy",
+            targs!("wave" => wave.slug.clone(), "why" => why),
+        ));
+        out.push('\n');
+        return Ok(out);
+    }
+    if light && let Some(contract) = scope::contracts_changed(root)?.first() {
+        let key = if chores_only {
+            "next-step-light-contract-chores"
+        } else {
+            "next-step-light-contract"
+        };
+        out.push_str(&ta(
+            key,
             targs!("wave" => wave.slug.clone(), "contract" => contract.clone()),
         ));
         out.push('\n');

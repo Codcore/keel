@@ -5,7 +5,10 @@ exports:
   - "pub fn findings(root: &Path, wave: &Wave, config: &Config) -> Result<Vec<(String, String)>, Refusal>"
   - "pub fn plan_findings(root: &Path, config: &Config) -> Result<Vec<(String, String, String)>, Refusal>"
   - "pub fn contracts_changed(root: &Path) -> Result<Vec<String>, Refusal>"
+  - "pub fn slug_commits(root: &Path) -> Result<BTreeSet<String>, Refusal>"
   - "pub fn stands_in_main(root: &Path, rel: &str) -> Option<bool>"
+  - "pub fn work_in_trunk(root: &Path) -> Option<bool>"
+  - "pub fn trunk(root: &Path) -> Option<String>"
   - "pub fn current_branch(root: &Path) -> Option<String>"
   - "pub fn compare_base(root: &Path) -> Result<(String, bool), Refusal>"
   - "pub fn git_at(root: &Path) -> Command"
@@ -73,8 +76,18 @@ Scope (глава 4): файли, названі до роботи, звіряю
   суд її не читає.
 - **Вага — факт гілки теж** (хвиля 0052): `contracts_changed` називає
   контракти, змінені проти бази, — `check` і `next` читають нею §6.8
-  над легкою хвилею; `stands_in_main` — факт merge §6.5: файл стоїть у
-  `main` чи `origin/main` (`Some(true)`), main є, а файла нема
-  (`Some(false)`), main спитати нема в кого (`None`).
+  над легкою хвилею; `slug_commits` — слаги тем комітів гілки проти
+  бази (§6.2). **Стовбур — одна рука** (рецензія 0052 R-2): `trunk` —
+  `main`, інакше `master` локально, інакше `origin/main`,
+  `origin/master`, інакше те, куди дивиться `origin/HEAD`; нею беруть
+  базу порівняння (`compare_base`, і слово `check` називає стовбур
+  по імені) і факт merge §6.5: `stands_in_main` — файл стоїть у
+  стовбурі (`Some(true)`), стовбур є, а файла нема (`Some(false)`),
+  стовбура спитати нема в кого (`None`); `work_in_trunk` — робота
+  гілки вже в стовбурі (HEAD — його предок): на власній гілці хвилі
+  факт merge — робота, не файл (рецензія 0052 R-6: файл хвилі, покладений
+  на main рукою, звав незлиту роботу закритою). До хвилі суди scope
+  знали лише `main`/`origin/main`, а `check` читав стовбур своєю рукою
+  з `master` — і на `master` легка хвиля не закривалась ніколи.
 - git викликається як команда системи; його відмова — відмова вголос
   із «натомість», не тиша. Модуль нічого не пише.
