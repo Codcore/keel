@@ -365,8 +365,12 @@ fn the_word_is_the_courts_word() {
         .lines()
         .find(|l| l.starts_with("ціна цього суду"))
         .expect("close names its price first");
+    // Four, since wave 0055: a closing of that wave left 3.7 GiB in
+    // this project's own target, and a guard that names three lets
+    // through the run it stands to stop (review 0055 R-10).
     assert!(
-        price.contains("~3 ГіБ"),
-        "the constant is the measured three gibibytes:\n{price}"
+        price.contains("~4 ГіБ"),
+        "the constant is the measured weight, rounded up to whole \
+         gibibytes:\n{price}"
     );
 }

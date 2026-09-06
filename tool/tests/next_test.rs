@@ -165,8 +165,11 @@ fn next_hands_one_step() {
     commit_as(&dir, "the report of the reviewer rides in");
     let (out, err, _) = keel(&["next", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
+    // The words followed the mechanism in wave 0055: the report is
+    // read from the branch's history, and the step says that.
     assert!(
-        out.contains("time for the PR") && out.contains("the review lies next to the wave"),
+        out.contains("time for the PR")
+            && out.contains("the review report stands in the branch's history"),
         "the reviewed FULL wave hears its own words exactly, not a shared substring (0016 R-4):\n{out}"
     );
 

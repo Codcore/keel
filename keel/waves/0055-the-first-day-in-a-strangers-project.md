@@ -73,6 +73,7 @@ transforms:
       - tool/tests/close_test.rs
       - tool/tests/next_test.rs
       - tool/tests/reviewer_test.rs
+      - tool/tests/court_words_test.rs
   furniture-of-the-tongue:
     implements:
       - furniture-is-not-drift
