@@ -207,6 +207,21 @@ fn the_generated_close_knows_its_branch() {
         2,
         "keel's own workflow names the branch for check and for close"
     );
+    // And the recorded digest followed the file (review 0050 R-8): the
+    // line in keel.toml is the digest of the text that stands.
+    let config = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../keel.toml")).unwrap();
+    let recorded = config
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("\".github/workflows/keel.yml\" = \"")
+                .and_then(|rest| rest.strip_suffix('"'))
+        })
+        .expect("keel.toml records the workflow's digest");
+    assert_eq!(
+        recorded,
+        keel::generated::digest(&own),
+        "the recorded digest is the digest of the file that stands"
+    );
 
     // And close over a detached HEAD with the branch named counts the
     // blockers of that wave -- the wave is in work: proven, but no
