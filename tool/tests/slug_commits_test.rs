@@ -219,3 +219,41 @@ fn a_transform_is_closed_by_its_commit() {
     );
     assert_eq!(code, 0, "main is green:\n{said}");
 }
+
+/// proves: two-waves-with-one-number-are-red@60bf75
+#[test]
+fn two_waves_with_one_number_are_red() {
+    let dir = crate_with("twonumbers", "rust", &plain_wave());
+    std::fs::write(
+        dir.join("keel/waves/0001-b-wave.md"),
+        plain_wave()
+            .replace("it-works", "it-also-works")
+            .replace("  work:", "  more:")
+            .replace("## transform: work", "## transform: more"),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("keel/reviews/0001-b-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    let (said, code) = keel(&dir, &["check"]);
+    assert!(
+        said.contains("§8.8") && said.contains("0001-a-wave") && said.contains("0001-b-wave"),
+        "two waves with one number are a finding naming both files (§8.8):\n{said}"
+    );
+    assert!(
+        said.contains("0002"),
+        "and the next free number, by the hand of `keel plan`:\n{said}"
+    );
+    assert_eq!(code, 1, "and the check is red:\n{said}");
+    let (said, code) = keel(&dir, &["plan", "0001-c-wave"]);
+    assert_ne!(code, 0, "`keel plan` refuses the taken number:\n{said}");
+    assert!(
+        said.contains("0002"),
+        "with the same next free number:\n{said}"
+    );
+}
