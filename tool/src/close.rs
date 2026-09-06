@@ -735,6 +735,36 @@ pub(crate) fn nothing_to_prove(wave: &docs::Wave) -> bool {
     wave.scenarios.is_empty()
 }
 
+/// The review report of a wave as HISTORY carries it (§9.9; wave
+/// 0055).
+///
+/// `None` where no commit carries the file. The final review of
+/// 2026-09-06 (bugs R-7) measured the closing court reading the
+/// working tree: a report written and never committed made a wave
+/// "closed", and the merge that followed carried no record at all --
+/// the very thing §9.9 puts into history. Where there is no history
+/// to ask -- no git, or a repository whose HEAD is not born yet --
+/// the file on disk is all there is, and it is read.
+pub(crate) fn report_text(root: &Path, slug: &str) -> Option<String> {
+    let relative = format!("keel/reviews/{slug}.md");
+    let born = scope::git_at(root)
+        .args(["rev-parse", "--verify", "--quiet", "HEAD"])
+        .output()
+        .is_ok_and(|out| out.status.success());
+    if !born {
+        return std::fs::read_to_string(root.join(&relative)).ok();
+    }
+    let out = scope::git_at(root)
+        .arg("show")
+        .arg(format!("HEAD:{relative}"))
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
 pub(crate) fn wave_state(
     root: &Path,
     wave: &docs::Wave,
@@ -750,16 +780,16 @@ pub(crate) fn wave_state(
     // 2026-09-04): merging is its closure only once the report lies
     // beside it.
     if nothing_to_prove(wave) {
-        let report = root.join("keel/reviews").join(format!("{}.md", wave.slug));
         // An empty file is no review here either -- one word about
         // one state in every court (review 0037 R-2 for the full
-        // wave; global review 2026-09-06, methodology R-13; wave 0053).
-        match std::fs::read_to_string(&report) {
-            Err(_) => return Ok(State::Progress(vec![t("close-lack-review")])),
-            Ok(text) if text.split_whitespace().next().is_none() => {
+        // wave; global review 2026-09-06, methodology R-13; wave 0053),
+        // and a file no commit carries is not one at all (wave 0055).
+        match report_text(root, &wave.slug) {
+            None => return Ok(State::Progress(vec![t("close-lack-review")])),
+            Some(text) if text.split_whitespace().next().is_none() => {
                 return Ok(State::Progress(vec![t("close-lack-review-empty")]));
             }
-            Ok(_) => {}
+            Some(_) => {}
         }
         // "Closed by the fact of merge" only where the fact
         // stands: the wave file in main. The first reading
@@ -927,12 +957,12 @@ pub(crate) fn wave_state(
     // one -- review 0037 R-2 measured `: > file` passing the gate,
     // with the verdict then claiming "the review report is beside
     // it", which is more than the machine ever looked at.
-    match std::fs::read_to_string(root.join("keel/reviews").join(format!("{}.md", wave.slug))) {
-        Err(_) => lacks.push(t("close-lack-review")),
-        Ok(text) if text.split_whitespace().next().is_none() => {
+    match report_text(root, &wave.slug) {
+        None => lacks.push(t("close-lack-review")),
+        Some(text) if text.split_whitespace().next().is_none() => {
             lacks.push(t("close-lack-review-empty"))
         }
-        Ok(_) => {}
+        Some(_) => {}
     }
 
     if lacks.is_empty() {

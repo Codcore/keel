@@ -106,10 +106,13 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
             .unwrap_or_else(|| t("gate-adapter-absent-name"));
         match claim(&subject, wave) {
             // What this court would have to RUN it cannot: a refusal.
-            Claim::Birth | Claim::Work => Verdict::Refuse(ta(
-                "gate-adapter-refuses",
-                targs!("name" => name, "known" => crate::config::Language::known()),
-            )),
+            Claim::Birth | Claim::Work => Verdict::Refuse(
+                ta(
+                    "gate-adapter-refuses",
+                    targs!("name" => name, "known" => crate::config::Language::known()),
+                ),
+                t("gate-adapter-refuses-instead"),
+            ),
             // What it judges without running -- a chore has no test
             // to run, a typo is a typo under any adapter -- it judges
             // as under a known one (review 0052 R-1, R-11: the first
@@ -132,7 +135,9 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
     };
     let (words, guilty) = match verdict {
         Verdict::Pass(words) => (words, false),
-        Verdict::Refuse(words) => (words, true),
+        Verdict::Refuse(words, instead) => {
+            (format!("{words}\n  {}: {instead}", t("word-instead")), true)
+        }
     };
     let code = if guilty && config.mode == "strict" {
         1
@@ -149,7 +154,11 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
 
 enum Verdict {
     Pass(String),
-    Refuse(String),
+    /// The words of the refusal, and what to do instead: §9.7 asks
+    /// every limit for both, and this court used to give the second
+    /// in four of its thirty-four words (final review 2026-09-06,
+    /// methodology R-4; wave 0055).
+    Refuse(String, String),
 }
 
 /// What the subject claims, as this court sorts it.
@@ -233,10 +242,13 @@ fn judge(
             if let Some((_, transform)) = wave.transforms.iter().find(|(n, _)| n == head) {
                 return judge_work(root, wave, head, transform);
             }
-            return Ok(Verdict::Refuse(ta(
-                "gate-unknown-slug",
-                targs!("slug" => head.to_string(), "wave" => wave.slug.clone()),
-            )));
+            return Ok(Verdict::Refuse(
+                ta(
+                    "gate-unknown-slug",
+                    targs!("slug" => head.to_string(), "wave" => wave.slug.clone()),
+                ),
+                t("gate-unknown-slug-instead"),
+            ));
         }
         // The capitalized twin of a birth or a transform -- the
         // likeliest field typo -- does not walk past as "outside the
@@ -245,10 +257,10 @@ fn judge(
         if docs::slug_ok(&lower)
             && (lower == "red" || wave.transforms.iter().any(|(n, _)| *n == lower))
         {
-            return Ok(Verdict::Refuse(ta(
-                "gate-case",
-                targs!("head" => head.to_string()),
-            )));
+            return Ok(Verdict::Refuse(
+                ta("gate-case", targs!("head" => head.to_string())),
+                t("gate-case-instead"),
+            ));
         }
     }
     Ok(Verdict::Pass(t("gate-outside")))
@@ -292,24 +304,27 @@ fn judge_red(
     tongue: Option<config::Language>,
 ) -> Result<Verdict, Refusal> {
     let Some((name, sc)) = wave.scenarios.iter().find(|(n, _)| n == scenario) else {
-        return Ok(Verdict::Refuse(ta(
-            "gate-red-unknown",
-            targs!("slug" => scenario.to_string(), "wave" => wave.slug.clone()),
-        )));
+        return Ok(Verdict::Refuse(
+            ta(
+                "gate-red-unknown",
+                targs!("slug" => scenario.to_string(), "wave" => wave.slug.clone()),
+            ),
+            t("gate-red-unknown-instead"),
+        ));
     };
     if sc.withdrawn.is_some() {
-        return Ok(Verdict::Refuse(ta(
-            "gate-red-withdrawn",
-            targs!("scenario" => name.clone()),
-        )));
+        return Ok(Verdict::Refuse(
+            ta("gate-red-withdrawn", targs!("scenario" => name.clone())),
+            t("gate-red-withdrawn-instead"),
+        ));
     }
     let found = tags::scan(&adapter::test_files(root)?)?;
     let mine: Vec<_> = found.iter().filter(|t| t.scenario == *name).collect();
     match mine.len() {
-        0 => Ok(Verdict::Refuse(ta(
-            "gate-red-untagged",
-            targs!("scenario" => name.clone()),
-        ))),
+        0 => Ok(Verdict::Refuse(
+            ta("gate-red-untagged", targs!("scenario" => name.clone())),
+            t("gate-red-untagged-instead"),
+        )),
         1 => match adapter::run_test(root, mine[0])? {
             // The word carries the tongue's border (global review
             // 2026-09-06, methodology R-17; wave 0053): ruby leaves
@@ -334,24 +349,36 @@ fn judge_red(
                         "named" => named
                     ),
                 )),
-                None => Verdict::Refuse(ta(
-                    "gate-red-green",
-                    targs!("scenario" => name.clone(), "test" => mine[0].test.clone()),
-                )),
+                None => Verdict::Refuse(
+                    ta(
+                        "gate-red-green",
+                        targs!("scenario" => name.clone(), "test" => mine[0].test.clone()),
+                    ),
+                    t("gate-red-green-instead"),
+                ),
             }),
-            Outcome::BuildBroken(words) => Ok(Verdict::Refuse(ta(
-                "gate-red-broken",
-                targs!("scenario" => name.clone(), "words" => words),
-            ))),
-            Outcome::NotRun => Ok(Verdict::Refuse(ta(
-                "gate-red-notrun",
-                targs!("scenario" => name.clone(), "test" => mine[0].test.clone()),
-            ))),
+            Outcome::BuildBroken(words) => Ok(Verdict::Refuse(
+                ta(
+                    "gate-red-broken",
+                    targs!("scenario" => name.clone(), "words" => words),
+                ),
+                t("gate-red-broken-instead"),
+            )),
+            Outcome::NotRun => Ok(Verdict::Refuse(
+                ta(
+                    "gate-red-notrun",
+                    targs!("scenario" => name.clone(), "test" => mine[0].test.clone()),
+                ),
+                t("gate-red-notrun-instead"),
+            )),
         },
-        n => Ok(Verdict::Refuse(ta(
-            "gate-red-many-tags",
-            targs!("scenario" => name.clone(), "count" => n as u64),
-        ))),
+        n => Ok(Verdict::Refuse(
+            ta(
+                "gate-red-many-tags",
+                targs!("scenario" => name.clone(), "count" => n as u64),
+            ),
+            t("gate-red-many-tags-instead"),
+        )),
     }
 }
 
@@ -388,37 +415,52 @@ fn judge_work(
             .unwrap_or_default();
         let mine: Vec<_> = found.iter().filter(|t| t.scenario == *scenario).collect();
         if mine.is_empty() {
-            return Ok(Verdict::Refuse(ta(
-                "gate-work-untagged",
-                targs!("transform" => slug.to_string(), "scenario" => scenario.clone()),
-            )));
+            return Ok(Verdict::Refuse(
+                ta(
+                    "gate-work-untagged",
+                    targs!("transform" => slug.to_string(), "scenario" => scenario.clone()),
+                ),
+                t("gate-work-untagged-instead"),
+            ));
         }
         for tag in mine {
             if !crate::rev::matches(&tag.rev, &current) {
-                return Ok(Verdict::Refuse(ta(
-                    "gate-work-stale",
-                    targs!("transform" => slug.to_string(), "scenario" => scenario.clone(), "recorded" => tag.rev.clone(), "actual" => current.clone()),
-                )));
+                return Ok(Verdict::Refuse(
+                    ta(
+                        "gate-work-stale",
+                        targs!("transform" => slug.to_string(), "scenario" => scenario.clone(), "recorded" => tag.rev.clone(), "actual" => current.clone()),
+                    ),
+                    t("gate-work-stale-instead"),
+                ));
             }
             match adapter::run_test(root, tag)? {
                 Outcome::Green => checked += 1,
                 Outcome::Failed => {
-                    return Ok(Verdict::Refuse(ta(
-                        "gate-work-red",
-                        targs!("transform" => slug.to_string(), "scenario" => scenario.clone(), "test" => tag.test.clone()),
-                    )));
+                    return Ok(Verdict::Refuse(
+                        ta(
+                            "gate-work-red",
+                            targs!("transform" => slug.to_string(), "scenario" => scenario.clone(), "test" => tag.test.clone()),
+                        ),
+                        t("gate-work-red-instead"),
+                    ));
                 }
                 Outcome::BuildBroken(words) => {
-                    return Ok(Verdict::Refuse(ta(
-                        "gate-work-broken",
-                        targs!("transform" => slug.to_string(), "words" => words),
-                    )));
+                    return Ok(Verdict::Refuse(
+                        ta(
+                            "gate-work-broken",
+                            targs!("transform" => slug.to_string(), "words" => words),
+                        ),
+                        t("gate-work-broken-instead"),
+                    ));
                 }
                 Outcome::NotRun => {
-                    return Ok(Verdict::Refuse(ta(
-                        "gate-work-notrun",
-                        targs!("transform" => slug.to_string(), "scenario" => scenario.clone(), "test" => tag.test.clone()),
-                    )));
+                    return Ok(Verdict::Refuse(
+                        ta(
+                            "gate-work-notrun",
+                            targs!("transform" => slug.to_string(), "scenario" => scenario.clone(), "test" => tag.test.clone()),
+                        ),
+                        t("gate-work-notrun-instead"),
+                    ));
                 }
             }
         }

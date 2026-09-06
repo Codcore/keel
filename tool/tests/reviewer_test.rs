@@ -137,6 +137,10 @@ fn every_wave_has_its_reviewer() {
     // report was beside the wave -- more than the machine ever
     // looked at.
     std::fs::write(dir.join("keel/reviews/0001-a-wave.md"), "   \n\n").unwrap();
+    // In history, where wave 0055 made the courts read it: an empty
+    // file is a state of the record, and a record is a commit.
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "journal: an empty record"]);
     let (said, code) = keel(&dir, "close");
     assert_eq!(code, 1, "an empty file is not a review (§9.9):\n{said}");
     assert!(
@@ -150,6 +154,11 @@ fn every_wave_has_its_reviewer() {
         "# Рецензія\n\nвсе гаразд\n",
     )
     .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "journal: the record of the wave"],
+    );
     let (said, code) = keel(&dir, "close");
     assert_eq!(code, 0, "with the report it closes:\n{said}");
     assert!(

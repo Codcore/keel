@@ -485,13 +485,17 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
     // One word about one state (review 0037 R-2; global review
     // 2026-09-06, methodology R-13): an empty file is not a review
     // for `close` and `status`, so it is none for the step either.
-    match std::fs::read_to_string(root.join("keel/reviews").join(format!("{}.md", wave.slug))) {
-        Err(_) => {
+    // ...and the same READING as close's (wave 0055): a report that
+    // no commit carries is not one for either court, so the step is
+    // still the review -- and it now says which commit the report
+    // rides in (final review 2026-09-06, bugs R-6, R-7).
+    match close::report_text(root, &wave.slug) {
+        None => {
             out.push_str(&ta("next-step-review", targs!("wave" => wave.slug.clone())));
             out.push('\n');
             return Ok(out);
         }
-        Ok(text) if text.split_whitespace().next().is_none() => {
+        Some(text) if text.split_whitespace().next().is_none() => {
             out.push_str(&ta(
                 "next-step-review-empty",
                 targs!("wave" => wave.slug.clone()),
@@ -499,7 +503,7 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
             out.push('\n');
             return Ok(out);
         }
-        Ok(_) => {}
+        Some(_) => {}
     }
 
     // The PR words go by weight (§6.8; the debt named by the 0015

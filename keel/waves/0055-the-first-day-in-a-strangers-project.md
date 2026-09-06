@@ -68,6 +68,9 @@ transforms:
       - keel/contracts/tool-next.md
       - keel/contracts/tool-close.md
       - tool/tests/report_commit_test.rs
+      - tool/tests/close_test.rs
+      - tool/tests/next_test.rs
+      - tool/tests/reviewer_test.rs
   furniture-of-the-tongue:
     implements:
       - furniture-is-not-drift

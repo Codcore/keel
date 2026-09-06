@@ -148,20 +148,47 @@ fn refusal_keys() -> Vec<String> {
     let source =
         fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/gate.rs")).unwrap();
     let mut keys: Vec<String> = Vec::new();
-    for piece in source.split("Verdict::Refuse(").skip(1) {
-        let Some(start) = piece.find("\"gate-") else {
-            continue;
-        };
-        let rest = &piece[start + 1..];
-        let Some(end) = rest.find('"') else { continue };
-        let key = rest[..end].to_string();
-        if !keys.contains(&key) {
-            keys.push(key);
+    let mut rest = source.as_str();
+    while let Some(at) = rest.find("Verdict::Refuse(") {
+        let inner = &rest[at + "Verdict::Refuse(".len()..];
+        // Exactly this call's own arguments: the key of a LATER
+        // refusal is not this one's, and the words after the last
+        // call are nobody's (the first reading of this reader took
+        // `gate-soft` for a refusal).
+        let mut depth = 1usize;
+        let mut end = inner.len();
+        for (index, c) in inner.char_indices() {
+            match c {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = index;
+                        break;
+                    }
+                }
+                _ => {}
+            }
         }
+        let call = &inner[..end];
+        if let Some(quoted) = call.find("\"gate-") {
+            let after = &call[quoted + 1..];
+            if let Some(close) = after.find('"') {
+                let key = after[..close].to_string();
+                if !keys.contains(&key) {
+                    keys.push(key);
+                }
+            }
+        }
+        rest = &inner[end..];
     }
     assert!(
         keys.len() >= 12,
         "the reader found the gate's refusals: {keys:?}"
+    );
+    assert!(
+        !keys.iter().any(|key| key.ends_with("-instead")),
+        "and only the refusals themselves: {keys:?}"
     );
     keys
 }
@@ -211,14 +238,14 @@ fn the_report_is_committed_and_the_courts_say_how() {
     }
 
     // -- every refusal of this court carries an instead ---------------
-    // Six shapes through the gate itself, in the project's tongue.
+    // Four shapes through the gate itself, in the project's tongue;
+    // the work's own two follow, each in its own world.
     let dir = project("refusalshapes", "uk", "assert!(true);");
     for message in [
         "review: 0009-w\n", // a slug the wave does not know
         "Red: s\n",         // the capitalized twin
         "red: nosuch\n",    // a scenario the wave does not know
         "red: s\n",         // a birth over a green test
-        "t: work\n",        // work over a stale tag (below)
     ] {
         let (said, code) = gate(&dir, message);
         assert_eq!(code, 1, "the gate refuses {message:?}:\n{said}");
