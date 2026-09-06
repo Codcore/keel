@@ -74,6 +74,8 @@ transforms:
       - tool/i18n/en.ftl
       - tool/tests/slug_commits_test.rs
       - tool/tests/next_test.rs
+      - tool/tests/scope_test.rs
+      - tool/tests/weight_test.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:
@@ -175,7 +177,11 @@ exit 0 (R-5): факт merge ніхто не питав, і параграф ц�
 другого речення §4.8; тепер вони код, як каже параграф. У четверту
 — `tool/tests/next_test.rs`: проби 0012/0037 комітили роботу
 трансформи темою `state`, і `next` звав її зробленою за торкнутими
-файлами; тепер робота коміться під слагом, як §6.2 і §8.4 кажуть.
+файлами; тепер робота коміться під слагом, як §6.2 і §8.4 кажуть; так
+само `tool/tests/scope_test.rs` (0004, тема `work`) і
+`tool/tests/weight_test.rs` (0036: дві chore-трансформи в одному коміті
+`one:` — тепер два коміти, і знята обіцянка, щоб хвиля не була «самі
+chore» за §2.11).
 
 ## scenario: a-court-that-cannot-judge-does-not-pass
 
