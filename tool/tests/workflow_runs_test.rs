@@ -244,9 +244,33 @@ fn the_generated_close_knows_its_branch() {
         format!("/// proves: it-works@{rev}\n#[test]\nfn it_works() {{\n    assert!(toy::works());\n}}\n"),
     )
     .unwrap();
-    git(&dir, &["-c", "user.email=keel@test", "-c", "user.name=keel-test", "init", "-q", "-b", "main"]);
+    git(
+        &dir,
+        &[
+            "-c",
+            "user.email=keel@test",
+            "-c",
+            "user.name=keel-test",
+            "init",
+            "-q",
+            "-b",
+            "main",
+        ],
+    );
     git(&dir, &["add", "-A"]);
-    git(&dir, &["-c", "user.email=keel@test", "-c", "user.name=keel-test", "commit", "-q", "-m", "base"]);
+    git(
+        &dir,
+        &[
+            "-c",
+            "user.email=keel@test",
+            "-c",
+            "user.name=keel-test",
+            "commit",
+            "-q",
+            "-m",
+            "base",
+        ],
+    );
     git(&dir, &["checkout", "-q", "--detach"]);
     let named = Command::new(env!("CARGO_BIN_EXE_keel"))
         .args(["close", dir.to_str().unwrap()])
