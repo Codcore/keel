@@ -115,9 +115,14 @@ fn ruby_project(name: &str, rev: &str) -> common::Sandbox {
     dir
 }
 
-/// A mix project: the tagged test carries `@tag :skip`, a plain one
-/// runs green.
+/// A mix project: the tagged test carries the mark given -- `@tag
+/// :skip`, or a tag the project excludes in its own test_helper --
+/// and a plain one runs green.
 fn elixir_project(name: &str, rev: &str) -> common::Sandbox {
+    elixir_project_marked(name, rev, "@tag :skip", "ExUnit.start()\n")
+}
+
+fn elixir_project_marked(name: &str, rev: &str, mark: &str, helper: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
     std::fs::write(
         dir.join("keel.toml"),
@@ -136,12 +141,12 @@ fn elixir_project(name: &str, rev: &str) -> common::Sandbox {
         "defmodule Toy do\n  def works, do: true\nend\n",
     )
     .unwrap();
-    std::fs::write(dir.join("test/test_helper.exs"), "ExUnit.start()\n").unwrap();
+    std::fs::write(dir.join("test/test_helper.exs"), helper).unwrap();
     wave(&dir, "lib/toy.ex");
     std::fs::write(
         dir.join("test/toy_test.exs"),
         format!(
-            "defmodule ToyTest do\n  use ExUnit.Case\n\n  # proves: it-works@{rev}\n  @tag :skip\n  test \"it works\" do\n    assert Toy.works()\n  end\n\n  test \"plain\" do\n    assert true\n  end\nend\n"
+            "defmodule ToyTest do\n  use ExUnit.Case\n\n  # proves: it-works@{rev}\n  {mark}\n  test \"it works\" do\n    assert Toy.works()\n  end\n\n  test \"plain\" do\n    assert true\n  end\nend\n"
         ),
     )
     .unwrap();
@@ -238,5 +243,49 @@ fn a_skipped_test_proves_nothing() {
     if common::machine_has("mix").ready() {
         let dir = elixir_project("exskip", &rev);
         both_courts_say_not_run(&dir, "it works", "elixir");
+
+        // A test EXCLUDED by a tag, which is how a live elixir project
+        // keeps its slow tests out of the ordinary run
+        // (`ExUnit.start(exclude: [:integration])` and `@tag
+        // :integration`): ExUnit prints the same pair of lines, with
+        // `(excluded)` where a duration would stand. The first cut of
+        // this wave knew only the word `skipped`, so the start line
+        // counted as a run and the state line as a third, phantom test
+        // -- and `keel close` closed a wave over a test the gate had
+        // just called red (review 0055 R-2).
+        let dir = elixir_project_marked(
+            "exexcluded",
+            &rev,
+            "@tag :integration",
+            "ExUnit.start(exclude: [:integration])\n",
+        );
+        // The gate is not asked here, and the border is named: `mix
+        // test <file>:<line>` INCLUDES a test the project excludes --
+        // measured -- so the gate runs it and judges what it saw.
+        // The battery is the project's own ordinary run, and there
+        // the test is not run at all: the closing court must say that
+        // and hold the wave open, never count a phantom green.
+        reviewed(&dir);
+        let (said, code) = keel(&dir, &["close"]);
+        assert_ne!(
+            code, 0,
+            "elixir excluded by a tag: a promise whose test the \
+             project's own battery excludes is not proven:\n{said}"
+        );
+        assert!(
+            said.contains("батарея: 1 тестів"),
+            "the battery holds only what ran -- the plain test, and no \
+             phantom `(excluded)` beside it:\n{said}"
+        );
+        assert!(
+            !said.contains("(excluded)") && !said.contains("закрита"),
+            "the runner's own mark is not a test's name, and the wave \
+             does not close over it:\n{said}"
+        );
+        assert!(
+            said.contains("не виконала тесту \"it works\""),
+            "and the lack is said in the same word as every other \
+             tongue's:\n{said}"
+        );
     }
 }

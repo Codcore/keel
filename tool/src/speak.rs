@@ -536,12 +536,20 @@ pub fn method(lang: &str, asked: Option<&str>) -> Result<String, Refusal> {
         report.push('\n');
         return Ok(report);
     };
-    let wanted = &plain_number(asked.trim_start_matches('§').trim());
+    let asked_as_given = asked.trim_start_matches('§').trim();
+    // The letter is folded ONLY where the string is a paragraph
+    // number: `plain_number` used to run over the whole request, and
+    // a chapter asked for by NAME came back transliterated -- so
+    // "Додаток Б" reached `whole_chapter` as something no chapter is
+    // called, and every Ukrainian chapter whose name carries а, б, в
+    // or г became unreachable, the three appendices among them
+    // (review 0055 R-1; the road review 0027 R-6 opened).
+    let wanted = &plain_number(asked_as_given);
     // A chapter asked for by name is served whole -- which is the
     // only way to reach the Constitution's eight rules and the three
     // appendices, a sixth of the methodology that no paragraph number
     // can reach (review 0027 R-6).
-    if let Some(said) = whole_chapter(text, wanted) {
+    if let Some(said) = whole_chapter(text, asked_as_given) {
         return Ok(with_source(said));
     }
     for (name, paragraphs) in &chapters {
@@ -650,6 +658,16 @@ fn numbered_rule(line: &str) -> Option<(String, String)> {
 /// one here, in both texts and for whoever types it, while each text
 /// keeps its own letters on the page.
 fn plain_number(number: &str) -> String {
+    // A number, and nothing else: digits, dots, a dash and ONE letter
+    // after it. Anything wordier is a chapter's name, and a name is
+    // not transliterated (review 0055 R-1).
+    if !number
+        .chars()
+        .all(|ch| ch.is_ascii_digit() || ch == '.' || ch == '-' || ch.is_alphabetic())
+        || !number.starts_with(|ch: char| ch.is_ascii_digit())
+    {
+        return number.to_string();
+    }
     number
         .chars()
         .map(|ch| match ch {

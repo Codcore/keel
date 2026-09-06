@@ -201,7 +201,21 @@ pub fn ran(said: &str) -> Vec<String> {
         let Some(head) = rest.rsplit_once(" [L#") else {
             continue;
         };
-        if let Some(named) = head.0.trim_end().strip_suffix("(skipped)") {
+        // `(skipped)` and `(excluded)`: ExUnit prints a state where
+        // a duration would stand. A test excluded BY A TAG --
+        // `ExUnit.start(exclude: [:integration])` and `@tag
+        // :integration`, an everyday shape -- printed the same pair
+        // of lines as a skip, and the first cut of this wave knew
+        // only the word `skipped`: the start line counted as a run,
+        // the state line as a third, phantom test, and `keel close`
+        // closed a wave over a test that FALLS while the gate called
+        // it red (review 0055 R-2).
+        if let Some(named) = head
+            .0
+            .trim_end()
+            .strip_suffix("(skipped)")
+            .or_else(|| head.0.trim_end().strip_suffix("(excluded)"))
+        {
             if let Some(name) = without_kind(named) {
                 skipped.push(name);
             }

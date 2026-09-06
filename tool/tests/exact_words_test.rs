@@ -159,6 +159,53 @@ fn the_words_lead_somewhere() {
             "the piece served is the one asked for:\n{said}"
         );
     }
+    // And EVERY chapter is still served by its own name, in both
+    // tongues: the letter is folded only where the string is a
+    // number, never over a name (review 0055 R-1 -- the first cut
+    // transliterated the whole request, and "Додаток Б" reached the
+    // chapter reader as something no chapter is called; the three
+    // appendices and every chapter with а, б, в or г in its name
+    // became unreachable, and no probe saw it).
+    for (lang, chapters) in [
+        (
+            "uk",
+            vec![
+                "Конституція",
+                "Глава 6",
+                "Додаток А",
+                "Додаток Б",
+                "Додаток В",
+                "Історія редакцій",
+            ],
+        ),
+        (
+            "en",
+            vec![
+                "Constitution",
+                "Chapter 6",
+                "Appendix A",
+                "Appendix B",
+                "Appendix C",
+            ],
+        ),
+    ] {
+        let dir = keel_sandbox(&format!("wordschapters{lang}"));
+        write(&dir, "keel.toml", &format!("lang = \"{lang}\"\n"));
+        for chapter in chapters {
+            let (said, code) = keel(&dir, &["method", chapter]);
+            assert_eq!(
+                code, 0,
+                "{lang}: `keel method \"{chapter}\"` serves the chapter \
+                 whole -- the only road to the constitution's rules and \
+                 the appendices, which no paragraph number reaches:\n{said}"
+            );
+            assert!(
+                said.contains(chapter),
+                "{lang}: and it is that chapter:\n{said}"
+            );
+        }
+    }
+
     // And the paragraph is served whole, without swallowing its
     // neighbour: §6.3 itself still ends where its letters begin.
     let (plain, _) = keel(&dir, &["method", "§6.3"]);
