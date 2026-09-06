@@ -326,6 +326,7 @@ gate-soft = mode: soft -- the same words, a warning only
 gate-hook-installed = the commit-msg hook now calls keel gate -- written to { $path }
 gate-adapter-unjudged = the adapter "{ $name }" is not of this release (it leads { $known }) — the commit is not judged: the word stands aloud, the judgement waits for its adapter's wave
 gate-adapter-absent-name = not named
+gate-adapter-refuses = the adapter "{ $name }" is not of this release (the release leads { $known }) -- a birth or a transform's work this court cannot judge, and a court that cannot judge does not pass (§7.12): install a release that leads this adapter, or name one from the list
 init-hook-off-foreign = the git hook here is not ours and is not touched (§9.7); this project answered hooks = false, so keel installs none of its own
 init-hook-off = the git hook is not installed: this project answered hooks = false, and the answer holds for it too (§9.3)
 init-hook-off-standing = the git hook is left where it stands: this project answered hooks = false, so nobody maintains it now -- remove .git/hooks/commit-msg by hand, or set hooks = true

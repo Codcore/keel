@@ -32,23 +32,6 @@ fn git(dir: &Path, args: &[&str]) {
     );
 }
 
-fn keel(dir: &Path, args: &[&str]) -> (String, i32) {
-    let mut all: Vec<&str> = args.to_vec();
-    all.push(dir.to_str().unwrap());
-    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
-        .args(&all)
-        .output()
-        .unwrap();
-    (
-        format!(
-            "{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        ),
-        out.status.code().unwrap_or(-1),
-    )
-}
-
 fn gate(dir: &Path, message: &str) -> (String, i32) {
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, message).unwrap();
@@ -148,10 +131,17 @@ fn a_court_that_cannot_judge_does_not_pass() {
             "and the refusal names the adapter:\n{said}"
         );
     }
-    let (said, code) = gate(&dir, "docs: words only\n");
+    // A slug-shaped head unknown to the wave (`docs: …`) is a typo
+    // refusal on any adapter (§8.4); outside the judgement is a
+    // message with no such head at all.
+    let (said, code) = gate(&dir, "Merge branch 'main' into 0001-a-wave\n");
     assert_eq!(
         code, 0,
         "a commit outside the judgement still passes:\n{said}"
+    );
+    assert!(
+        said.contains("не суджений"),
+        "with the word that the adapter is not this release's:\n{said}"
     );
 
     // --- a wave header the reader cannot read: the branch IS the

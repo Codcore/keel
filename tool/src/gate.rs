@@ -25,7 +25,21 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
         reason: ta("docs-unreadable", targs!("error" => e.to_string())),
         instead: t("docs-unreadable-instead"),
     })?;
-    let subject = message.lines().next().unwrap_or("").trim().to_string();
+    // The subject as git will RECORD it: the first line that is not
+    // blank and not a `#` comment -- the file of a commit-msg hook
+    // still carries the editor's comment block and the blank line
+    // typed before the subject, and git strips both after the hook
+    // (`commit.cleanup=strip`). Reading the first raw line judged
+    // `work: …` typed after an Enter as "outside the judgement", exit
+    // 0, over a red test (global review 2026-09-06, bugs R-5; wave
+    // 0052). Under `verbatim` a `#` subject is neither a birth nor
+    // work, and the court is only stricter.
+    let subject = message
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty() && !line.starts_with('#'))
+        .unwrap_or("")
+        .to_string();
     let mutant = mutant_line(&message);
 
     let mode_line = if config.mode_set {
@@ -42,6 +56,16 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
     let scan = docs::scan(root)?;
     let Some(slug) = scope::branch_wave(root, &scan.waves) else {
         let branch = scope::current_branch(root).unwrap_or_else(|| "?".to_string());
+        // A wave file that stands under the branch's name and could
+        // not be read is not "no wave": a header with a field the
+        // reader does not know switched the whole court off -- "not
+        // named as any wave that reads", exit 0, over a red test
+        // (global review 2026-09-06, bugs R-13; wave 0052). The
+        // reader's own refusal is the verdict, with its words.
+        let wave_file = root.join("keel/waves").join(format!("{branch}.md"));
+        if let Some(refusal) = scan.refusals.iter().find(|r| r.file == wave_file) {
+            return Err(refusal.clone());
+        }
         let report = format!(
             "{mode_line}\n{}\n",
             ta("gate-not-wave", targs!("branch" => branch))
@@ -67,24 +91,36 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
 
     // The one court that physically runs the toolchain asks the home
     // first (review 0017 R-4): an adapter this release does not
-    // serve -- or none at all -- is a word aloud and a pass, never a
-    // blind cargo run over a foreign language.
-    if !config.adapter_known() {
+    // serve -- or none at all -- is a word aloud, never a blind cargo
+    // run over a foreign language. A pass, though, only for a commit
+    // the court would not judge anyway: over a birth or a transform
+    // the word used to be a pass too, and a `work:` commit over a red
+    // test lay down under "not judged", exit 0 (global review
+    // 2026-09-06, methodology R-10; wave 0052). A court that cannot
+    // judge does not pass what it was asked to judge.
+    let verdict = if !config.adapter_known() {
         let name = config
             .adapter
             .clone()
             .unwrap_or_else(|| t("gate-adapter-absent-name"));
-        let report = format!(
-            "{mode_line}\n{}\n",
-            ta(
-                "gate-adapter-unjudged",
+        if claims(&subject, wave) {
+            Verdict::Refuse(ta(
+                "gate-adapter-refuses",
                 targs!("name" => name, "known" => crate::config::Language::known()),
-            )
-        );
-        return Ok((report, 0));
-    }
-
-    let verdict = judge(root, wave, &subject, mutant)?;
+            ))
+        } else {
+            let report = format!(
+                "{mode_line}\n{}\n",
+                ta(
+                    "gate-adapter-unjudged",
+                    targs!("name" => name, "known" => crate::config::Language::known()),
+                )
+            );
+            return Ok((report, 0));
+        }
+    } else {
+        judge(root, wave, &subject, mutant)?
+    };
     let (words, guilty) = match verdict {
         Verdict::Pass(words) => (words, false),
         Verdict::Refuse(words) => (words, true),
@@ -105,6 +141,24 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
 enum Verdict {
     Pass(String),
     Refuse(String),
+}
+
+/// Whether the subject claims something this court judges: a birth,
+/// a transform of the wave, or the slug-shaped and capitalized twins
+/// that `judge` refuses as typos. Everything else is outside the
+/// judgement.
+fn claims(subject: &str, wave: &docs::Wave) -> bool {
+    if subject.starts_with("red: ") {
+        return true;
+    }
+    let Some((head, _)) = subject.split_once(':') else {
+        return false;
+    };
+    let head = head.trim();
+    let lower = head.to_lowercase();
+    docs::slug_ok(head)
+        || (docs::slug_ok(&lower)
+            && (lower == "red" || wave.transforms.iter().any(|(n, _)| *n == lower)))
 }
 
 /// The judgement proper, mode-blind: what the message claims against

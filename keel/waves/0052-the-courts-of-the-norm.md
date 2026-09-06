@@ -23,6 +23,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/gate_cannot_judge_test.rs
+      - tool/tests/adapter_name_test.rs
   the-weight-and-the-merge-are-facts-of-the-branch:
     implements:
       - the-weight-is-read-from-the-branch-too
@@ -152,6 +153,12 @@ exit 0 (R-5): факт merge ніхто не питав, і параграф ц�
 
 **Два номери.** `0001-a-wave.md` і `0001-b-wave.md` поруч — check 0
 знахідок (R-11); §8.8 судить лише `keel plan`.
+
+**Дрейф (§4.6), названий уголос.** У першу трансформу дописано
+`tool/tests/adapter_name_test.rs`: проба хвилі 0017 тримала слово
+рецензії 0017 R-4 — «gate над невідомим адаптером пропускає зі
+словом», — а сценарій 0017 каже «з невідомим — відмова вголос»; проба
+тепер тримає сценарій, і текст 0017 не змінюється.
 
 ## scenario: a-court-that-cannot-judge-does-not-pass
 
