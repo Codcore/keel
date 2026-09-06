@@ -18,6 +18,7 @@ ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
 "cargo fmt --manifest-path tool/Cargo.toml --check" = "668c699a0a59"
 "cargo test --manifest-path tool/Cargo.toml --test frame_flags_test" = "0530ad5ea5c5"
 "cargo test --manifest-path tool/Cargo.toml --test launcher_test --test versions_test" = "d3dadca33fa6"
+"cargo test --manifest-path tool/Cargo.toml --test release_test --test launcher_fetch_test" = "9806d99959b0"
 
 [generated]
 "AGENTS.md" = "4baf7dd8b4d7"

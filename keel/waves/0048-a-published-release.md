@@ -41,7 +41,7 @@ decisions:
   functional.correctness: "тримає a-release-is-built-by-one-script: імʼя архіву несе версію крейта і target-трійку, і бінарник усередині відповідає тією самою версією — одне число в трьох місцях, звірене пробою"
   functional.appropriateness: "свідомо без тесту: реліз — це те, що концепт назвав «сама качає реліз, звіряє checksum»; форма архіву — tar.gz з одним файлом `keel`, без інсталятора всередині"
   performance.capacity: "не застосовується"
-  performance.resource-utilisation: "свідомо без тесту, і ціна названа: докачаний бінарник лягає у versions/<тег>/, ~4 МіБ на версію; тимчасова тека докачування прибирається і при успіху, і при відмові"
+  performance.resource-utilisation: "тримає the-launcher-fetches-a-missing-version-aloud: докачаний бінарник лягає у versions/<тег>/, ~4 МіБ на версію; тимчасова тека докачування прибирається і при успіху, і при відмові, а TMPDIR, у якому теку не вдалось зробити, — відмова без файлів у / (рецензія R-3)"
   compatibility.co-existence: "тримає the-installer-takes-the-release-before-the-source: версія з релізу і версія, зібрана з git, стоять поруч у versions/ під різними тегами, і launcher обирає їх піном, як і досі"
   compatibility.interoperability: "свідомо без тесту: докачування — `curl` (або `wget`, коли curl нема), розпакування — `tar`, checksum — `sha256sum`/`shasum`; де інструмента нема, відмова називає котрого"
   interaction.appropriateness-recognisability: "свідомо без тесту: команд не додається; `release.sh` у корені — так само, як `install.sh`"
@@ -51,8 +51,8 @@ decisions:
   interaction.user-engagement: "не застосовується"
   interaction.inclusivity: "не застосовується"
   interaction.self-descriptiveness: "тримає the-launcher-fetches-a-missing-version-aloud: launcher каже вголос, ЩО взяв і ЗВІДКИ, при кожному докачуванні — концепт вимагає саме цього, а хвиля 0041 відмовилась качати мовчки"
-  interaction.user-assistance: "тримає the-launcher-fetches-a-missing-version-aloud: без мережі або без релізу для цього target — відмова з готовою командою ручного встановлення, як і досі"
-  reliability.faultlessness: "тримає the-launcher-fetches-a-missing-version-aloud: другий біг не качає знову — версія стоїть, `.keel-sum` звіряється перед exec, як для зібраної"
+  interaction.user-assistance: "тримає the-launcher-fetches-a-missing-version-aloud: без мережі або без релізу для цього target — відмова з порадою, що працює: пін-ref або чекати релізу (рецензія R-13: команда установки йшла б до того самого 404)"
+  reliability.faultlessness: "тримає the-launcher-fetches-a-missing-version-aloud: другий біг не качає знову — версія стоїть, `.keel-sum` звіряється перед exec, як для зібраної; бінарник, що відповідає іншим числом, ніж теґ, не ставиться (рецензія R-2 — інакше качався б на кожному бігу)"
   reliability.fault-tolerance: "тримає the-installer-takes-the-release-before-the-source: ref без опублікованого релізу (гілка, коміт, старий тег) збирається з сирців, як до хвилі, і сказано вголос чому"
   reliability.availability: "не застосовується"
   reliability.recoverability: "свідомо без тесту: відмова докачування лишає versions/ таким, як був; наполовину докачаної версії не буває, бо розпакування йде в тимчасову теку і переноситься лише після звірки"
@@ -63,10 +63,10 @@ decisions:
   maintainability.modularity: "свідомо без тесту, і сказано чесно: функція докачування написана двічі — в install.sh і в launcher-і, який install.sh пише; launcher мусить стояти сам, без клону і без install.sh поруч"
   maintainability.reusability: "свідомо без тесту: release.sh — той самий, що жене workflow і що жене людина; проба жене саме його зі стабом cargo"
   maintainability.analysability: "тримає a-release-is-built-by-one-script: `.sha256` на кожен архів окремо, бо matrix у workflow збирає кілька target-ів паралельно і спільний SHA256SUMS вони б перетирали"
-  maintainability.modifiability: "свідомо без тесту: жодного нового місця диспетчеризації за мовою; версія крейта і пін keel НЕ підіймаються цією хвилею — число і теґ обирає оператор одним рядком, і це сказано в записі"
-  maintainability.testability: "свідомо без тесту: проби женуть справжні install.sh, launcher і release.sh проти справжнього git і сервера релізів `file://` зі стабом cargo — як у хвилі 0041; докачування з GitHub не проходить у пробі жодного разу (мережа), і це названо"
+  maintainability.modifiability: "свідомо без тесту: жодного нового місця диспетчеризації за мовою; версія крейта і пін keel НЕ підіймаються цією хвилею — число і теґ обирає оператор, і порядок записано в черзі: версія крейта → теґ на той коміт → пін (рецензія R-1: у зворотному порядку реліз під теґом не знайшов би жоден пін — тепер `release.sh --tag` це відмовляє)"
+  maintainability.testability: "свідомо без тесту: проби женуть справжні install.sh, launcher і release.sh проти справжнього git і сервера релізів `file://` зі стабом cargo — як у хвилі 0041; докачування з GitHub не проходить у пробі жодного разу — світ проб ставить KEEL_RELEASES на порожню теку file:// (рецензія R-4: до того проби 0041 ходили на github.com девʼять разів за батарею)"
   flexibility.scalability: "не застосовується"
-  flexibility.adaptability: "свідомо без тесту: target-трійка з `uname`; linux x86_64/aarch64 і macOS arm64/x86_64 названі, решта — відмова з іменем машини"
+  flexibility.adaptability: "свідомо без тесту: target-трійка з `uname`; linux x86_64/aarch64 і macOS arm64/x86_64 названі — і workflow збирає всі чотири (рецензія R-7: перший matrix збирав два), решта — відмова з іменем машини"
   safety.operational-constraints: "не застосовується"
   safety.risk-identification: "свідомо без окремої роботи: ризик названий — реліз існує лише після того, як оператор запушить теґ; до того launcher докачує лише з `KEEL_RELEASES`, який ставить проба"
   safety.hazard-warning: "не застосовується"
@@ -87,13 +87,18 @@ checksum-ом**, **launcher не докачує сам** (концепт хот�
 (`releases: []`); теґи `v0.8.5…v0.8.9` — це keel v1 (`keel.py`), крейт
 `tool/` там відсутній, і install.sh каже це вголос. Крейт відповідає
 `0.1.0` 500 комітів поспіль; пін keel — `0.1.0`, і CI keel ставить
-інструмент саме так: `KEEL_REF: "0.1.0"` крізь install.sh **з main
-upstream-у**. Тож підняти версію крейта разом із піном — означає
-зламати CI, поки не існує теґ: число і теґ — рядок оператора, не цієї
-хвилі. На машині: `curl` (умієт `file://`: відсутній файл — rc 37,
-404 з GitHub — rc 22), `tar`, `sha256sum` і `shasum`, host
-`x86_64-unknown-linux-gnu`; `gh` нема — тож крок `gh release create`
-тримається текстом workflow-у, а не бігом.
+інструмент `KEEL_REF: "0.1.0"` крізь install.sh **з main upstream-у**.
+Рецензія (R-14) доміряла те, чого я не доміряв: main upstream-у ще
+старий, його install.sh `KEEL_REF` не читає взагалі, а `0.1.0` — ні
+теґ, ні реліз; тож після злиття цієї гілки новий install.sh відмовив
+би пінові `0.1.0` і CI keel став би червоним **без жодного підняття
+версії**. Звідси третя дорога інсталятора: версія без релізу і без
+теґа збирається з гілки, якою веде remote, і рахується лише коли
+зібране відповідає нею. Число і теґ — рядок оператора, у порядку
+«версія крейта → теґ на той коміт → пін» (R-1). На машині: `curl`
+(уміє `file://`: відсутній файл — rc 37, 404 з GitHub — rc 22), `tar`,
+`sha256sum` і `shasum`, host `x86_64-unknown-linux-gnu`; `gh` нема — тож
+крок `gh release create` тримається текстом workflow-у, а не бігом.
 
 **Одна форма релізу.** `release.sh` збирає `cargo build --release`,
 питає в бінарника його версію, у `rustc -vV` — target, і кладе в

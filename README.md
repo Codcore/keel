@@ -166,15 +166,30 @@ keel init
 a **git ref fetched by name**. The commit sha is recorded and the binary's own
 sha256 is checked before every run, so you always know *which tree* you got and
 that nobody swapped the file — but nothing proves the *ref itself* is
-trustworthy. A signed, published release with a checksum of its own is not
-built. Nor does the launcher fetch a missing version by itself: it refuses with
-the command instead.
+trustworthy. A published release carries that proof (wave 0048): `release.sh`
+builds `keel-<version>-<target>.tar.gz` with its `.sha256` beside it, the
+workflow on a `v*` tag attests the provenance and publishes both, and the
+launcher **fetches a missing version by itself** — a pin that names a version
+and stands nowhere in `versions/` is downloaded from the releases, checked
+against its checksum *before* it is unpacked, recorded, said aloud (what was
+taken and from where), and run. A checksum that does not match refuses and
+installs nothing; a pin with no release, or a pin that is a git ref, refuses
+with the ready command as before. `install.sh` takes the same road first and
+builds from git only where no release answers. The launcher checks the sha256,
+not the signature: `gh attestation verify` does that, and `gh` is not a thing
+every machine has.
 
-**No published tag carries the current layout** — keel v1 kept the crate outside
-`tool/`, so `KEEL_REF=v0.8.9` refuses by name and only a commit or a branch
-works until a v2 release is tagged. The installer the generated CI step fetches
-comes from `main`, unpinned: a project pinned to an older keel still runs
-today's script.
+**No published tag carries the current layout yet** — keel v1 kept the crate
+outside `tool/`, so `KEEL_REF=v0.8.9` refuses by name. The number and the tag
+are the operator's line, in this order: bump the crate's version in one commit;
+push the tag `v<version>` on that commit — the workflow builds the release, and
+`release.sh --tag` refuses a tree that answers another number; then bump the pin
+in `keel.toml`, and this repository's CI takes the release road. Until then
+keel's own CI installs by the pin `0.1.0`, which is neither a tag nor a release:
+`install.sh` builds the branch the remote leads with and accepts it only because
+that tree answers `0.1.0`. The installer the generated CI step fetches comes
+from `main`, unpinned: a project pinned to an older keel still runs today's
+script.
 
 **One tool in this repository.** The first implementation — `keel.py` and its
 Python tests in `tests/` — lived at the root beside the crate for forty waves,

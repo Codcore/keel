@@ -1,40 +1,45 @@
 #!/bin/sh
 # Keel installer.
 #
-# Clones the method into ~/.keel and puts a `keel` command on PATH.
+# Puts a `keel` command on PATH -- a LAUNCHER that reads the version a
+# project pins in keel.toml and runs exactly that one out of
+# ~/.keel/versions/ -- and installs a version by one of two roads:
 #
 #   curl -fsSL https://raw.githubusercontent.com/Codcore/keel/main/install.sh | sh
+#   KEEL_REF="v2.0.0" sh install.sh
+#   curl -fsSL .../install.sh | sh -s -- v2.0.0
 #
-# The tool is a Rust crate in `tool/`; this clones the repository and builds it,
-# because a release binary is not published yet. Updating is one `git pull` and
-# one rebuild, which is what a second run does.
+# 1. The release road (wave 0048). A version -- `2.0.0` or `v2.0.0` --
+#    that has a published release is fetched from KEEL_RELEASES
+#    (GitHub's releases by default) with its .sha256 beside it, checked
+#    BEFORE it is unpacked, asked its own version, and installed. No
+#    git, no cargo: curl (or wget), tar and sha256sum (or shasum) are
+#    all it needs, and it says aloud what it took and from where. The
+#    launcher walks the same road by itself when a project pins a
+#    version that is not installed.
+# 2. The source road. Any other ref -- a branch, a commit, a tag with
+#    no release -- is cloned into ~/.keel/source and built there with
+#    cargo; a version with no release and no tag of that name is built
+#    from the branch the remote leads with, and counts only if what it
+#    builds answers that version. git and cargo are needed here, and
+#    cargo writes its own registry into CARGO_HOME (~/.cargo by
+#    default) -- that is cargo's home, not keel's, and this script
+#    does not move it (review 0039 R-9).
 #
-# git and cargo are needed. Nothing else -- but cargo writes its own registry
-# and cache into CARGO_HOME (~/.cargo by default, tens of megabytes on a first
-# build). That is cargo's home, not keel's, and this script does not move it:
-# set CARGO_HOME yourself if it must live elsewhere (review 0039 R-9).
+# `keel version` prints the install line when keel.toml pins a version
+# this binary is not. Named because the courts refuse while the two
+# differ, and advice with no hand behind it is not advice.
 #
-# A VERSION may be named -- as the first argument or as KEEL_REF -- and then
-# exactly that git ref is installed:
+# Each version gets a home of its own under ~/.keel/versions/, and two
+# projects on two pins work at the same time.
 #
-#   KEEL_REF="v0.8.9" sh install.sh
-#   curl -fsSL .../install.sh | sh -s -- v0.8.9
+# The border, said rather than hidden: a release's sha256 proves the
+# archive is the one published; its provenance is attested by the
+# release workflow and checked with `gh attestation verify`, which
+# this script does not run. A git ref's sha proves which tree arrived,
+# not that the ref is worth trusting.
 #
-# `keel version` prints that very line when keel.toml pins a version this
-# binary is not. Named because the courts refuse while the two differ, and
-# advice with no hand behind it is not advice.
-#
-# Each version gets a home of its own under ~/.keel/versions/, and the `keel`
-# put on PATH is a LAUNCHER: it reads the version a project pins and runs
-# exactly that one. Two projects on two pins work at the same time.
-#
-# The border, said rather than hidden: this fetches a git ref BY NAME, and the
-# sha it records proves which tree arrived -- not that the ref is worth
-# trusting. A signed, published release with a checksum of its own is not
-# built, and the launcher does not fetch a missing version by itself: it
-# refuses with the command.
-#
-# Override with KEEL_REPO, KEEL_HOME, KEEL_BIN, KEEL_REF.
+# Override with KEEL_REPO, KEEL_HOME, KEEL_BIN, KEEL_REF, KEEL_RELEASES.
 set -eu
 
 REPO="${KEEL_REPO:-https://github.com/Codcore/keel.git}"
@@ -62,6 +67,151 @@ checksum() {
     fi
 }
 
+# --- wave 0048: the release road, written twice (install.sh and the launcher it writes) ---
+
+# The target a release is named by, from uname: the four targets the
+# release workflow builds -- linux x86_64 and aarch64, macOS arm64 and
+# x86_64 -- and nothing for any other machine, which is a refusal by
+# name below.
+release_target() {
+    case "$(uname -s)-$(uname -m)" in
+        Linux-x86_64) echo x86_64-unknown-linux-gnu ;;
+        Linux-aarch64|Linux-arm64) echo aarch64-unknown-linux-gnu ;;
+        Darwin-arm64) echo aarch64-apple-darwin ;;
+        Darwin-x86_64) echo x86_64-apple-darwin ;;
+        *) echo "" ;;
+    esac
+}
+
+# A pin that names a version -- `2.0.0` or `v2.0.0`, with a
+# pre-release suffix of dot-separated words at most -- is the tag of a
+# release. Anything else (a branch, a commit, a tag of another shape)
+# is a git ref and takes the old road. Only this strict shape reaches
+# a URL: a pin with a slash, `..`, a space or a shell's word never does.
+release_tag() {
+    candidate="$1"
+    case "$candidate" in
+        v*) ;;
+        *) candidate="v$candidate" ;;
+    esac
+    printf '%s' "$candidate" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$' || true
+}
+
+fetch_to() {
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --max-time 30 "$1" -o "$2"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -T 30 -O "$2" "$1"
+    else
+        return 3
+    fi
+}
+
+# Fetches the release of a tag into a home, and says so aloud.
+# Returns 0 with the home in place; 1 when there is no release to
+# take -- no fetcher, no target, no archive at the address -- and the
+# caller may build from source or refuse; 2 on a refusal that must
+# stop everything: a checksum that did not match, an archive that does
+# not unpack, does not run, or answers another version, a temp dir
+# that could not be made. On 1 and 2 nothing is left under versions/
+# or in the temp dir.
+#
+# This function runs as the condition of an `if`, where `set -e` is
+# suspended for its whole body (review 0048 R-3): every step that can
+# fail is checked by hand here, and a step that is not checked is a
+# step that runs on.
+fetch_release() {
+    tag="$1"
+    home="$2"
+    target="$(release_target)"
+    if [ -z "$target" ]; then
+        echo "keel: no release is built for $(uname -s)/$(uname -m)" >&2
+        return 1
+    fi
+    if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+        echo "keel: neither curl nor wget is here to fetch a release" >&2
+        return 1
+    fi
+    version="${tag#v}"
+    name="keel-$version-$target.tar.gz"
+    base="${KEEL_RELEASES:-https://github.com/Codcore/keel/releases/download}"
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/keel-fetch.XXXXXX" 2>/dev/null || true)"
+    if [ -z "$tmp" ] || [ ! -d "$tmp" ]; then
+        echo "keel: cannot make a temp dir under ${TMPDIR:-/tmp} to fetch into; nothing was installed" >&2
+        return 2
+    fi
+    if ! fetch_to "$base/$tag/$name" "$tmp/$name" 2>/dev/null \
+        || ! fetch_to "$base/$tag/$name.sha256" "$tmp/$name.sha256" 2>/dev/null; then
+        echo "keel: no release $tag for $target at $base" >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+    want="$(cut -d' ' -f1 "$tmp/$name.sha256" | head -1)"
+    have="$(checksum "$tmp/$name")"
+    if [ -z "$have" ]; then
+        echo "keel: this machine has neither sha256sum nor shasum, so a fetched" >&2
+        echo "keel: release cannot be checked -- and unchecked it is not installed" >&2
+        rm -rf "$tmp"
+        return 2
+    fi
+    if [ -z "$want" ] || [ "$have" != "$want" ]; then
+        echo "keel: $name from $base/$tag does not match its published checksum" >&2
+        echo "keel:   published $want" >&2
+        echo "keel:   fetched   $have" >&2
+        echo "keel: nothing was installed" >&2
+        rm -rf "$tmp"
+        return 2
+    fi
+    if ! mkdir -p "$tmp/unpacked" || ! tar -xzf "$tmp/$name" -C "$tmp/unpacked" 2>/dev/null || [ ! -f "$tmp/unpacked/keel" ]; then
+        echo "keel: $name did not unpack into a keel binary; nothing was installed" >&2
+        rm -rf "$tmp"
+        return 2
+    fi
+    chmod +x "$tmp/unpacked/keel"
+    said="$("$tmp/unpacked/keel" --version 2>/dev/null | head -1 | awk '{print $2}')"
+    if [ -z "$said" ]; then
+        echo "keel: the fetched keel does not run on this machine; nothing was installed" >&2
+        rm -rf "$tmp"
+        return 2
+    fi
+    # One number in three places: the tag, the archive's name, and
+    # the binary's own answer. A release whose binary answers another
+    # number would be fetched again on every run, since the pin never
+    # matches what stands (review 0048 R-2).
+    if [ "$said" != "$version" ]; then
+        echo "keel: the fetched keel answers $said, not $version; nothing was installed" >&2
+        rm -rf "$tmp"
+        return 2
+    fi
+    # Staged beside the homes under a name of this run's own, then
+    # moved into place in one step: two runs on one pin do not leave
+    # one's unpacked tree inside the other's home (review 0048 R-10).
+    staged="$(dirname "$home")/.$(basename "$home").$$"
+    rm -rf "$staged"
+    if ! mkdir -p "$(dirname "$home")" \
+        || ! mv "$tmp/unpacked" "$staged" \
+        || ! printf '%s\n' "$said" > "$staged/.keel-version" \
+        || ! printf '%s\n' "$tag" > "$staged/.keel-ref" \
+        || ! printf '%s\n' "release" > "$staged/.keel-sha" \
+        || ! printf '%s\n' "$(checksum "$staged/keel")" > "$staged/.keel-sum"; then
+        echo "keel: could not write the version's home under $(dirname "$home"); nothing was installed" >&2
+        rm -rf "$tmp" "$staged"
+        return 2
+    fi
+    rm -rf "$tmp"
+    if [ -e "$home" ]; then
+        # Another run of this launcher got here first: its home stands,
+        # and this run's copy is dropped.
+        rm -rf "$staged"
+    elif ! mv "$staged" "$home"; then
+        echo "keel: could not place the version at $home; nothing was installed" >&2
+        rm -rf "$staged"
+        return 2
+    fi
+    echo "keel: fetched $name from $base/$tag -- sha256 $have verified" >&2
+    return 0
+}
+
 # The launcher: the ONE `keel` on PATH, which reads a project's pin
 # and hands over to that version (NEW-CONCEPT, "Distribution"). The
 # operator's line is kept: there is no shim inside a project.
@@ -80,6 +230,161 @@ install_launcher() {
 set -eu
 
 VERSIONS="$KEEL_HOME/versions"
+
+checksum() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | cut -d' ' -f1
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | cut -d' ' -f1
+    else
+        echo ""
+    fi
+}
+
+# --- wave 0048: the release road, written twice (install.sh and the launcher it writes) ---
+
+# The target a release is named by, from uname: the four targets the
+# release workflow builds -- linux x86_64 and aarch64, macOS arm64 and
+# x86_64 -- and nothing for any other machine, which is a refusal by
+# name below.
+release_target() {
+    case "$(uname -s)-$(uname -m)" in
+        Linux-x86_64) echo x86_64-unknown-linux-gnu ;;
+        Linux-aarch64|Linux-arm64) echo aarch64-unknown-linux-gnu ;;
+        Darwin-arm64) echo aarch64-apple-darwin ;;
+        Darwin-x86_64) echo x86_64-apple-darwin ;;
+        *) echo "" ;;
+    esac
+}
+
+# A pin that names a version -- `2.0.0` or `v2.0.0`, with a
+# pre-release suffix of dot-separated words at most -- is the tag of a
+# release. Anything else (a branch, a commit, a tag of another shape)
+# is a git ref and takes the old road. Only this strict shape reaches
+# a URL: a pin with a slash, `..`, a space or a shell's word never does.
+release_tag() {
+    candidate="$1"
+    case "$candidate" in
+        v*) ;;
+        *) candidate="v$candidate" ;;
+    esac
+    printf '%s' "$candidate" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$' || true
+}
+
+fetch_to() {
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --max-time 30 "$1" -o "$2"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -T 30 -O "$2" "$1"
+    else
+        return 3
+    fi
+}
+
+# Fetches the release of a tag into a home, and says so aloud.
+# Returns 0 with the home in place; 1 when there is no release to
+# take -- no fetcher, no target, no archive at the address -- and the
+# caller may build from source or refuse; 2 on a refusal that must
+# stop everything: a checksum that did not match, an archive that does
+# not unpack, does not run, or answers another version, a temp dir
+# that could not be made. On 1 and 2 nothing is left under versions/
+# or in the temp dir.
+#
+# This function runs as the condition of an `if`, where `set -e` is
+# suspended for its whole body (review 0048 R-3): every step that can
+# fail is checked by hand here, and a step that is not checked is a
+# step that runs on.
+fetch_release() {
+    tag="$1"
+    home="$2"
+    target="$(release_target)"
+    if [ -z "$target" ]; then
+        echo "keel: no release is built for $(uname -s)/$(uname -m)" >&2
+        return 1
+    fi
+    if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+        echo "keel: neither curl nor wget is here to fetch a release" >&2
+        return 1
+    fi
+    version="${tag#v}"
+    name="keel-$version-$target.tar.gz"
+    base="${KEEL_RELEASES:-https://github.com/Codcore/keel/releases/download}"
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/keel-fetch.XXXXXX" 2>/dev/null || true)"
+    if [ -z "$tmp" ] || [ ! -d "$tmp" ]; then
+        echo "keel: cannot make a temp dir under ${TMPDIR:-/tmp} to fetch into; nothing was installed" >&2
+        return 2
+    fi
+    if ! fetch_to "$base/$tag/$name" "$tmp/$name" 2>/dev/null \
+        || ! fetch_to "$base/$tag/$name.sha256" "$tmp/$name.sha256" 2>/dev/null; then
+        echo "keel: no release $tag for $target at $base" >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+    want="$(cut -d' ' -f1 "$tmp/$name.sha256" | head -1)"
+    have="$(checksum "$tmp/$name")"
+    if [ -z "$have" ]; then
+        echo "keel: this machine has neither sha256sum nor shasum, so a fetched" >&2
+        echo "keel: release cannot be checked -- and unchecked it is not installed" >&2
+        rm -rf "$tmp"
+        return 2
+    fi
+    if [ -z "$want" ] || [ "$have" != "$want" ]; then
+        echo "keel: $name from $base/$tag does not match its published checksum" >&2
+        echo "keel:   published $want" >&2
+        echo "keel:   fetched   $have" >&2
+        echo "keel: nothing was installed" >&2
+        rm -rf "$tmp"
+        return 2
+    fi
+    if ! mkdir -p "$tmp/unpacked" || ! tar -xzf "$tmp/$name" -C "$tmp/unpacked" 2>/dev/null || [ ! -f "$tmp/unpacked/keel" ]; then
+        echo "keel: $name did not unpack into a keel binary; nothing was installed" >&2
+        rm -rf "$tmp"
+        return 2
+    fi
+    chmod +x "$tmp/unpacked/keel"
+    said="$("$tmp/unpacked/keel" --version 2>/dev/null | head -1 | awk '{print $2}')"
+    if [ -z "$said" ]; then
+        echo "keel: the fetched keel does not run on this machine; nothing was installed" >&2
+        rm -rf "$tmp"
+        return 2
+    fi
+    # One number in three places: the tag, the archive's name, and
+    # the binary's own answer. A release whose binary answers another
+    # number would be fetched again on every run, since the pin never
+    # matches what stands (review 0048 R-2).
+    if [ "$said" != "$version" ]; then
+        echo "keel: the fetched keel answers $said, not $version; nothing was installed" >&2
+        rm -rf "$tmp"
+        return 2
+    fi
+    # Staged beside the homes under a name of this run's own, then
+    # moved into place in one step: two runs on one pin do not leave
+    # one's unpacked tree inside the other's home (review 0048 R-10).
+    staged="$(dirname "$home")/.$(basename "$home").$$"
+    rm -rf "$staged"
+    if ! mkdir -p "$(dirname "$home")" \
+        || ! mv "$tmp/unpacked" "$staged" \
+        || ! printf '%s\n' "$said" > "$staged/.keel-version" \
+        || ! printf '%s\n' "$tag" > "$staged/.keel-ref" \
+        || ! printf '%s\n' "release" > "$staged/.keel-sha" \
+        || ! printf '%s\n' "$(checksum "$staged/keel")" > "$staged/.keel-sum"; then
+        echo "keel: could not write the version's home under $(dirname "$home"); nothing was installed" >&2
+        rm -rf "$tmp" "$staged"
+        return 2
+    fi
+    rm -rf "$tmp"
+    if [ -e "$home" ]; then
+        # Another run of this launcher got here first: its home stands,
+        # and this run's copy is dropped.
+        rm -rf "$staged"
+    elif ! mv "$staged" "$home"; then
+        echo "keel: could not place the version at $home; nothing was installed" >&2
+        rm -rf "$staged"
+        return 2
+    fi
+    echo "keel: fetched $name from $base/$tag -- sha256 $have verified" >&2
+    return 0
+}
 
 # Where the project is. `-C <dir>` if it was given -- the FIRST one,
 # which is the one the tool itself takes -- else a plain argument that
@@ -226,6 +531,29 @@ if [ -n "$pin" ]; then
     if [ -n "$matched" ]; then
         run "$matched" "$@"
     fi
+    # Not here -- and a pin that names a VERSION has a release to
+    # take (wave 0048, the concept's own line): fetched, verified,
+    # said aloud, and run. A pin that names a ref, or a version with
+    # no release, gets the refusal below with its ready command.
+    tag="$(release_tag "$pin")"
+    if [ -n "$tag" ]; then
+        if fetch_release "$tag" "$VERSIONS/$tag"; then
+            run "$VERSIONS/$tag" "$@"
+        else
+            rc=$?
+            [ "$rc" -eq 2 ] && exit 2
+        fi
+        # A version with no release: the install command would walk
+        # the same road to the same 404 (review 0048 R-13), so the
+        # advice is the one that works.
+        echo "keel: keel.toml pins \"$pin\", it is not installed here, and no release answers for it" >&2
+        echo "keel: installed:" >&2
+        say_installed
+        echo "keel: instead: pin a ref -- a branch or a commit -- and install it with" >&2
+        echo "keel:   KEEL_REF=\"<ref>\" sh install.sh" >&2
+        echo "keel:   or wait for the release $tag to be published" >&2
+        exit 2
+    fi
     echo "keel: keel.toml pins \"$pin\", and it is not installed here" >&2
     echo "keel: installed:" >&2
     say_installed
@@ -256,6 +584,58 @@ LAUNCHER
     chmod +x "$1"
 }
 
+# The end of either road: the launcher on PATH, the words, the advice.
+finish() {
+    mkdir -p "$KEEL_BIN"
+    # A keel that is not ours is said aloud before it is replaced (review
+    # 0041 R-7: the decision claimed it was never written over).
+    if [ -f "$KEEL_BIN/keel" ] && ! head -2 "$KEEL_BIN/keel" | grep -q "keel launcher"; then
+        echo "keel: $KEEL_BIN/keel is not this launcher; replacing it" >&2
+        echo "keel: (a copy is kept at $KEEL_BIN/keel.before-launcher)" >&2
+        cp "$KEEL_BIN/keel" "$KEEL_BIN/keel.before-launcher"
+    fi
+    install_launcher "$KEEL_BIN/keel"
+
+    if [ -d "$KEEL_HOME/.git" ]; then
+        echo "keel: $KEEL_HOME/.git is the old single-tree layout, left from an" >&2
+        echo "keel: earlier release -- nothing here uses it now; you may delete" >&2
+        echo "keel: $KEEL_HOME/.git and $KEEL_HOME/tool" >&2
+    fi
+
+    echo "keel: keel $2 installed at $1"
+    echo "keel: the launcher at $KEEL_BIN/keel runs the version a project pins"
+
+    case ":${PATH}:" in
+        *":$KEEL_BIN:"*) ;;
+        *)
+            echo
+            echo "$KEEL_BIN is not on your PATH. Add it:"
+            echo "  export PATH=\"$KEEL_BIN:\$PATH\""
+            ;;
+    esac
+
+    echo
+    echo "Next, in the project you want to work in:"
+    echo "  keel init"
+}
+
+# The release road first (wave 0048): a version tag with a published
+# release is taken as it is -- no clone, no cargo -- and only a ref
+# without one goes to git. Said aloud either way.
+release_asked="$(release_tag "$KEEL_REF")"
+if [ -n "$release_asked" ]; then
+    mkdir -p "$KEEL_HOME"
+    if fetch_release "$release_asked" "$VERSIONS/$release_asked"; then
+        printf '%s\n' "$release_asked" > "$KEEL_HOME/.keel-current"
+        finish "$VERSIONS/$release_asked" "$(cat "$VERSIONS/$release_asked/.keel-version")"
+        exit 0
+    else
+        rc=$?
+        [ "$rc" -eq 2 ] && exit 2
+        echo "keel: no release $release_asked here -- building from source" >&2
+    fi
+fi
+
 for tool in git cargo; do
     command -v "$tool" >/dev/null 2>&1 || {
         echo "keel: $tool is required and was not found" >&2
@@ -263,25 +643,29 @@ for tool in git cargo; do
     }
 done
 
+# The branch the remote leads with, brought up to date: a checkout of
+# a named ref is not on a branch, so pull would have nothing to
+# fast-forward -- it comes back to the branch first, by the remote's
+# own head. Review 0039 R-2: `checkout -` stood here, and `@{-1}`
+# does not exist in a clone that was never moved, so the SECOND
+# ordinary run died -- the very run this script's own head calls
+# updating.
+lead_branch() {
+    if ! git -C "$SOURCE" symbolic-ref -q HEAD >/dev/null 2>&1; then
+        head="$(git -C "$SOURCE" symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null || true)"
+        branch="${head#origin/}"
+        [ -n "$branch" ] || branch="main"
+        echo "keel: back to $branch from a pinned checkout"
+        git -C "$SOURCE" checkout --quiet "$branch"
+    fi
+    git -C "$SOURCE" pull --ff-only --quiet
+}
+
 if [ -d "$SOURCE/.git" ]; then
     echo "keel: updating $SOURCE"
     git -C "$SOURCE" fetch --quiet --tags origin
-    # A checkout of a named ref is not on a branch, so pull would have
-    # nothing to fast-forward. Only the unpinned road pulls -- and it
-    # comes back to a branch first, by the remote's own head.
-    #
-    # Review 0039 R-2: `checkout -` stood here, and `@{-1}` does not
-    # exist in a clone that was never moved, so the SECOND ordinary
-    # run died -- the very run this script's own head calls updating.
     if [ -z "$KEEL_REF" ]; then
-        if ! git -C "$SOURCE" symbolic-ref -q HEAD >/dev/null 2>&1; then
-            head="$(git -C "$SOURCE" symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null || true)"
-            branch="${head#origin/}"
-            [ -n "$branch" ] || branch="main"
-            echo "keel: back to $branch from a pinned checkout"
-            git -C "$SOURCE" checkout --quiet "$branch"
-        fi
-        git -C "$SOURCE" pull --ff-only --quiet
+        lead_branch
     fi
 else
     echo "keel: cloning into $SOURCE"
@@ -289,17 +673,36 @@ else
     git clone --quiet "$REPO" "$SOURCE"
 fi
 
+# The tree to build: the ref as given; a version's own tag (`2.0.0`
+# is `v2.0.0`); or -- for a version with no release and no tag -- the
+# branch the remote leads with, which counts only if what it builds
+# answers that version (review 0048 R-14: keel's own CI installs by
+# the pin `0.1.0`, which is neither a tag nor a release, and the tree
+# at main answers exactly that). Any other ref that is not there is a
+# refusal by name, never a silent build of whatever main is.
+lead_road=""
 if [ -n "$KEEL_REF" ]; then
-    # The named version, and nothing else: a ref that is not there is
-    # a refusal by name, never a silent build of whatever main is.
-    if ! git -C "$SOURCE" rev-parse --verify --quiet "$KEEL_REF^{commit}" >/dev/null; then
-        echo "keel: no such version \"$KEEL_REF\" in $REPO" >&2
-        echo "keel: the versions this clone knows:" >&2
-        git -C "$SOURCE" tag | tail -10 >&2
-        exit 1
+    wanted="$KEEL_REF"
+    if ! git -C "$SOURCE" rev-parse --verify --quiet "$wanted^{commit}" >/dev/null; then
+        if [ -n "$release_asked" ] && git -C "$SOURCE" rev-parse --verify --quiet "$release_asked^{commit}" >/dev/null; then
+            wanted="$release_asked"
+        elif [ -n "$release_asked" ]; then
+            lead_road="yes"
+        else
+            echo "keel: no such version \"$KEEL_REF\" in $REPO" >&2
+            echo "keel: the versions this clone knows:" >&2
+            git -C "$SOURCE" tag | tail -10 >&2
+            exit 1
+        fi
     fi
-    echo "keel: checking out $KEEL_REF"
-    git -C "$SOURCE" checkout --quiet --detach "$KEEL_REF"
+    if [ -n "$lead_road" ]; then
+        echo "keel: no release and no tag $release_asked -- building the branch the remote leads with," >&2
+        echo "keel: which counts only if it answers ${release_asked#v}" >&2
+        lead_branch
+    else
+        echo "keel: checking out $wanted"
+        git -C "$SOURCE" checkout --quiet --detach "$wanted"
+    fi
 fi
 
 # A ref may predate the layout this installer builds -- keel v1 kept the
@@ -311,9 +714,14 @@ if [ ! -f "$SOURCE/tool/Cargo.toml" ]; then
     exit 1
 fi
 
-# The name of this version's home: the ref that was asked for, or the
-# branch the remote leads with when none was.
+# The name of this version's home: the ref that was asked for -- a
+# version by its tag's name, `v2.0.0`, so the launcher's release road
+# and this one meet in one home -- or the branch the remote leads
+# with when none was.
 name="$KEEL_REF"
+if [ -n "$release_asked" ]; then
+    name="$release_asked"
+fi
 if [ -z "$name" ]; then
     name="$(git -C "$SOURCE" symbolic-ref --short -q HEAD 2>/dev/null || echo main)"
 fi
@@ -342,6 +750,12 @@ chmod +x "$home/keel"
 # distribution has -- git's own. Said plainly: a sha proves the tree is
 # the one the ref named, NOT that the ref is worth trusting.
 version="$("$home/keel" --version | head -1 | awk '{print $2}')"
+if [ -n "$lead_road" ] && [ "$version" != "${release_asked#v}" ]; then
+    echo "keel: the branch the remote leads with answers keel $version, not ${release_asked#v}" >&2
+    echo "keel: instead: pin a ref -- a branch or a commit -- or wait for the release $release_asked" >&2
+    rm -rf "$home"
+    exit 1
+fi
 printf '%s\n' "$version" > "$home/.keel-version"
 printf '%s\n' "$name" > "$home/.keel-ref"
 printf '%s\n' "$sha" > "$home/.keel-sha"
@@ -357,34 +771,4 @@ fi
 printf '%s\n' "$sum" > "$home/.keel-sum"
 printf '%s\n' "$encoded" > "$KEEL_HOME/.keel-current"
 
-mkdir -p "$KEEL_BIN"
-# A keel that is not ours is said aloud before it is replaced (review
-# 0041 R-7: the decision claimed it was never written over).
-if [ -f "$KEEL_BIN/keel" ] && ! head -2 "$KEEL_BIN/keel" | grep -q "keel launcher"; then
-    echo "keel: $KEEL_BIN/keel is not this launcher; replacing it" >&2
-    echo "keel: (a copy is kept at $KEEL_BIN/keel.before-launcher)" >&2
-    cp "$KEEL_BIN/keel" "$KEEL_BIN/keel.before-launcher"
-fi
-install_launcher "$KEEL_BIN/keel"
-
-if [ -d "$KEEL_HOME/.git" ]; then
-    echo "keel: $KEEL_HOME/.git is the old single-tree layout, left from an" >&2
-    echo "keel: earlier release -- nothing here uses it now; you may delete" >&2
-    echo "keel: $KEEL_HOME/.git and $KEEL_HOME/tool" >&2
-fi
-
-echo "keel: keel $version installed at $home"
-echo "keel: the launcher at $KEEL_BIN/keel runs the version a project pins"
-
-case ":${PATH}:" in
-    *":$KEEL_BIN:"*) ;;
-    *)
-        echo
-        echo "$KEEL_BIN is not on your PATH. Add it:"
-        echo "  export PATH=\"$KEEL_BIN:\$PATH\""
-        ;;
-esac
-
-echo
-echo "Next, in the project you want to work in:"
-echo "  keel init"
+finish "$home" "$version"

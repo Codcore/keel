@@ -42,6 +42,16 @@ pub fn git(dir: &Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
+/// The target rustc names this machine by -- the word a release is
+/// named with (wave 0048), asked of rustc itself and never guessed.
+pub fn host() -> String {
+    let out = Command::new("rustc").arg("-vV").output().unwrap();
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .find_map(|line| line.strip_prefix("host: ").map(str::to_string))
+        .expect("rustc names a host")
+}
+
 fn crate_file(version: &str) -> String {
     format!("[package]\nname = \"keel\"\nversion = \"{version}\"\n")
 }
@@ -77,23 +87,44 @@ pub fn world(dir: &Path) -> World {
     // binary that answers with it -- and echoes the arguments it was
     // given, so a probe can hold that the launcher passes them on
     // (review 0041 R-11: dropping every argument passed the battery).
+    // A tree that keeps a `tool/answers` file makes the binary answer
+    // THAT instead of the manifest's number, so a probe can tell a
+    // release named by the binary's answer from one named by the
+    // manifest (review 0048 R-8).
     let stub = dir.join("stub");
     fs::create_dir_all(&stub).unwrap();
     let script = "#!/bin/sh\n\
          root=\"$(pwd)\"\n\
          for word in \"$@\"; do case \"$word\" in */tool/Cargo.toml) root=\"${word%/tool/Cargo.toml}\";; esac; done\n\
          version=$(grep '^version' \"$root/tool/Cargo.toml\" | head -1 | cut -d'\"' -f2)\n\
+         if [ -f \"$root/tool/answers\" ]; then version=$(cat \"$root/tool/answers\"); fi\n\
          out=\"$root/tool/target/release\"\n\
          mkdir -p \"$out\"\n\
          printf '#!/bin/sh\\necho \"keel %s\"\\necho \"args: $*\"\\n' \"$version\" > \"$out/keel\"\n\
          chmod +x \"$out/keel\"\n";
     fs::write(stub.join("cargo"), script).unwrap();
+    // And a `curl` that never leaves the machine: a `file://` address
+    // goes to the real curl, any other is logged and refused -- so a
+    // probe can hold that no road of this world walks to GitHub
+    // (review 0048 R-4), and a network that answers 200 to everything
+    // cannot turn the battery red.
+    let real_curl = ["/usr/bin/curl", "/bin/curl", "/usr/local/bin/curl"]
+        .into_iter()
+        .find(|c| Path::new(c).is_file())
+        .unwrap_or("/usr/bin/curl");
+    let shim = format!(
+        "#!/bin/sh\nfor a in \"$@\"; do case \"$a\" in http://*|https://*) echo \"$a\" >> '{}'; exit 22;; esac; done\nexec {real_curl} \"$@\"\n",
+        dir.join("curl-http.log").display()
+    );
+    fs::write(stub.join("curl"), shim).unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(stub.join("cargo")).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(stub.join("cargo"), perms).unwrap();
+        for tool in ["cargo", "curl"] {
+            let mut perms = fs::metadata(stub.join(tool)).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(stub.join(tool), perms).unwrap();
+        }
     }
 
     World {
@@ -106,6 +137,17 @@ pub fn world(dir: &Path) -> World {
         old_version: "1.0.0".to_string(),
         new_version: "2.0.0".to_string(),
     }
+}
+
+/// Where this world's releases would be: an empty directory served
+/// over `file://`, so that no probe of the world ever walks to
+/// GitHub -- review 0048 R-4 counted nine requests to github.com in
+/// one run of the battery, and a network that answers 200 to
+/// everything turned the probes of wave 0041 red.
+pub fn no_releases(world: &World) -> String {
+    let dir = world.dir.join("no-releases");
+    fs::create_dir_all(&dir).unwrap();
+    format!("file://{}", dir.display())
 }
 
 /// The real install.sh, run against that world.
@@ -127,6 +169,7 @@ pub fn install(world: &World, git_ref: Option<&str>) -> (String, i32) {
         .env("KEEL_HOME", &world.home)
         .env("KEEL_BIN", &world.bin)
         .env("KEEL_REF", git_ref.unwrap_or(""))
+        .env("KEEL_RELEASES", no_releases(world))
         .output()
         .unwrap();
     (
@@ -146,6 +189,7 @@ pub fn run_in(world: &World, project: &Path, args: &[&str]) -> (String, i32) {
         .current_dir(project)
         .env("KEEL_HOME", &world.home)
         .env("KEEL_REPO", &world.repo)
+        .env("KEEL_RELEASES", no_releases(world))
         .env(
             "PATH",
             format!(
