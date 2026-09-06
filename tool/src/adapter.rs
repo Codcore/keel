@@ -219,6 +219,34 @@ fn language_of(root: &Path) -> Option<Language> {
     crate::config::read_unpinned(root).ok()?.language()
 }
 
+/// Whether a path of the tree, relative to the root, is a file
+/// `test_files` would read -- asked by the §7.15 court of the tree at
+/// the fork point, which is not on disk. The court used to ask for a
+/// crate and list `<crate>/tests`, so every other tongue's vanished
+/// tag went unjudged while the summary line claimed the court
+/// (global review 2026-09-06, methodology cut R-1). Each tongue
+/// answers by its own naming rule; rust by the crate's flat `tests/`.
+pub fn is_test_path(root: &Path, rel: &str) -> bool {
+    match language_of(root) {
+        Some(Language::Ruby) => crate::ruby::is_test_path(rel),
+        Some(Language::Elixir) => crate::elixir::is_test_path(rel),
+        Some(Language::Python) => crate::python::is_test_path(rel),
+        Some(Language::JavaScript) => crate::javascript::is_test_path(rel),
+        _ => {
+            let Ok(crate_dir) = crate_root(root) else {
+                return false;
+            };
+            let tests = crate_dir
+                .strip_prefix(root)
+                .map(|p| p.join("tests"))
+                .unwrap_or_else(|_| PathBuf::from("tests"));
+            let prefix = format!("{}/", tests.display().to_string().replace('\\', "/"));
+            rel.strip_prefix(&prefix)
+                .is_some_and(|name| !name.contains('/') && name.ends_with(".rs"))
+        }
+    }
+}
+
 /// The crate's `tests/*.rs` -- where the proves tags live. A crate
 /// without a tests directory has none, and that is not a refusal.
 pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {

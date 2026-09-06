@@ -52,6 +52,16 @@ fn is_test_file(name: &str) -> bool {
     name.ends_with(".py") && (name.starts_with("test_") || name.ends_with("_test.py"))
 }
 
+/// Whether a path of the tree, relative to the root, is one
+/// `test_files` would read: under `tests/`, named as pytest collects.
+/// The §7.15 court asks this of a tree that is not on disk (wave
+/// 0050).
+pub fn is_test_path(rel: &str) -> bool {
+    rel.strip_prefix("tests/")
+        .and_then(|rest| rest.rsplit('/').next())
+        .is_some_and(is_test_file)
+}
+
 /// The `.py` files in `tests/` this adapter does NOT read: pytest
 /// collects tests only from `test_*.py` and `*_test.py`, so a
 /// `conftest.py` or a helper is walked past -- and named, as the

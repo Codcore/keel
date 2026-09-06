@@ -3,6 +3,7 @@ module: keel::adapter
 exports:
   - "pub fn crate_root(root: &Path) -> Result<PathBuf, Refusal>"
   - "pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal>"
+  - "pub fn is_test_path(root: &Path, rel: &str) -> bool"
   - "pub enum Outcome { Failed, Green, BuildBroken(String), NotRun }"
   - "pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal>"
   - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>"
@@ -29,6 +30,15 @@ exports:
   тека першого рівня з Cargo.toml — вона; нуль або кілька — відмова
   вголос із переліком знайденого. Вгадування нема.
 - `test_files`: файли `tests/*.rs` крейта — там живуть теги proves.
+- `is_test_path` (хвиля 0050): чи є шлях дерева, відносний до кореня,
+  файлом, який `test_files` цієї мови прочитав би, — питання суду
+  §7.15 про дерево в точці розгалуження, якого на диску нема. Кожна
+  мова відповідає своїм правилом імен (`tests/**/test_*.py`,
+  `test/**/*_test.rb` і `spec/**/*_spec.rb`, `test/**/*_test.exs`,
+  `test|tests/**/*.test.js` поза `node_modules`), rust — плоскою
+  `tests/` крейта. До цього суд просив крейт і, діставши відмову в
+  кожній іншій мові, не судив нічого, а рядок «що перевірено» заявляв
+  §7.15 (глобальне ревʼю 2026-09-06, методика R-1).
 - `run_test` жене рівно один тест (`cargo test --test <файл>
   <функція> -- --exact`) і класифікує наслідок словами cargo:
   `Failed` — тест виконався і впав; `Green` — виконався і пройшов;

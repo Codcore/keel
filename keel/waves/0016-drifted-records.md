@@ -8,6 +8,8 @@ scenarios:
   light-pr-words-honest:
     proves: tool-next@ec56ff
     covers: [interaction.self-descriptiveness]
+    withdrawn: "рішення оператора 2026-09-04 (хвиля 0037): рецензент у кожної хвилі, і крок PR легкої веде до звіту так само — обіцянка «жодного слова про звіт рецензії» померла; проба перейшла під наступника (хвиля 0050, глобальне ревʼю тестів R-2)"
+    superseded_by: every-wave-has-its-reviewer
 
 transforms:
   rewrite-hand:
@@ -72,6 +74,7 @@ decisions:
   safety.fail-safe: "свідомо без нового тесту: не-парсибельний наслідок хірургії — відмова без запису, ніколи не битий файл на диску"
   safety.hazard-warning: "свідомо без нового тесту: «лишаю: закрита» — попередження поіменно в самому звіті"
   safety.safe-integration: "свідомо без тесту: нові файли — rev_write_test.rs; rev росте однією рукою, next — одним словом; контракти кажуть це наперед"
+  interaction.self-descriptiveness: "розріз ніс light-pr-words-honest, знятий хвилею 0050: слова кроку PR легкої хвилі відтоді тримає every-wave-has-its-reviewer (0037) — один PR, і звіт рецензії перед ним"
 ---
 
 ## Why

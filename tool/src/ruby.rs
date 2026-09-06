@@ -27,6 +27,15 @@ pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
     Ok(out)
 }
 
+/// Whether a path of the tree, relative to the root, is one either
+/// reading would take: `test/**/*_test.rb` or `spec/**/*_spec.rb`.
+/// The §7.15 court asks this of a tree that is not on disk (wave
+/// 0050).
+pub fn is_test_path(rel: &str) -> bool {
+    (rel.starts_with("test/") && rel.ends_with("_test.rb"))
+        || (rel.starts_with("spec/") && rel.ends_with("_spec.rb"))
+}
+
 /// The first reading's files: `test/**/*_test.rb`.
 pub fn minitest_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
     files_named(root, "test", "_test.rb")

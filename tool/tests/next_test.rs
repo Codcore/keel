@@ -361,13 +361,15 @@ fn next_hands_one_step_second_birth() {
     );
 }
 
-/// proves: light-pr-words-honest@6fa167 -- holds §6.8/§9.9 and the
-/// debt named by the 0015 dogfood: a light wave's PR step speaks its
-/// own words -- ONE pull request, closed by the fact of merge -- while
-/// a full wave hears about its two. Since the operator's decision of
-/// 2026-09-04 the reviewer is asked of every wave, so the report lies
-/// beside both before either hears a PR word: weight decides how many
-/// pull requests and nothing else.
+/// proves: every-wave-has-its-reviewer@193d9f -- holds §6.8/§9.9 and
+/// the debt named by the 0015 dogfood: a light wave's PR step speaks
+/// its own words -- ONE pull request, closed by the fact of merge --
+/// while a full wave hears about its two. Since the operator's
+/// decision of 2026-09-04 the reviewer is asked of every wave, so the
+/// report lies beside both before either hears a PR word: weight
+/// decides how many pull requests and nothing else. Born under
+/// `light-pr-words-honest` (0016), which promised the opposite and
+/// was withdrawn by wave 0050 (global review, tests cut R-2).
 #[test]
 fn light_pr_words_honest() {
     let dir = project("lightpr", "0800-l");

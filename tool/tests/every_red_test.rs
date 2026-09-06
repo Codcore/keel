@@ -104,7 +104,9 @@ fn a_red_nobody_claims_holds_the_wave() {
     let rev = keel::rev::text_rev(BODY);
     std::fs::write(
         dir.join("tests/toy_test.rs"),
-        format!("/// proves: s1@{rev}\n#[test]\nfn holds_s1() {{\n    assert!(toy::works());\n}}\n"),
+        format!(
+            "/// proves: s1@{rev}\n#[test]\nfn holds_s1() {{\n    assert!(toy::works());\n}}\n"
+        ),
     )
     .unwrap();
     // A red test carrying s1's name under a revision no wave ever
@@ -195,7 +197,10 @@ fn close_asks_the_form_of_every_contract() {
         said.contains("форм"),
         "and counts the form court aloud, as it counts verify:\n{said}"
     );
-    assert_ne!(code, 0, "a form the code does not hold does not merge:\n{said}");
+    assert_ne!(
+        code, 0,
+        "a form the code does not hold does not merge:\n{said}"
+    );
 
     // On a plan branch the form is not judged -- exports grow ahead of
     // the code by design (§4.9) -- and close says so in check's words.

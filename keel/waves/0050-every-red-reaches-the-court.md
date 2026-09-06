@@ -41,6 +41,7 @@ transforms:
       - tool/src/close.rs
       - tool/src/check.rs
       - tool/src/adapter.rs
+      - tool/src/elixir.rs
       - keel/contracts/tool-close.md
       - keel/contracts/tool-adapter-cargo.md
       - tool/i18n/uk.ftl

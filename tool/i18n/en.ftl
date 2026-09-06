@@ -184,6 +184,8 @@ adapter-rspec-silent = rspec left without writing its JSON -- this is what it sa
 adapter-rspec-silent-instead = this is not rspec being absent: something stopped it before the examples (an abort in spec_helper, an exit from a config) -- read its words and run again
 run-line-rspec-note = # -e is a substring match: it may run more than this name; the court selects by id
 tags-vanished = the tag of scenario "{ $scenario }" was at the fork point and is gone at HEAD -- the scenario is alive
+tags-withdrawn-live = the tag of test "{ $test }" holds "{ $scenario }" -- the scenario is withdrawn (sec. 2.12) and the test still carries its tag
+tags-withdrawn-live-instead = the test of a withdrawn promise is deleted by the same PR that withdrew it (sec. 2.12); a test that holds the successor's rule is re-tagged to the successor
 tags-vanished-instead = bring the test back or withdraw the scenario deliberately (§7.15, §2.12); old promises are not disarmed in silence
 tags-vanished-gone = the tag of scenario "{ $scenario }" was at the fork point and is gone at HEAD -- gone with its wave: the promise was erased whole
 tags-vanished-gone-instead = documents are not deleted (§4.12): bring the wave back and withdraw the scenario in its file (§2.12) -- destruction without a trace is forbidden
@@ -458,6 +460,8 @@ close-needs-adapter = the closure court needs an adapter this release leads, nam
 close-needs-adapter-instead = set adapter = one of the names this release knows: { $known } (NEW-CONCEPT, Config)
 close-blockers = blockers of this branch's wave { $wave }: { $count } -- a full wave does not merge unproven (§6.5, §9.9)
 close-no-blockers = no blockers: this branch is named as no unclosed wave -- the states above inform
+close-form-judged = the form court (sec. 7.6): { $count } findings -- the same contracts keel check judges
+close-form-blockers = form the code does not hold: { $count } -- a contract whose form the code does not hold does not merge (sec. 7.6)
 close-verify-count = verify commands judged: { $count }
 close-verify-passed = verify "{ $command }" of { $contract } — passed
 close-verify-failed = verify "{ $command }" of { $contract } — FAILED ({ $words }) — a broken foreign promise does not merge (§2.8)

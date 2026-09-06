@@ -234,6 +234,9 @@ fn wave_closure_judged() {
         "tests/a_test.rs",
         &format!("/// proves: a@{a_rev}\n#[test]\nfn holds_a() {{}}\n"),
     );
+    // The contract's form holds -- since wave 0050 close asks it too,
+    // and this birth is about the reference, not the form.
+    write(&dir, "src/lib.rs", "pub fn one() {}\n");
     write(&dir, "keel/reviews/0022-w.md", "# Рецензія\n\nok\n");
     // No git at all: the fabricated reference cannot be judged.
     fs::remove_dir_all(dir.join(".git")).unwrap();
@@ -246,10 +249,13 @@ fn wave_closure_judged() {
     );
 }
 
-/// proves: closure-needs-review-file@d1cb7a -- holds §9.9 as
+/// proves: every-wave-has-its-reviewer@193d9f -- holds §9.9 as
 /// mechanics: a full wave with everything proven but no review file
-/// next to it is not closed; with the report it is; a light chore
-/// wave closes by the fact of merge and needs no report (§6.5).
+/// next to it is not closed; with the report it is; and a light chore
+/// wave is not closed without its report either, since the operator's
+/// decision of 2026-09-04. Born under `closure-needs-review-file`
+/// (0006), which promised the light wave needs no report and was
+/// withdrawn by wave 0050 (global review, tests cut R-2).
 #[test]
 fn closure_needs_review_file() {
     let dir = project("reviewgate", "just-work");

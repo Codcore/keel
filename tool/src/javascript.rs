@@ -38,6 +38,16 @@ fn is_test_file(name: &str) -> bool {
     TEST_SUFFIXES.iter().any(|suffix| name.ends_with(suffix))
 }
 
+/// Whether a path of the tree, relative to the root, is one
+/// `test_files` would read: under `test/` or `tests/`, outside any
+/// `node_modules`, with a test suffix. The §7.15 court asks this of
+/// a tree that is not on disk (wave 0050).
+pub fn is_test_path(rel: &str) -> bool {
+    (rel.starts_with("test/") || rel.starts_with("tests/"))
+        && !rel.split('/').any(|part| part == "node_modules")
+        && rel.rsplit('/').next().is_some_and(is_test_file)
+}
+
 fn is_source(name: &str) -> bool {
     [".js", ".mjs", ".cjs", ".ts", ".mts"]
         .iter()

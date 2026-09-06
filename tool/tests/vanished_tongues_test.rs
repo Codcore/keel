@@ -50,7 +50,13 @@ const BODY: &str = "тіло обіцянки\n\n";
 
 /// One tongue: the project's frame, a proven wave on main with its
 /// tag in `test_path`, and a branch that deletes that file.
-fn disarmed(name: &str, adapter: &str, source: (&str, &str), test_path: &str, test_body: &str) -> common::Sandbox {
+fn disarmed(
+    name: &str,
+    adapter: &str,
+    source: (&str, &str),
+    test_path: &str,
+    test_body: &str,
+) -> common::Sandbox {
     let dir = keel_sandbox(name);
     std::fs::write(
         dir.join("keel.toml"),
@@ -89,37 +95,68 @@ fn disarmed(name: &str, adapter: &str, source: (&str, &str), test_path: &str, te
 #[test]
 fn a_vanished_tag_is_red_in_every_tongue() {
     let rev = keel::rev::text_rev(BODY);
-    let cases: Vec<(&str, &str, (&str, &str), &str, String)> = vec![
-        (
-            "vanpy",
-            "python",
-            ("src/toy/__init__.py", "def works():\n    return True\n"),
-            "tests/test_toy.py",
-            format!("from toy import works\n\n\n# proves: it-works@{rev}\ndef test_it_works():\n    assert works()\n"),
-        ),
-        (
-            "vanrb",
-            "ruby",
-            ("lib/toy.rb", "module Toy\n  def self.works\n    true\n  end\nend\n"),
-            "test/toy_test.rb",
-            format!("require \"minitest/autorun\"\nrequire_relative \"../lib/toy\"\n\nclass ToyTest < Minitest::Test\n  # proves: it-works@{rev}\n  def test_it_works\n    assert Toy.works\n  end\nend\n"),
-        ),
-        (
-            "vanex",
-            "elixir",
-            ("lib/toy.ex", "defmodule Toy do\n  def works, do: true\nend\n"),
-            "test/toy_test.exs",
-            format!("defmodule ToyTest do\n  use ExUnit.Case\n\n  # proves: it-works@{rev}\n  test \"it works\" do\n    assert Toy.works()\n  end\nend\n"),
-        ),
-        (
-            "vanjs",
-            "javascript",
-            ("src/toy.js", "export function works() {\n  return true;\n}\n"),
-            "test/toy.test.js",
-            format!("import {{ test }} from 'node:test';\nimport assert from 'node:assert';\nimport {{ works }} from '../src/toy.js';\n\n// proves: it-works@{rev}\ntest('it works', () => {{\n  assert.ok(works());\n}});\n"),
-        ),
+    struct Case<'a> {
+        name: &'a str,
+        adapter: &'a str,
+        source: (&'a str, &'a str),
+        test_path: &'a str,
+        test_body: String,
+    }
+    let cases = vec![
+        Case {
+            name: "vanpy",
+            adapter: "python",
+            source: ("src/toy/__init__.py", "def works():\n    return True\n"),
+            test_path: "tests/test_toy.py",
+            test_body: format!(
+                "from toy import works\n\n\n# proves: it-works@{rev}\ndef test_it_works():\n    assert works()\n"
+            ),
+        },
+        Case {
+            name: "vanrb",
+            adapter: "ruby",
+            source: (
+                "lib/toy.rb",
+                "module Toy\n  def self.works\n    true\n  end\nend\n",
+            ),
+            test_path: "test/toy_test.rb",
+            test_body: format!(
+                "require \"minitest/autorun\"\nrequire_relative \"../lib/toy\"\n\nclass ToyTest < Minitest::Test\n  # proves: it-works@{rev}\n  def test_it_works\n    assert Toy.works\n  end\nend\n"
+            ),
+        },
+        Case {
+            name: "vanex",
+            adapter: "elixir",
+            source: (
+                "lib/toy.ex",
+                "defmodule Toy do\n  def works, do: true\nend\n",
+            ),
+            test_path: "test/toy_test.exs",
+            test_body: format!(
+                "defmodule ToyTest do\n  use ExUnit.Case\n\n  # proves: it-works@{rev}\n  test \"it works\" do\n    assert Toy.works()\n  end\nend\n"
+            ),
+        },
+        Case {
+            name: "vanjs",
+            adapter: "javascript",
+            source: (
+                "src/toy.js",
+                "export function works() {\n  return true;\n}\n",
+            ),
+            test_path: "test/toy.test.js",
+            test_body: format!(
+                "import {{ test }} from 'node:test';\nimport assert from 'node:assert';\nimport {{ works }} from '../src/toy.js';\n\n// proves: it-works@{rev}\ntest('it works', () => {{\n  assert.ok(works());\n}});\n"
+            ),
+        },
     ];
-    for (name, adapter, source, test_path, test_body) in cases {
+    for case in cases {
+        let Case {
+            name,
+            adapter,
+            source,
+            test_path,
+            test_body,
+        } = case;
         let dir = disarmed(name, adapter, source, test_path, &test_body);
         let (said, code) = check(&dir);
         assert_eq!(
