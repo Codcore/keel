@@ -115,7 +115,7 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
             // as under a known one (review 0052 R-1, R-11: the first
             // reading refused a chore, and dressed `docs: x` and
             // `Work: x` in the adapter's words).
-            Claim::Chore | Claim::Typo => judge(root, wave, &subject, mutant)?,
+            Claim::Chore | Claim::Typo => judge(root, wave, &subject, mutant, config.language())?,
             Claim::Outside => {
                 let report = format!(
                     "{mode_line}\n{}\n",
@@ -128,7 +128,7 @@ pub fn run(root: &Path, message_file: &Path) -> Result<(String, i32), Refusal> {
             }
         }
     } else {
-        judge(root, wave, &subject, mutant)?
+        judge(root, wave, &subject, mutant, config.language())?
     };
     let (words, guilty) = match verdict {
         Verdict::Pass(words) => (words, false),
@@ -221,10 +221,11 @@ fn judge(
     wave: &docs::Wave,
     subject: &str,
     mutant: Option<(String, String)>,
+    tongue: Option<config::Language>,
 ) -> Result<Verdict, Refusal> {
     if let Some(rest) = subject.strip_prefix("red: ") {
         let scenario = rest.split_whitespace().next().unwrap_or("");
-        return judge_red(root, wave, scenario, mutant);
+        return judge_red(root, wave, scenario, mutant, tongue);
     }
     if let Some((head, _)) = subject.split_once(':') {
         let head = head.trim();
@@ -288,6 +289,7 @@ fn judge_red(
     wave: &docs::Wave,
     scenario: &str,
     mutant: Option<(String, String)>,
+    tongue: Option<config::Language>,
 ) -> Result<Verdict, Refusal> {
     let Some((name, sc)) = wave.scenarios.iter().find(|(n, _)| n == scenario) else {
         return Ok(Verdict::Refuse(ta(
@@ -309,8 +311,16 @@ fn judge_red(
             targs!("scenario" => name.clone()),
         ))),
         1 => match adapter::run_test(root, mine[0])? {
+            // The word carries the tongue's border (global review
+            // 2026-09-06, methodology R-17; wave 0053): ruby leaves
+            // with one code for a fall and for a broken build, so
+            // "truly fails" is said only where the code can say it.
             Outcome::Failed => Ok(Verdict::Pass(ta(
-                "gate-red-pass",
+                if tongue == Some(config::Language::Ruby) {
+                    "gate-red-pass-ruby"
+                } else {
+                    "gate-red-pass"
+                },
                 targs!("scenario" => name.clone(), "test" => mine[0].test.clone()),
             ))),
             // The §6.3 exception: green, but the mutant is recorded.

@@ -23,7 +23,6 @@ transforms:
       - tool/src/map.rs
       - tool/src/next.rs
       - tool/src/close.rs
-      - tool/src/status.rs
       - tool/src/trust.rs
       - tool/src/check.rs
       - tool/src/docs.rs
@@ -168,6 +167,12 @@ R-25): `close.rs runs.len() == BATTERY_RUNS && all green → all green`
 «перетини scope паралельних хвиль» — ні в коді, ні в черзі (R-19).
 §7.1 проти §7.10 і §8.6 без позначки «текстове» (R-20) — суперечність
 самої норми: її текст — рядок оператора, не цієї хвилі.
+
+**Дрейф (§4.6), названий уголос.** З першої трансформи знято
+`tool/src/status.rs`: план назвав його, бо `status` казав про порожній
+файл рецензії своїм словом, — а вирок один для всіх судів виносить
+`close::wave_state`, яким `status` і так читає стан хвилі, тож рука до
+`status.rs` не торкнулась, і імʼя стояло б даремно (§4.4).
 
 ## scenario: the-word-is-the-courts-word
 
