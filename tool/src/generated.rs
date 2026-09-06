@@ -522,9 +522,10 @@ fn workflow(root: &Path, config: &Config) -> String {
         "# keel (generated -- do not edit; keel update rewrites this file)\n\
          #\n\
          # The first step installs the tool; the rest judge with it.\n\
-         # There is no released binary yet, so that step builds it from source:\n\
-         # it needs git and cargo on the runner, and it costs minutes on a\n\
-         # cold cache. If your project already puts `keel` on PATH some other\n\
+         # It takes the published release of the pinned version where one\n\
+         # exists, and builds it from source otherwise: that road needs git\n\
+         # and cargo on the runner, and it costs minutes on a cold cache. If\n\
+         # your project already puts `keel` on PATH some other\n\
          # way, replace this step with yours -- the courts below do not care\n\
          # how it got there. To keep an edited copy for good, delete this\n\
          # file's line from [generated] in keel.toml as well: otherwise\n\
@@ -560,6 +561,11 @@ fn workflow(root: &Path, config: &Config) -> String {
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}KEEL_BRANCH: ${{{{ github.head_ref || github.ref_name }}}}\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: keel check .\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: the closure court\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# The same branch for the same reason: without it this\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# court counted the blockers of no wave on a pull_request\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# and left green over a wave still in work.\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}env:\n\
+         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}KEEL_BRANCH: ${{{{ github.head_ref || github.ref_name }}}}\n\
          \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: keel close .\n\
          {courts}"
     )

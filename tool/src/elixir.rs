@@ -19,6 +19,13 @@ pub const BUILD_DIR: &str = "_build";
 
 /// `test/**/*_test.exs` -- where the proves tags live. A project
 /// without a test directory has none, and that is not a refusal.
+/// Whether a path of the tree, relative to the root, is one
+/// `test_files` would read: under `test/`, named `*_test.exs`. The
+/// §7.15 court asks this of a tree that is not on disk (wave 0050).
+pub fn is_test_path(rel: &str) -> bool {
+    rel.starts_with("test/") && rel.ends_with("_test.exs")
+}
+
 pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
     let dir = root.join("test");
     if !dir.is_dir() {

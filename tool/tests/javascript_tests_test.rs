@@ -291,6 +291,12 @@ fn javascript_tests_are_read_and_run() {
     // `close` this way, while every measurement of "writes nothing"
     // had been taken in a silent environment.
     let cache = dir.join(".ncc").display().to_string();
+    // Every path of the tree before the court, to be compared whole
+    // after it: the first cut of this probe looked for three names
+    // only, and any other file would have passed (global review
+    // 2026-09-06, tests cut R-11).
+    let mut before = walk(&dir);
+    before.sort();
     let (said, code) = keel_with(&dir, &["close"], &[("NODE_COMPILE_CACHE", cache)]);
     assert_eq!(code, 0, "a proven node wave closes:\n{said}");
     assert!(
@@ -302,12 +308,9 @@ fn javascript_tests_are_read_and_run() {
         said.contains("0001-a-wave: закрита"),
         "and says so:\n{said}"
     );
-    let written: Vec<String> = walk(&dir)
-        .into_iter()
-        .filter(|p| {
-            p.contains("node_modules") || p.contains(".nyc_output") || p.contains("coverage")
-        })
-        .collect();
+    let mut after = walk(&dir);
+    after.sort();
+    let written: Vec<String> = after.into_iter().filter(|p| !before.contains(p)).collect();
     assert!(
         written.is_empty(),
         "close leaves the project as it found it: {written:?}"

@@ -5,6 +5,7 @@
 use crate::adapter;
 use crate::config;
 use crate::docs::{self, Wave};
+use crate::holding;
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
 use crate::rev;
@@ -244,21 +245,53 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // wave, named there with its scenario; adding it here again made
     // `blockers` say two where one test fell. So the tally below
     // counts only the reds nobody's promise was already holding.
-    let claimed: std::collections::BTreeSet<(String, String)> = match &branch {
-        Some(slug) => scan
-            .waves
-            .iter()
-            .filter(|wave| &wave.slug == slug)
-            .flat_map(|wave| wave.scenarios.iter().map(|(name, _)| name.clone()))
-            .flat_map(|scenario| {
-                found
+    //
+    // And "claims" means what `wave_state` means by it (wave 0050):
+    // a tag of a LIVE scenario of this wave whose revision is the
+    // scenario's current one -- or, where no such tag exists, a tag
+    // of that scenario holding no other wave's legal revision, which
+    // `wave_state` names as this wave's stale record. By the bare
+    // name every tag of every scenario was claimed, withdrawn ones
+    // included, so a red test under a crooked revision or under a
+    // dead promise was neither a lack nor a red nobody claims: the
+    // court printed "red test" and "closed" in one breath (global
+    // review 2026-09-06, bugs cut R-2).
+    let mut claimed: std::collections::BTreeSet<(String, String)> = Default::default();
+    if let Some(slug) = &branch {
+        for wave in scan.waves.iter().filter(|wave| &wave.slug == slug) {
+            let path = root.join("keel/waves").join(format!("{}.md", wave.slug));
+            let revs = rev::scenario_revs(&path)?;
+            for (name, scenario) in &wave.scenarios {
+                if scenario.withdrawn.is_some() {
+                    continue;
+                }
+                let current = revs
                     .iter()
-                    .filter(move |tag| tag.scenario == scenario)
-                    .map(|tag| (adapter::battery_key(root, &tag.file), tag.test.clone()))
-            })
-            .collect(),
-        None => std::collections::BTreeSet::new(),
-    };
+                    .find(|(n, _)| n == name)
+                    .map(|(_, r)| r.as_str())
+                    .unwrap_or("");
+                let all: Vec<&TestTag> = found.iter().filter(|t| t.scenario == *name).collect();
+                let mine: Vec<&TestTag> = all
+                    .iter()
+                    .copied()
+                    .filter(|t| rev::matches(&t.rev, current))
+                    .collect();
+                let foreign = |t: &&TestTag| {
+                    legal
+                        .get(name)
+                        .is_some_and(|revs| revs.iter().any(|r| rev::matches(&t.rev, r)))
+                };
+                let named: Vec<&TestTag> = if mine.is_empty() {
+                    all.iter().copied().filter(|t| !foreign(t)).collect()
+                } else {
+                    mine
+                };
+                for tag in named {
+                    claimed.insert((adapter::battery_key(root, &tag.file), tag.test.clone()));
+                }
+            }
+        }
+    }
     let red_tests = battery
         .iter()
         .filter(|(key, runs)| runs.iter().any(|green| !green) && !claimed.contains(*key))
@@ -311,6 +344,48 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         report.push_str("  ");
         report.push_str(line);
         report.push('\n');
+    }
+
+    // The form court of §7.6 (wave 0050), asked here of the same
+    // contracts `keel check` asks it of -- the plan window of §6.5
+    // and a plan branch stay outside it, in check's own words. It
+    // lived in check alone, so a contract promising a unit the code
+    // does not hold was red there and "closed", exit 0, here (global
+    // review 2026-09-06, methodology cut R-2). Every finding is a
+    // blocker by name: a form the code does not hold does not merge.
+    let mut form_blockers = 0usize;
+    if scope::current_branch(root).is_some_and(|b| b.starts_with("plan/")) {
+        report.push_str(&t("check-holding-plan"));
+        report.push('\n');
+    } else {
+        let window = holding::plan_window(root, &scan.waves, &found, &scan.contracts);
+        let judged: Vec<docs::Contract> = scan
+            .contracts
+            .iter()
+            .filter(|c| !window.iter().any(|(slug, _)| slug == &c.slug))
+            .cloned()
+            .collect();
+        let findings = holding::court(root, &config, &judged);
+        report.push_str(&ta(
+            "close-form-judged",
+            targs!("count" => findings.len() as u64),
+        ));
+        report.push('\n');
+        for (place, reason, instead) in findings {
+            report.push_str(&format!(
+                "  {place}: {reason}\n           {}: {instead}\n",
+                t("word-instead")
+            ));
+            form_blockers += 1;
+        }
+        for (contract, wave) in &window {
+            report.push_str("  ");
+            report.push_str(&ta(
+                "check-holding-window",
+                targs!("contract" => contract.clone(), "wave" => wave.clone()),
+            ));
+            report.push('\n');
+        }
     }
 
     // The project's own ci (wave 0019, the first field's gift)
@@ -445,6 +520,13 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         ));
         report.push('\n');
     }
+    if form_blockers > 0 {
+        report.push_str(&ta(
+            "close-form-blockers",
+            targs!("count" => form_blockers as u64),
+        ));
+        report.push('\n');
+    }
     if ci_blocker > 0 {
         report.push_str(&t("close-ci-blocker"));
         report.push('\n');
@@ -469,7 +551,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             targs!("wave" => branch.unwrap_or_default()),
         ));
         report.push('\n');
-    } else if verify_blockers == 0 && ci_blocker == 0 && red_tests == 0 {
+    } else if verify_blockers == 0 && form_blockers == 0 && ci_blocker == 0 && red_tests == 0 {
         report.push_str(&t("close-no-blockers"));
         report.push('\n');
     }
@@ -486,7 +568,10 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         ));
         report.push('\n');
     }
-    Ok((report, blockers + verify_blockers + ci_blocker + red_tests))
+    Ok((
+        report,
+        blockers + verify_blockers + form_blockers + ci_blocker + red_tests,
+    ))
 }
 
 /// Runs one trusted command from the repository's files through
@@ -496,12 +581,19 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
 /// review R-5) -- no raw English inside a localized verdict. A
 /// command that does not start fails with the system's words.
 fn run_command(root: &Path, command: &str) -> Result<(), String> {
-    let out = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(command)
-        .current_dir(root)
-        .output()
-        .map_err(|e| e.to_string())?;
+    let mut child = std::process::Command::new("sh");
+    child.arg("-c").arg(command).current_dir(root);
+    // As clean as the battery (wave 0050): the hook's git variables
+    // and the inherited cargo target are forgotten here too, since a
+    // verify that runs the same crate's tests under a shared cache
+    // gets the shifted verdicts the battery refuses, and one that
+    // asks git for its repository sees the hook's (global review
+    // 2026-09-06, bugs cut R-18).
+    scope::forget_the_hook(&mut child);
+    child
+        .env_remove("CARGO_TARGET_DIR")
+        .env_remove("CARGO_BUILD_TARGET_DIR");
+    let out = child.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         return Ok(());
     }

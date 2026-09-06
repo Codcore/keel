@@ -38,6 +38,16 @@ fn is_test_file(name: &str) -> bool {
     TEST_SUFFIXES.iter().any(|suffix| name.ends_with(suffix))
 }
 
+/// Whether a path of the tree, relative to the root, is one
+/// `test_files` would read: under `test/` or `tests/`, outside any
+/// `node_modules`, with a test suffix. The §7.15 court asks this of
+/// a tree that is not on disk (wave 0050).
+pub fn is_test_path(rel: &str) -> bool {
+    (rel.starts_with("test/") || rel.starts_with("tests/"))
+        && !rel.split('/').any(|part| part == "node_modules")
+        && rel.rsplit('/').next().is_some_and(is_test_file)
+}
+
 fn is_source(name: &str) -> bool {
     [".js", ".mjs", ".cjs", ".ts", ".mts"]
         .iter()
@@ -210,8 +220,27 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             });
         }
         let key = crate::adapter::battery_key(root, &file);
+        // node prints the FILE as one passed entry where nothing in
+        // it ran -- a file with no test, a name pattern that matched
+        // nothing -- and that line is no test. A filter by the name
+        // alone threw out a red test NAMED as its file with it (global
+        // review 2026-09-06, bugs cut R-21). Measured on node 22: the
+        // file's own line never carries a `location:`, a failed test
+        // always does; a GREEN test carries none either -- so the
+        // reader of declarations decides that case: a test the file
+        // DECLARES under the file's own name is a test (review 0050
+        // R-2, where the gate said green and the battery said "not
+        // run" over one tree). Only a line no declaration answers for
+        // is the file's own.
+        let declared_as_file = std::fs::read_to_string(&file)
+            .unwrap_or_default()
+            .lines()
+            .any(|line| matches!(crate::tags::js_call(line), Some(crate::tags::JsCall::Named(name)) if name == shown));
         for entry in tap(&said) {
-            if entry.suite || entry.skipped || entry.name == shown {
+            if entry.suite
+                || entry.skipped
+                || (entry.name == shown && !entry.located && !declared_as_file)
+            {
                 continue;
             }
             out.entry((key.clone(), entry.name))
@@ -228,6 +257,10 @@ pub struct Entry {
     pub ok: bool,
     pub suite: bool,
     pub skipped: bool,
+    /// Whether node gave the entry a `location:` -- the line of the
+    /// test that failed. The FILE's own line (a file with no test in
+    /// it, or a name pattern that matched nothing) never has one.
+    pub located: bool,
 }
 
 /// node's TAP, read as node writes it: `ok N - <name>` or `not ok N -
@@ -271,6 +304,7 @@ pub fn tap(said: &str) -> Vec<Entry> {
         let name = unescape_tap(name);
         // The YAML block below it, if node wrote one.
         let mut suite = false;
+        let mut located = false;
         let mut look = at + 1;
         if lines.get(look).is_some_and(|l| l.trim() == "---") {
             look += 1;
@@ -282,6 +316,9 @@ pub fn tap(said: &str) -> Vec<Entry> {
                 if let Some(kind) = body.strip_prefix("type:") {
                     suite = kind.trim().trim_matches('\'') == "suite";
                 }
+                if body.starts_with("location:") {
+                    located = true;
+                }
                 look += 1;
             }
         }
@@ -290,6 +327,7 @@ pub fn tap(said: &str) -> Vec<Entry> {
             ok,
             suite,
             skipped,
+            located,
         });
         at += 1;
     }
@@ -404,6 +442,12 @@ fn node(root: &Path, args: &[String]) -> Result<String, Refusal> {
     // variable, the same way the courts drop an inherited
     // CARGO_TARGET_DIR.
     command.env_remove("NODE_COMPILE_CACHE");
+    // And the environment's own options: `--test-skip-pattern` or
+    // `--test-name-pattern` in NODE_OPTIONS took the red test out of
+    // the battery and the wave closed over it (global review
+    // 2026-09-06, bugs cut R-6). The verdict is the verdict of a
+    // silent environment.
+    command.env_remove("NODE_OPTIONS");
     let out = command.output().map_err(|e| Refusal {
         file: root.to_path_buf(),
         reason: ta(

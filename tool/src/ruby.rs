@@ -27,6 +27,15 @@ pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
     Ok(out)
 }
 
+/// Whether a path of the tree, relative to the root, is one either
+/// reading would take: `test/**/*_test.rb` or `spec/**/*_spec.rb`.
+/// The §7.15 court asks this of a tree that is not on disk (wave
+/// 0050).
+pub fn is_test_path(rel: &str) -> bool {
+    (rel.starts_with("test/") && rel.ends_with("_test.rb"))
+        || (rel.starts_with("spec/") && rel.ends_with("_spec.rb"))
+}
+
 /// The first reading's files: `test/**/*_test.rb`.
 pub fn minitest_files(root: &Path) -> Result<Vec<PathBuf>, Refusal> {
     files_named(root, "test", "_test.rb")
@@ -157,18 +166,22 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
         return run_spec(root, tag);
     }
     let relative = tag.file.strip_prefix(root).unwrap_or(&tag.file);
-    let out = Command::new("ruby")
+    let mut command = Command::new("ruby");
+    command
         .arg("-Itest")
         .arg(relative)
         .arg("-n")
         .arg(&tag.test)
-        .current_dir(root)
-        .output()
-        .map_err(|e| Refusal {
-            file: root.to_path_buf(),
-            reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
-            instead: t("adapter-ruby-failed-instead"),
-        })?;
+        .current_dir(root);
+    // The first reading forgot to forget the hook (global review
+    // 2026-09-06, bugs cut R-18): a test that asks git for its
+    // repository saw the hook's under GIT_DIR.
+    crate::scope::forget_the_hook(&mut command);
+    let out = command.output().map_err(|e| Refusal {
+        file: root.to_path_buf(),
+        reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
+        instead: t("adapter-ruby-failed-instead"),
+    })?;
     let said = format!(
         "{}{}",
         String::from_utf8_lossy(&out.stdout),
@@ -224,17 +237,18 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     for file in minitest_files(root)? {
         let relative = file.strip_prefix(root).unwrap_or(&file);
         let stem = crate::adapter::battery_key(root, &file);
-        let run = Command::new("ruby")
+        let mut command = Command::new("ruby");
+        command
             .arg("-Itest")
             .arg(relative)
             .arg("-v")
-            .current_dir(root)
-            .output()
-            .map_err(|e| Refusal {
-                file: root.to_path_buf(),
-                reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
-                instead: t("adapter-ruby-failed-instead"),
-            })?;
+            .current_dir(root);
+        crate::scope::forget_the_hook(&mut command);
+        let run = command.output().map_err(|e| Refusal {
+            file: root.to_path_buf(),
+            reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
+            instead: t("adapter-ruby-failed-instead"),
+        })?;
         let said = format!(
             "{}{}",
             String::from_utf8_lossy(&run.stdout),
@@ -254,16 +268,30 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         }
         if ran == 0 {
             // Nothing ran. Either the file declares no test at all --
-            // which is not a fault -- or it did not load, and then
-            // there is no verdict for anyone.
-            if let crate::adapter::Outcome::BuildBroken(words) =
-                classify(&said, run.status.success())
-            {
-                return Err(Refusal {
-                    file: file.clone(),
-                    reason: ta("adapter-ruby-broken", targs!("error" => words)),
-                    instead: t("adapter-ruby-broken-instead"),
-                });
+            // which is not a fault, and minitest still says `0 runs`
+            // -- or it did not load, or minitest never ran because
+            // nothing required `minitest/autorun` (bugs cut R-7): in
+            // the last two there is no verdict for anyone, and the
+            // refusal says which.
+            match classify(&said, run.status.success()) {
+                crate::adapter::Outcome::BuildBroken(words) => {
+                    return Err(Refusal {
+                        file: file.clone(),
+                        reason: ta("adapter-ruby-broken", targs!("error" => words)),
+                        instead: t("adapter-ruby-broken-instead"),
+                    });
+                }
+                crate::adapter::Outcome::NotRun if !summarised(&said) => {
+                    return Err(Refusal {
+                        file: file.clone(),
+                        reason: ta(
+                            "adapter-ruby-silent",
+                            targs!("file" => relative.display().to_string()),
+                        ),
+                        instead: t("adapter-ruby-silent-instead"),
+                    });
+                }
+                _ => {}
             }
         }
     }
@@ -326,10 +354,31 @@ pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
     {
         return crate::adapter::Outcome::NotRun;
     }
+    // No summary line at all and a clean exit: minitest never ran.
+    // Without `minitest/autorun` ruby loads the file, defines the
+    // class, says nothing and leaves with 0 -- and the first reading
+    // called that green (global review 2026-09-06, bugs cut R-7).
+    // Silence is "nothing ran", in both courts. A silent exit that
+    // is NOT clean stays a failure: the direction that cannot turn
+    // red into green (§7.12).
+    if success && !summarised(said) {
+        return crate::adapter::Outcome::NotRun;
+    }
     if success {
         return crate::adapter::Outcome::Green;
     }
     crate::adapter::Outcome::Failed
+}
+
+/// Whether minitest spoke its summary line at all -- `3 runs, 3
+/// assertions, 0 failures, …` -- the one line every run prints, a run
+/// of zero tests included.
+fn summarised(said: &str) -> bool {
+    said.lines().any(|line| {
+        let trimmed = line.trim_start();
+        let digits = trimmed.chars().take_while(|c| c.is_ascii_digit()).count();
+        digits > 0 && trimmed[digits..].starts_with(" runs, ")
+    })
 }
 
 /// One example as rspec's JSON reports it: the id a run selects it
@@ -525,6 +574,14 @@ fn rspec(root: &Path, args: &[String]) -> Result<Said, Refusal> {
         .args(["--format", "json", "--out"])
         .arg(&out_file)
         .arg("--no-color")
+        // The project's own `.rspec` and nothing else: without `-O`
+        // rspec also reads `~/.rspec` and `./.rspec-local` -- the
+        // machine's and the person's files, not the project's -- and
+        // a `--dry-run` in either made every example "passed" without
+        // running one (global review 2026-09-06, bugs cut R-6).
+        // Measured on RSpec 3.13: with `--options .rspec` only the
+        // project's file is read, and its absence is not an error.
+        .args(["--options", ".rspec"])
         .args(args)
         .current_dir(root)
         .env_remove("SPEC_OPTS");

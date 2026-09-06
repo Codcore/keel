@@ -187,12 +187,12 @@ fn the_two_answers_a_machine_can_give() {
     let mut perms = std::fs::metadata(&shim).unwrap().permissions();
     std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o755);
     std::fs::set_permissions(&shim, perms).unwrap();
-    let was = std::env::var("PATH").unwrap_or_default();
-    // SAFETY: this probe runs in its own binary and sets PATH before
-    // it asks, on the single thread the harness gives this test.
-    unsafe { std::env::set_var("PATH", format!("{}:{was}", bin.display())) };
-    let answer = common::machine_has("brokentool");
-    unsafe { std::env::set_var("PATH", &was) };
+    // Asked by its own path, not through PATH: the first cut set the
+    // process's PATH around the question, and the tests of this
+    // binary run in parallel threads -- `set_var` races every other
+    // thread's `Command`, and the closing court of wave 0050 caught
+    // this probe red in one of its three runs (§7.13 doing its job).
+    let answer = common::machine_has(shim.to_str().unwrap());
     match answer {
         common::Machine::Has => panic!("a tool that exits 3 did not answer"),
         common::Machine::Lacks(why) => assert!(

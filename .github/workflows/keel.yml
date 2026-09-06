@@ -1,9 +1,10 @@
 # keel (generated -- do not edit; keel update rewrites this file)
 #
 # The first step installs the tool; the rest judge with it.
-# There is no released binary yet, so that step builds it from source:
-# it needs git and cargo on the runner, and it costs minutes on a
-# cold cache. If your project already puts `keel` on PATH some other
+# It takes the published release of the pinned version where one
+# exists, and builds it from source otherwise: that road needs git
+# and cargo on the runner, and it costs minutes on a cold cache. If
+# your project already puts `keel` on PATH some other
 # way, replace this step with yours -- the courts below do not care
 # how it got there. To keep an edited copy for good, delete this
 # file's line from [generated] in keel.toml as well: otherwise
@@ -41,6 +42,11 @@ jobs:
           KEEL_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: keel check .
       - name: the closure court
+        # The same branch for the same reason: without it this
+        # court counted the blockers of no wave on a pull_request
+        # and left green over a wave still in work.
+        env:
+          KEEL_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: keel close .
       - name: the toolchain this project pins
         # rust-toolchain.toml names 1.94.1; rustup honours it on

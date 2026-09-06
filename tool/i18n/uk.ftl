@@ -186,6 +186,8 @@ adapter-rspec-silent = rspec вийшов, не написавши JSON — ос
 adapter-rspec-silent-instead = це не відсутність rspec: щось зупинило його до прикладів (abort у spec_helper, вихід із конфіга) — прочитай його слова і повтори
 run-line-rspec-note = # -e — збіг за підрядком: може бігти більше за це імʼя; суд бере ідентифікатор
 tags-vanished = тег сценарію "{ $scenario }" був у точці розгалуження і зник у HEAD — сценарій живий
+tags-withdrawn-live = тег тесту "{ $test }" тримає "{ $scenario }" — сценарій знято (§2.12), а тест лишився з його тегом
+tags-withdrawn-live-instead = тест знятої обіцянки видаляється тим самим PR, що її зняв (§2.12); тест, що тримає правило наступника, — перетегуй на наступника
 tags-vanished-instead = поверни тест або зніми сценарій withdrawn свідомо (§7.15, §2.12); старі обіцянки не роззброюються мовчки
 tags-vanished-gone = тег сценарію "{ $scenario }" був у точці розгалуження і зник у HEAD — разом із самим сценарієм: обіцянку стерто цілком
 tags-vanished-gone-instead = документи не видаляються (§4.12): поверни хвилю і зніми сценарій withdrawn у її файлі (§2.12) — знищення без сліду заборонене
@@ -267,6 +269,8 @@ adapter-ruby-failed = ruby не запустився: { $error }
 adapter-ruby-failed-instead = постав ruby на PATH — адаптер кличе його так само, як людина в терміналі
 adapter-ruby-broken = тестовий файл { $error }
 adapter-ruby-broken-instead = ruby не збирає наперед: файл, який не завантажився, не дає вироку жодному тесту — полагодь його і повтори
+adapter-ruby-silent = ruby не сказав ні слова про біг файлу { $file }: підсумку minitest «N runs, …» нема, а вийшов із 0
+adapter-ruby-silent-instead = require "minitest/autorun" у файлі тестів — без нього minitest не біжить, і мовчання не читається як зелене
 adapter-rspec-failed = rspec не запустився: { $error }
 adapter-rspec-failed-instead = постав rspec на PATH — адаптер кличе його так само, як людина в терміналі; JSON він пише у файл поза проєктом, і без файла вироку нема
 adapter-rspec-broken = rspec не завантажив приклади: { $error }
@@ -284,6 +288,12 @@ adapter-cargo-failed = cargo відмовляє: { $error }
 adapter-cargo-failed-instead = судові потрібен робочий cargo (журнал А3); зроби так, щоб cargo тут відповідав, і повтори
 adapter-battery-mismatch = cargo оголошує { $stems } цілей і друкує { $blocks } блоків вироків — зшивка не сходиться (ціль із harness = false?)
 adapter-battery-mismatch-instead = суд не судить по зсунутому шву; віддай тій цілі harness або жени її окремо, тоді повтори keel close
+adapter-battery-counts = cargo нарахував у блоці { $passed } зелених і { $failed } червоних, а читач прочитав { $green } і { $red } — рядки вироків не сходяться з підсумком cargo
+adapter-battery-counts-instead = тест, що пише в stdout повз libtest (дитина-процес), міг підробити рядок вироку чи блоку; зроби його мовчазним або жени окремо, тоді повтори keel close
+adapter-cargo-red-unseen = cargo вийшов із { $code }, а читач не побачив жодного червоного вироку — бінарник тестів упав до підсумку або говорить незнайомою формою
+adapter-cargo-red-unseen-instead = жени `cargo test --no-fail-fast` рукою і подивись, що впало; без прочитаного червоного суд не судить
+adapter-battery-alike = cargo оголошує ціль "{ $target }" двічі — вироки двох цілей з одним іменем не розрізнити (воркспейс?)
+adapter-battery-alike-instead = цей реліз веде один крейт: жени члени воркспейсу окремо, кожен зі своїм keel.toml, або дай цілям різні імена — тоді повтори keel close
 
 ## модуль gate
 gate-mode = mode: { $mode }
@@ -462,6 +472,8 @@ close-needs-adapter = судові закриття потрібен адапт�
 close-needs-adapter-instead = постав adapter = одним із тих, що реліз знає: { $known } (NEW-CONCEPT, «Конфіг»)
 close-blockers = блокери хвилі цієї гілки { $wave }: { $count } — повна хвиля не зливається недоведеною (§6.5, §9.9)
 close-no-blockers = блокерів нема: гілка не зветься як незакрита хвиля — стани вище інформують
+close-form-judged = суд форми (§7.6): знахідок { $count } — ті самі контракти, що судить keel check
+close-form-blockers = форму не тримає код: { $count } — контракт, чиєї форми код не тримає, не зливається (§7.6)
 close-verify-count = verify-команд суджено: { $count }
 close-verify-passed = verify "{ $command }" контракту { $contract } — пройшла
 close-verify-failed = verify "{ $command }" контракту { $contract } — ВПАЛА ({ $words }) — зламана чужа обіцянка не зливається (§2.8)

@@ -52,6 +52,16 @@ fn is_test_file(name: &str) -> bool {
     name.ends_with(".py") && (name.starts_with("test_") || name.ends_with("_test.py"))
 }
 
+/// Whether a path of the tree, relative to the root, is one
+/// `test_files` would read: under `tests/`, named as pytest collects.
+/// The §7.15 court asks this of a tree that is not on disk (wave
+/// 0050).
+pub fn is_test_path(rel: &str) -> bool {
+    rel.strip_prefix("tests/")
+        .and_then(|rest| rest.rsplit('/').next())
+        .is_some_and(is_test_file)
+}
+
 /// The `.py` files in `tests/` this adapter does NOT read: pytest
 /// collects tests only from `test_*.py` and `*_test.py`, so a
 /// `conftest.py` or a helper is walked past -- and named, as the
@@ -182,16 +192,25 @@ fn bare_name(name: &str) -> String {
 /// it prints them: the `-rA` summary (`PASSED tests/test_toy.py::x`,
 /// `FAILED tests/test_toy.py::y - assert …`) and the `-v` progress
 /// line (`tests/test_toy.py::x PASSED [ 33%]`). The file, the node
-/// after the first `::` (classes and all), and the verdict word.
+/// after the first `::` (classes and all), and the verdict word --
+/// every distinct verdict word of a node, since a node may get two.
 pub fn ran(said: &str) -> Vec<(String, String, String)> {
     const VERDICTS: [&str; 6] = ["PASSED", "FAILED", "ERROR", "SKIPPED", "XFAIL", "XPASS"];
     let mut out: Vec<(String, String, String)> = Vec::new();
-    let mut seen: std::collections::BTreeSet<(String, String)> = std::collections::BTreeSet::new();
+    // One node is spoken of twice by shape (the progress line and
+    // the -rA summary) and may be spoken of twice by VERDICT: `PASSED`
+    // for the body and `ERROR` for its teardown. The first roll kept
+    // the first word only, and a test whose teardown broke came out
+    // green in the battery while the gate saw pytest leave with 1
+    // (global review 2026-09-06, bugs cut R-3). Every distinct word
+    // is kept, and the battery folds them -- red wins.
+    let mut seen: std::collections::BTreeSet<(String, String, String)> =
+        std::collections::BTreeSet::new();
     let mut take = |file: &str, name: &str, verdict: &str| {
         if !file.ends_with(".py") || name.is_empty() {
             return;
         }
-        if seen.insert((file.to_string(), name.to_string())) {
+        if seen.insert((file.to_string(), name.to_string(), verdict.to_string())) {
             out.push((file.to_string(), name.to_string(), verdict.to_string()));
         }
     };
@@ -326,6 +345,12 @@ fn pytest(root: &Path, args: &[String]) -> Result<(String, i32), Refusal> {
         .args(["-p", "no:cacheprovider", "-rA"])
         .args(args)
         .env("PYTHONDONTWRITEBYTECODE", "1")
+        // The environment's own options never reach the run: a
+        // `--deselect` in PYTEST_ADDOPTS took the tagged test out of
+        // the battery and the wave closed over its red (global review
+        // 2026-09-06, bugs cut R-6). The project's own addopts in its
+        // config are read as before -- they are the project's word.
+        .env_remove("PYTEST_ADDOPTS")
         .current_dir(root);
     crate::scope::forget_the_hook(&mut command);
     let out = command.output().map_err(|e| Refusal {

@@ -41,12 +41,17 @@ transforms:
       - tool/src/close.rs
       - tool/src/check.rs
       - tool/src/adapter.rs
+      - tool/src/elixir.rs
+      - tool/src/python.rs
+      - tool/src/javascript.rs
+      - tool/src/ruby.rs
       - keel/contracts/tool-close.md
       - keel/contracts/tool-adapter-cargo.md
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/every_red_test.rs
       - tool/tests/vanished_tongues_test.rs
+      - tool/tests/machine_test.rs
       - keel/waves/0006-wave-closure.md
       - keel/waves/0016-drifted-records.md
       - tool/tests/next_test.rs
@@ -73,6 +78,7 @@ transforms:
       - tool/i18n/en.ftl
       - tool/tests/outside_word_test.rs
       - tool/tests/pin_hand_test.rs
+      - tool/tests/rev_test.rs
       - keel/waves/0039-the-tool-in-someone-elses-project.md
   the-generated-close-knows-its-branch:
     implements:
@@ -93,7 +99,7 @@ transforms:
 
 decisions:
   functional.appropriateness: "свідомо без тесту: жодного нового суду — ті самі суди читають те, чого не читали: ціль cargo, обидва вироки вузла pytest, живість заявника червоного, форму контракту в close, всі пʼять мов у §7.15"
-  performance.time-behaviour: "свідомо без тесту, і ціна названа: суд форми в close — читання файлів модулів без жодного бігу, той самий, що вже біжить у check; §7.15 для всіх мов — один `git ls-tree` бази і один `git show` на файл тестів, як для rust і досі"
+  performance.time-behaviour: "свідомо без тесту, і ціна названа: суд форми в close — читання файлів модулів без жодного бігу, той самий, що вже біжить у check; §7.15 для всіх мов — один `git ls-tree` бази, один `git show` на файл тестів, як для rust і досі, і одне читання keel.toml на кожен шлях дерева бази для правила мови (рецензія R-11: 289 шляхів — 10,2 с проти 10,35 с бази, різниці нема)"
   performance.capacity: "не застосовується"
   performance.resource-utilisation: "не застосовується"
   compatibility.co-existence: "свідомо без тесту: PYTEST_ADDOPTS і NODE_OPTIONS знімаються лише з дітей батареї — оболонка людини їх не втрачає; `~/.rspec` і `.rspec-local` — файли машини і людини, не проєкту, тож суд їх не читає, а проєктний `.rspec` читає, як і досі"
@@ -225,9 +231,11 @@ HEAD відʼєднаний, тож `keel close` рахує блокери «с�
 названо.
 **Тоді** rust: ключ вироку — ціль, як її оголошує cargo (`unittests
 src/lib.rs` ≠ `unittests src/main.rs`; `tests/w_test.rs` лишається
-стемом, як у тегах), червоне не перезаписується зеленим, розділ
-`failures:` не читається як вироки, а дві цілі з одним іменем — відмова,
-що їх називає; python: тест із будь-яким червоним вироком — червоний;
+стемом, як у тегах), червоне не перезаписується зеленим, рядок вироку
+чи блоку, надрукований самим тестом чи його дитиною, — відмова за
+власними числами cargo і ніколи не вирок (слово `failures:` від дитини
+не ховає червоного під ним), а дві цілі з одним іменем — відмова, що
+їх називає; python: тест із будь-яким червоним вироком — червоний;
 javascript: тест, названий як файл, — тест зі своїм вироком; ruby: біг,
 що не дав підсумку `N runs,`, — «не бігло», ніколи не зелене, і обидва
 суди кажуть про нього те саме.

@@ -1319,10 +1319,27 @@ fn tag_rows(
 
     let mut out = Vec::new();
     for tag in found {
+        let shown = tag.file.strip_prefix(root).unwrap_or(&tag.file);
+        // A live tag over a scenario withdrawn everywhere: §2.12 says
+        // the test goes with the promise, in the same PR. The court
+        // walked past it in silence before wave 0050 (global review
+        // 2026-09-06, methodology cut R-8) -- and the closing court
+        // never saw its red either.
         if gone.contains(tag.scenario.as_str()) {
+            out.push((
+                shown.display().to_string(),
+                format!(
+                    "{}\n           {}: {}",
+                    ta(
+                        "tags-withdrawn-live",
+                        targs!("test" => tag.test.clone(), "scenario" => tag.scenario.clone()),
+                    ),
+                    t("word-instead"),
+                    t("tags-withdrawn-live-instead")
+                ),
+            ));
             continue;
         }
-        let shown = tag.file.strip_prefix(root).unwrap_or(&tag.file);
         match revs.get(&tag.scenario) {
             None => out.push((
                 shown.display().to_string(),
@@ -1465,25 +1482,11 @@ fn vanished_rows(
     let Ok((base, _)) = scope::compare_base(root) else {
         return Vec::new();
     };
-    let Ok(crate_dir) = adapter::crate_root(root) else {
-        return Vec::new();
-    };
-    let tests_rel = crate_dir
-        .strip_prefix(root)
-        .map(|p| p.join("tests"))
-        .unwrap_or_else(|_| std::path::PathBuf::from("tests"));
-    let listing = git_out(
-        root,
-        &[
-            "ls-tree",
-            "-r",
-            "--name-only",
-            &base,
-            "--",
-            &tests_rel.display().to_string(),
-        ],
-    )
-    .unwrap_or_default();
+    // The base tree whole, and the tongue's own rule for which of
+    // its paths is a test file (wave 0050): the court used to ask
+    // for a crate and, refused in every other tongue, judged nothing
+    // while the summary line still claimed §7.15.
+    let listing = git_out(root, &["ls-tree", "-r", "--name-only", &base]).unwrap_or_default();
 
     let head_scenarios: std::collections::BTreeSet<&str> =
         found.iter().map(|t| t.scenario.as_str()).collect();
@@ -1496,7 +1499,11 @@ fn vanished_rows(
 
     let mut out = Vec::new();
     let mut named: std::collections::BTreeSet<String> = Default::default();
-    for rel in listing.lines().map(str::trim).filter(|l| !l.is_empty()) {
+    for rel in listing
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && adapter::is_test_path(root, l))
+    {
         let Some(text) = git_out(root, &["show", &format!("{base}:{rel}")]) else {
             continue;
         };
