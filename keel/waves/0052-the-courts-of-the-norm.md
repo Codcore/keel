@@ -43,6 +43,7 @@ transforms:
       - tool/tests/weight_of_the_branch_test.rs
       - tool/tests/close_test.rs
       - tool/tests/rev_test.rs
+      - tool/tests/status_test.rs
   the-scope-court-and-the-anchor:
     implements:
       - furniture-is-known-by-its-digest
@@ -165,7 +166,10 @@ exit 0 (R-5): факт merge ніхто не питав, і параграф ц�
 тепер тримає сценарій, і текст 0017 не змінюється. У другу —
 `tool/tests/close_test.rs` (проба 0037 звала легку хвилю закритою без
 факту merge в пісочниці без main; тепер чекає файла в main) і
-`tool/tests/rev_test.rs` (золота редакція tool-docs). У третю —
+`tool/tests/rev_test.rs` (золота редакція tool-docs) і
+`tool/tests/status_test.rs` (проба 0012 звала легку хвилю закритою
+фактом merge у пісочниці без git — тепер main тримає файл, а голова
+відчеплена, щоб рядок гілки лишився чесним). У третю —
 `tool/tests/plan_branch_test.rs`: проба 0036 (R-12) звала скіл, CI-файл
 і `AGENTS.md`, яких інструмент не писав, меблями на план-гілці — проти
 другого речення §4.8; тепер вони код, як каже параграф. У четверту
