@@ -241,6 +241,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let mut refs_unjudged: u64 = 0;
     let mut refs_no_history: u64 = 0;
     let mut historic_items: Vec<String> = Vec::new();
+    let mut open_slugs: Vec<String> = Vec::new();
     // The same count on a cut-short clone: the skipped number must
     // be the number the whole clone would have checked (wave 0033),
     // so it counts revisions, not rows, exactly as the historic one.
@@ -262,6 +263,11 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             Some(Ok(found)) => crate::close::structural(root, wave, found).unwrap_or(false),
             _ => false,
         };
+        // The crossing court of §8.8 asks which waves are still open
+        // (wave 0054): a closed wave's scope is history.
+        if !closed {
+            open_slugs.push(wave.slug.clone());
+        }
         let wave_path = format!("keel/waves/{}.md", wave.slug);
         // A withdrawn scenario is outside judgement (§2.12): its
         // proves is not followed -- a guard that lies gets deleted.
@@ -446,6 +452,18 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         .filter(|c| c.withdrawn.is_none())
         .map(|c| c.slug.clone())
         .collect();
+    // §8.8 by the crossing court (wave 0054): two open waves over one
+    // scope line, no depends_on between them -- measured as zero
+    // findings before this.
+    for (wave_slug, reason, instead) in graph::crossing_findings(&scan.waves, &open_slugs) {
+        rows.push((
+            format!("keel/waves/{wave_slug}.md"),
+            Some(format!(
+                "{reason}\n           {}: {instead}",
+                t("word-instead")
+            )),
+        ));
+    }
     for (wave_slug, reason, instead) in graph::cross_findings(&scan.waves, &live_contracts) {
         rows.push((
             format!("keel/waves/{wave_slug}.md"),

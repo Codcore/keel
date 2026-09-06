@@ -161,6 +161,85 @@ pub fn wave_findings(wave: &Wave) -> Vec<(String, String)> {
 
 /// Cross-wave judgement: depends_on existence and cycles (§7.2), a
 /// superseded_by successor unknown to any wave.
+/// The crossing court of §8.8 (wave 0054): two OPEN waves declaring
+/// one scope line without a `depends_on` edge between them, either
+/// way and however long the chain, cross -- and "a crossing of files
+/// between independent waves is a question at planning time". The
+/// finding lands on the later wave and names the file and both waves.
+/// Measured before the wave: two approved, unstarted waves both
+/// declaring `src/lib.rs` were zero findings on main and on the plan
+/// branch alike (the operator's decision of 2026-09-06).
+///
+/// `open` names the waves still open -- neither structurally closed
+/// nor cancelled -- and the caller decides that, since closure is a
+/// question of tags and git, not of headers; the chain of
+/// `depends_on` is followed through every wave given, open or not.
+/// Two `one new in` lines over one directory cross too; a `one new
+/// in` beside a plain path in that directory does not -- they are
+/// different lines, and the court reads lines.
+pub fn crossing_findings(waves: &[Wave], open: &[String]) -> Vec<(String, String, String)> {
+    use crate::i18n::{t, ta};
+    use crate::targs;
+    use std::collections::BTreeSet;
+
+    fn lines_of(wave: &Wave) -> BTreeSet<String> {
+        wave.transforms
+            .iter()
+            .flat_map(|(_, t)| t.files.iter())
+            .map(|line| match line {
+                crate::docs::ScopeLine::Path(path) => path.clone(),
+                crate::docs::ScopeLine::OneNewIn(dir) => format!("one new in {dir}"),
+            })
+            .collect()
+    }
+    // Reachability along depends_on, from one slug towards another.
+    fn reaches(waves: &[Wave], from: &str, to: &str) -> bool {
+        let mut seen: BTreeSet<&str> = BTreeSet::new();
+        let mut stack = vec![from];
+        while let Some(slug) = stack.pop() {
+            if slug == to {
+                return true;
+            }
+            if !seen.insert(slug) {
+                continue;
+            }
+            if let Some(wave) = waves.iter().find(|w| w.slug == slug) {
+                stack.extend(wave.depends_on.iter().map(String::as_str));
+            }
+        }
+        false
+    }
+
+    let open: Vec<&Wave> = waves
+        .iter()
+        .filter(|w| w.cancelled.is_none() && open.iter().any(|o| o == &w.slug))
+        .collect();
+    let mut out = Vec::new();
+    for (i, first) in open.iter().enumerate() {
+        let mine = lines_of(first);
+        for second in &open[i + 1..] {
+            if reaches(waves, &first.slug, &second.slug)
+                || reaches(waves, &second.slug, &first.slug)
+            {
+                continue;
+            }
+            for line in lines_of(second) {
+                if mine.contains(&line) {
+                    out.push((
+                        second.slug.clone(),
+                        ta(
+                            "graph-crossing",
+                            targs!("file" => line, "first" => first.slug.clone(), "second" => second.slug.clone()),
+                        ),
+                        t("graph-crossing-instead"),
+                    ));
+                }
+            }
+        }
+    }
+    out
+}
+
 pub fn cross_findings(waves: &[Wave], contracts: &[String]) -> Vec<(String, String, String)> {
     use crate::i18n::{t, ta};
     use crate::targs;
