@@ -40,6 +40,7 @@ transforms:
       - tool/i18n/en.ftl
       - keel/contracts/tool-cli.md
       - tool/tests/checked_line_test.rs
+      - tool/tests/adapter_choice_test.rs
   the-root-copy-is-held:
     implements:
       - the-root-copy-does-not-drift
@@ -162,6 +163,12 @@ R-11 зміряла шість місць коду; «`-C` і `--branch` з ко
 зробив би власний CI червоним), теґ `v1.0.0` на злитий коміт пушить
 агент, workflow збирає й публікує. Типізовані вироки `--json` і
 структура пакета рецензента — ще одна хвиля після релізу.
+
+**Дрейф (§4.6), названий уголос.** У третю трансформу дописано
+`tool/tests/adapter_choice_test.rs`: проба 0038 тримала «1 річ не
+перевірено» над проєктом без адаптера, і трималась лише тим, що поруч
+стояла інша межа, — тепер стояння суду тегів осторонь саме лічиться,
+і проба тримає рівність числа рядкам «не перевірено».
 
 ## scenario: the-norm-names-what-holds-it
 

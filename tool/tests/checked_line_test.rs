@@ -86,14 +86,19 @@ fn checked_line(said: &str) -> &str {
 fn check_says_only_what_it_judged() {
     // --- no git, no adapter: scope and tags were not judged, and the
     // verdict counts them so, and does not list them as checked ---
+    // A wave that declares files and a promise: the scope court has
+    // something to compare and no git to compare with, the tag court
+    // something to verify and no adapter -- two stand-downs, counted.
+    // (A directory with no wave at all is asked nothing: wave 0031
+    // holds that such a verdict names no limit.)
     let dir = keel_sandbox("checkedbare");
     std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\n").unwrap();
     std::fs::write(dir.join("README.md"), "# readme\n").unwrap();
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
         format!(
-            "---\ntransforms:\n  tidy:\n    chore: \"прибирання\"\n    files:\n      - README.md\n{}---\n\n## transform: tidy\nтіло\n",
-            decisions_except(&[])
+            "---\nscenarios:\n  it-works:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-works\n    files:\n      - README.md\n{}---\n\n## scenario: it-works\n{BODY}## transform: work\nтіло\n",
+            decisions_except(&["functional.correctness"])
         ),
     )
     .unwrap();
@@ -114,8 +119,9 @@ fn check_says_only_what_it_judged() {
     );
     let line = checked_line(&said);
     assert!(
-        !line.contains("scope") && !line.contains("тег"),
-        "the line naming what was checked does not name scope or tags, which were not:\n{line}"
+        !line.contains("scope гілки") && !line.contains("тегах тестів"),
+        "the line naming what was checked does not name the scope court or the tag court, \
+         which stood down:\n{line}"
     );
 
     // --- git and an adapter: the same courts ran, and the line says
@@ -151,8 +157,9 @@ fn check_says_only_what_it_judged() {
     let (said, _) = keel(&dir, &["check"]);
     let line = checked_line(&said);
     assert!(
-        line.contains("scope") && line.contains("тег"),
-        "with git and an adapter the line names scope and tags among what was checked:\n{line}"
+        line.contains("scope гілки") && line.contains("тегах тестів"),
+        "with git and an adapter the line names the scope court and the tag court among what \
+         was checked:\n{line}"
     );
     assert_eq!(
         summary_unchecked(&said),

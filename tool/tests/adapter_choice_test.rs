@@ -149,10 +149,22 @@ fn the_adapter_is_chosen_by_name() {
         said.contains("теги тестів не звірялись: adapter у keel.toml не названий"),
         "the tag court says it stood down, and why:\n{said}"
     );
+    // The stand-down is one of the things counted as not checked
+    // (wave 0054: the count used to be blind to the courts that stood
+    // down, and this held "1" only because another limit stood).
+    let unchecked = said
+        .lines()
+        .filter(|l| l.starts_with("не перевірено"))
+        .count();
     assert!(
-        said.contains("1 річ не перевірено"),
+        said.lines()
+            .any(|l| l.starts_with("не перевірено") && l.contains("теги тестів не звірялись")),
+        "the tag court's stand-down is a line counted as not checked:\n{said}"
+    );
+    assert!(
+        said.contains(&format!("{unchecked} ре")) || said.contains(&format!("{unchecked} річ")),
         "and the summary counts that stand-down rather than reading \
-         as a clean green:\n{said}"
+         as a clean green ({unchecked} lines):\n{said}"
     );
 }
 
