@@ -45,8 +45,10 @@ transforms:
       - the-config-is-written-as-toml
     files:
       - tool/src/ask.rs
+      - tool/src/main.rs
       - keel/contracts/tool-ask.md
       - tool/tests/config_quoting_test.rs
+      - tool/tests/hooks_off_test.rs
   the-installer-keeps-its-word:
     implements:
       - the-installer-takes-what-it-promises
@@ -142,7 +144,7 @@ transforms:
       - keel/reviews/0055-the-first-day-in-a-strangers-project.md
 decisions:
   functional.appropriateness: "свідомо без тесту: жодної нової команди — хвиля лагодить те, що фінальні рецензії 2026-09-06 зміряли в чужому проєкті на пʼяти мовах; кожен рядок цитує параграф, який тримає (§4.8, §5.5, §6.2, §7.12, §7.16, §8.4, §9.7, §9.9)"
-  performance.time-behaviour: "свідомо без тесту, і ціна названа: жоден суд не стає повільнішим — читачі виходу бігунів дістають по одній перевірці (позначка S, рядок (skipped), код виходу); проба з harness = false і хук pytest коштують два біги cargo/pytest у батареї"
+  performance.time-behaviour: "зміряно, і ціна названа: рецензент 0055 (R-13) зміряв `keel check` на цьому дереві +3…+7 % — суд питав адаптера про lock-файли на КОЖЕН файл порівняння, а суд закриття спускав два git-процеси на кожну хвилю; обидва місця виправлено (lock-файли — раз на порівняння, звіт — один `git show` на дорозі, що відповідає), решта правок читає той самий вихід бігуна ще однією перевіркою (позначка S, рядки (skipped)/(excluded), код виходу); проба з harness = false і хук pytest коштують два біги cargo/pytest у батареї"
   performance.capacity: "не застосовується"
   performance.resource-utilisation: "не застосовується"
   compatibility.co-existence: "тримає furniture-is-not-drift: lock-файли, які лишає бігун мови, і .gitkeep під keel/ — не дрейф і не змінений контракт; у проєкт користувача інструмент нового не пише"
@@ -159,7 +161,7 @@ decisions:
   security.resistance: "свідомо без окремої роботи, і названо: чужий текст у назвах тестів і в keel.toml проходить через екранування (TOML, регулярні вирази, shell) — грали фінальні рецензенти, тримають старі проби; нових поверхонь хвиля не відкриває"
   maintainability.modularity: "свідомо без тесту: кожна правка живе в модулі, чиє слово вона виправляє — адаптер, ask, holding, gate, next, close, scope, generated, speak; нового модуля нема"
   maintainability.reusability: "не застосовується"
-  maintainability.testability: "тримає the-courts-agree-on-one-tree: мутант cargo exit 101 при зелених вироках, що пережив батарею, дістає пробу з harness = false; дев'ять проб народжуються червоними на першій клаузі (§7.12)"
+  maintainability.testability: "тримає the-courts-agree-on-one-tree: мутант cargo exit 101 при зелених вироках, що пережив батарею, дістає пробу з harness = false; дев'ять проб народжуються справжнім падінням, без жодного рядка mutant: (§7.12; вісім із дев'яти падають на першій клаузі — десята клауза `one_verdict_test` про пояс, який стояв до хвилі)"
   flexibility.scalability: "не застосовується"
   flexibility.replaceability: "не застосовується"
   safety.operational-constraints: "свідомо без тесту, і названо: реліз 1.0.0 іде наступною легкою хвилею після цієї (рішення оператора 2026-09-06); черга після неї — решта знахідок фінальних рецензій, названа в BACKLOG поіменно"
@@ -222,8 +224,9 @@ launcher-а про `.keel-current` і `keel.before-launcher` тримає лиш
 проходить як «поза судом»» без «натомість»; `keel next` каже, куди
 ляже звіт, і не каже, яким комітом (R-6; відтворено). Незакомічений
 файл `keel/reviews/<хвиля>.md` — `keel close` читає з робочого дерева
-і каже «closed» (R-7). Відмови hook-а — 34 ключі `gate-*`, з них
-«натомість» несуть чотири (методика R-4).
+і каже «closed» (R-7). Відмови hook-а — 34 ключі `gate-*`; окремий ключ «натомість» має один
+із них, а вплетену пораду несуть чотири тексти (методика R-4; лічено
+рецензентом 0055 R-11).
 
 **Меблі як дрейф.** `keel init` на гілці кладе `keel/contracts/.gitkeep`
 — `check`/`next`/`close` кажуть «гілка легкої хвилі змінює контракт

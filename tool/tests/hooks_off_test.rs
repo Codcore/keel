@@ -77,13 +77,17 @@ fn the_answers_are_obeyed() {
     std::fs::write(dir.join("myhooks/commit-msg"), "#!/bin/sh\n# чужий\n").unwrap();
     git(&dir, &["config", "core.hooksPath", "myhooks"]);
     let said = init(&dir, &["--no-ask", "--no-hooks", "--lang", "uk"]);
+    // In the project's own tongue, which is what `--lang uk` asks
+    // for: since wave 0055 the frame reports in the language just
+    // answered, and this clause used to read English over a
+    // Ukrainian project (review 0055 R-14).
     assert!(
-        said.contains("not ours"),
+        said.contains("не наш"),
         "a stranger's hook where git really reads it is named as \
          such, not reported absent (§9.7):\n{said}"
     );
     assert!(
-        !said.contains("remove"),
+        !said.contains("прибери"),
         "and nobody is told to remove somebody else's file:\n{said}"
     );
 

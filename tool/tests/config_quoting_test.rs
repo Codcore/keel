@@ -133,4 +133,41 @@ fn the_config_is_written_as_toml() {
     );
     let (said, _) = keel(&dir, &["check"]);
     parses(&said, "the active ci line");
+
+    // -- and the file is born in the tongue that was answered -------
+    // With no config yet there is none to read, so the frame wrote
+    // its header -- and its own report -- in English over `--lang uk`
+    // (review 0055 R-14).
+    let dir = ruby_project("tomluk");
+    let (said, code) = keel(&dir, &["init", "--no-ask", "--lang", "uk"]);
+    assert_eq!(code, 0, "the frame stands:\n{said}");
+    assert!(
+        said.contains("рама методики"),
+        "the frame reports in the tongue just answered:\n{said}"
+    );
+    let text = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    assert!(
+        text.lines()
+            .next()
+            .is_some_and(|line| line.contains("налаштування")),
+        "and the header of the born config speaks it too:\n{text}"
+    );
+
+    // -- every name the config takes, the flag takes ----------------
+    // `adapter = "node"` is a name this release reads, and the flag
+    // refused it while the courts understood it (review 0055 R-14).
+    for name in ["node", "js", "ts", "javascript", "rust", "cargo"] {
+        let dir = ruby_project(&format!("tomlname{name}"));
+        let (said, code) = keel(&dir, &["init", "--no-ask", "--adapter", name]);
+        assert_eq!(
+            code, 0,
+            "`--adapter {name}` is taken, as keel.toml takes it:\n{said}"
+        );
+        let config = keel::config::read(&dir).expect("the config reads back");
+        assert_eq!(
+            config.adapter.as_deref(),
+            Some(name),
+            "and stands in the file as written"
+        );
+    }
 }

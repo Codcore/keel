@@ -199,7 +199,16 @@ pub fn from_flags(given: &[(String, String)]) -> Result<Answers, Refusal> {
         // command cannot be picked from a list of one).
         if !free_text(question.field) {
             for word in &named {
-                if !question.choices.contains(&word.as_str()) {
+                // The adapter takes every name the CONFIG takes: the
+                // menu offers one name per tongue, but `adapter =
+                // "node"` is a name this release reads, and the flag
+                // refused what the courts already understood (review
+                // 0055 R-14) -- the same shape review 0038 R-5 named
+                // for `ruby`.
+                let known = question.choices.contains(&word.as_str())
+                    || (question.field == "adapter"
+                        && crate::config::Language::named(word).is_some());
+                if !known {
                     return Err(unknown_value(question, word));
                 }
             }
