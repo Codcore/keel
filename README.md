@@ -268,6 +268,14 @@ Exit codes: `0` green, `1` findings, `2` a refusal. `--help` and `--version` are
 answered anywhere; an unknown flag or a second path is refused, never read as a
 directory.
 
+What is **not** there, so nobody looks for it: `keel check --fast` — the v1
+subset for pre-commit is not carried, the commit-msg hook (`keel gate`) is the
+fast court; and a court over the scope intersections of parallel waves — `check`
+judges one branch against its trunk, and whether two open waves declaring one
+file deserve a court of their own is an operator's line in BACKLOG. The commands
+of the first tool (`gaps`, `mutate`, `show`, `hooks`, `skills`, `hook <event>`)
+live in `docs/uk/README.md` as history, and the concept says where each went.
+
 ## What the courts actually check
 
 `keel check` is the one you run constantly. It judges, and says aloud what it
