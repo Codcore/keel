@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "keel next \"${CLAUDE_PROJECT_DIR}\"",
+            "command": "keel next --for claude \"${CLAUDE_PROJECT_DIR}\"",
             "timeout": 30
           }
         ]

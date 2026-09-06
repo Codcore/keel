@@ -479,9 +479,60 @@ fn judge_work(
     )))
 }
 
+/// The line every hook of ours carries, old and new: what makes a
+/// file standing there OURS rather than a stranger's we must not
+/// overwrite (§9.7). Byte equality said that until wave 0055, and the
+/// text now names a path that differs from machine to machine.
+const MARK: &str = "# keel gate -- the commit judged by the machine";
+
 /// The commit-msg hook text keel installs -- flat sh, replaceable by
 /// rewriting with the same command.
-const HOOK: &str = "#!/bin/sh\n# keel gate -- the commit judged by the machine (Keel v2, journal A3).\nexec keel gate \"$1\"\n";
+///
+/// It names the tool by the path it was installed by (wave 0055): a
+/// GUI git client runs hooks with its own environment, where
+/// `~/.local/bin` usually is not, and `exec keel gate "$1"` was the
+/// whole commit court answering `exec: keel: not found` -- the court
+/// of §8.4 gone, in a shell's words, on a person's first day (final
+/// review 2026-09-06, bugs R-15). The named path is tried first and
+/// PATH second, so a launcher installed elsewhere later still
+/// answers; where neither does, the refusal is keel's own, and
+/// carries what to do instead (§9.7).
+fn hook_text() -> String {
+    let named = hook_keel();
+    format!(
+        "#!/bin/sh\n\
+         {MARK} (Keel v2, journal A3).\n\
+         # The path is the keel that installed this hook: a GUI client runs\n\
+         # hooks with its own PATH, where it is often not to be found.\n\
+         KEEL=\"{named}\"\n\
+         [ -x \"$KEEL\" ] || KEEL=\"$(command -v keel 2>/dev/null)\"\n\
+         if [ -z \"$KEEL\" ]; then\n\
+         \u{20}\u{20}\u{20}\u{20}echo \"keel: the commit court did not run: keel is neither at {named}\" >&2\n\
+         \u{20}\u{20}\u{20}\u{20}echo \"keel: nor on the PATH this program runs hooks with\" >&2\n\
+         \u{20}\u{20}\u{20}\u{20}echo \"keel: instead: install it again (sh install.sh), then run keel hook here --\" >&2\n\
+         \u{20}\u{20}\u{20}\u{20}echo \"keel: or add the directory keel stands in to that PATH\" >&2\n\
+         \u{20}\u{20}\u{20}\u{20}exit 1\n\
+         fi\n\
+         exec \"$KEEL\" gate \"$1\"\n"
+    )
+}
+
+/// The keel this hook is to call: the launcher on PATH where there is
+/// one -- it is the hand that picks the version a project pins -- and
+/// otherwise this very binary, which is at least a keel that exists.
+fn hook_keel() -> String {
+    if let Some(path) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&path) {
+            let candidate = dir.join("keel");
+            if candidate.is_file() {
+                return candidate.display().to_string();
+            }
+        }
+    }
+    std::env::current_exe()
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|_| "keel".to_string())
+}
 
 /// Writes `.git/hooks/commit-msg` calling `keel gate`. A repeated
 /// call over our own hook is quietly the same file; a foreign hook
@@ -504,9 +555,12 @@ pub fn hook_path(root: &Path) -> Option<std::path::PathBuf> {
     (!hooks.is_empty()).then(|| root.join(hooks).join("commit-msg"))
 }
 
-/// Whether the hook standing there is the one this release writes.
+/// Whether the hook standing there is OURS -- by the line every one
+/// of them carries, not by byte equality: the text names a path that
+/// differs from machine to machine, and a hook of an older release is
+/// ours as well (wave 0055).
 pub fn hook_is_ours(path: &Path) -> bool {
-    std::fs::read_to_string(path).is_ok_and(|text| text == HOOK)
+    std::fs::read_to_string(path).is_ok_and(|text| text.contains(MARK))
 }
 
 pub fn install_hook(root: &Path) -> Result<String, Refusal> {
@@ -538,8 +592,23 @@ pub fn install_hook(root: &Path) -> Result<String, Refusal> {
 
     if path.is_file() {
         let existing = std::fs::read_to_string(&path).unwrap_or_default();
-        if existing == HOOK {
+        if existing == hook_text() {
             return Ok(t("gate-hook-already"));
+        }
+        // Ours, from an older release or another machine's path: it
+        // is rewritten, not refused (wave 0055). The refusal below
+        // guards a STRANGER'S hook; this one is the tool's own.
+        if existing.contains(MARK) {
+            write_hook(&hooks, &path).map_err(|e| Refusal {
+                file: path.clone(),
+                reason: ta("docs-unreadable", targs!("error" => e.to_string())),
+                instead: t("docs-unreadable-instead"),
+            })?;
+            let shown = path.strip_prefix(root).unwrap_or(&path);
+            return Ok(ta(
+                "gate-hook-installed",
+                targs!("path" => shown.display().to_string()),
+            ));
         }
         return Err(Refusal {
             file: path,
@@ -562,7 +631,7 @@ pub fn install_hook(root: &Path) -> Result<String, Refusal> {
 
 fn write_hook(hooks: &Path, path: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(hooks)?;
-    std::fs::write(path, HOOK)?;
+    std::fs::write(path, hook_text())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

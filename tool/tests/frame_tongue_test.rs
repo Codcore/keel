@@ -43,15 +43,17 @@ fn keel(dir: &Path, args: &[&str]) -> (String, i32) {
 }
 
 /// A stranger's project of one tongue, with the file that tongue is
-/// known by, and the frame written into it.
-fn project(name: &str, adapter: &str, marker: &str, text: &str) -> common::Sandbox {
+/// known by, whatever else it keeps, and the frame written into it.
+fn project(name: &str, adapter: &str, files: &[(&str, &str)]) -> common::Sandbox {
     let dir = keel_sandbox(name);
     fs::write(
         dir.join("keel.toml"),
         format!("lang = \"en\"\nadapter = \"{adapter}\"\nci = \"github\"\n"),
     )
     .unwrap();
-    fs::write(dir.join(marker), text).unwrap();
+    for (path, text) in files {
+        fs::write(dir.join(path), text).unwrap();
+    }
     fs::create_dir_all(dir.join("test")).unwrap();
     let (said, code) = keel(&dir, &["update"]);
     assert_eq!(code, 0, "{name}: the frame is written:\n{said}");
@@ -69,37 +71,45 @@ fn workflow(dir: &Path) -> String {
 #[test]
 fn the_generated_frame_carries_the_tongue() {
     // -- the tongue stands before the courts that need it ------------
-    for (name, adapter, marker, text, wanted) in [
+    for (name, adapter, files, wanted) in [
         (
             "framepython",
             "python",
-            "pyproject.toml",
-            "[project]\nname = \"toy\"\nversion = \"0.1.0\"\n",
+            vec![(
+                "pyproject.toml",
+                "[project]\nname = \"toy\"\nversion = \"0.1.0\"\n",
+            )],
             vec!["setup-python", "pytest"],
         ),
         (
             "frameelixir",
             "elixir",
-            "mix.exs",
-            "defmodule Toy.MixProject do\n  use Mix.Project\n  def project, do: [app: :toy, version: \"0.1.0\"]\nend\n",
+            vec![(
+                "mix.exs",
+                "defmodule Toy.MixProject do\n  use Mix.Project\n  def project, do: [app: :toy, version: \"0.1.0\"]\nend\n",
+            )],
             vec!["setup-beam", "mix local.hex"],
         ),
         (
             "frameruby",
             "ruby",
-            "Gemfile",
-            "source \"https://rubygems.org\"\n",
+            vec![("Gemfile", "source \"https://rubygems.org\"\n")],
             vec!["setup-ruby"],
         ),
         (
+            // node is the one tongue the runner already carries, so
+            // the frame names a version only where the project pins
+            // one -- and then exactly that one (wave 0046).
             "framenode",
             "node",
-            "package.json",
-            "{\n  \"name\": \"toy\"\n}\n",
-            vec!["setup-node"],
+            vec![
+                ("package.json", "{\n  \"name\": \"toy\"\n}\n"),
+                (".nvmrc", "22\n"),
+            ],
+            vec!["setup-node", ".nvmrc"],
         ),
     ] {
-        let dir = project(name, adapter, marker, text);
+        let dir = project(name, adapter, &files);
         let yml = workflow(&dir);
         for piece in &wanted {
             assert!(
@@ -124,12 +134,28 @@ fn the_generated_frame_carries_the_tongue() {
         );
     }
 
+    // A node project that pins nothing gets no step -- and the file
+    // says why, rather than staying silent (wave 0046).
+    let dir = project(
+        "framenodeplain",
+        "node",
+        &[("package.json", "{\n  \"name\": \"toy\"\n}\n")],
+    );
+    let yml = workflow(&dir);
+    assert!(
+        yml.contains(".nvmrc") && yml.contains("whatever node the"),
+        "node is the runner's own where nothing is pinned, and the \
+         frame says so:\n{yml}"
+    );
+
     // -- the agent's hook speaks the agent's shape --------------------
     let dir = project(
         "frameagent",
         "python",
-        "pyproject.toml",
-        "[project]\nname = \"toy\"\nversion = \"0.1.0\"\n",
+        &[(
+            "pyproject.toml",
+            "[project]\nname = \"toy\"\nversion = \"0.1.0\"\n",
+        )],
     );
     let settings = fs::read_to_string(dir.join(".claude/settings.json")).unwrap();
     assert!(
@@ -193,7 +219,9 @@ fn the_generated_frame_carries_the_tongue() {
     // only through PATH is a court that does not run.
     let msg = dir.join("MSG");
     fs::write(&msg, "the trunk\n").unwrap();
-    let out = Command::new("sh")
+    // `sh` itself by its absolute path: this run has no PATH to find
+    // anything with, which is the whole point of it.
+    let out = Command::new("/bin/sh")
         .arg(&hook)
         .arg(&msg)
         .current_dir(dir.path())
@@ -212,8 +240,9 @@ fn the_generated_frame_carries_the_tongue() {
          and `exec: keel: not found` is what a person saw:\n{said}"
     );
     assert!(
-        said.contains("keel"),
-        "and speaks in the tool's own voice:\n{said}"
+        said.contains("mode:"),
+        "and it is the commit court itself that speaks -- the mode\
+         line is the tool's own first word (§8.4):\n{said}"
     );
     assert_eq!(
         out.status.code(),

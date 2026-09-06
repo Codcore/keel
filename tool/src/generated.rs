@@ -244,7 +244,7 @@ fn claude_entries() -> String {
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"hooks\": [\n\
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}{\n\
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"type\": \"command\",\n\
-     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"command\": \"keel next \\\"${CLAUDE_PROJECT_DIR}\\\"\",\n\
+     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"command\": \"keel next --for claude \\\"${CLAUDE_PROJECT_DIR}\\\"\",\n\
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\"timeout\": 30\n\
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}}\n\
      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}]\n\
@@ -398,6 +398,15 @@ fn pinned_toolchain(root: &Path, where_crate: Option<&str>) -> Option<String> {
         }
     }
     None
+}
+
+/// The file this project pins its own tongue in, if it keeps one --
+/// the names the setup actions read by themselves (wave 0055). Only
+/// the NAME goes into the workflow, never the content: the content is
+/// the action's to read, and a name this function chose cannot carry
+/// a shell's word.
+fn pinned_file(root: &Path, names: &[&'static str]) -> Option<&'static str> {
+    names.iter().copied().find(|file| root.join(file).is_file())
 }
 
 /// The file this project pins its node in, if it keeps one: `.nvmrc`
@@ -621,6 +630,101 @@ fn workflow(root: &Path, config: &Config) -> String {
                      \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# naming a version, and bump it deliberately.\n"
                 .to_string(),
         },
+        // The three tongues a runner does not carry (wave 0055): a
+        // stranger's `keel.yml` went checkout -> the tool -> the
+        // courts, and the closure court runs the project's battery --
+        // with no python, no pytest, no beam and no hex on the runner
+        // (final review 2026-09-06, bugs R-14). The tool's own
+        // workflow carries all five through TONGUES; a stranger's
+        // carries its own, and says what it left to the project.
+        Some(Language::Python) => {
+            let pin = match pinned_file(root, &[".python-version"]) {
+                Some(file) => format!(
+                    "\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# {file} names it, so a verdict here is the same verdict on\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# any other machine.\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}python-version-file: {file}\n"
+                ),
+                None => "        # This project pins no python this release can read, so the\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# version below is named here rather than left to the runner's\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# day. Add a .python-version, and bump it deliberately.\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}python-version: \"3.12\"\n"
+                    .to_string(),
+            };
+            format!(
+                "      - name: the python this project runs on\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}uses: actions/setup-python@v5\n\
+                 {pin}\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: pytest\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# The battery below is pytest, and the closure court runs it.\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Your project's own dependencies are yours: add the step that\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# installs them (pip install -e ., or a requirements file).\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: pip install pytest\n"
+            )
+        }
+        Some(Language::Elixir) => {
+            let pin = match pinned_file(root, &[".tool-versions"]) {
+                Some(file) => format!(
+                    "\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# {file} names them, so a verdict here is the same verdict on\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# any other machine.\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}version-file: {file}\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}version-type: strict\n"
+                ),
+                None => "        # This project keeps no .tool-versions, so the versions below\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# are named here rather than left to the runner's day. Add one,\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# and bump it deliberately.\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}otp-version: \"26\"\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}elixir-version: \"1.16\"\n"
+                    .to_string(),
+            };
+            format!(
+                "      - name: the elixir this project runs on\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}uses: erlef/setup-beam@v1\n\
+                 {pin}\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}- name: hex and this project's dependencies\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# `mix test` is the battery below, and the closure court runs\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# it -- a project whose deps are not fetched compiles nothing.\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: |\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}mix local.hex --force\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}mix local.rebar --force\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}mix deps.get\n"
+            )
+        }
+        Some(Language::Ruby) => {
+            let pin = match pinned_file(root, &[".ruby-version"]) {
+                Some(file) => format!(
+                    "\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# {file} names it, so a verdict here is the same verdict on\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# any other machine.\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+                     \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}ruby-version-file: {file}\n"
+                ),
+                None => "        # This project keeps no .ruby-version, so the version below is\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# named here rather than left to the runner's day. Add one, and\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# bump it deliberately.\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}with:\n\
+                         \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}ruby-version: \"3.3\"\n"
+                    .to_string(),
+            };
+            let rspec = if root.join("spec").is_dir() {
+                "      - name: rspec\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# This project keeps spec/, and the closure court runs those\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# specs through rspec.\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}run: gem install rspec --no-document\n"
+            } else {
+                ""
+            };
+            format!(
+                "      - name: the ruby this project runs on\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# Your project's own gems are yours: add a `bundle install`\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# step where it keeps a Gemfile.\n\
+                 \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}uses: ruby/setup-ruby@v1\n\
+                 {pin}\
+                 {rspec}"
+            )
+        }
         _ => String::new(),
     };
     let battery = match config.language() {
@@ -636,13 +740,17 @@ fn workflow(root: &Path, config: &Config) -> String {
     };
     // The tool's own workflow names the toolchain FIRST and builds
     // with it (review 0053 R-12: the pin step stood after the courts
-    // it should have judged with); a stranger's names it before the
-    // battery, as before -- its install step needs no toolchain of
-    // the project's.
+    // it should have judged with); a stranger's puts its tongue there
+    // for the same reason (wave 0055): the closure court RUNS the
+    // project's battery, so a runner without the tongue fails a court
+    // instead of a test -- and the tongue's steps stood after both
+    // courts, where nothing could use them (final review 2026-09-06,
+    // bugs R-14). The battery step itself stays last in both: it is
+    // the second, explicit run a person reads the log for.
     let (install, courts) = if own {
         (format!("{toolchain}{own_step}"), battery)
     } else {
-        (installer_step, format!("{toolchain}{battery}"))
+        (format!("{installer_step}{toolchain}"), battery)
     };
     format!(
         "# keel (generated -- do not edit; keel update rewrites this file)\n\
