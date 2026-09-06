@@ -2,7 +2,13 @@
 module: keel::scope
 exports:
   - "pub fn branch_wave(root: &Path, waves: &[Wave]) -> Option<String>"
-  - "pub fn findings(root: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refusal>"
+  - "pub fn findings(root: &Path, wave: &Wave, config: &Config) -> Result<Vec<(String, String)>, Refusal>"
+  - "pub fn plan_findings(root: &Path, config: &Config) -> Result<Vec<(String, String, String)>, Refusal>"
+  - "pub fn contracts_changed(root: &Path) -> Result<Vec<String>, Refusal>"
+  - "pub fn slug_commits(root: &Path) -> Result<BTreeSet<String>, Refusal>"
+  - "pub fn stands_in_main(root: &Path, rel: &str) -> Option<bool>"
+  - "pub fn work_in_trunk(root: &Path) -> Option<bool>"
+  - "pub fn trunk(root: &Path) -> Option<String>"
   - "pub fn current_branch(root: &Path) -> Option<String>"
   - "pub fn compare_base(root: &Path) -> Result<(String, bool), Refusal>"
   - "pub fn git_at(root: &Path) -> Command"
@@ -53,7 +59,35 @@ Scope (глава 4): файли, названі до роботи, звіряю
   кілька рядків однієї теки обіцяють стільки ж файлів, і рахунки
   мусять зійтись: менше — знахідка, більше — знахідка, рівно — тихо
   (§4.1).
-- Власні файли методики — тека `keel/` — поза scope (§4.8) і в
-  порівняння не входять в обидва боки.
+- Власні файли методики — тека `keel/` і `keel.toml` — поза scope
+  (§4.8) і в порівняння не входять в обидва боки. **Меблі — за
+  відбитком, на обох гілках** (хвиля 0052, глобальне ревʼю
+  2026-09-06, методика R-6): згенерований файл у формі, яку лишив
+  інструмент, — відбиток збігається із записаним у `[generated]` або
+  з тим, що пише цей реліз (`generated::is_furniture`), — поза scope
+  і на робочій гілці, і на план-гілці; правлений рукою — код: дрейф
+  на робочій, «план-гілка несе план, а не код» на план-гілці. До
+  хвилі два суди читали §4.8 по-різному: робоча гілка виводила лише
+  `keel/` і звала файли `keel update` дрейфом, план-гілка звала меблі
+  за іменем — і правлений рукою файл був меблями (рецензія 0036 R-12
+  читала параграф іменами). Межі: файл проєкту під згенерованим
+  іменем, якого інструмент не писав, — код; у `AGENTS.md` відбиток
+  відповідає за блок, і правка поза блоком — справа проєкту, цей
+  суд її не читає.
+- **Вага — факт гілки теж** (хвиля 0052): `contracts_changed` називає
+  контракти, змінені проти бази, — `check` і `next` читають нею §6.8
+  над легкою хвилею; `slug_commits` — слаги тем комітів гілки проти
+  бази (§6.2). **Стовбур — одна рука** (рецензія 0052 R-2): `trunk` —
+  `main`, інакше `master` локально, інакше `origin/main`,
+  `origin/master`, інакше те, куди дивиться `origin/HEAD`; нею беруть
+  базу порівняння (`compare_base`, і слово `check` називає стовбур
+  по імені) і факт merge §6.5: `stands_in_main` — файл стоїть у
+  стовбурі (`Some(true)`), стовбур є, а файла нема (`Some(false)`),
+  стовбура спитати нема в кого (`None`); `work_in_trunk` — робота
+  гілки вже в стовбурі (HEAD — його предок): на власній гілці хвилі
+  факт merge — робота, не файл (рецензія 0052 R-6: файл хвилі, покладений
+  на main рукою, звав незлиту роботу закритою). До хвилі суди scope
+  знали лише `main`/`origin/main`, а `check` читав стовбур своєю рукою
+  з `master` — і на `master` легка хвиля не закривалась ніколи.
 - git викликається як команда системи; його відмова — відмова вголос
   із «натомість», не тиша. Модуль нічого не пише.

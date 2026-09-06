@@ -624,6 +624,99 @@ pub fn digest(text: &str) -> String {
     sum.iter().map(|b| format!("{b:02x}")).collect::<String>()[..12].to_string()
 }
 
+/// The digest a generated file answers for, as `write` judges it:
+/// the block between the markers for `AGENTS.md`, the whole text
+/// for a file wholly ours or a guest. None where the file is not
+/// there, cannot be read, or has no block.
+fn answering_digest(root: &Path, config: &Config, name: &str) -> Option<String> {
+    let text = std::fs::read_to_string(root.join(name)).ok()?;
+    digest_of(root, config, name, &text)
+}
+
+/// The same digest over the file as the branch COMMITTED it -- what
+/// `git show HEAD:<file>` gives. The courts of scope judge commits
+/// (§4.5), and reading the working tree let a hand-edited file
+/// committed on the branch pass green once the tree was put back
+/// (review 0052 R-4). None where HEAD carries no such file.
+fn committed_digest(root: &Path, config: &Config, name: &str) -> Option<String> {
+    let out = crate::scope::git_at(root)
+        .args(["show", &format!("HEAD:{name}")])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    digest_of(root, config, name, &text)
+}
+
+fn digest_of(root: &Path, config: &Config, name: &str, text: &str) -> Option<String> {
+    let block = artefacts(root, config)
+        .into_iter()
+        .any(|(path, kind, _)| path == name && matches!(kind, Kind::Block))
+        || (name == "AGENTS.md");
+    if block {
+        let (from, to) = span(text)?;
+        Some(digest(&text[from..to]))
+    } else {
+        Some(digest(text))
+    }
+}
+
+/// A generated file in the form the tool left it: its digest is the
+/// recorded one, or the one this release writes -- furniture, outside
+/// scope (§4.8). Edited by a hand it is code, on the wave branch and
+/// on the plan branch alike. Two courts read this differently before
+/// wave 0052: the wave branch called `keel update`'s own files drift,
+/// the plan branch called a hand-edited file furniture by its name
+/// (global review 2026-09-06, methodology R-6).
+pub fn is_furniture(root: &Path, config: &Config, rel: &str) -> bool {
+    let recorded = config
+        .generated
+        .iter()
+        .find(|(key, _)| key == rel)
+        .map(|(_, value)| value.clone());
+    let fresh = artefacts(root, config)
+        .into_iter()
+        .find(|(path, _, _)| *path == rel)
+        .map(|(_, _, fresh)| digest(&fresh));
+    if recorded.is_none() && fresh.is_none() {
+        return false;
+    }
+    // The file as the branch committed it, never as the tree has it
+    // right now (review 0052 R-4). The record itself is read from
+    // keel.toml as it stands -- named a border.
+    let Some(actual) = committed_digest(root, config, rel) else {
+        // Removed by a person while its record stands: a decision,
+        // not code (the `write` school).
+        return recorded.is_some();
+    };
+    recorded.as_deref() == Some(actual.as_str()) || fresh.as_deref() == Some(actual.as_str())
+}
+
+/// Records gone stale: every `[generated]` entry whose file stands
+/// with another digest than the one recorded, with whether the text
+/// is the one this release writes. `keel update` re-records such a
+/// file in silence, and `keel check` said nothing -- the workflow's
+/// record stood foreign from wave 0044 to 0050 (wave 0052).
+pub fn stale_records(root: &Path, config: &Config) -> Vec<(String, String, String, bool)> {
+    let fresh: std::collections::BTreeMap<&str, String> = artefacts(root, config)
+        .into_iter()
+        .map(|(path, _, fresh)| (path, digest(&fresh)))
+        .collect();
+    let mut out = Vec::new();
+    for (name, recorded) in &config.generated {
+        let Some(actual) = answering_digest(root, config, name) else {
+            continue;
+        };
+        if &actual != recorded {
+            let release = fresh.get(name.as_str()).is_some_and(|d| *d == actual);
+            out.push((name.clone(), recorded.clone(), actual, release));
+        }
+    }
+    out
+}
+
 /// Writes the generated block and records its digest: the hand of
 /// `keel init` and `keel update`. The second number counts what did
 /// not stand -- zero is green, anything else honest red while the

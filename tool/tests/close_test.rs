@@ -307,9 +307,24 @@ fn closure_needs_review_file() {
     write(&dir, "keel/reviews/0013-tidy.md", "# Рецензія\n\nok\n");
     let (out2, err2, _) = keel(&["close", dir.to_str().unwrap()]);
     let out2 = format!("{out2}{err2}");
+    // With the report the merge is its closure -- and "closed by the
+    // fact of merge" waits for the fact: the wave file in main (§6.5;
+    // wave 0052). This sandbox has no main at all, and the court
+    // says so instead of claiming a merge it cannot see.
     assert!(
-        out2.contains("0013-tidy: closed"),
-        "and then merging closes it:\n{out2}"
+        out2.contains("0013-tidy: light") && out2.contains("will close by the fact of merge"),
+        "and then the merge is its closure:\n{out2}"
+    );
+    assert!(
+        !out2.contains("0013-tidy: closed"),
+        "not closed before the fact stands:\n{out2}"
+    );
+    git(&dir, &["branch", "main"]);
+    let (out3, err3, _) = keel(&["close", dir.to_str().unwrap()]);
+    let out3 = format!("{out3}{err3}");
+    assert!(
+        out3.contains("0013-tidy: closed"),
+        "and once the wave file stands in main, merging closed it:\n{out3}"
     );
 
     // The report lands next to the wave -- closed.

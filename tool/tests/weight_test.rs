@@ -174,6 +174,9 @@ fn the_weight_comes_from_the_file() {
 
     // Two transforms make a wave full -- the FIRST clause of §6.8,
     // which review 0036 R-3 (M8) measured held by nothing at all.
+    // Two chores and nothing else: full by the count alone (§6.8), so
+    // a weight that stopped counting transforms would turn this
+    // fixture green (review 0052 R-14).
     let dir = project("twotransforms");
     git(&dir, &["checkout", "-q", "-b", "0004-d-wave"]);
     std::fs::write(
@@ -283,7 +286,7 @@ fn the_weight_comes_from_the_file() {
     std::fs::write(
         dir.join("keel/waves/0008-h-wave.md"),
         format!(
-            "---\ntransforms:\n  one:\n    chore: \"перша\"\n    files:\n      - src/lib.rs\n  two:\n    chore: \"друга\"\n    files:\n      - README.md\n{}---\n\n## transform: one\nтіло\n\n## transform: two\nтіло\n",
+            "---\nscenarios:\n  gone:\n    covers: []\n    withdrawn: \"знято до старту\"\ntransforms:\n  one:\n    chore: \"перша\"\n    files:\n      - src/lib.rs\n  two:\n    chore: \"друга\"\n    files:\n      - README.md\n{}---\n\n## scenario: gone\nбуло\n\n## transform: one\nтіло\n\n## transform: two\nтіло\n",
             decided()
         ),
     )
@@ -291,10 +294,14 @@ fn the_weight_comes_from_the_file() {
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "merge: wave 0008 plan"]);
     git(&dir, &["checkout", "-q", "-b", "0008-h-wave"]);
+    // Two transforms, two commits under their slugs (§6.2, wave 0052);
+    // the withdrawn promise keeps the wave off §2.11's "chores alone".
     std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn i() {}\n").unwrap();
-    std::fs::write(dir.join("README.md"), "текст\n").unwrap();
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "one: the work"]);
+    std::fs::write(dir.join("README.md"), "текст\n").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "two: the work"]);
     let (said, code) = keel(&dir, "check");
     assert_eq!(
         code, 0,
@@ -315,7 +322,7 @@ fn the_weight_comes_from_the_file() {
     std::fs::write(
         dir.join("keel/waves/0007-g-wave.md"),
         format!(
-            "---\ntransforms:\n  one:\n    chore: \"перша\"\n    files:\n      - src/lib.rs\n  two:\n    chore: \"друга\"\n    files:\n      - README.md\n{}---\n\n## transform: one\nтіло\n\n## transform: two\nтіло\n",
+            "---\nscenarios:\n  gone:\n    covers: []\n    withdrawn: \"знято до старту\"\ntransforms:\n  one:\n    chore: \"перша\"\n    files:\n      - src/lib.rs\n  two:\n    chore: \"друга\"\n    files:\n      - README.md\n{}---\n\n## scenario: gone\nбуло\n\n## transform: one\nтіло\n\n## transform: two\nтіло\n",
             decided()
         ),
     )
@@ -324,9 +331,11 @@ fn the_weight_comes_from_the_file() {
     git(&dir, &["commit", "-q", "-m", "plan: wave 0007"]);
     git(&dir, &["checkout", "-q", "-b", "0007-g-wave"]);
     std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn h() {}\n").unwrap();
-    std::fs::write(dir.join("README.md"), "текст\n").unwrap();
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "one: the work"]);
+    std::fs::write(dir.join("README.md"), "текст\n").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "two: the work"]);
     let (said, _) = keel(&dir, "check");
     assert!(
         !said.contains("народився на цій самій гілці"),

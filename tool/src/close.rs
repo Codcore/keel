@@ -32,6 +32,11 @@ pub(crate) enum State {
         refs_unjudged: u64,
     },
     ClosedLight,
+    /// A wave with nothing to prove whose merge has not happened: the
+    /// fact of §6.5 is the wave file standing in main, and until it
+    /// does the wave WILL close by merge, not is closed. The flag says
+    /// whether a main could be asked at all (wave 0052).
+    AwaitingMerge(bool),
     /// Called off after it was started (§6): nothing to prove and
     /// nothing to wait for, and the reason travels with it.
     Cancelled(String),
@@ -420,6 +425,7 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
 
     let mut blockers = 0usize;
     let mut own_plan = false;
+    let mut own_awaiting = false;
     for wave in &scan.waves {
         let state = wave_state(root, wave, &found, &legal, Some(&battery))?;
         let own = branch.as_deref() == Some(wave.slug.as_str());
@@ -467,6 +473,18 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
                     "close-closed-light",
                     targs!("wave" => wave.slug.clone()),
                 ));
+                report.push('\n');
+            }
+            State::AwaitingMerge(seen) => {
+                if own {
+                    own_awaiting = true;
+                }
+                let key = if seen {
+                    "close-awaiting-merge"
+                } else {
+                    "close-awaiting-merge-unseen"
+                };
+                report.push_str(&ta(key, targs!("wave" => wave.slug.clone())));
                 report.push('\n');
             }
             State::Cancelled(why) => {
@@ -552,7 +570,18 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         ));
         report.push('\n');
     } else if verify_blockers == 0 && form_blockers == 0 && ci_blocker == 0 && red_tests == 0 {
-        report.push_str(&t("close-no-blockers"));
+        // The branch's own wave may be named and unblocked at once:
+        // a light wave waiting for its merge (review 0052 R-13 -- the
+        // old word called such a branch "not named as an unclosed
+        // wave").
+        if own_awaiting {
+            report.push_str(&ta(
+                "close-no-blockers-awaiting",
+                targs!("wave" => branch.unwrap_or_default()),
+            ));
+        } else {
+            report.push_str(&t("close-no-blockers"));
+        }
         report.push('\n');
     }
     // And what the price actually came to (review 0031 R-6: the
@@ -706,7 +735,25 @@ pub(crate) fn wave_state(
     if nothing_to_prove(wave) {
         let report = root.join("keel/reviews").join(format!("{}.md", wave.slug));
         if report.is_file() {
-            return Ok(State::ClosedLight);
+            // "Closed by the fact of merge" only where the fact
+            // stands: the wave file in main. The first reading
+            // called a chore wave closed the moment its report lay
+            // beside it, on a branch main had never seen (global
+            // review 2026-09-06, methodology R-5).
+            // On the wave's OWN branch the fact is its work in the
+            // trunk, not its file: "its file and its work arrive in
+            // main by one PR" (§6.5; review 0052 R-6).
+            let own = scope::current_branch(root).as_deref() == Some(wave.slug.as_str());
+            let fact = if own {
+                scope::work_in_trunk(root)
+            } else {
+                scope::stands_in_main(root, &format!("keel/waves/{}.md", wave.slug))
+            };
+            return Ok(match fact {
+                Some(true) => State::ClosedLight,
+                Some(false) => State::AwaitingMerge(true),
+                None => State::AwaitingMerge(false),
+            });
         }
         return Ok(State::Progress(vec![t("close-lack-review")]));
     }

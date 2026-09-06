@@ -377,6 +377,49 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 )),
             ));
         }
+        // §2.11: a wave of chores alone must be light -- "big work
+        // without a single promise is a reason to stop and think, not
+        // to slip through". Two chore transforms were a wave nobody
+        // called full and nobody called light (global review
+        // 2026-09-06, methodology R-4; wave 0052). "Without a single
+        // promise" is read as written: a wave with no scenario at all
+        // -- the one `close` calls nothing-to-prove -- whose transforms
+        // are chores; a wave that WITHDRAWS a promise has one to speak
+        // of, and §6.8 makes it full for that reason alone.
+        let chores_only = wave.scenarios.is_empty()
+            && !wave.transforms.is_empty()
+            && wave
+                .transforms
+                .iter()
+                .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
+        // A wave with no scenario cannot withdraw one, so that road
+        // of `heavy` never leads here (review 0052 R-8).
+        let why = if chores_only {
+            match docs::heavy(wave) {
+                Some(docs::Heavy::Transforms(count)) => Some(ta(
+                    "check-chores-heavy-transforms",
+                    targs!("count" => count as u64),
+                )),
+                Some(docs::Heavy::Contract) => Some(t("check-chores-heavy-contract")),
+                Some(docs::Heavy::Withdraws) | None => None,
+            }
+        } else {
+            None
+        };
+        if let Some(why) = why {
+            rows.push((
+                wave_path.clone(),
+                Some(format!(
+                    "{}\n           {}: {}",
+                    ta(
+                        "check-chores-heavy",
+                        targs!("wave" => wave.slug.clone(), "why" => why)
+                    ),
+                    t("word-instead"),
+                    t("check-chores-heavy-instead")
+                )),
+            ));
+        }
     }
     let live_contracts: Vec<String> = scan
         .contracts
@@ -389,6 +432,29 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             format!("keel/waves/{wave_slug}.md"),
             Some(format!(
                 "{reason}\n           {}: {instead}",
+                t("word-instead")
+            )),
+        ));
+    }
+    // §8.8 by the hand of `keel plan`: two wave files with one number
+    // are a finding here too, with the next free number -- the birth
+    // alone judged this before wave 0052 (methodology R-11).
+    let held = crate::plan::taken(root, "");
+    for (number, stems) in held.doubled() {
+        let next = format!("{:04}", held.next_free(number));
+        let instead = if held.branches_read {
+            ta("plan-number-taken-instead", targs!("next" => next))
+        } else {
+            ta("plan-number-taken-instead-disk", targs!("next" => next))
+        };
+        rows.push((
+            format!("keel/waves/{}.md", stems[0]),
+            Some(format!(
+                "{}\n           {}: {instead}",
+                ta(
+                    "check-number-twice",
+                    targs!("number" => format!("{number:04}"), "count" => stems.len() as u64, "files" => stems.join(", ")),
+                ),
                 t("word-instead")
             )),
         ));
@@ -454,7 +520,28 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         ));
     }
 
-    let generated: Vec<String> = config.generated.iter().map(|(k, _)| k.clone()).collect();
+    // A recorded digest gone stale is named, even where the text is
+    // the one this release writes: `keel update` re-records it in
+    // silence, and the workflow's record stood foreign from wave 0044
+    // to 0050 with `keel check` saying nothing (wave 0052).
+    for (file, recorded, actual, release) in crate::generated::stale_records(root, config) {
+        let instead = if release {
+            t("check-generated-stale-release")
+        } else {
+            t("check-generated-stale-hand")
+        };
+        rows.push((
+            "keel.toml".to_string(),
+            Some(format!(
+                "{}\n           {}: {instead}",
+                ta(
+                    "check-generated-stale",
+                    targs!("file" => file, "recorded" => recorded, "actual" => actual),
+                ),
+                t("word-instead")
+            )),
+        ));
+    }
     let scope_status = match scope::current_branch(root) {
         None => t("check-scope-skipped-no-git"),
         // A plan branch is judged too, and by §4.9: it carries the
@@ -487,7 +574,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                     "check-scope-plan-unjudged",
                     targs!("branch" => branch, "wave" => planned),
                 ),
-                Compared::Yes => match scope::plan_findings(root, &generated) {
+                Compared::Yes => match scope::plan_findings(root, config) {
                     Ok(list) => {
                         for (file, reason, instead) in list {
                             rows.push((
@@ -542,7 +629,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 let wave_path = format!("keel/waves/{slug}.md");
                 let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
                 let compared = scope::compare_base(root)
-                    .and_then(|base| scope::findings(root, wave).map(|list| (base, list)));
+                    .and_then(|base| scope::findings(root, wave, config).map(|list| (base, list)));
                 match compared {
                     Ok(((sha, from_main), list)) => {
                         // §6.8/§8.1: a FULL wave rides two branches
@@ -586,6 +673,43 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                     ta("scope-full-one-branch-instead", targs!("wave" => slug.clone())),
                                 )),
                             ));
+                        }
+                        // The weight is a fact of the branch too
+                        // (§6.8, §5.7): a contract created or changed
+                        // on the branch of a LIGHT wave -- one the
+                        // declared files do not name -- is the second
+                        // human look skipped (global review
+                        // 2026-09-06, methodology R-3; wave 0052).
+                        if docs::weight(wave) == docs::Weight::Light {
+                            // The instead must lead somewhere lawful
+                            // (§9.7): a wave with no promise cannot
+                            // name the contract and stay light --
+                            // §2.11 would take it (review 0052 R-5).
+                            let chores_only = wave.scenarios.is_empty();
+                            match scope::contracts_changed(root) {
+                                Ok(contracts) => {
+                                    for contract in contracts {
+                                        let instead = if chores_only {
+                                            t("scope-light-contract-instead-chores")
+                                        } else {
+                                            t("scope-light-contract-instead")
+                                        };
+                                        rows.push((
+                                            wave_path.clone(),
+                                            Some(format!(
+                                                "{}\n           {}: {}",
+                                                ta(
+                                                    "scope-light-contract",
+                                                    targs!("wave" => slug.clone(), "contract" => contract),
+                                                ),
+                                                t("word-instead"),
+                                                instead,
+                                            )),
+                                        ));
+                                    }
+                                }
+                                Err(refusal) => push_refusal_row(&mut rows, root, &refusal),
+                            }
                         }
                         // The red birth, judged by the BRANCH (§7.12).
                         // Two audits found this independently: the
@@ -645,9 +769,26 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                 )),
                             ));
                         }
+                        // §6.2, judged by the BRANCH and never on main
+                        // (§6.5 judges history by its consequences): a
+                        // transform touched in every file it names and
+                        // closed by no commit under its slug (wave
+                        // 0052, methodology R-9).
+                        for (name, instead) in uncommitted_transforms(root, wave, &sha) {
+                            rows.push((
+                                wave_path.clone(),
+                                Some(format!(
+                                    "{name}\n           {}: {instead}",
+                                    t("word-instead")
+                                )),
+                            ));
+                        }
                         let short = sha.get(..7).unwrap_or(&sha).to_string();
                         let base_text = if from_main {
-                            ta("check-scope-base-main", targs!("sha" => short))
+                            ta(
+                                "check-scope-base-main",
+                                targs!("sha" => short, "trunk" => scope::trunk(root).unwrap_or_default()),
+                            )
                         } else {
                             ta("check-scope-base-first", targs!("sha" => short))
                         };
@@ -1143,6 +1284,69 @@ fn untested_scenarios(
 /// demanding a red commit from history that is no longer reachable
 /// would redden the verdict on its own past. That is why the court
 /// asks the BRANCH, not the whole repository.
+/// Transforms touched in every file they name whose slug heads no
+/// commit of the branch (§6.2) -- with the instead. A transform not
+/// yet touched everywhere is the scope court's word, not this one's.
+fn uncommitted_transforms(root: &Path, wave: &docs::Wave, base: &str) -> Vec<(String, String)> {
+    let Some(committed) = scope::slug_commits(root).ok() else {
+        return Vec::new();
+    };
+    let changed: std::collections::BTreeSet<String> =
+        git_out(root, &["diff", "--name-only", "--no-renames", base, "HEAD"])
+            .unwrap_or_default()
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+    let added: std::collections::BTreeSet<String> = git_out(
+        root,
+        &[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--diff-filter=A",
+            base,
+            "HEAD",
+        ],
+    )
+    .unwrap_or_default()
+    .lines()
+    .map(|l| l.trim().to_string())
+    .filter(|l| !l.is_empty())
+    .collect();
+    let mut out = Vec::new();
+    for (name, transform) in &wave.transforms {
+        if transform.files.is_empty() || committed.contains(name.as_str()) {
+            continue;
+        }
+        let mut dirs: std::collections::BTreeMap<&str, usize> = Default::default();
+        for line in &transform.files {
+            if let docs::ScopeLine::OneNewIn(d) = line {
+                *dirs.entry(d.as_str()).or_insert(0) += 1;
+            }
+        }
+        let done = transform.files.iter().all(|line| match line {
+            docs::ScopeLine::Path(p) => changed.contains(p),
+            docs::ScopeLine::OneNewIn(d) => {
+                added.iter().filter(|f| f.starts_with(d.as_str())).count() == dirs[d.as_str()]
+            }
+        });
+        if done {
+            out.push((
+                ta(
+                    "scope-transform-uncommitted",
+                    targs!("name" => name.clone()),
+                ),
+                ta(
+                    "scope-transform-uncommitted-instead",
+                    targs!("name" => name.clone()),
+                ),
+            ));
+        }
+    }
+    out
+}
+
 fn unborn_scenarios(
     root: &Path,
     wave: &docs::Wave,

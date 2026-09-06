@@ -178,7 +178,7 @@ pub fn step(root: &Path) -> Result<String, Refusal> {
                     lines.push(ta("next-ready", targs!("wave" => wave.slug.clone())));
                 }
             }
-            State::Progress(_) => {
+            State::Progress(_) | State::AwaitingMerge(_) => {
                 lines.push(ta("next-working", targs!("wave" => wave.slug.clone())));
             }
             _ => {}
@@ -315,6 +315,7 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
     }
 
     let (changed, added) = branch_files(root)?;
+    let committed = scope::slug_commits(root)?;
     for (name, transform) in &wave.transforms {
         // Every `one new in` line promises exactly one file (§4.1;
         // review 0012 R-8): any other count leaves the transform the
@@ -332,6 +333,14 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
             }
         });
         if !untouched {
+            // Done in its files -- and closed only by a commit under
+            // its slug (§6.2): the work in a `wip:` commit is not the
+            // transform's commit (wave 0052).
+            if !committed.contains(name.as_str()) {
+                out.push_str(&ta("next-step-commit", targs!("name" => name.clone())));
+                out.push('\n');
+                return Ok(out);
+            }
             continue;
         }
         match &transform.kind {
@@ -432,6 +441,47 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
     // ride one PR with nobody reading it. Weight still decides how
     // many pull requests (§6.8, §8.1) and nothing else.
     let light = docs::weight(wave) == docs::Weight::Light;
+    // The weight is a fact of the branch too (§6.8, §5.7): a light
+    // wave whose branch changed a contract does not ride to one PR
+    // -- the step is to name the contract, or to take the change off
+    // the branch (wave 0052).
+    // §2.11 read here as `check` reads it (review 0052 R-5: `next`
+    // said "time for the PR" over the very wave `check` reddened): a
+    // wave with no promise whose transforms are chores must be light.
+    let chores_only = wave.scenarios.is_empty()
+        && !wave.transforms.is_empty()
+        && wave
+            .transforms
+            .iter()
+            .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
+    if chores_only && let Some(heavy) = docs::heavy(wave) {
+        let why = match heavy {
+            docs::Heavy::Transforms(count) => ta(
+                "check-chores-heavy-transforms",
+                targs!("count" => count as u64),
+            ),
+            docs::Heavy::Contract | docs::Heavy::Withdraws => t("check-chores-heavy-contract"),
+        };
+        out.push_str(&ta(
+            "next-step-chores-heavy",
+            targs!("wave" => wave.slug.clone(), "why" => why),
+        ));
+        out.push('\n');
+        return Ok(out);
+    }
+    if light && let Some(contract) = scope::contracts_changed(root)?.first() {
+        let key = if chores_only {
+            "next-step-light-contract-chores"
+        } else {
+            "next-step-light-contract"
+        };
+        out.push_str(&ta(
+            key,
+            targs!("wave" => wave.slug.clone(), "contract" => contract.clone()),
+        ));
+        out.push('\n');
+        return Ok(out);
+    }
     if !root
         .join("keel/reviews")
         .join(format!("{}.md", wave.slug))

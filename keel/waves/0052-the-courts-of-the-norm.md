@@ -23,6 +23,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/gate_cannot_judge_test.rs
+      - tool/tests/adapter_name_test.rs
   the-weight-and-the-merge-are-facts-of-the-branch:
     implements:
       - the-weight-is-read-from-the-branch-too
@@ -40,6 +41,9 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/weight_of_the_branch_test.rs
+      - tool/tests/close_test.rs
+      - tool/tests/rev_test.rs
+      - tool/tests/status_test.rs
   the-scope-court-and-the-anchor:
     implements:
       - furniture-is-known-by-its-digest
@@ -54,6 +58,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/furniture_test.rs
+      - tool/tests/plan_branch_test.rs
   the-slug-commit-is-read:
     implements:
       - a-transform-is-closed-by-its-commit
@@ -68,6 +73,9 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/slug_commits_test.rs
+      - tool/tests/next_test.rs
+      - tool/tests/scope_test.rs
+      - tool/tests/weight_test.rs
   journal:
     chore: "bootstrap journal entries of the wave ride with it (V2-PROCESS)"
     files:
@@ -152,6 +160,35 @@ exit 0 (R-5): факт merge ніхто не питав, і параграф ц�
 
 **Два номери.** `0001-a-wave.md` і `0001-b-wave.md` поруч — check 0
 знахідок (R-11); §8.8 судить лише `keel plan`.
+
+**Дрейф (§4.6), названий уголос.** У першу трансформу дописано
+`tool/tests/adapter_name_test.rs`: проба хвилі 0017 тримала слово
+рецензії 0017 R-4 — «gate над невідомим адаптером пропускає зі
+словом», — а сценарій 0017 каже «з невідомим — відмова вголос»; проба
+тепер тримає сценарій, і текст 0017 не змінюється. У другу —
+`tool/tests/close_test.rs` (проба 0037 звала легку хвилю закритою без
+факту merge в пісочниці без main; тепер чекає файла в main) і
+`tool/tests/rev_test.rs` (золота редакція tool-docs) і
+`tool/tests/status_test.rs` (проба 0012 звала легку хвилю закритою
+фактом merge у пісочниці без git — тепер main тримає файл, а голова
+відчеплена, щоб рядок гілки лишився чесним). У третю —
+`tool/tests/plan_branch_test.rs`: проба 0036 (R-12) звала скіл, CI-файл
+і `AGENTS.md`, яких інструмент не писав, меблями на план-гілці — проти
+другого речення §4.8; тепер вони код, як каже параграф. У четверту
+— `tool/tests/next_test.rs`: проби 0012/0037 комітили роботу
+трансформи темою `state`, і `next` звав її зробленою за торкнутими
+файлами; тепер робота коміться під слагом, як §6.2 і §8.4 кажуть; так
+само `tool/tests/scope_test.rs` (0004, тема `work`) і
+`tool/tests/weight_test.rs` (0036: дві chore-трансформи в одному коміті
+`one:` — тепер два коміти, і знята обіцянка, щоб хвиля не була «самі
+chore» за §2.11; одну фікстуру після рецензії 0052 R-14 повернуто до
+двох chore без обіцянки, щоб вага трималась самим числом).
+
+**Зсув сенсу для тримача (§5.7, рецензія 0052 R-15).** Сценарій 0009
+`review-lists-drawn` обіцяє якір дрейфу «після першого комміту файлу
+хвилі»; для повної хвилі з планом у стовбурі якір тепер — точка
+розгалуження. Редакція закритої хвилі не переписується (§5.6);
+зсув названо тут і в черзі.
 
 ## scenario: a-court-that-cannot-judge-does-not-pass
 

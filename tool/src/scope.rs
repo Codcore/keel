@@ -3,6 +3,7 @@
 //! (§4.4); git is asked as a command of the system, and its refusal
 //! is a refusal aloud, never silence. The module writes nothing.
 
+use crate::config::Config;
 use crate::docs::{ScopeLine, Wave};
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
@@ -183,7 +184,7 @@ pub fn spike_branch(root: &Path) -> Option<String> {
 /// carries it in its diff.
 pub fn plan_findings(
     root: &Path,
-    generated: &[String],
+    config: &Config,
 ) -> Result<Vec<(String, String, String)>, Refusal> {
     let (base, _) = compare_base(root)?;
     let changed_raw = git_line(
@@ -192,7 +193,7 @@ pub fn plan_findings(
     )?;
     let mut out = Vec::new();
     for file in changed_raw.lines().map(str::trim) {
-        if file.is_empty() || furniture(file, generated) {
+        if file.is_empty() || furniture(root, config, file) {
             continue;
         }
         // The finding is hung on the file it accuses: review 0036
@@ -207,23 +208,130 @@ pub fn plan_findings(
     Ok(out)
 }
 
-/// The methodology's own files, §4.8 word for word: "the `keel/`
-/// directory, the skills, the CI file, the block in `AGENTS.md`".
-/// Review 0036 R-12 measured this read as "`keel/` plus whatever
-/// stands in [generated]", which was wrong in both directions: a
-/// project that never ran `keel update` had its own SKILL.md and
-/// workflow called code, and a generated file edited by hand went on
-/// being furniture -- which the paragraph's second sentence forbids
-/// in as many words. The digest is not compared here: `keel update`
-/// is the court of that (§9.7), and this one only decides whose file
-/// it is.
-fn furniture(file: &str, generated: &[String]) -> bool {
+/// The methodology's own files, §4.8 as written: the `keel/`
+/// directory and the tool's own config, and every generated file
+/// **in the form the tool left it** -- its digest the recorded one
+/// or the one this release writes. Edited by a hand it is code, as
+/// the paragraph's second sentence says in as many words. Review
+/// 0036 R-12 read this by NAME (the skills, the CI file, AGENTS.md),
+/// and a hand-edited generated file went on being furniture on the
+/// plan branch while `keel update`'s own files were drift on the
+/// wave branch (global review 2026-09-06, methodology R-6; wave
+/// 0052). One reading now, `generated::is_furniture`, for both
+/// courts. A project's own file under a generated name that the tool
+/// never wrote is code here -- named in the contract.
+fn furniture(root: &Path, config: &Config, file: &str) -> bool {
     file.starts_with("keel/")
         || file == "keel.toml"
-        || file == "AGENTS.md"
-        || file.starts_with(".github/workflows/keel")
-        || file.contains("/skills/keel/")
-        || generated.iter().any(|g| g == file)
+        || crate::generated::is_furniture(root, config, file)
+}
+
+/// The contracts the branch changed against the base: a fact of the
+/// branch the weight must read too (§6.8, §5.7) -- `docs::weight`
+/// reads the declared files alone, and a light wave whose branch
+/// changed a contract rode to one PR (global review 2026-09-06,
+/// methodology R-3; wave 0052).
+pub fn contracts_changed(root: &Path) -> Result<Vec<String>, Refusal> {
+    let (base, _) = compare_base(root)?;
+    let changed = git_line(
+        root,
+        &[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            &base,
+            "HEAD",
+            "--",
+            "keel/contracts/",
+        ],
+    )?;
+    Ok(changed
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
+/// The slugs the branch's commits carry as their subjects' heads --
+/// `<slug>: …` against the base (§6.2: a transform is closed by a
+/// commit under its slug, and several are allowed, §2.4). Nobody
+/// read this before wave 0052: `next` called a transform done by its
+/// touched files, and a branch with all its work in one `wip:`
+/// commit was "time for the PR" (global review 2026-09-06,
+/// methodology R-9).
+pub fn slug_commits(root: &Path) -> Result<BTreeSet<String>, Refusal> {
+    let (base, _) = compare_base(root)?;
+    let subjects = git_line(root, &["log", "--format=%s", &format!("{base}..HEAD")])?;
+    Ok(subjects
+        .lines()
+        .filter_map(|line| line.split_once(':'))
+        .map(|(head, _)| head.trim().to_string())
+        .filter(|head| !head.is_empty())
+        .collect())
+}
+
+/// Whether a file stands in main -- the fact of a merge (§6.5):
+/// `Some(true)` where main (or origin/main) carries it, `Some(false)`
+/// where a main exists and does not, `None` where no main can be
+/// asked at all -- and the caller says that aloud rather than
+/// claiming a merge it cannot see (wave 0052, methodology R-5).
+pub fn stands_in_main(root: &Path, rel: &str) -> Option<bool> {
+    let trunk = trunk(root)?;
+    let there = git_at(root)
+        .args(["cat-file", "-e", &format!("{trunk}:{rel}")])
+        .output()
+        .ok()?;
+    Some(there.status.success())
+}
+
+/// Whether the branch's own work is already in the trunk -- HEAD an
+/// ancestor of it (§6.5: "its file AND its work arrive in main by one
+/// PR"; review 0052 R-6 measured a wave file put on main by hand
+/// calling the unmerged work closed). None where no trunk can be
+/// asked.
+pub fn work_in_trunk(root: &Path) -> Option<bool> {
+    let trunk = trunk(root)?;
+    let out = git_at(root)
+        .args(["merge-base", "--is-ancestor", "HEAD", &trunk])
+        .output()
+        .ok()?;
+    Some(out.status.success())
+}
+
+/// What this repository calls its trunk -- ONE hand for the base of
+/// every comparison and for the fact of a merge (review 0052 R-2: the
+/// courts of scope knew `main` and `origin/main` alone while `check`
+/// had its own reading with `master`, and a repository on `master`
+/// never saw a light wave closed): `main`, else `master`, locally;
+/// else `origin/main`, `origin/master`; else what `origin/HEAD`
+/// points at. None where none exists -- and the caller says so.
+pub fn trunk(root: &Path) -> Option<String> {
+    for name in ["main", "master", "origin/main", "origin/master"] {
+        let known = git_at(root)
+            .args([
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                &format!("{name}^{{commit}}"),
+            ])
+            .output()
+            .ok()?;
+        if known.status.success() {
+            return Some(name.to_string());
+        }
+    }
+    let head = git_at(root)
+        .args(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+        .output()
+        .ok()?;
+    if head.status.success() {
+        let name = String::from_utf8_lossy(&head.stdout).trim().to_string();
+        if !name.is_empty() {
+            return Some(name);
+        }
+    }
+    None
 }
 
 /// The comparison base: the merge-base with main -- the local one,
@@ -232,10 +340,10 @@ fn furniture(file: &str, generated: &[String]) -> bool {
 /// Returns the sha and whether main gave it, so the report can say
 /// what it took (the wave's own caveat).
 pub fn compare_base(root: &Path) -> Result<(String, bool), Refusal> {
-    for main in ["main", "origin/main"] {
-        if let Ok(sha) = git_line(root, &["merge-base", main, "HEAD"]) {
-            return Ok((sha, true));
-        }
+    if let Some(trunk) = trunk(root)
+        && let Ok(sha) = git_line(root, &["merge-base", &trunk, "HEAD"])
+    {
+        return Ok((sha, true));
     }
     let roots = git_line(root, &["rev-list", "--max-parents=0", "HEAD"])?;
     let sha = roots.lines().last().unwrap_or("").trim().to_string();
@@ -246,7 +354,11 @@ pub fn compare_base(root: &Path) -> Result<(String, bool), Refusal> {
 /// against the base, next to the union of the wave transforms'
 /// files. keel/ is outside the comparison (§4.8); `one new in`
 /// counts strictly (§4.1).
-pub fn findings(root: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refusal> {
+pub fn findings(
+    root: &Path,
+    wave: &Wave,
+    config: &Config,
+) -> Result<Vec<(String, String)>, Refusal> {
     let (base, _) = compare_base(root)?;
     // Renames are read as a departure plus an arrival, whatever the
     // host machine's diff.renames fancies: both names meet the
@@ -293,7 +405,7 @@ pub fn findings(root: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refus
     // an old file changed there is drift like anywhere else -- the
     // promise spoke only of one new file.
     for file in &changed {
-        if file.is_empty() || file.starts_with("keel/") || declared.contains(file) {
+        if file.is_empty() || declared.contains(file) || furniture(root, config, file) {
             continue;
         }
         if added.contains(file) && dirs.keys().any(|d| file.starts_with(d)) {
