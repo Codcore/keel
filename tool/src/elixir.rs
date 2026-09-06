@@ -182,8 +182,17 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
 /// `  * test <name> (0.00ms) [L#12]`, and `doctest` alike. The start
 /// line and the finished line arrive separated by a carriage return,
 /// so the text is split on both.
+///
+/// A test mix did NOT run is named too, and taken out: `@tag :skip`
+/// prints the start line `* test it works [L#6]` and then `* test it
+/// works (skipped) [L#6]`, and the first reading counted both -- the
+/// skip as a run and the `(skipped)` as a third, phantom test, both
+/// green, and `keel close` closed the wave over them (final review
+/// 2026-09-06, bugs R-1, R-23; wave 0055). A skipped test is in the
+/// battery neither as green nor as red.
 pub fn ran(said: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
+    let mut skipped: Vec<String> = Vec::new();
     for line in said.split(['\n', '\r']) {
         let Some(rest) = line.trim().strip_prefix("* ") else {
             continue;
@@ -192,6 +201,12 @@ pub fn ran(said: &str) -> Vec<String> {
         let Some(head) = rest.rsplit_once(" [L#") else {
             continue;
         };
+        if let Some(named) = head.0.trim_end().strip_suffix("(skipped)") {
+            if let Some(name) = without_kind(named) {
+                skipped.push(name);
+            }
+            continue;
+        }
         let named = strip_timing(head.0);
         let Some(name) = without_kind(named) else {
             continue;
@@ -200,7 +215,42 @@ pub fn ran(said: &str) -> Vec<String> {
             out.push(name);
         }
     }
+    out.retain(|name| !skipped.contains(name));
     out
+}
+
+/// Whether ExUnit's summary line says no test ran: `N tests, F
+/// failures[, X excluded][, S skipped]` -- doctests and properties
+/// counted with the tests -- with nothing left once the excluded and
+/// the skipped are taken off. `mix test file:line` over a `@tag
+/// :skip` test leaves with 0 and says `2 tests, 0 failures, 1
+/// excluded, 1 skipped` (measured; wave 0055).
+fn nothing_ran(said: &str) -> bool {
+    said.split(['\n', '\r']).any(|line| {
+        let mut counted = 0usize;
+        let mut off = 0usize;
+        let mut tests = false;
+        let mut failures = false;
+        for part in line.trim().split(", ") {
+            let Some((n, word)) = part.split_once(' ') else {
+                return false;
+            };
+            let Ok(n) = n.parse::<usize>() else {
+                return false;
+            };
+            match word.trim_end() {
+                "test" | "tests" => {
+                    tests = true;
+                    counted += n;
+                }
+                "doctest" | "doctests" | "property" | "properties" => counted += n,
+                "failure" | "failures" => failures = true,
+                "excluded" | "skipped" => off += n,
+                _ => {}
+            }
+        }
+        tests && failures && counted.saturating_sub(off) == 0
+    })
 }
 
 /// The names ExUnit reported as failures: `  1) test it falls (ToyTest)`.
@@ -262,6 +312,9 @@ pub fn classify(said: &str, code: i32) -> crate::adapter::Outcome {
         // A line that selects nothing leaves with 0 and says so
         // (measured: "All tests have been excluded."): not green.
         0 if said.contains("All tests have been excluded") => crate::adapter::Outcome::NotRun,
+        // The one test the line named was skipped: mix leaves with 0
+        // and its summary says nothing ran (wave 0055).
+        0 if nothing_ran(said) => crate::adapter::Outcome::NotRun,
         0 => crate::adapter::Outcome::Green,
         2 => crate::adapter::Outcome::Failed,
         1 if said.contains("no test was executed") => crate::adapter::Outcome::NotRun,
