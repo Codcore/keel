@@ -152,3 +152,61 @@ fn a_red_nobody_claims_holds_the_wave() {
          the paragraph:\n{said}"
     );
 }
+
+/// proves: close-asks-the-form-of-every-contract@6a887d
+#[test]
+fn close_asks_the_form_of_every_contract() {
+    let dir = keel_sandbox("closeform");
+    let wave = format!(
+        "---\nscenarios:\n  s:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - s\n    files:\n      - src/lib.rs\n{}---\n\n## scenario: s\n{BODY}## transform: work\nтіло роботи\n",
+        decisions_except(&["functional.correctness"])
+    );
+    crate_under(&dir, &wave);
+    let rev = keel::rev::text_rev(BODY);
+    std::fs::write(
+        dir.join("tests/toy_test.rs"),
+        format!("/// proves: s@{rev}\n#[test]\nfn holds_s() {{\n    assert!(toy::works());\n}}\n"),
+    )
+    .unwrap();
+    // A contract promising a unit the module does not hold: the form
+    // court of `keel check` is red over it (§7.6).
+    std::fs::write(
+        dir.join("keel/contracts/toy.md"),
+        "---\nmodule: toy\nexports:\n  - \"pub fn missing() -> bool\"\n---\n\nОбіцянка форми, якої код не тримає.\n",
+    )
+    .unwrap();
+    settle(&dir);
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(code, 1, "check is red over the form:\n{said}");
+    assert!(
+        said.contains("обіцяє \"missing\""),
+        "and names the promise the code does not hold:\n{said}"
+    );
+
+    // The closing court asks the same question of the same contracts,
+    // and a finding is a blocker by name -- never "closed", exit 0,
+    // over a form check says is red.
+    let (said, code) = keel(&dir, &["close"]);
+    assert!(
+        said.contains("обіцяє \"missing\"") && said.contains("§7.6"),
+        "close names the form finding, with the paragraph:\n{said}"
+    );
+    assert!(
+        said.contains("форм"),
+        "and counts the form court aloud, as it counts verify:\n{said}"
+    );
+    assert_ne!(code, 0, "a form the code does not hold does not merge:\n{said}");
+
+    // On a plan branch the form is not judged -- exports grow ahead of
+    // the code by design (§4.9) -- and close says so in check's words.
+    git(&dir, &["checkout", "-q", "-b", "plan/0002-next"]);
+    let (said, _) = keel(&dir, &["close"]);
+    assert!(
+        said.contains("суд форми не біжить"),
+        "the plan branch is outside the form court, said aloud:\n{said}"
+    );
+    assert!(
+        !said.contains("обіцяє \"missing\""),
+        "and no form finding is raised there:\n{said}"
+    );
+}
