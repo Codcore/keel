@@ -319,17 +319,13 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
         _ => {}
     }
     let crate_dir = crate_root(root)?;
-    let stem = tag
-        .file
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_default();
+    let target = test_target(&crate_dir, &tag.file)?;
     let mut command = Command::new("cargo");
     command
         .arg("test")
         .arg("--manifest-path")
         .arg(crate_dir.join("Cargo.toml"))
-        .args(["--test", &stem, &tag.test, "--", "--exact"])
+        .args(["--test", &target, &tag.test, "--", "--exact"])
         // The judged project builds into its own target directory:
         // an inherited shared cache shifts verdicts (§6.7 heal of
         // 0005 per review 0008 R-8; seen live in 0006 too), and the
@@ -375,6 +371,49 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal> {
     } else {
         Ok(Outcome::Green)
     }
+}
+
+/// The name cargo knows a test file's target by: the stem, unless
+/// the manifest renames it -- `[[test]] name = "renamed" path =
+/// "tests/w_test.rs"` -- in which case `--test w_test` is a refusal
+/// while the battery reads the file fine, two courts about one test
+/// (global review 2026-09-06 R-14; wave 0051). A manifest the reader
+/// cannot parse is a refusal with the reader's words, never a guess.
+fn test_target(crate_dir: &Path, file: &Path) -> Result<String, Refusal> {
+    let stem = file
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let manifest = crate_dir.join("Cargo.toml");
+    let text = std::fs::read_to_string(&manifest).map_err(|e| Refusal {
+        file: manifest.clone(),
+        reason: ta("docs-unreadable", targs!("error" => e.to_string())),
+        instead: t("docs-unreadable-instead"),
+    })?;
+    let value: toml::Value = toml::from_str(&text).map_err(|e| Refusal {
+        file: manifest.clone(),
+        reason: ta("adapter-cargo-manifest", targs!("error" => e.to_string())),
+        instead: t("adapter-cargo-manifest-instead"),
+    })?;
+    let relative = file
+        .strip_prefix(crate_dir)
+        .unwrap_or(file)
+        .to_string_lossy()
+        .replace('\\', "/");
+    let renamed = value
+        .get("test")
+        .and_then(|t| t.as_array())
+        .into_iter()
+        .flatten()
+        .find(|table| {
+            table
+                .get("path")
+                .and_then(|p| p.as_str())
+                .is_some_and(|p| p.replace('\\', "/") == relative)
+        })
+        .and_then(|table| table.get("name").and_then(|n| n.as_str()))
+        .map(str::to_string);
+    Ok(renamed.unwrap_or(stem))
 }
 
 /// The whole battery in one cargo run, verdicts laid out per test:

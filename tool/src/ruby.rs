@@ -167,7 +167,12 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
     }
     let relative = tag.file.strip_prefix(root).unwrap_or(&tag.file);
     let mut command = Command::new("ruby");
+    // The encoding of the arguments is the adapter's word to its
+    // child, not the machine's locale: under `LANG=` ruby read `-n
+    // test_ünïcode` in ASCII-8BIT and selected nothing (global review
+    // 2026-09-06 R-19; wave 0051), while `-E UTF-8` runs it.
     command
+        .args(["-E", "UTF-8"])
         .arg("-Itest")
         .arg(relative)
         .arg("-n")
@@ -239,6 +244,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         let stem = crate::adapter::battery_key(root, &file);
         let mut command = Command::new("ruby");
         command
+            .args(["-E", "UTF-8"])
             .arg("-Itest")
             .arg(relative)
             .arg("-v")
@@ -570,11 +576,22 @@ struct Said {
 
 fn rspec(root: &Path, args: &[String]) -> Result<Said, Refusal> {
     static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let out_file = std::env::temp_dir().join(format!(
-        "keel-rspec-{}-{}.json",
+    // A directory of this run's own, created exclusively -- a file
+    // under a name anyone could have set up in advance in the shared
+    // temp dir was the classic race (global review 2026-09-06 R-26;
+    // wave 0051). `create_dir` refuses what already stands there, a
+    // symlink included, and that refusal is said aloud.
+    let home = std::env::temp_dir().join(format!(
+        "keel-rspec-{}-{}",
         std::process::id(),
         COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
+    std::fs::create_dir(&home).map_err(|e| Refusal {
+        file: home.clone(),
+        reason: ta("adapter-rspec-tmp", targs!("error" => e.to_string())),
+        instead: t("adapter-rspec-tmp-instead"),
+    })?;
+    let out_file = home.join("out.json");
     let mut command = Command::new("rspec");
     command
         .args(["--format", "json", "--out"])
@@ -598,7 +615,7 @@ fn rspec(root: &Path, args: &[String]) -> Result<Said, Refusal> {
         instead: t("adapter-rspec-failed-instead"),
     })?;
     let json = std::fs::read_to_string(&out_file);
-    let _ = std::fs::remove_file(&out_file);
+    let _ = std::fs::remove_dir_all(&home);
     let voice = format!(
         "{}{}",
         String::from_utf8_lossy(&out.stdout),

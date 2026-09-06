@@ -275,6 +275,8 @@ adapter-rspec-failed = rspec не запустився: { $error }
 adapter-rspec-failed-instead = постав rspec на PATH — адаптер кличе його так само, як людина в терміналі; JSON він пише у файл поза проєктом, і без файла вироку нема
 adapter-rspec-broken = rspec не завантажив приклади: { $error }
 adapter-rspec-broken-instead = ruby не збирає наперед: файл, який не завантажився, не дає вироку жодному прикладу — полагодь його і повтори
+adapter-rspec-tmp = тимчасову теку для JSON rspec не створити: { $error }
+adapter-rspec-tmp-instead = тека мусить бути новою і своєю — щось уже стоїть під цим іменем у тимчасовій теці системи; прибери його або зміни TMPDIR і повтори
 limit-rspec-border = не перевірено: друге читання ruby — rspec — читає spec/**/*_spec.rb і зве приклад повним описом, як rspec (групи через пробіл; без пробілу лише після константи-модуля перед #…, ::… чи .… — правило rspec, зміряне); один приклад біжить за ідентифікатором із `--dry-run`, вирок — із JSON, і pending — не бігло; однорядкові приклади `it { "{ … }" }` імені не мають і тега не тримають, приклади в shared_examples — теж; `describe` з не-літеральним аргументом (described_class) імені групи не дає; приклад з іменем, збудованим під час бігу, і група, названа змінною чи константою-значенням, — відмови вголос; spec/support/ і spec_helper.rb не читаються; де проєкт налаштував example_status_persistence_file_path, після бігу лежить його файл (типово spec/examples.txt) — пише проєкт, не адаптер; згенерований CI жене minitest — крок rspec цей реліз не пише, додай його сам
 adapter-elixir-failed = mix не запустився: { $error }
 adapter-elixir-failed-instead = постав elixir і mix на PATH — адаптер кличе mix так само, як людина в терміналі
@@ -292,6 +294,8 @@ adapter-battery-counts = cargo нарахував у блоці { $passed } зе
 adapter-battery-counts-instead = тест, що пише в stdout повз libtest (дитина-процес), міг підробити рядок вироку чи блоку; зроби його мовчазним або жени окремо, тоді повтори keel close
 adapter-cargo-red-unseen = cargo вийшов із { $code }, а читач не побачив жодного червоного вироку — бінарник тестів упав до підсумку або говорить незнайомою формою
 adapter-cargo-red-unseen-instead = жени `cargo test --no-fail-fast` рукою і подивись, що впало; без прочитаного червоного суд не судить
+adapter-cargo-manifest = Cargo.toml не читається TOML-читачем: { $error }
+adapter-cargo-manifest-instead = полагодь маніфест — імʼя цілі тесту читається з `[[test]]`, і вгадувати стем замість нього суд не буде
 adapter-battery-alike = cargo оголошує ціль "{ $target }" двічі — вироки двох цілей з одним іменем не розрізнити (воркспейс?)
 adapter-battery-alike-instead = цей реліз веде один крейт: жени члени воркспейсу окремо, кожен зі своїм keel.toml, або дай цілям різні імена — тоді повтори keel close
 

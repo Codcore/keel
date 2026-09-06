@@ -128,10 +128,13 @@ fn snake_case(word: &str) -> String {
 /// written for exactly this case, and here the "where it can" branch
 /// is the one that runs.
 pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal> {
-    let out = mix(
-        root,
-        &["--only".to_string(), format!("test:test {}", tag.test)],
-    )?;
+    // By the file and the LINE of the declaration, never by the name:
+    // `mix test --only 'test:test ünïcode holds'` excludes everything
+    // (measured, global review 2026-09-06 R-11), while `mix test
+    // test/x_test.exs:LINE` runs the test declared at that line -- the
+    // very line the tag reader saw. The name never enters the command.
+    let relative = tag.file.strip_prefix(root).unwrap_or(&tag.file);
+    let out = mix(root, &[format!("{}:{}", relative.display(), tag.line)])?;
     Ok(classify(&out.0, out.1))
 }
 
@@ -256,6 +259,9 @@ fn without_kind(named: &str) -> Option<String> {
 /// compile" and "--only matched nothing".
 pub fn classify(said: &str, code: i32) -> crate::adapter::Outcome {
     match code {
+        // A line that selects nothing leaves with 0 and says so
+        // (measured: "All tests have been excluded."): not green.
+        0 if said.contains("All tests have been excluded") => crate::adapter::Outcome::NotRun,
         0 => crate::adapter::Outcome::Green,
         2 => crate::adapter::Outcome::Failed,
         1 if said.contains("no test was executed") => crate::adapter::Outcome::NotRun,

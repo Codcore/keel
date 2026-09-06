@@ -214,23 +214,43 @@ pub fn ran(said: &str) -> Vec<(String, String, String)> {
             out.push((file.to_string(), name.to_string(), verdict.to_string()));
         }
     };
+    // A node is read as a WHOLE: a directory with a space in it cut
+    // the node in two words and the battery lost the test (global
+    // review 2026-09-06 R-17; wave 0051).
     for line in said.lines() {
         let trimmed = line.trim();
-        let mut words = trimmed.split_whitespace();
-        let (Some(first), Some(second)) = (words.next(), words.next()) else {
-            continue;
-        };
-        if VERDICTS.contains(&first) {
-            // The summary shape: verdict first, node second. A
-            // SKIPPED line carries `file:line` and no node, and is
-            // left out here by its shape.
-            if let Some((file, name)) = second.split_once("::") {
+        // The summary shape: the verdict first, then the node, then
+        // maybe ` - <message>`. A SKIPPED line carries `file:line`
+        // and no node, and is left out here by its shape.
+        if let Some((first, rest)) = trimmed.split_once(' ')
+            && VERDICTS.contains(&first)
+        {
+            let node = rest.split(" - ").next().unwrap_or(rest).trim();
+            if let Some((file, name)) = node.split_once("::") {
                 take(file, name, first);
             }
-        } else if VERDICTS.contains(&second)
-            && let Some((file, name)) = first.split_once("::")
-        {
-            take(file, name, second);
+            continue;
+        }
+        // The progress shape: the node, then the verdict, then the
+        // percentage -- the verdict is the LAST verdict word in it.
+        let Some((cut, verdict)) = VERDICTS
+            .iter()
+            .filter_map(|v| {
+                trimmed
+                    .rfind(&format!(" {v}"))
+                    .filter(|&at| {
+                        let after = &trimmed[at + 1 + v.len()..];
+                        after.is_empty() || after.starts_with(' ')
+                    })
+                    .map(|at| (at, *v))
+            })
+            .max()
+        else {
+            continue;
+        };
+        let node = trimmed[..cut].trim();
+        if let Some((file, name)) = node.split_once("::") {
+            take(file, name, verdict);
         }
     }
     out

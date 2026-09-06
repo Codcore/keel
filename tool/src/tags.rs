@@ -14,6 +14,11 @@ pub struct TestTag {
     pub test: String,
     pub scenario: String,
     pub rev: String,
+    /// The line of the declaration the tag holds, counted from 1 --
+    /// what a runner that selects by `file:line` is handed (wave
+    /// 0051: mix excludes a test with letters beyond ASCII under
+    /// `--only`, and runs it by its line).
+    pub line: usize,
 }
 
 /// Reads the named test files and collects the tags. A tag with no
@@ -95,7 +100,7 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
         let mut describing: Option<(String, usize)> = None;
         let mut depth: usize = 0;
         let mut heredoc = false;
-        for line in text.lines() {
+        for (at, line) in text.lines().enumerate() {
             let trimmed = line.trim();
             // `@doc """ … """` with an example inside is the most
             // ordinary thing an elixir file contains, and an example
@@ -317,6 +322,7 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                         test: name,
                         scenario,
                         rev,
+                        line: at + 1,
                     });
                 }
                 continue;
