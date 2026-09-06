@@ -74,6 +74,7 @@ transforms:
       - tool/i18n/en.ftl
       - tool/tests/outside_word_test.rs
       - tool/tests/pin_hand_test.rs
+      - tool/tests/rev_test.rs
       - keel/waves/0039-the-tool-in-someone-elses-project.md
   the-generated-close-knows-its-branch:
     implements:
