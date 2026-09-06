@@ -118,4 +118,39 @@ fn the_norm_names_what_holds_it() {
         "the two skeletons agree and the record is current: {:?}",
         keel::speak::methods_agree().err().map(|r| r.reason)
     );
+
+    // And the court a person actually runs says so over this very
+    // tree: the library call above is the same rule read through the
+    // library, which is a weaker fact than the one this probe's head
+    // claims (final review 2026-09-06, tests R-6). `keel check` is
+    // run here, and its two method rows are read.
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["check", repo.to_str().unwrap()])
+        .output()
+        .expect("keel check runs over this repository");
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    // The exit code is the whole tree's and says nothing here -- a
+    // wave in progress reddens it by design; the rows do the talking.
+    let rows: Vec<&str> = said
+        .lines()
+        .filter(|line| {
+            line.contains("методика цього бінарника") || line.contains("methodology of this binary")
+        })
+        .collect();
+    assert_eq!(
+        rows.len(),
+        2,
+        "keel check gives the norm a row per tongue (wave 0029):\n{said}"
+    );
+    for row in rows {
+        assert!(
+            row.trim_start().starts_with("зелене") || row.trim_start().starts_with("green"),
+            "and both rows are green over this tree:\n{row}"
+        );
+    }
 }

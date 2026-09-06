@@ -93,4 +93,114 @@ fn a_court_that_cannot_fail_is_not_a_court() {
          nothing:\n  {}",
         dead.join("\n  ")
     );
+
+    // --- and the same court in English, where it can be true -----
+    // The comment above is right that a bare word-by-word reading of
+    // English drowns in fixture text. What is evidence, and what the
+    // final review of 2026-09-06 (tests R-5) counted by hand, is a
+    // NEGATIVE assert whose whole phrase stands NOWHERE: not in the
+    // tool's own lines, not in the documents it carries, not even in
+    // the probe's own fixture. Nothing can print it, so the assert
+    // is green for ever.
+    //
+    // Six such phrases are alive all the same, and each says why:
+    // five are lines the tool would BUILD out of parts (a name, a
+    // path, a version, a runner's own banner) if it regressed, and
+    // one guards a sentence the norm used to carry. They are named
+    // here rather than left to a reader's judgement -- a court with
+    // an unwritten exception is not a court.
+    const GUARDS: [(&str, &str); 6] = [
+        // The full name mix would print if the reader put a test
+        // into a describe block it is not in.
+        ("elixir_border_test.rs", "a group it works"),
+        // The version line the launcher would print if it ran a
+        // binary other than the pinned one.
+        ("launcher_fetch_test.rs", "keel 1.0.0"),
+        // The path check would build if it addressed a finding to a
+        // wave file that does not exist.
+        ("plan_branch_test.rs", "keel/waves/0099-nowhere.md"),
+        // pytest's own banner rule, which the adapter must not pass
+        // off as a reason.
+        ("python_border_test.rs", "_____"),
+        // The drift line the review package would build if it called
+        // a planned file drift.
+        ("review_test.rs", "src/a.rs — added after the anchor"),
+        // A sentence §4.13 used to carry: a guard over the NORM's
+        // text, which a person edits.
+        ("rule_truth_test.rs", "the check on a PR"),
+    ];
+
+    let mut corpus = String::new();
+    for path in [
+        tool.join("i18n/uk.ftl"),
+        tool.join("i18n/en.ftl"),
+        repo.join("QUALITY.md"),
+        repo.join("README.md"),
+        repo.join("METHODOLOGY.md"),
+        repo.join("AGENTS.md"),
+        repo.join("BACKLOG.md"),
+        repo.join("install.sh"),
+        repo.join("docs/uk/QUALITY.md"),
+        repo.join("docs/uk/METHODOLOGY-V2.md"),
+        repo.join("docs/en/METHODOLOGY-V2.md"),
+        repo.join("docs/uk/NEW-CONCEPT.md"),
+    ] {
+        corpus.push_str(&std::fs::read_to_string(&path).unwrap_or_default());
+    }
+    for entry in std::fs::read_dir(tool.join("src")).unwrap().flatten() {
+        corpus.push_str(&std::fs::read_to_string(entry.path()).unwrap_or_default());
+    }
+    let corpus = corpus.to_lowercase();
+
+    let mut mute: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(tool.join("tests")).unwrap().flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|kind| kind != "rs") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).unwrap();
+        let file = path.file_name().unwrap().to_string_lossy().to_string();
+        let lines: Vec<&str> = text.lines().collect();
+        for (index, line) in lines.iter().enumerate() {
+            let Some((before, rest)) = line.split_once(".contains(\"") else {
+                continue;
+            };
+            // A negative assert, and only that: `!x.contains("…")`.
+            if !before.trim_start().starts_with('!') && !before.contains("&& !") {
+                continue;
+            }
+            let Some((needle, _)) = rest.split_once('"') else {
+                continue;
+            };
+            if needle.len() < 5 || needle.chars().any(|c| ('а'..='я').contains(&c)) {
+                continue;
+            }
+            if GUARDS.contains(&(file.as_str(), needle)) {
+                continue;
+            }
+            let lowered = needle.to_lowercase();
+            if corpus.contains(&lowered) {
+                continue;
+            }
+            // The probe's own fixture may write it, and then the
+            // court under test really can print it back.
+            let elsewhere = lines
+                .iter()
+                .enumerate()
+                .any(|(other, l)| other != index && l.to_lowercase().contains(&lowered));
+            if !elsewhere {
+                mute.push(format!("{file}:{} — \"{needle}\"", index + 1));
+            }
+        }
+    }
+
+    assert!(
+        mute.is_empty(),
+        "every negative assert can still fail: these hunt a phrase \
+         that stands nowhere -- not in the tool's lines, not in its \
+         documents, not in the probe's own fixture -- so nothing can \
+         ever print it. Fix the assert, or name it among GUARDS above \
+         with the reason it is alive:\n  {}",
+        mute.join("\n  ")
+    );
 }

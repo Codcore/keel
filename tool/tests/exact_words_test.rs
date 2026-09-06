@@ -114,7 +114,10 @@ fn elixir_project(name: &str, test_file: &str, worked: bool) -> common::Sandbox 
         // The birth first: a green test nobody saw red proves
         // nothing (§6.3, §7.12), and this fixture is about a NAME,
         // so it walks the loop properly.
-        git(&dir, &["commit", "-q", "--allow-empty", "-m", "red: it-works"]);
+        git(
+            &dir,
+            &["commit", "-q", "--allow-empty", "-m", "red: it-works"],
+        );
         write(
             &dir,
             "lib/toy.ex",
