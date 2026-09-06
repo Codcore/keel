@@ -180,12 +180,14 @@ not the signature: `gh attestation verify` does that, and `gh` is not a thing
 every machine has.
 
 **No published tag carries the current layout yet** — keel v1 kept the crate
-outside `tool/`, so `KEEL_REF=v0.8.9` refuses by name and only a commit or a
-branch works until a v2 release is tagged. The number and the tag are the
-operator's line: bumping the crate and keel's own pin before the tag exists
-would break this repository's CI, which installs by pin through `install.sh`
-from `main`. Once a `v*` tag is pushed, the release workflow builds the archive
-and the pin road above opens. The installer the generated CI step fetches comes
+outside `tool/`, so `KEEL_REF=v0.8.9` refuses by name. The number and the tag
+are the operator's line, in this order: bump the crate's version in one commit;
+push the tag `v<version>` on that commit — the workflow builds the release, and
+`release.sh --tag` refuses a tree that answers another number; then bump the pin
+in `keel.toml`, and this repository's CI takes the release road. Until then
+keel's own CI installs by the pin `0.1.0`, which is neither a tag nor a release:
+`install.sh` builds the branch the remote leads with and accepts it only because
+that tree answers `0.1.0`. The installer the generated CI step fetches comes
 from `main`, unpinned: a project pinned to an older keel still runs today's
 script.
 
