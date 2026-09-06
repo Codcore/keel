@@ -70,10 +70,18 @@ fn wave(n: &str, file: &str, extra: &str) -> String {
 
 /// A rust project with two waves, committed on main.
 fn project(name: &str, first: &str, second: &str) -> common::Sandbox {
+    project_in(name, "uk", first, second)
+}
+
+fn project_in(name: &str, lang: &str, first: &str, second: &str) -> common::Sandbox {
     let dir = keel_sandbox(name);
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::create_dir_all(dir.join("tests")).unwrap();
-    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
+    std::fs::write(
+        dir.join("keel.toml"),
+        format!("lang = \"{lang}\"\nadapter = \"rust\"\n"),
+    )
+    .unwrap();
     std::fs::write(
         dir.join("Cargo.toml"),
         "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
@@ -116,10 +124,109 @@ fn two_open_waves_do_not_share_a_file() {
             "on {branch} the crossing is a finding (§8.8):\n{said}"
         );
         assert!(
-            crossing_named(&said) && said.contains("depends_on"),
-            "on {branch} it names the file, both waves and the way out:\n{said}"
+            crossing_named(&said),
+            "on {branch} it names the line and both waves:\n{said}"
+        );
+        // The finding lands on the LATER wave's file, and its instead
+        // names both ways out (review 0054 R-4, R-5).
+        let row = said
+            .lines()
+            .find(|l| l.contains("червоне") && l.contains("оголошують"))
+            .expect("the red row of the crossing");
+        assert!(
+            row.contains("keel/waves/0002-second.md"),
+            "the finding stands on the later wave's file:\n{row}"
+        );
+        let instead = said
+            .lines()
+            .find(|l| l.contains("натомість") && l.contains("§8.8"))
+            .expect("the instead line of the crossing");
+        assert!(
+            instead.contains("назви залежність depends_on") && instead.contains("поділи файл"),
+            "the instead names both ways out:\n{instead}"
         );
     }
+
+    // --- the same in English (review 0054 R-4) ---
+    let dir = project_in(
+        "crossen",
+        "en",
+        &wave("0001", "src/lib.rs", ""),
+        &wave("0002", "src/lib.rs", ""),
+    );
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(code, 1, "the crossing is a finding in English too:\n{said}");
+    assert!(
+        said.contains("is declared by two open waves")
+            && said.contains("§8.8")
+            && said.contains("name a depends_on")
+            && said.contains("divide the file"),
+        "the English reason and instead say the same:\n{said}"
+    );
+
+    // --- the edge the other way round (review 0054 R-5): no finding ---
+    let dir = project(
+        "crossreverse",
+        &wave("0001", "src/lib.rs", "depends_on: [0002-second]\n"),
+        &wave("0002", "src/lib.rs", ""),
+    );
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(
+        code, 0,
+        "an edge from the first to the second joins them too:\n{said}"
+    );
+    assert!(!crossing_named(&said), "and no crossing is named:\n{said}");
+
+    // --- a chain through a third wave (review 0054 R-5): the first
+    // and the third share a file, joined only through the second ---
+    let dir = project(
+        "crosschain",
+        &wave("0001", "src/lib.rs", ""),
+        &wave("0002", "src/other.rs", "depends_on: [0001-first]\n"),
+    );
+    std::fs::write(
+        dir.join("keel/waves/0003-third.md"),
+        wave("0003", "src/lib.rs", "depends_on: [0002-second]\n"),
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "a third wave"]);
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(
+        code, 0,
+        "waves joined through a chain do not cross:\n{said}"
+    );
+    assert!(
+        !said.contains("0003-third.md — рядок"),
+        "and no crossing is named on the third:\n{said}"
+    );
+
+    // --- two `one new in` over one directory cross; a `one new in`
+    // beside a path in that directory does not (review 0054 R-5) ---
+    let dir = project(
+        "crossnewin",
+        &wave("0001", "one new in src/", ""),
+        &wave("0002", "one new in src/", ""),
+    );
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(
+        code, 1,
+        "two `one new in` over one directory cross:\n{said}"
+    );
+    assert!(
+        said.contains("рядок scope \"one new in src/\""),
+        "and the finding calls the line a scope line, not a file:\n{said}"
+    );
+    let dir = project(
+        "crossbeside",
+        &wave("0001", "one new in src/", ""),
+        &wave("0002", "src/lib.rs", ""),
+    );
+    let (said, code) = keel(&dir, &["check"]);
+    assert_eq!(
+        code, 0,
+        "a `one new in` beside a path is a different line:\n{said}"
+    );
 
     // --- an edge between them: no finding ---
     let dir = project(
