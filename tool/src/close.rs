@@ -60,10 +60,13 @@ pub(crate) enum State {
 /// waves. The first version of this constant said 4 GiB from the
 /// ceiling and refused with 3.5 GiB free, where the work would have
 /// finished with 2.2 GiB to spare; the second said 2 GiB and was
-/// under the measured weight. Three gibibytes is the measured
-/// weight, rounded up to whole gibibytes, and the word carries this
-/// number and no other.
-const NEEDED_BYTES: u64 = 3 * 1024 * 1024 * 1024;
+/// under the measured weight; the third said 3 GiB and was under it
+/// again -- a closing of wave 0055 left 3.7 GiB in this project's own
+/// target (review 0055 R-10), and a guard that undercounts by a
+/// quarter lets through exactly the run it stands to stop. The
+/// number is the measured weight rounded up to whole gibibytes, and
+/// the word carries this number and no other.
+const NEEDED_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 /// Free bytes on the filesystem holding this project, or nothing
 /// when the question cannot be asked -- a court that cannot see the
@@ -576,6 +579,14 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
         ));
         report.push('\n');
     }
+    // The project's own gate, when trust does not let it run: the
+    // first cut of this wave took the "no blockers" footer away and
+    // put nothing in its place, so a person running only this court
+    // saw a closed wave and no summary line at all (review 0055 R-6).
+    if ci_unrun {
+        report.push_str(&t("close-ci-unproven"));
+        report.push('\n');
+    }
     if form_blockers > 0 {
         report.push_str(&ta(
             "close-form-blockers",
@@ -782,22 +793,39 @@ pub(crate) fn nothing_to_prove(wave: &docs::Wave) -> bool {
 /// the file on disk is all there is, and it is read.
 pub(crate) fn report_text(root: &Path, slug: &str) -> Option<String> {
     let relative = format!("keel/reviews/{slug}.md");
-    let born = scope::git_at(root)
-        .args(["rev-parse", "--verify", "--quiet", "HEAD"])
-        .output()
-        .is_ok_and(|out| out.status.success());
-    if !born {
-        return std::fs::read_to_string(root.join(&relative)).ok();
-    }
-    let out = scope::git_at(root)
+    // One git call on the road that answers (review 0055 R-13: this
+    // court asks it once per wave, and asking twice doubled the
+    // processes a `keel status` over fifty-five waves spends).
+    //
+    // `HEAD:<path>` is read from the top of the WORK TREE, not from
+    // the directory git was pointed at: a keel project living in a
+    // subdirectory of a bigger repository had its report in history
+    // and this court could not see it (review 0055 R-3). `HEAD:./…`
+    // is git's own spelling for "relative to here".
+    let shown = scope::git_at(root)
         .arg("show")
-        .arg(format!("HEAD:{relative}"))
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
+        .arg(format!("HEAD:./{relative}"))
+        .output();
+    match shown {
+        Ok(out) if out.status.success() => {
+            return Some(String::from_utf8_lossy(&out.stdout).into_owned());
+        }
+        // git ran and did not find it: absent from history -- unless
+        // there is no history to ask, and then the file on disk is
+        // all there is.
+        Ok(_) => {
+            let born = scope::git_at(root)
+                .args(["rev-parse", "--verify", "--quiet", "HEAD"])
+                .output()
+                .is_ok_and(|out| out.status.success());
+            if born {
+                return None;
+            }
+        }
+        // git did not run at all.
+        Err(_) => {}
     }
-    Some(String::from_utf8_lossy(&out.stdout).into_owned())
+    std::fs::read_to_string(root.join(&relative)).ok()
 }
 
 pub(crate) fn wave_state(

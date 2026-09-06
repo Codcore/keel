@@ -208,6 +208,14 @@ fn the_courts_agree_on_one_tree() {
         "the closing court names the proof that did not run and the \
          hand that lets it run (§7.16):\n{said}"
     );
+    // The counted line itself, not merely the absence of a footer:
+    // the first cut of this wave was held only by what it did NOT
+    // say, so a mutant that dropped the line entirely lived (review
+    // 0055 R-6).
+    assert!(
+        said.contains("promises whose proof did not run: 1"),
+        "and counts them on a line of its own:\n{said}"
+    );
     assert!(
         !said.lines().any(|line| line.starts_with("no blockers")),
         "and does not say \"no blockers\" under it: the verdict of \
@@ -227,6 +235,65 @@ fn the_courts_agree_on_one_tree() {
     assert!(
         said.lines().any(|line| line.starts_with("no blockers")),
         "and the footer is the plain one again:\n{said}"
+    );
+
+    // The project's own gate, distrusted, gets the same treatment:
+    // the first cut took the footer away and put nothing in its
+    // place, so this court said nothing at all about the tree it had
+    // not judged (review 0055 R-6).
+    let dir = project("oneverdictci", "", "");
+    write(
+        &dir,
+        "keel.toml",
+        "lang = \"en\"\nadapter = \"cargo\"\nci = \"true\"\n",
+    );
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "t: the work"]);
+    let (said, _code) = keel(&dir, &["close"]);
+    assert!(
+        said.contains("did not run") && said.contains("gate (ci)"),
+        "an untrusted ci is named as the gate that did not judge this \
+         tree:\n{said}"
+    );
+    assert!(
+        !said.lines().any(|line| line.starts_with("no blockers")),
+        "and no footer says otherwise:\n{said}"
+    );
+
+    // -- a project living in a subdirectory of a bigger repository --
+    // `HEAD:<path>` is read from the top of the work tree, so the
+    // report of a project in a subdirectory was invisible to this
+    // court while standing in history (review 0055 R-3).
+    let outer = keel_sandbox("oneverdictouter");
+    git(&outer, &["init", "-q", "-b", "main"]);
+    write(&outer, "README.md", "the outer repository\n");
+    let inner = project("oneverdictinner", "", "");
+    let sub = outer.join("sub");
+    std::fs::create_dir_all(&sub).unwrap();
+    for entry in std::fs::read_dir(inner.path()).unwrap().flatten() {
+        let name = entry.file_name();
+        if name == ".git" {
+            continue;
+        }
+        let out = Command::new("cp")
+            .arg("-r")
+            .arg(entry.path())
+            .arg(sub.join(&name))
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "the project is copied into the repository"
+        );
+    }
+    git(&outer, &["add", "-A"]);
+    git(&outer, &["commit", "-q", "-m", "the project rides inside"]);
+    git(&outer, &["checkout", "-q", "-b", "0009-w"]);
+    let (said, _code) = keel(&sub, &["close"]);
+    assert!(
+        !said.contains("is not in the branch's history"),
+        "the report of a project in a subdirectory is read from that \
+         project's own place in HEAD:\n{said}"
     );
 
     // -- the tags of a wave called off are outside judgement --------
