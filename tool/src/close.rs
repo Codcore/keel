@@ -32,6 +32,11 @@ pub(crate) enum State {
         refs_unjudged: u64,
     },
     ClosedLight,
+    /// A wave with nothing to prove whose merge has not happened: the
+    /// fact of §6.5 is the wave file standing in main, and until it
+    /// does the wave WILL close by merge, not is closed. The flag says
+    /// whether a main could be asked at all (wave 0052).
+    AwaitingMerge(bool),
     /// Called off after it was started (§6): nothing to prove and
     /// nothing to wait for, and the reason travels with it.
     Cancelled(String),
@@ -469,6 +474,15 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
                 ));
                 report.push('\n');
             }
+            State::AwaitingMerge(seen) => {
+                let key = if seen {
+                    "close-awaiting-merge"
+                } else {
+                    "close-awaiting-merge-unseen"
+                };
+                report.push_str(&ta(key, targs!("wave" => wave.slug.clone())));
+                report.push('\n');
+            }
             State::Cancelled(why) => {
                 report.push_str(&ta(
                     "close-cancelled",
@@ -706,7 +720,18 @@ pub(crate) fn wave_state(
     if nothing_to_prove(wave) {
         let report = root.join("keel/reviews").join(format!("{}.md", wave.slug));
         if report.is_file() {
-            return Ok(State::ClosedLight);
+            // "Closed by the fact of merge" only where the fact
+            // stands: the wave file in main. The first reading
+            // called a chore wave closed the moment its report lay
+            // beside it, on a branch main had never seen (global
+            // review 2026-09-06, methodology R-5).
+            return Ok(
+                match scope::stands_in_main(root, &format!("keel/waves/{}.md", wave.slug)) {
+                    Some(true) => State::ClosedLight,
+                    Some(false) => State::AwaitingMerge(true),
+                    None => State::AwaitingMerge(false),
+                },
+            );
         }
         return Ok(State::Progress(vec![t("close-lack-review")]));
     }

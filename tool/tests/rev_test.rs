@@ -29,7 +29,9 @@ fn revision_recipe_reproduced() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     assert_eq!(
         rev::contract_rev(&root.join("keel/contracts/tool-docs.md")).unwrap(),
-        "2ab9a9"
+        // 2ab9a9 until wave 0052 wrote the weight's reason (`heavy`)
+        // into the contract.
+        "f53b8f"
     );
     assert_eq!(
         rev::contract_rev(&root.join("keel/contracts/tool-config.md")).unwrap(),

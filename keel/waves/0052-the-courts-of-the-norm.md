@@ -41,6 +41,8 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/weight_of_the_branch_test.rs
+      - tool/tests/close_test.rs
+      - tool/tests/rev_test.rs
   the-scope-court-and-the-anchor:
     implements:
       - furniture-is-known-by-its-digest
@@ -158,7 +160,10 @@ exit 0 (R-5): факт merge ніхто не питав, і параграф ц�
 `tool/tests/adapter_name_test.rs`: проба хвилі 0017 тримала слово
 рецензії 0017 R-4 — «gate над невідомим адаптером пропускає зі
 словом», — а сценарій 0017 каже «з невідомим — відмова вголос»; проба
-тепер тримає сценарій, і текст 0017 не змінюється.
+тепер тримає сценарій, і текст 0017 не змінюється. У другу —
+`tool/tests/close_test.rs` (проба 0037 звала легку хвилю закритою без
+факту merge в пісочниці без main; тепер чекає файла в main) і
+`tool/tests/rev_test.rs` (золота редакція tool-docs).
 
 ## scenario: a-court-that-cannot-judge-does-not-pass
 

@@ -377,6 +377,43 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 )),
             ));
         }
+        // §2.11: a wave of chores alone must be light -- "big work
+        // without a single promise is a reason to stop and think, not
+        // to slip through". Two chore transforms were a wave nobody
+        // called full and nobody called light (global review
+        // 2026-09-06, methodology R-4; wave 0052). "Without a single
+        // promise" is read as written: a wave with no scenario at all
+        // -- the one `close` calls nothing-to-prove -- whose transforms
+        // are chores; a wave that WITHDRAWS a promise has one to speak
+        // of, and §6.8 makes it full for that reason alone.
+        let chores_only = wave.scenarios.is_empty()
+            && !wave.transforms.is_empty()
+            && wave
+                .transforms
+                .iter()
+                .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
+        if chores_only && let Some(heavy) = docs::heavy(wave) {
+            let why = match heavy {
+                docs::Heavy::Transforms(count) => ta(
+                    "check-chores-heavy-transforms",
+                    targs!("count" => count as u64),
+                ),
+                docs::Heavy::Withdraws => t("check-chores-heavy-withdraws"),
+                docs::Heavy::Contract => t("check-chores-heavy-contract"),
+            };
+            rows.push((
+                wave_path.clone(),
+                Some(format!(
+                    "{}\n           {}: {}",
+                    ta(
+                        "check-chores-heavy",
+                        targs!("wave" => wave.slug.clone(), "why" => why)
+                    ),
+                    t("word-instead"),
+                    t("check-chores-heavy-instead")
+                )),
+            ));
+        }
     }
     let live_contracts: Vec<String> = scan
         .contracts
@@ -586,6 +623,33 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                     ta("scope-full-one-branch-instead", targs!("wave" => slug.clone())),
                                 )),
                             ));
+                        }
+                        // The weight is a fact of the branch too
+                        // (§6.8, §5.7): a contract created or changed
+                        // on the branch of a LIGHT wave -- one the
+                        // declared files do not name -- is the second
+                        // human look skipped (global review
+                        // 2026-09-06, methodology R-3; wave 0052).
+                        if docs::weight(wave) == docs::Weight::Light {
+                            match scope::contracts_changed(root) {
+                                Ok(contracts) => {
+                                    for contract in contracts {
+                                        rows.push((
+                                            wave_path.clone(),
+                                            Some(format!(
+                                                "{}\n           {}: {}",
+                                                ta(
+                                                    "scope-light-contract",
+                                                    targs!("wave" => slug.clone(), "contract" => contract),
+                                                ),
+                                                t("word-instead"),
+                                                t("scope-light-contract-instead"),
+                                            )),
+                                        ));
+                                    }
+                                }
+                                Err(refusal) => push_refusal_row(&mut rows, root, &refusal),
+                            }
                         }
                         // The red birth, judged by the BRANCH (§7.12).
                         // Two audits found this independently: the

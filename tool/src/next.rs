@@ -178,7 +178,7 @@ pub fn step(root: &Path) -> Result<String, Refusal> {
                     lines.push(ta("next-ready", targs!("wave" => wave.slug.clone())));
                 }
             }
-            State::Progress(_) => {
+            State::Progress(_) | State::AwaitingMerge(_) => {
                 lines.push(ta("next-working", targs!("wave" => wave.slug.clone())));
             }
             _ => {}
@@ -432,6 +432,18 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
     // ride one PR with nobody reading it. Weight still decides how
     // many pull requests (§6.8, §8.1) and nothing else.
     let light = docs::weight(wave) == docs::Weight::Light;
+    // The weight is a fact of the branch too (§6.8, §5.7): a light
+    // wave whose branch changed a contract does not ride to one PR
+    // -- the step is to name the contract, or to take the change off
+    // the branch (wave 0052).
+    if light && let Some(contract) = scope::contracts_changed(root)?.first() {
+        out.push_str(&ta(
+            "next-step-light-contract",
+            targs!("wave" => wave.slug.clone(), "contract" => contract.clone()),
+        ));
+        out.push('\n');
+        return Ok(out);
+    }
     if !root
         .join("keel/reviews")
         .join(format!("{}.md", wave.slug))

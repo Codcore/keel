@@ -122,22 +122,25 @@ pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
                 report.push('\n');
             }
             State::ClosedLight => {
-                // On its own branch a light wave rides -- no merge
-                // happened, so its fact is not claimed (review 0012
-                // R-6): the state is derived, never guessed.
-                if branch.as_deref() == Some(wave.slug.as_str()) {
-                    working += 1;
-                    report.push_str(&ta(
-                        "status-wave-light-own",
-                        targs!("wave" => wave.slug.clone()),
-                    ));
+                // The fact of merge is the wave file in main, asked by
+                // wave_state itself (wave 0052): the state is derived,
+                // never guessed from the branch's name (review 0012
+                // R-6 had guessed it from exactly that).
+                closed += 1;
+                report.push_str(&ta(
+                    "status-wave-closed-light",
+                    targs!("wave" => wave.slug.clone()),
+                ));
+                report.push('\n');
+            }
+            State::AwaitingMerge(seen) => {
+                working += 1;
+                let key = if *seen {
+                    "status-wave-light-own"
                 } else {
-                    closed += 1;
-                    report.push_str(&ta(
-                        "status-wave-closed-light",
-                        targs!("wave" => wave.slug.clone()),
-                    ));
-                }
+                    "status-wave-light-unseen"
+                };
+                report.push_str(&ta(key, targs!("wave" => wave.slug.clone())));
                 report.push('\n');
             }
             State::Cancelled(why) => {
@@ -187,11 +190,7 @@ pub fn report(root: &Path) -> Result<(String, usize), Refusal> {
         // ceremony §6.8 decides is behind us and the line is noise
         // (review 0036 R-14). A wave still on its own branch hears
         // it, whether or not it has promises to prove.
-        let settled = match &state {
-            State::Closed { .. } => true,
-            State::ClosedLight => branch.as_deref() != Some(wave.slug.as_str()),
-            _ => false,
-        };
+        let settled = matches!(&state, State::Closed { .. } | State::ClosedLight);
         if !settled {
             let word = match docs::weight(wave) {
                 docs::Weight::Light => t("word-weight-light"),

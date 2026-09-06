@@ -226,6 +226,61 @@ fn furniture(file: &str, generated: &[String]) -> bool {
         || generated.iter().any(|g| g == file)
 }
 
+/// The contracts the branch changed against the base: a fact of the
+/// branch the weight must read too (§6.8, §5.7) -- `docs::weight`
+/// reads the declared files alone, and a light wave whose branch
+/// changed a contract rode to one PR (global review 2026-09-06,
+/// methodology R-3; wave 0052).
+pub fn contracts_changed(root: &Path) -> Result<Vec<String>, Refusal> {
+    let (base, _) = compare_base(root)?;
+    let changed = git_line(
+        root,
+        &[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            &base,
+            "HEAD",
+            "--",
+            "keel/contracts/",
+        ],
+    )?;
+    Ok(changed
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
+/// Whether a file stands in main -- the fact of a merge (§6.5):
+/// `Some(true)` where main (or origin/main) carries it, `Some(false)`
+/// where a main exists and does not, `None` where no main can be
+/// asked at all -- and the caller says that aloud rather than
+/// claiming a merge it cannot see (wave 0052, methodology R-5).
+pub fn stands_in_main(root: &Path, rel: &str) -> Option<bool> {
+    for main in ["main", "origin/main"] {
+        let known = git_at(root)
+            .args([
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                &format!("{main}^{{commit}}"),
+            ])
+            .output()
+            .ok()?;
+        if !known.status.success() {
+            continue;
+        }
+        let there = git_at(root)
+            .args(["cat-file", "-e", &format!("{main}:{rel}")])
+            .output()
+            .ok()?;
+        return Some(there.status.success());
+    }
+    None
+}
+
 /// The comparison base: the merge-base with main -- the local one,
 /// or origin/main on a fresh clone that has no local main -- or,
 /// where main never existed at all, the first commit of the branch.
