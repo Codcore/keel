@@ -31,6 +31,7 @@ transforms:
       - keel/contracts/tool-graph.md
       - keel/contracts/tool-cli.md
       - tool/tests/crossing_test.rs
+      - tool/tests/check_test.rs
   check-counts-what-it-did-not-judge:
     implements:
       - check-says-only-what-it-judged
@@ -40,11 +41,13 @@ transforms:
       - tool/i18n/en.ftl
       - keel/contracts/tool-cli.md
       - tool/tests/checked_line_test.rs
+      - tool/tests/adapter_choice_test.rs
   the-root-copy-is-held:
     implements:
       - the-root-copy-does-not-drift
     files:
       - tool/tests/root_copy_test.rs
+      - METHODOLOGY.md
   the-concept-and-the-readme-tell-the-truth:
     chore: "the concept's rows about checksum, the price of a tongue and the frame flags say what is measured, and the README carries the operator's decisions 5 and 7 about v1 (§2.10; queue rows NEW-CONCEPT.md:166, :198, :333, :383, :393)"
     files:
@@ -58,7 +61,7 @@ transforms:
       - keel/reviews/0054-the-norm-names-what-holds-it.md
 decisions:
   functional.appropriateness: "свідомо без тесту: жодної нової команди — хвиля править текст норми, додає один суд у check і робить чесними його слова; кожен рядок цитує параграф, який тримає (§6.3, §7.1, §7.10, §8.6, §8.8, конституція п. 6)"
-  performance.time-behaviour: "свідомо без тесту, і ціна названа: суд перетинів читає шапки вже прочитаних хвиль — O(хвиль × файлів), жодного бігу git чи тестів"
+  performance.time-behaviour: "свідомо без тесту, і ціна названа: суд перетинів читає шапки вже прочитаних хвиль — O(відкритих² × рядків scope) плюс обхід depends_on на пару, жодного бігу git чи тестів"
   performance.capacity: "не застосовується"
   performance.resource-utilisation: "не застосовується"
   compatibility.co-existence: "свідомо без тесту: жодних нових файлів у проєкті користувача — змінюються слова check-а, тексти норми цього репозиторію і його README"
@@ -81,7 +84,7 @@ decisions:
   maintainability.modularity: "свідомо без тесту: суд перетинів живе в graph поруч із іншими судами між хвилями; жодного нового модуля"
   maintainability.reusability: "не застосовується"
   maintainability.analysability: "тримає two-open-waves-do-not-share-a-file: знахідка називає файл і обидві хвилі поіменно"
-  maintainability.testability: "свідомо без тесту: чотири проби народжуються червоними на своїй першій клаузі (§7.12); проби норми й копії читають файли репозиторію, як generated_stands_test"
+  maintainability.testability: "свідомо без тесту: три проби народжуються червоними на своїй першій клаузі (§7.12), четверта — копії — зеленою за винятком §6.3 з мутантом у коміті народження; проби норми й копії читають файли репозиторію, як generated_stands_test"
   flexibility.adaptability: "не застосовується"
   flexibility.scalability: "не застосовується"
   flexibility.installability: "не застосовується"
@@ -162,6 +165,21 @@ R-11 зміряла шість місць коду; «`-C` і `--branch` з ко
 зробив би власний CI червоним), теґ `v1.0.0` на злитий коміт пушить
 агент, workflow збирає й публікує. Типізовані вироки `--json` і
 структура пакета рецензента — ще одна хвиля після релізу.
+
+**Дрейф (§4.6), названий уголос.** У третю трансформу дописано
+`tool/tests/adapter_choice_test.rs`: проба 0038 тримала «1 річ не
+перевірено» над проєктом без адаптера, і трималась лише тим, що поруч
+стояла інша межа, — тепер стояння суду тегів осторонь саме лічиться,
+і проба тримає рівність числа рядкам «не перевірено». У четверту
+дописано `METHODOLOGY.md`: передмова копії називає пробу, яка тримає
+її тіло, — рядок, без якого читач копії не знав би, що її хтось
+судить (тіло копії й далі йде за en у першій трансформі). У другу
+дописано `tool/tests/check_test.rs`: три проби хвиль 0001–0005 ділили
+один файл між хвилями своїх пісочниць (`a`, `lib/a.ex`) — не за
+задумом, а за зручністю — і суд перетинів їх червонить; тепер кожна
+хвиля пісочниці має свій файл; а проба «звіт каже, що перевірив»
+тримала статичний рядок «test tags» без адаптера — тепер тримає
+стояння суду тегів осторонь як лічений рядок.
 
 ## scenario: the-norm-names-what-holds-it
 

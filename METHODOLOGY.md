@@ -12,7 +12,9 @@
 > a finding the tool reports.
 >
 > This file is a copy of `docs/en/METHODOLOGY-V2.md`, kept in the root so a
-> reader meets it beside the README.
+> reader meets it beside the README. A probe of the tool's own battery
+> (`tool/tests/root_copy_test.rs`) holds its body equal to the source from
+> the first chapter on; only this preamble is the copy's own.
 
 ---
 
@@ -440,8 +442,25 @@ reason, since silence would look like a wave nobody wrote. The reason
 is required: a cancellation without one is not a cancellation. The
 file stays in the repository: deleting a document is always red
 (§4.12), and a cancelled wave is memory too, exactly as a withdrawn
-promise is (§2.12). Rolling back a **merged** wave, and a fast path
-for an urgent fix, are not covered by this paragraph.
+promise is (§2.12).
+
+**§6.3-b. Rolling back a merged wave** (the operator's decision of
+2026-09-06). What is merged is not rewritten: history is git's
+business, and a merge is a fact (§6.6). A wave that must be taken back
+is taken back by a **new wave**: it withdraws the old one's promises
+-- `withdrawn` with `superseded_by` pointing at its own scenarios
+(§2.12), or with no successor where the promise dies— and returns
+the code by commits under its own slug: a `git revert` under the new
+wave's slug — its message begins with that slug (§8.4) — the courts
+read as work; a bare `Revert "…"` the hook lets through as a
+stranger's commit outside judgement, and it closes no transform
+(§6.2). The old wave's file stays (§4.12); the courts derive its state from the
+withdrawn promises, not from a mark. A fast path for an urgent fix
+has no form of its own: a fix of a few lines is a light wave (§6.8),
+one branch and one PR, and a reviewer belongs to it all the same
+(§9.9). What is textual here is only the **choice** to return rather
+than rewrite (constitution, rule 6): the machine holds what it always
+holds— withdrawn promises, scope and the commits under the slug.
 
 **§6.4.** A contract holds when its promise is confirmed — the
 signatures are in place, or the `verify` command passed — and the
@@ -486,7 +505,10 @@ one.
 ## Chapter 7. Checks
 
 **§7.1.** References lead somewhere: every slug in a header has its
-file or its section, every reference in the text has its file.
+file or its section, every reference in the text has its file. The
+second half— references in prose— is a textual rule: the machine
+reads no prose (§7.10), so the reviewer holds it (§9.9), not a check
+(constitution, rule 6; the operator's decision of 2026-09-06).
 
 **§7.2.** `depends_on` has no cycles.
 
@@ -524,7 +546,9 @@ not an empty value: "empty" would read as "nothing was declared" and
 would silently switch the protection off.
 
 **§7.10.** No check parses prose. They all read headers, git, and
-built code.
+built code. This is about the tool's checks over a project: the probes
+of the tool's own battery read the prose of its documents too, since
+they judge the tool itself, not a project (wave 0054).
 
 **§7.11.** *Revoked.* In v1 an exception lived here for waves whose
 plan was already on main while the work was not. Closing by
@@ -604,7 +628,10 @@ changed their mind. Git knows "who" and "when", the diff knows "what";
 "why" and "on whose word" nobody knows, because the chat does not
 travel with the repository. The line runs along "said aloud": a
 thought nobody heard needs no trace, and a list of everything ever
-reconsidered is a diary nobody reads.
+reconsidered is a diary nobody reads. A textual rule: the machine
+reads no commit message (§7.10), so the reviewer (§9.9) and the person
+merging hold it— not a check (constitution, rule 6; the operator's
+decision of 2026-09-06).
 
 **§8.7.** A PR is merged with the "Create a merge commit" button —
 always. Squash and rebase are switched off in the repository's
@@ -825,3 +852,4 @@ history of the methodology's repository does not travel with it.
 | Revision | Date |
 |---|---|
 | 1 | 2026-09-01 |
+| 2 | 2026-09-06 |

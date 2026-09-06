@@ -241,6 +241,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let mut refs_unjudged: u64 = 0;
     let mut refs_no_history: u64 = 0;
     let mut historic_items: Vec<String> = Vec::new();
+    let mut open_slugs: Vec<String> = Vec::new();
     // The same count on a cut-short clone: the skipped number must
     // be the number the whole clone would have checked (wave 0033),
     // so it counts revisions, not rows, exactly as the historic one.
@@ -262,6 +263,11 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             Some(Ok(found)) => crate::close::structural(root, wave, found).unwrap_or(false),
             _ => false,
         };
+        // The crossing court of §8.8 asks which waves are still open
+        // (wave 0054): a closed wave's scope is history.
+        if !closed {
+            open_slugs.push(wave.slug.clone());
+        }
         let wave_path = format!("keel/waves/{}.md", wave.slug);
         // A withdrawn scenario is outside judgement (§2.12): its
         // proves is not followed -- a guard that lies gets deleted.
@@ -446,6 +452,18 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         .filter(|c| c.withdrawn.is_none())
         .map(|c| c.slug.clone())
         .collect();
+    // §8.8 by the crossing court (wave 0054): two open waves over one
+    // scope line, no depends_on between them -- measured as zero
+    // findings before this.
+    for (wave_slug, reason, instead) in graph::crossing_findings(&scan.waves, &open_slugs) {
+        rows.push((
+            format!("keel/waves/{wave_slug}.md"),
+            Some(format!(
+                "{reason}\n           {}: {instead}",
+                t("word-instead")
+            )),
+        ));
+    }
     for (wave_slug, reason, instead) in graph::cross_findings(&scan.waves, &live_contracts) {
         rows.push((
             format!("keel/waves/{wave_slug}.md"),
@@ -561,8 +579,44 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             )),
         ));
     }
+    // Which courts judged (wave 0054): a court that stood down is
+    // counted among the things not checked and left out of the line
+    // naming what was checked. Measured before the wave: that line
+    // was one static sentence claiming scope, tags and trust in a
+    // project with no git and no adapter, and the summary counted
+    // nothing as unchecked while two courts had said they stood down.
+    #[derive(PartialEq)]
+    enum Court {
+        Judged,
+        // Had something to judge and could not: a limit, counted.
+        Unjudged,
+        // Stood down, and the reason already stands among the limits
+        // (a comparison that could not happen says why itself).
+        UnjudgedCounted,
+        // Nothing to judge here by design -- the trunk has no scope
+        // to compare, a project with no promise has no tag to verify,
+        // a plan branch grows exports ahead of the code (§8.3): said
+        // aloud, neither claimed nor counted (wave 0031's clause: a
+        // verdict that judged everything it claims names no limit).
+        NotApplicable,
+    }
+    // Something to compare at all: a wave that declares files. A
+    // directory with no git and no such wave is asked nothing (wave
+    // 0031, review R-8: a shoebox is not a clone with problems).
+    let declares_files = scan
+        .waves
+        .iter()
+        .any(|w| w.cancelled.is_none() && w.transforms.iter().any(|(_, t)| !t.files.is_empty()));
+    let mut scope_court = Court::Unjudged;
     let scope_status = match scope::current_branch(root) {
-        None => t("check-scope-skipped-no-git"),
+        None => {
+            scope_court = if declares_files {
+                Court::Unjudged
+            } else {
+                Court::NotApplicable
+            };
+            t("check-scope-skipped-no-git")
+        }
         // A plan branch is judged too, and by §4.9: it carries the
         // plan and nothing else. The conformance audit (ВАЖКА-4)
         // measured the paragraph held by nothing -- `plan/<wave>` is
@@ -572,6 +626,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         // `spike` was nowhere in the code: the branch was judged
         // like any other stranger's, which is to say not at all.
         Some(branch) if branch.starts_with("spike/") => {
+            scope_court = Court::NotApplicable;
             ta("check-scope-spike", targs!("branch" => branch))
         }
         Some(branch) if branch.starts_with("plan/") => {
@@ -584,6 +639,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             match compare_state(root, shallow, has_history) {
                 Compared::No(why) => {
                     extra_limits.push(why);
+                    scope_court = Court::UnjudgedCounted;
                     ta(
                         "check-scope-plan-unjudged",
                         targs!("branch" => branch, "wave" => planned),
@@ -595,6 +651,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 ),
                 Compared::Yes => match scope::plan_findings(root, config) {
                     Ok(list) => {
+                        scope_court = Court::Judged;
                         for (file, reason, instead) in list {
                             rows.push((
                                 file,
@@ -632,13 +689,17 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             }
         }
         Some(branch) => match scope::branch_wave(root, &scan.waves) {
-            None => ta("check-scope-skipped-not-wave", targs!("branch" => branch)),
+            None => {
+                scope_court = Court::NotApplicable;
+                ta("check-scope-skipped-not-wave", targs!("branch" => branch))
+            }
             Some(slug)
                 if scan
                     .waves
                     .iter()
                     .any(|w| w.slug == slug && w.cancelled.is_some()) =>
             {
+                scope_court = Court::NotApplicable;
                 ta(
                     "check-scope-cancelled",
                     targs!("branch" => branch, "wave" => slug),
@@ -651,6 +712,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                     .and_then(|base| scope::findings(root, wave, config).map(|list| (base, list)));
                 match compared {
                     Ok(((sha, from_main), list)) => {
+                        scope_court = Court::Judged;
                         // §6.8/§8.1: a FULL wave rides two branches
                         // and two PRs. When its own file was born in
                         // this very diff, the plan PR never happened
@@ -859,6 +921,18 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             targs!("name" => other.to_string(), "known" => crate::config::Language::known()),
         )),
     };
+    // A project with waves and no adapter to read their tests is a
+    // stand-down, counted (wave 0038: the tag court says so aloud and
+    // the summary counts it); a project with no wave at all has no
+    // tag to verify, and the court does not apply.
+    let waves_present = scan.waves.iter().any(|w| w.cancelled.is_none());
+    let tags_court = if judged.is_ok() {
+        Court::Judged
+    } else if waves_present {
+        Court::Unjudged
+    } else {
+        Court::NotApplicable
+    };
     let tags_status = match judged {
         Ok((found, tag_findings)) => {
             for (path, text) in tag_findings {
@@ -882,6 +956,19 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // (review R-4): a broken document may hide the very command a
     // record answers to, so a skipped court is said aloud instead of
     // an invented door.
+    // Trust with nothing declared -- no verify command in a live
+    // contract and no ci in keel.toml -- has nothing to judge and
+    // does not apply, like tags without a wave (review 0054 R-2: the
+    // checked line claimed trust over a project that declared none).
+    let trust_declared =
+        !trust::live_commands(config, &scan.contracts).is_empty() || config.ci.is_some();
+    let trust_court = if !scan.refusals.is_empty() {
+        Court::Unjudged
+    } else if trust_declared {
+        Court::Judged
+    } else {
+        Court::NotApplicable
+    };
     let trust_status = if !scan.refusals.is_empty() {
         t("check-trust-skipped-broken")
     } else {
@@ -915,6 +1002,11 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // exports ahead of the code by design (§4.9), and a gate that is
     // always shut stops being read.
     let plan_branch = scope::current_branch(root).is_some_and(|b| b.starts_with("plan/"));
+    let holding_court = if plan_branch {
+        Court::NotApplicable
+    } else {
+        Court::Judged
+    };
     let holding_status = if plan_branch {
         t("check-holding-plan")
     } else {
@@ -1025,20 +1117,51 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let mut limits = verdict_limits(root, refs_unjudged);
     limits.extend(extra_limits);
     limits.extend(cancelled_rows);
+    // The courts that judged say their count; the courts that stood
+    // down are counted as not checked, and the line naming what was
+    // checked is composed of the courts that ran (wave 0054).
+    let mut standing: Vec<String> = Vec::new();
+    let mut checked: Vec<String> = vec![
+        t("check-checked-headers"),
+        t("check-checked-refs"),
+        t("check-checked-graph"),
+        t("check-checked-body"),
+    ];
+    for (status, court, piece) in [
+        (tags_status, tags_court, "check-checked-tags"),
+        (trust_status, trust_court, "check-checked-trust"),
+        (holding_status, holding_court, "check-checked-holding"),
+        (scope_status, scope_court, "check-checked-scope"),
+    ] {
+        match court {
+            Court::Judged => {
+                standing.push(status);
+                checked.push(t(piece));
+            }
+            Court::UnjudgedCounted | Court::NotApplicable => standing.push(status),
+            Court::Unjudged => limits.push(ta("check-unjudged", targs!("what" => status))),
+        }
+    }
+    // One reason, one line (review 0054 R-8): two courts asking the
+    // same comparison pushed the same limit twice, and the count
+    // named one thing as two.
+    let mut seen: std::collections::BTreeSet<String> = Default::default();
+    limits.retain(|limit| seen.insert(limit.clone()));
     for row in &measured {
         writeln!(report, "{row}").unwrap();
     }
     for limit in &limits {
         writeln!(report, "{limit}").unwrap();
     }
+    for line in &standing {
+        writeln!(report, "{line}").unwrap();
+    }
     writeln!(
         report,
-        "{}\n{}\n{}\n{}\n{}\n{}\n{}",
-        tags_status,
-        trust_status,
-        holding_status,
-        scope_status,
-        t("check-checked"),
+        "{} {}; {}\n{}\n{}",
+        t("check-checked-head"),
+        checked.join("; "),
+        t("check-checked-close"),
         t("check-borders"),
         ta(
             "check-summary",

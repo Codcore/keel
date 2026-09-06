@@ -196,13 +196,29 @@ Python tests in `tests/` — lived at the root beside the crate for forty waves,
 and no court said which of the two was current. Wave 0049 took it out; it is
 in the history up to that wave, and the v0.8.x tags still carry it.
 
+**v1 is frozen** (the operator's decisions 5 and 7 of the concept): its last
+tag is `v0.8.11` (the archive branch's head calls itself 0.8.41 without a tag),
+and only a critical patch would touch it; development is in v2. The branch `skarha-nazyvaye-prychynu` is the archive of the analysis
+that led to v2 and stays as a reference. Where a v1 command went:
+
+| v1 | v2 |
+|---|---|
+| `keel gaps` | `keel check` — one command, the stage decides what it judges |
+| `keel mutate` | the red commit `red: <scenario>` — the hook judges the fall |
+| `keel show` | `keel status` |
+| `keel hooks` / `keel skills` | `keel init` and `keel update` write them; `keel hook` puts the commit-msg hook back |
+| `keel hook <event>` | the generated agent configs call `keel next --for <agent>` |
+| `keel check --fast` | not carried: the commit-msg hook (`keel gate`) is the fast court |
+| `keel new wave` | `keel plan <slug>` |
+
 ## For scripts
 
 Every command takes `-C <dir>` (where to work) and `--branch <name>` (which
 branch to believe **where git does not know it** — a CI checkout with a detached
-HEAD). `--branch` never overrules git: where git has a branch, git is the fact,
-and the tool says aloud that the flag was not used rather than dropping the word
-in silence.
+HEAD); the environment variable `KEEL_BRANCH` says the same thing, and the
+generated workflow sets it. `--branch` never overrules git: where git has a
+branch, git is the fact, and the tool says aloud that the flag was not used
+rather than dropping the word in silence.
 
 The reading commands — `check`, `close`, `status`, `next`, `map`, `review`,
 `version`, `cuts`, `rev` — also take `--json`, and then print one JSON object
@@ -270,11 +286,12 @@ directory.
 
 What is **not** there, so nobody looks for it: `keel check --fast` — the v1
 subset for pre-commit is not carried, the commit-msg hook (`keel gate`) is the
-fast court; and a court over the scope intersections of parallel waves — `check`
-judges one branch against its trunk, and whether two open waves declaring one
-file deserve a court of their own is an operator's line in BACKLOG. The commands
-of the first tool (`gaps`, `mutate`, `show`, `hooks`, `skills`, `hook <event>`)
-live in `docs/uk/README.md` as history, and the concept says where each went.
+fast court. What **is** there since wave 0054 and easy to miss: the crossing
+court of §8.8 — two open waves declaring one scope line with no `depends_on`
+between them are a finding of `check`, on the plan branch and on main alike.
+The commands of the first tool (`gaps`, `mutate`, `show`, `hooks`, `skills`,
+`hook <event>`) live in `docs/uk/README.md` as history, and the concept says
+where each went.
 
 ## What the courts actually check
 
