@@ -83,6 +83,20 @@ fn the_norm_names_what_holds_it() {
         word.trim_end().ends_with("(§2.12)."),
         "§6.3-а (uk) ends at §2.12, without the sentence that called the rollback uncovered:\n{word}"
     );
+    let word = paragraph(&en, "**§6.3-a.");
+    assert!(
+        word.trim_end().ends_with("(§2.12)."),
+        "§6.3-a (en) ends at §2.12 too (review 0054 R-12):\n{word}"
+    );
+    // The revert clause names its condition (review 0054 R-3): only a
+    // revert under the new wave's slug is read as work.
+    for (tongue, text, head) in [("uk", &uk, "**§6.3-б."), ("en", &en, "**§6.3-b.")] {
+        let word = paragraph(text, head);
+        assert!(
+            word.contains("§8.4") && word.contains("§6.2"),
+            "{tongue}: §6.3 says a revert is work only under the slug (§8.4), else outside judgement (§6.2):\n{word}"
+        );
+    }
 
     // --- the translation records the Ukrainian revision as it now
     // stands, so the skeleton court and the record stay green ---

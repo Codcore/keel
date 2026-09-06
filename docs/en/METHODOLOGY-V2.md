@@ -14,7 +14,7 @@
 > follows them. Where the two disagree, the Ukrainian one is right —
 > and the disagreement is a defect to report, not a choice to make.
 >
-> `translated_from: bb5054` — the revision of the Ukrainian text this
+> `translated_from: 42969f` — the revision of the Ukrainian text this
 > translation was made from (constitution, rule 4: whoever leans on a
 > text holds its revision). `keel check` compares it with the
 > Ukrainian methodology as it now stands: change the original and the
@@ -454,16 +454,18 @@ promise is (§2.12).
 business, and a merge is a fact (§6.6). A wave that must be taken back
 is taken back by a **new wave**: it withdraws the old one's promises
 -- `withdrawn` with `superseded_by` pointing at its own scenarios
-(§2.12), or with no successor where the promise dies -- and returns
-the code by commits under its own slug (`git revert` is a transform
-commit like any other, and the courts read it as work). The old
-wave's file stays (§4.12); the courts derive its state from the
+(§2.12), or with no successor where the promise dies— and returns
+the code by commits under its own slug: a `git revert` under the new
+wave's slug — its message begins with that slug (§8.4) — the courts
+read as work; a bare `Revert "…"` the hook lets through as a
+stranger's commit outside judgement, and it closes no transform
+(§6.2). The old wave's file stays (§4.12); the courts derive its state from the
 withdrawn promises, not from a mark. A fast path for an urgent fix
 has no form of its own: a fix of a few lines is a light wave (§6.8),
 one branch and one PR, and a reviewer belongs to it all the same
 (§9.9). What is textual here is only the **choice** to return rather
 than rewrite (constitution, rule 6): the machine holds what it always
-holds -- withdrawn promises, scope and the commits under the slug.
+holds— withdrawn promises, scope and the commits under the slug.
 
 **§6.4.** A contract holds when its promise is confirmed — the
 signatures are in place, or the `verify` command passed — and the
@@ -509,7 +511,7 @@ one.
 
 **§7.1.** References lead somewhere: every slug in a header has its
 file or its section, every reference in the text has its file. The
-second half -- references in prose -- is a textual rule: the machine
+second half— references in prose— is a textual rule: the machine
 reads no prose (§7.10), so the reviewer holds it (§9.9), not a check
 (constitution, rule 6; the operator's decision of 2026-09-06).
 
@@ -549,7 +551,9 @@ not an empty value: "empty" would read as "nothing was declared" and
 would silently switch the protection off.
 
 **§7.10.** No check parses prose. They all read headers, git, and
-built code.
+built code. This is about the tool's checks over a project: the probes
+of the tool's own battery read the prose of its documents too, since
+they judge the tool itself, not a project (wave 0054).
 
 **§7.11.** *Revoked.* In v1 an exception lived here for waves whose
 plan was already on main while the work was not. Closing by
@@ -631,7 +635,7 @@ travel with the repository. The line runs along "said aloud": a
 thought nobody heard needs no trace, and a list of everything ever
 reconsidered is a diary nobody reads. A textual rule: the machine
 reads no commit message (§7.10), so the reviewer (§9.9) and the person
-merging hold it -- not a check (constitution, rule 6; the operator's
+merging hold it— not a check (constitution, rule 6; the operator's
 decision of 2026-09-06).
 
 **§8.7.** A PR is merged with the "Create a merge commit" button —
