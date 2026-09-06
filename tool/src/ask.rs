@@ -439,17 +439,43 @@ pub fn answered_rows(answers: &Answers) -> Vec<(String, String)> {
         ("mode", answers.mode.clone()),
     ] {
         if let Some(value) = value {
-            rows.push((key.to_string(), format!("\"{value}\"")));
+            rows.push((key.to_string(), toml_string(&value)));
         }
     }
     if let Some(agents) = &answers.agents {
-        let named: Vec<String> = agents.iter().map(|a| format!("\"{a}\"")).collect();
+        let named: Vec<String> = agents.iter().map(|a| toml_string(a)).collect();
         rows.push(("agents".to_string(), format!("[{}]", named.join(", "))));
     }
     if let Some(hooks) = answers.hooks {
         rows.push(("hooks".to_string(), hooks.to_string()));
     }
     rows
+}
+
+/// A value as a TOML basic string: the quotes around it, and the
+/// quotes, backslashes and control characters inside it escaped --
+/// the one hand every string of the config goes through (wave 0055).
+/// Pasted raw, ruby's battery command (`… Dir.glob("test/**/*_test.rb")
+/// …`) stopped the file parsing the moment a person did what its
+/// header says -- "uncomment to enable" -- and `--ci` with the same
+/// value wrote it active, over an "init: born from your answers"
+/// (final review 2026-09-06, bugs R-4).
+pub fn toml_string(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for c in value.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            '\r' => out.push_str("\\r"),
+            c if c.is_control() => out.push_str(&format!("\\u{:04X}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// The plain body of keel.toml, before any section is spliced in.
@@ -475,12 +501,12 @@ fn config_body(answers: &Answers) -> String {
     ));
     text.push_str(&line(
         "lang",
-        answers.lang.as_ref().map(|v| format!("\"{v}\"")),
+        answers.lang.as_ref().map(|v| toml_string(v)),
         "\"uk\"",
     ));
     text.push_str(&line(
         "adapter",
-        answers.adapter.as_ref().map(|v| format!("\"{v}\"")),
+        answers.adapter.as_ref().map(|v| toml_string(v)),
         "\"rust\"",
     ));
     // The suggestion follows the tongue that was named: a ruby
@@ -491,16 +517,16 @@ fn config_body(answers: &Answers) -> String {
         .adapter
         .as_deref()
         .and_then(crate::config::Language::named)
-        .map(|language| format!("\"{}\"", language.battery_command()))
+        .map(|language| toml_string(language.battery_command()))
         .unwrap_or_else(|| "\"cargo test\"".to_string());
     text.push_str(&line(
         "ci",
-        answers.ci.as_ref().map(|v| format!("\"{v}\"")),
+        answers.ci.as_ref().map(|v| toml_string(v)),
         &ci_suggested,
     ));
     text.push_str(&line(
         "mode",
-        answers.mode.as_ref().map(|v| format!("\"{v}\"")),
+        answers.mode.as_ref().map(|v| toml_string(v)),
         "\"strict\"",
     ));
     if answers.any() {
@@ -510,7 +536,7 @@ fn config_body(answers: &Answers) -> String {
         text.push_str(&line(
             "agents",
             answers.agents.as_ref().map(|named| {
-                let quoted: Vec<String> = named.iter().map(|name| format!("\"{name}\"")).collect();
+                let quoted: Vec<String> = named.iter().map(|name| toml_string(name)).collect();
                 format!("[{}]", quoted.join(", "))
             }),
             "[\"claude\", \"cursor\"]",

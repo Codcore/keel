@@ -97,7 +97,11 @@ fn the_config_is_written_as_toml() {
     });
     assert_eq!(
         config.ci.as_deref(),
-        Some(keel::config::Language::named("ruby").unwrap().battery_command()),
+        Some(
+            keel::config::Language::named("ruby")
+                .unwrap()
+                .battery_command()
+        ),
         "and the value read back is the tongue's command, quotes and \
          all -- what the hint promised, not a mangled cousin:\n{enabled}"
     );
@@ -106,7 +110,10 @@ fn the_config_is_written_as_toml() {
     // flag. Init says what was born only when the parser agrees.
     let dir = ruby_project("tomlci");
     let value = "ruby -e \"puts 'a\\\\b'\"";
-    let (said, code) = keel(&dir, &["init", "--no-ask", "--adapter", "ruby", "--ci", value]);
+    let (said, code) = keel(
+        &dir,
+        &["init", "--no-ask", "--adapter", "ruby", "--ci", value],
+    );
     assert_eq!(code, 0, "init with a quoted --ci stands:\n{said}");
     assert!(
         said.contains("born from your answers"),
