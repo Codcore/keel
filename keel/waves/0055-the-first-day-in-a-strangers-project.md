@@ -95,11 +95,13 @@ transforms:
       - the-courts-agree-on-one-tree
     files:
       - tool/src/adapter.rs
+      - tool/src/python.rs
       - tool/src/close.rs
       - tool/src/check.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - keel/contracts/tool-adapter-cargo.md
+      - keel/contracts/tool-adapter-python.md
       - keel/contracts/tool-close.md
       - keel/contracts/tool-cli.md
       - tool/tests/one_verdict_test.rs
