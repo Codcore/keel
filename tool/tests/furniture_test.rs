@@ -259,18 +259,22 @@ fn furniture_is_known_by_its_digest() {
 
     // --- the anchor of a full wave is the wave file at the fork
     // point with main: a plan branch of two commits, merged, is one
-    // plan (§4.6) ---
+    // plan (§4.6). Full by §6.8 -- two transforms -- so it rides a
+    // plan branch and a plan PR ---
+    let full = |files: &[&str]| {
+        wave_over(files).replacen(
+            "transforms:\n",
+            "transforms:\n  tidy:\n    chore: \"прибирання\"\n    files:\n      - README.md\n",
+            1,
+        ) + "## transform: tidy\nтіло\n"
+    };
     let dir = crate_with("furnanchor", "rust", &plain_wave());
     std::fs::remove_file(dir.join("keel/waves/0001-a-wave.md")).unwrap();
     git(&dir, &["init", "-q", "-b", "main"]);
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "base"]);
     git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
-    std::fs::write(
-        dir.join("keel/waves/0001-a-wave.md"),
-        wave_over(&["src/lib.rs"]),
-    )
-    .unwrap();
+    std::fs::write(dir.join("keel/waves/0001-a-wave.md"), full(&["src/lib.rs"])).unwrap();
     git(&dir, &["add", "-A"]);
     git(
         &dir,
@@ -278,7 +282,7 @@ fn furniture_is_known_by_its_digest() {
     );
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
-        wave_over(&["src/lib.rs", "Cargo.toml"]),
+        full(&["src/lib.rs", "Cargo.toml"]),
     )
     .unwrap();
     git(&dir, &["add", "-A"]);

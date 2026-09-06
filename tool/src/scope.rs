@@ -3,6 +3,7 @@
 //! (§4.4); git is asked as a command of the system, and its refusal
 //! is a refusal aloud, never silence. The module writes nothing.
 
+use crate::config::Config;
 use crate::docs::{ScopeLine, Wave};
 use crate::i18n::{t, ta};
 use crate::refusal::Refusal;
@@ -183,7 +184,7 @@ pub fn spike_branch(root: &Path) -> Option<String> {
 /// carries it in its diff.
 pub fn plan_findings(
     root: &Path,
-    generated: &[String],
+    config: &Config,
 ) -> Result<Vec<(String, String, String)>, Refusal> {
     let (base, _) = compare_base(root)?;
     let changed_raw = git_line(
@@ -192,7 +193,7 @@ pub fn plan_findings(
     )?;
     let mut out = Vec::new();
     for file in changed_raw.lines().map(str::trim) {
-        if file.is_empty() || furniture(file, generated) {
+        if file.is_empty() || furniture(root, config, file) {
             continue;
         }
         // The finding is hung on the file it accuses: review 0036
@@ -207,23 +208,22 @@ pub fn plan_findings(
     Ok(out)
 }
 
-/// The methodology's own files, §4.8 word for word: "the `keel/`
-/// directory, the skills, the CI file, the block in `AGENTS.md`".
-/// Review 0036 R-12 measured this read as "`keel/` plus whatever
-/// stands in [generated]", which was wrong in both directions: a
-/// project that never ran `keel update` had its own SKILL.md and
-/// workflow called code, and a generated file edited by hand went on
-/// being furniture -- which the paragraph's second sentence forbids
-/// in as many words. The digest is not compared here: `keel update`
-/// is the court of that (§9.7), and this one only decides whose file
-/// it is.
-fn furniture(file: &str, generated: &[String]) -> bool {
+/// The methodology's own files, §4.8 as written: the `keel/`
+/// directory and the tool's own config, and every generated file
+/// **in the form the tool left it** -- its digest the recorded one
+/// or the one this release writes. Edited by a hand it is code, as
+/// the paragraph's second sentence says in as many words. Review
+/// 0036 R-12 read this by NAME (the skills, the CI file, AGENTS.md),
+/// and a hand-edited generated file went on being furniture on the
+/// plan branch while `keel update`'s own files were drift on the
+/// wave branch (global review 2026-09-06, methodology R-6; wave
+/// 0052). One reading now, `generated::is_furniture`, for both
+/// courts. A project's own file under a generated name that the tool
+/// never wrote is code here -- named in the contract.
+fn furniture(root: &Path, config: &Config, file: &str) -> bool {
     file.starts_with("keel/")
         || file == "keel.toml"
-        || file == "AGENTS.md"
-        || file.starts_with(".github/workflows/keel")
-        || file.contains("/skills/keel/")
-        || generated.iter().any(|g| g == file)
+        || crate::generated::is_furniture(root, config, file)
 }
 
 /// The contracts the branch changed against the base: a fact of the
@@ -301,7 +301,11 @@ pub fn compare_base(root: &Path) -> Result<(String, bool), Refusal> {
 /// against the base, next to the union of the wave transforms'
 /// files. keel/ is outside the comparison (§4.8); `one new in`
 /// counts strictly (§4.1).
-pub fn findings(root: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refusal> {
+pub fn findings(
+    root: &Path,
+    wave: &Wave,
+    config: &Config,
+) -> Result<Vec<(String, String)>, Refusal> {
     let (base, _) = compare_base(root)?;
     // Renames are read as a departure plus an arrival, whatever the
     // host machine's diff.renames fancies: both names meet the
@@ -348,7 +352,7 @@ pub fn findings(root: &Path, wave: &Wave) -> Result<Vec<(String, String)>, Refus
     // an old file changed there is drift like anywhere else -- the
     // promise spoke only of one new file.
     for file in &changed {
-        if file.is_empty() || file.starts_with("keel/") || declared.contains(file) {
+        if file.is_empty() || declared.contains(file) || furniture(root, config, file) {
             continue;
         }
         if added.contains(file) && dirs.keys().any(|d| file.starts_with(d)) {

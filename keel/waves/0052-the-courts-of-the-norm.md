@@ -57,6 +57,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/furniture_test.rs
+      - tool/tests/plan_branch_test.rs
   the-slug-commit-is-read:
     implements:
       - a-transform-is-closed-by-its-commit
@@ -163,7 +164,10 @@ exit 0 (R-5): факт merge ніхто не питав, і параграф ц�
 тепер тримає сценарій, і текст 0017 не змінюється. У другу —
 `tool/tests/close_test.rs` (проба 0037 звала легку хвилю закритою без
 факту merge в пісочниці без main; тепер чекає файла в main) і
-`tool/tests/rev_test.rs` (золота редакція tool-docs).
+`tool/tests/rev_test.rs` (золота редакція tool-docs). У третю —
+`tool/tests/plan_branch_test.rs`: проба 0036 (R-12) звала скіл, CI-файл
+і `AGENTS.md`, яких інструмент не писав, меблями на план-гілці — проти
+другого речення §4.8; тепер вони код, як каже параграф.
 
 ## scenario: a-court-that-cannot-judge-does-not-pass
 

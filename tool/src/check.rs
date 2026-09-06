@@ -491,7 +491,28 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         ));
     }
 
-    let generated: Vec<String> = config.generated.iter().map(|(k, _)| k.clone()).collect();
+    // A recorded digest gone stale is named, even where the text is
+    // the one this release writes: `keel update` re-records it in
+    // silence, and the workflow's record stood foreign from wave 0044
+    // to 0050 with `keel check` saying nothing (wave 0052).
+    for (file, recorded, actual, release) in crate::generated::stale_records(root, config) {
+        let instead = if release {
+            t("check-generated-stale-release")
+        } else {
+            t("check-generated-stale-hand")
+        };
+        rows.push((
+            "keel.toml".to_string(),
+            Some(format!(
+                "{}\n           {}: {instead}",
+                ta(
+                    "check-generated-stale",
+                    targs!("file" => file, "recorded" => recorded, "actual" => actual),
+                ),
+                t("word-instead")
+            )),
+        ));
+    }
     let scope_status = match scope::current_branch(root) {
         None => t("check-scope-skipped-no-git"),
         // A plan branch is judged too, and by §4.9: it carries the
@@ -524,7 +545,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                     "check-scope-plan-unjudged",
                     targs!("branch" => branch, "wave" => planned),
                 ),
-                Compared::Yes => match scope::plan_findings(root, &generated) {
+                Compared::Yes => match scope::plan_findings(root, config) {
                     Ok(list) => {
                         for (file, reason, instead) in list {
                             rows.push((
@@ -579,7 +600,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 let wave_path = format!("keel/waves/{slug}.md");
                 let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
                 let compared = scope::compare_base(root)
-                    .and_then(|base| scope::findings(root, wave).map(|list| (base, list)));
+                    .and_then(|base| scope::findings(root, wave, config).map(|list| (base, list)));
                 match compared {
                     Ok(((sha, from_main), list)) => {
                         // §6.8/§8.1: a FULL wave rides two branches
