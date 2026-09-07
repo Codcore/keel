@@ -207,7 +207,27 @@ fn the_generated_frame_carries_the_tongue() {
         );
     };
     git(&["init", "-q", "-b", "main"]);
-    let (said, code) = keel(&dir, &["hook"]);
+    // Installed with NO keel on PATH, so the hook points at this
+    // binary and this probe judges the hook -- not whichever launcher
+    // the machine happens to carry. Before wave 0062 it judged the
+    // author's installed launcher and reported its faults as this
+    // one's; the launcher has a probe of its own now
+    // (`the_launcher_runs_where_the_hook_runs`).
+    let bare: Vec<std::path::PathBuf> =
+        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+            .filter(|dir| !dir.join("keel").exists())
+            .collect();
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["hook", dir.to_str().unwrap()])
+        .env("PATH", std::env::join_paths(&bare).unwrap_or_default())
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let code = out.status.code().unwrap_or(-1);
     assert_eq!(code, 0, "the hook is installed:\n{said}");
     let hook = dir.join(".git/hooks/commit-msg");
     let text = fs::read_to_string(&hook).unwrap();

@@ -130,7 +130,8 @@ in silence is worse than a refusal. Before it hands over it checks the binary
 is the one that was installed. `keel version` lists what stands here.
 
 A **version** may be named — first argument or `KEEL_REF`. A NUMBER
-(`1.1.0`) goes the release road: `install.sh` fetches the published archive
+(`1.1.0` here is an example, not a claim about what stands today —
+`keel version` says that) goes the release road: `install.sh` fetches the published archive
 and its `.sha256`, verifies the checksum and unpacks the binary — no git and
 no cargo needed. Anything else — a tag, a branch, a commit — is a git ref, and
 then exactly that ref is built from source:

@@ -23,6 +23,90 @@ use std::process::Command;
 /// (GIT_CONFIG_PARAMETERS), so it goes too. What stays is what a
 /// person or a CI chose on purpose: GIT_CONFIG_GLOBAL,
 /// GIT_CONFIG_SYSTEM, GIT_AUTHOR_* and the rest.
+/// What git answers the same way for as long as this process lives,
+/// remembered so it is asked once (wave 0061).
+///
+/// Measured on keel's own tree before the wave: one `keel check`
+/// spawned **4604** git processes and needed **387** different
+/// answers -- 92% repeats, at ~13 ms a process, which is the whole
+/// minute the court took. Three kinds of question make it up, and all
+/// three are constant within one run: what a file held AT A COMMIT
+/// (a commit does not change), the list of commits that touched a
+/// path, and what git says about the tree itself.
+///
+/// The key carries the ROOT, because one process may judge several
+/// trees -- every probe with two sandboxes does -- and an answer of
+/// one tree must never be handed to the court of another.
+///
+/// The memory dies with the process, which is the whole of its
+/// lifetime: keel is a CLI, one run per command. Nothing is written
+/// to disk, and nothing survives to be stale.
+static REMEMBERED: std::sync::OnceLock<
+    std::sync::Mutex<std::collections::HashMap<(std::path::PathBuf, String), String>>,
+> = std::sync::OnceLock::new();
+
+/// One git call, asked once per (tree, question).
+///
+/// **Only an ANSWER is remembered, never a failure.** A git that
+/// stumbled once -- a busy `index.lock`, a moment of trouble -- would
+/// otherwise poison the whole run: "no history here" is exactly the
+/// verdict §5.6 softens to, so a cached failure would let a wave pass
+/// on a revision nobody could prove, quietly and once per process.
+/// A failure that repeats costs a few processes; a failure that is
+/// believed costs a court.
+/// The questions this memory is allowed to answer, by name.
+///
+/// Review 0061 R-3 measured what a nameless memory costs: a mutant
+/// that widened it to everything `git_line` asks -- `diff`, `status`,
+/// `rev-list`, `merge-base` -- passed the whole battery in silence,
+/// because the only guard was a ratio of processes to answers. The
+/// border of this memory is not "what is cheap to remember" but "what
+/// cannot change while one command runs": a commit's content, the
+/// list of commits that touched a path, and whether git serves this
+/// tree at all. Anything about the WORKING state -- the branch, the
+/// diff, the status -- is asked fresh, every time.
+fn may_be_remembered(args: &[&str]) -> bool {
+    match args {
+        ["show", _] => true,
+        ["log", "--format=%H", "--", _] => true,
+        ["rev-parse", "--git-dir"] => true,
+        ["rev-parse", "--is-shallow-repository"] => true,
+        ["rev-parse", "--show-toplevel"] => true,
+        _ => false,
+    }
+}
+
+pub(crate) fn remembered(root: &Path, args: &[&str]) -> Option<String> {
+    // A question outside the named border goes straight to git, and
+    // no answer of it is ever kept: the border holds by a court here,
+    // not by the attention of whoever adds the next caller.
+    if !may_be_remembered(args) {
+        return git_at(root)
+            .args(args)
+            .output()
+            .ok()
+            .filter(|out| out.status.success())
+            .map(|out| String::from_utf8_lossy(&out.stdout).into_owned());
+    }
+    let key = (root.to_path_buf(), args.join("\u{1f}"));
+    let memory = REMEMBERED.get_or_init(Default::default);
+    if let Ok(seen) = memory.lock() {
+        if let Some(answer) = seen.get(&key) {
+            return Some(answer.clone());
+        }
+    }
+    let answer = git_at(root)
+        .args(args)
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())?;
+    if let Ok(mut seen) = memory.lock() {
+        seen.insert(key, answer.clone());
+    }
+    Some(answer)
+}
+
 pub fn git_at(root: &Path) -> Command {
     let mut command = Command::new("git");
     command.arg("-C").arg(root);
@@ -129,17 +213,22 @@ pub fn branch_by_git_public(root: &Path) -> Option<String> {
 
 /// The branch as git alone tells it.
 fn branch_by_git(root: &Path) -> Option<String> {
-    let top = git_at(root)
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()?;
-    if !top.status.success() {
-        return None;
-    }
-    let top = std::fs::canonicalize(String::from_utf8_lossy(&top.stdout).trim()).ok()?;
+    // Both questions are about the TREE, and neither changes while
+    // this process runs: measured 13 calls each in a sandbox with
+    // eight waves (wave 0061).
+    let top = remembered(root, &["rev-parse", "--show-toplevel"])?;
+    let top = std::fs::canonicalize(top.trim()).ok()?;
     if top != std::fs::canonicalize(root).ok()? {
         return None;
     }
+    // The BRANCH is asked fresh every time, and stays out of the
+    // memory above (review 0061 R-2). Where the toplevel of a tree is
+    // a fact about the tree, the branch is a fact about its WORKING
+    // STATE: a checkout changes it, and a library caller may check
+    // one out between two questions. The wave's own prose said the
+    // memory holds only what does not change within a run; the branch
+    // does not belong in that sentence, and thirteen processes saved
+    // are not worth a court answering about a branch that has moved.
     let out = git_at(root)
         .args(["branch", "--show-current"])
         .output()
