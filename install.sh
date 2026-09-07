@@ -227,6 +227,20 @@ install_launcher() {
     # reading ~/.keel and finding no version from inside its own home
     # (final review 2026-09-06, bugs R-11).
     printf '%s\n' "export KEEL_HOME=\"\${KEEL_HOME:-$KEEL_HOME}\"" >> "$1"
+    # The tools this script needs, where the PATH it was handed has
+    # none. A git hook is the ordinary case: the hook keel installs
+    # carries an absolute path to THIS file, and a graphical client
+    # runs hooks with a PATH of its own -- measured by live use
+    # 2026-09-07, where the whole commit court was `dirname: command
+    # not found`. Appended, never prepended: what a person put in
+    # front of their PATH stays in front, and this launcher does not
+    # choose which binaries a machine runs (wave 0062).
+    cat >> "$1" <<'LAUNCHER_PATH'
+case ":${PATH:-}:" in
+    *:/usr/bin:*) ;;
+    *) PATH="${PATH:+$PATH:}/usr/bin:/bin"; export PATH ;;
+esac
+LAUNCHER_PATH
     cat >> "$1" <<'LAUNCHER'
 #
 # It reads the `version` a project pins in keel.toml and runs exactly
