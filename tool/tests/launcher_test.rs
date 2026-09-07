@@ -310,31 +310,228 @@ fn the_launcher_runs_where_the_hook_runs() {
         "and it answers as keel, not as a broken script:\n{said}"
     );
 
-    // And what a person put in front STAYS in front: the launcher
-    // adds, never replaces. A stub `uname` earlier on PATH must still
-    // be the one that answers.
+    // --- what a person put in front STAYS in front, asked of the
+    // LAUNCHER and not of POSIX ---
+    //
+    // Review 0062 R-1: the first cut of this half ran `/bin/sh -c
+    // uname` with a PATH it built itself, which measures how a shell
+    // resolves PATH -- true of every shell everywhere, and true with
+    // the fix reverted. A mutant that prepended instead of appending
+    // walked the whole battery. So the question is put to the
+    // launcher itself: a `uname` of the person's own, earlier on
+    // PATH, must be the one that answers while keel runs.
     let mine = dir.join("mine");
     fs::create_dir_all(&mine).unwrap();
+    // `grep` and not `uname`: the launcher reads the project's pin on
+    // EVERY run and greps keel.toml for it, while uname is asked only
+    // on the download road -- a mark that never runs proves nothing.
+    let saw = dir.join("mine-grep-ran");
     fs::write(
-        mine.join("uname"),
-        "#!/bin/sh\necho \"the one the person chose\"\n",
+        mine.join("grep"),
+        format!(
+            "#!/bin/sh\n: > '{}'\nexec /usr/bin/grep \"$@\"\n",
+            saw.display()
+        ),
     )
     .unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(mine.join("uname"), fs::Permissions::from_mode(0o755)).unwrap();
+        fs::set_permissions(mine.join("grep"), fs::Permissions::from_mode(0o755)).unwrap();
     }
-    let out = Command::new("/bin/sh")
+    // A PATH that has the person's directory and nothing else: if the
+    // launcher appended, their uname is still first and runs; if it
+    // prepended, /usr/bin's uname wins and the mark is never written.
+    let out = Command::new(w.bin.join("keel"))
+        .args(["--version"])
+        .current_dir(&project)
+        .env("KEEL_HOME", &w.home)
+        .env("PATH", mine.display().to_string())
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        saw.exists(),
+        "the launcher APPENDS what it needs: a grep the person put in \
+         front of their PATH is the one that answers, or this script \
+         would be choosing which binaries a machine runs (review 0062 \
+         R-1: the first cut asked POSIX this question, not the \
+         launcher):\n{said}"
+    );
+
+    // --- and every directory it needs is asked about SEPARATELY ---
+    //
+    // Review 0062 R-2 measured the cost of one question for two
+    // directories: on macOS `dirname grep head sed cut uname` live
+    // only in /usr/bin and `cat mkdir rm mv chmod` only in /bin, so a
+    // PATH carrying /usr/bin alone answered "nothing to add" and then
+    // died on `cat` -- with a refusal that was not even true.
+    for only in ["/usr/bin", "/bin"] {
+        let out = Command::new(w.bin.join("keel"))
+            .args(["--version"])
+            .current_dir(&project)
+            .env("KEEL_HOME", &w.home)
+            .env("PATH", only)
+            .output()
+            .unwrap();
+        let said = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(
+            !said.contains("command not found"),
+            "with PATH={only} alone the launcher still has every tool \
+             it uses -- the two directories are not the same tools:\n{said}"
+        );
+        assert!(
+            said.contains("keel"),
+            "and it answers as keel under PATH={only}:\n{said}"
+        );
+    }
+}
+
+/// proves: the-launcher-runs-where-the-hook-runs@fac3ce -- the whole
+/// road, in one piece: a real `git commit` in a repository whose hook
+/// keel installed, run with the PATH a graphical client gives. Review
+/// 0062 R-3: the probe above stops at `keel --version`, so nothing
+/// held git, hook and launcher TOGETHER -- and the wave's own drift
+/// had just taken that meeting out of `frame_tongue_test`.
+#[test]
+fn the_commit_court_runs_through_the_hook_under_a_narrow_path() {
+    let dir = sandbox("launcherhook");
+    let w = world(&dir);
+    install(&w, Some(&w.old_ref));
+    // The home this world builds holds a STUB that only prints its
+    // arguments; this case needs the real court at the end of the
+    // road, so the real binary goes in -- and its checksum with it,
+    // because the launcher verifies that before handing over (the
+    // guard wave 0041 built).
+    let home = w.home.join("versions").join(&w.old_ref);
+    fs::copy(env!("CARGO_BIN_EXE_keel"), home.join("keel")).unwrap();
+    let sum = Command::new("sh")
         .arg("-c")
-        .arg("uname")
-        .env("PATH", format!("{}:/usr/bin:/bin", mine.display()))
+        .arg(format!(
+            "shasum -a 256 '{}' 2>/dev/null || sha256sum '{}'",
+            home.join("keel").display(),
+            home.join("keel").display()
+        ))
+        .output()
+        .unwrap();
+    let sum = String::from_utf8_lossy(&sum.stdout)
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+        .to_string();
+    fs::write(home.join(".keel-sum"), format!("{sum}\n")).unwrap();
+    fs::write(home.join(".keel-version"), "1.1.0\n").unwrap();
+    let project = dir.join("project");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(
+        project.join("keel.toml"),
+        format!("lang = \"en\"\nversion = \"{}\"\n", w.old_ref),
+    )
+    .unwrap();
+    // The frame the methodology stands on, so the court has something
+    // to judge rather than a missing directory.
+    for dir in ["keel/waves", "keel/contracts", "keel/reviews"] {
+        fs::create_dir_all(project.join(dir)).unwrap();
+    }
+    let git_at = |args: &[&str]| {
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(&project)
+            .args(["-c", "user.email=keel@test", "-c", "user.name=keel-test"])
+            .args(args)
+            .output()
+            .unwrap();
+        (
+            format!(
+                "{}{}",
+                String::from_utf8_lossy(&out.stdout),
+                String::from_utf8_lossy(&out.stderr)
+            ),
+            out.status.code().unwrap_or(-1),
+        )
+    };
+    git_at(&["init", "-q", "-b", "main"]);
+    // The hook installed BY the launcher, as a person's machine has
+    // it: it carries the absolute path to that launcher.
+    // The launcher ON PATH, which is where a person's install puts
+    // it: that is what makes the hook point at the launcher rather
+    // than at a binary, and it is the shape this wave exists for.
+    let out = Command::new(w.bin.join("keel"))
+        .args(["hook"])
+        .current_dir(&project)
+        .env("KEEL_HOME", &w.home)
+        .env(
+            "PATH",
+            format!(
+                "{}:{}",
+                w.bin.display(),
+                std::env::var("PATH").unwrap_or_default()
+            ),
+        )
         .output()
         .unwrap();
     assert!(
-        String::from_utf8_lossy(&out.stdout).contains("the one the person chose"),
-        "the shape this wave writes keeps the person's own PATH in \
-         front -- /usr/bin goes to the END, or the launcher would be \
-         choosing which binaries a machine runs"
+        out.status.success(),
+        "the hook is installed by the launcher: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let hook = project.join(".git/hooks/commit-msg");
+    assert!(
+        fs::read_to_string(&hook)
+            .unwrap()
+            .contains(w.bin.join("keel").to_str().unwrap()),
+        "and it points at the launcher, which is the shape that made \
+         this wave"
+    );
+
+    // The narrow PATH of a graphical client: git itself by absolute
+    // path, and nothing else to be found.
+    let real_git = ["/usr/bin/git", "/bin/git", "/opt/homebrew/bin/git"]
+        .into_iter()
+        .find(|c| std::path::Path::new(c).is_file())
+        .unwrap_or("/usr/bin/git");
+    fs::write(project.join("a.txt"), "a\n").unwrap();
+    let out = Command::new(real_git)
+        .arg("-C")
+        .arg(&project)
+        .args(["-c", "user.email=keel@test", "-c", "user.name=keel-test"])
+        .args(["add", "-A"])
+        .env("PATH", "/nonexistent")
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "the file is staged");
+    let out = Command::new(real_git)
+        .arg("-C")
+        .arg(&project)
+        .args(["-c", "user.email=keel@test", "-c", "user.name=keel-test"])
+        .args(["commit", "-m", "outside the courts"])
+        .env("PATH", "/nonexistent")
+        .env("KEEL_HOME", &w.home)
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        !said.contains("command not found"),
+        "a commit through the hook, with the PATH a graphical client \
+         gives, reaches the court -- this is the whole road the wave \
+         exists for:\n{said}"
+    );
+    assert_eq!(
+        out.status.code().unwrap_or(-1),
+        0,
+        "and the court lets a subject outside the slugs through, as \
+         §8.4 says it must:\n{said}"
     );
 }

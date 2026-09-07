@@ -236,10 +236,24 @@ install_launcher() {
     # front of their PATH stays in front, and this launcher does not
     # choose which binaries a machine runs (wave 0062).
     cat >> "$1" <<'LAUNCHER_PATH'
-case ":${PATH:-}:" in
-    *:/usr/bin:*) ;;
-    *) PATH="${PATH:+$PATH:}/usr/bin:/bin"; export PATH ;;
-esac
+# Each directory asked about SEPARATELY: this script needs tools from
+# both, and they are not the same tools. Measured on macOS by review
+# 0062 R-2: dirname, grep, head, sed, cut and uname live only in
+# /usr/bin, while cat, mkdir, rm, mv and chmod live only in /bin -- so
+# a PATH carrying /usr/bin alone passed the old single question and
+# then failed on `cat`, printing a refusal that was not even true
+# ("keel.toml pins a version, and it is not installed here" over a
+# version that was). Appended, never prepended: what a person put in
+# front of their PATH stays in front, and this launcher does not
+# choose which binaries a machine runs.
+for keel_dir in /usr/bin /bin; do
+    case ":${PATH:-}:" in
+        *":$keel_dir:"*) ;;
+        *) PATH="${PATH:+$PATH:}$keel_dir" ;;
+    esac
+done
+export PATH
+unset keel_dir
 LAUNCHER_PATH
     cat >> "$1" <<'LAUNCHER'
 #
