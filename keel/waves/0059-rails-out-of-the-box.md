@@ -18,6 +18,18 @@ transforms:
       - tool/src/config.rs
       - tool/src/adapter.rs
       - tool/src/generated.rs
+      - tool/src/ask.rs
+      - tool/src/init.rs
+      - tool/src/check.rs
+      - tool/i18n/uk.ftl
+      - tool/i18n/en.ftl
+      - keel/contracts/tool-ask.md
+  journal:
+    chore: "запис хвилі: звіт свіжого рецензента, стаття журналу і зняті рядки черги (§4.11)"
+    files:
+      - docs/uk/V2-PROCESS.md
+      - BACKLOG.md
+      - keel/reviews/0059-rails-out-of-the-box.md
   the-contract-says-the-third-reading:
     chore: "контракт адаптера каже третє читання: як Rails пізнається, чим біжить батарея і чим біжить один тест"
     files:
@@ -33,7 +45,7 @@ decisions:
   interaction.learnability: "тримає: крок §9.2 дає команду, яку людина в Rails справді набирає"
   interaction.operability: "не застосовується"
   interaction.user-engagement: "не застосовується"
-  interaction.inclusivity: "не застосовується"
+  interaction.inclusivity: "тримає доробка (рецензія R-1): імʼя тесту поза ASCII біжить і на дорозі Rails — слово про кодування їде туди через RUBYOPT, бо `-E UTF-8` для `bin/rails` було б аргументом `rails test`; зміряно під LC_ALL=C з обох боків"
   interaction.user-assistance: "не застосовується"
   interaction.self-descriptiveness: "тримає: контракт адаптера каже третє читання своїм текстом"
   interaction.user-error-protection: "тримає: проєкт без bin/rails і config/application.rb лишається на першому читанні — розпізнавання питає дві прикмети, не одну"
@@ -126,3 +138,9 @@ minitest (`-v`, рядок `Клас#метод = <час> s = <позначка
 ## transform: the-contract-says-the-third-reading
 
 Контракт `tool-adapter-ruby` каже третє читання і його межі.
+
+## transform: journal
+
+Звіт свіжого рецензента (§9.9) у історію гілки; стаття журналу; зняті
+рядки черги і записана нова — швидкість батареї (рішення оператора
+2026-09-07).

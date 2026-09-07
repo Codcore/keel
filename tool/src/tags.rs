@@ -323,7 +323,25 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 // `def test_…` first, the Rails string second: a file
                 // may hold both, and a method declaration is never a
                 // `test "…" do` line.
-                fn_name(trimmed, declares).or_else(|| rails_test_name(&ruby_code(trimmed)))
+                let code = ruby_code(trimmed);
+                let declared_here = fn_name(trimmed, declares);
+                // A name built at RUN TIME is a name nobody can read
+                // from the source, and the tag over it holds nothing.
+                // The second reading of this tongue refuses that
+                // aloud and the contract records it; the third one
+                // used to hand the person a wrong trail instead --
+                // `-n test_greets_#{…}`, then "the run did not
+                // execute the test", then advice to check the tag,
+                // which was never the fault (review 0059 R-8).
+                if pending.is_some() && declared_here.is_none() {
+                    if let Some(name) = rails_test_name(&code) {
+                        if name.contains("#{") {
+                            let (scenario, rev) = pending.take().unwrap();
+                            return Err(js_refusal(file, "tags-rails-dynamic", &scenario, &rev));
+                        }
+                    }
+                }
+                declared_here.or_else(|| rails_test_name(&code))
             } else {
                 fn_name(trimmed, declares)
             };
@@ -407,6 +425,13 @@ pub fn test_name(trimmed: &str) -> Option<String> {
     quoted_after(trimmed, "test ")
 }
 
+/// The quote marks ruby allows around a string: rubocop's default
+/// (Style/StringLiterals) asks for the single ones where there is no
+/// interpolation, so a great many Rails projects hold `test 'greets'
+/// do` (measured by the author 2026-09-07: with double quotes alone
+/// that line read as no test at all).
+const QUOTES: &[char] = &['"', '\''];
+
 /// Rails names a test by a STRING and builds the method itself:
 /// `test "greets a user" do` becomes `test_greets_a_user`, which is
 /// the name minitest reports and the name `-n` selects. This reader
@@ -418,12 +443,46 @@ pub fn test_name(trimmed: &str) -> Option<String> {
 /// else is touched (a name with non-ASCII letters keeps them, as
 /// wave 0051 measured for `-n`).
 pub fn rails_test_name(code: &str) -> Option<String> {
-    let name = quoted_after(code.trim_start(), "test ")?;
-    if name.trim().is_empty() {
-        // ActiveSupport refuses a nameless test itself; nothing here
-        // can carry a tag either.
+    // Both call forms ActiveSupport takes: `test "x" do` and
+    // `test("x") do` (review 0059 R-10 measured the second read as no
+    // test at all). The parenthesis is stripped here, and the tail
+    // after the string is then `) do`, which the reader below
+    // already allows.
+    let head = code.trim_start();
+    let raw = match head.strip_prefix("test(") {
+        Some(rest) => quoted_after_marks(
+            &format!("test {}", rest.trim_start()),
+            "test ",
+            QUOTES,
+            true,
+        )?,
+        None => quoted_after_marks(head, "test ", QUOTES, true)?,
+    };
+    // The escapes ruby resolves BEFORE ActiveSupport ever sees the
+    // string: `test "tab\tname"` is one word, a tab and another, so
+    // the method is `test_tab_name` and not `test_tabtname` (review
+    // 0059 R-10 measured that difference as "the run did not execute
+    // the test"). Only the whitespace ones matter here -- they are
+    // the ones the gsub below then folds; everything else already
+    // stands for itself.
+    let name = raw
+        .replace("\\t", "\t")
+        .replace("\\n", "\n")
+        .replace("\\r", "\r")
+        .replace("\\\"", "\"")
+        .replace("\\'", "'")
+        .replace("\\\\", "\\");
+    if name.is_empty() {
         return None;
     }
+    // `test_` plus the name with every RUN of whitespace as one
+    // underscore -- ActiveSupport's own `gsub(/\s+/, "_")`, and
+    // whitespace means what ruby's `\s` means: a tab is not a
+    // literal `t` (review 0059 R-10 measured `tab\tname` reading as
+    // `test_tabtname` while the runner had built `test_tab_name`). A
+    // name of nothing but spaces is `test__` there, and so it is
+    // here: the reader's business is to say what the runner will
+    // answer to, not to judge the name.
     let mut out = String::from("test_");
     let mut space = false;
     for ch in name.chars() {
@@ -436,6 +495,9 @@ pub fn rails_test_name(code: &str) -> Option<String> {
             space = false;
         }
         out.push(ch);
+    }
+    if space {
+        out.push('_');
     }
     Some(out)
 }
@@ -1079,8 +1141,26 @@ pub fn describe_name(trimmed: &str) -> Option<String> {
 }
 
 fn quoted_after(trimmed: &str, word: &str) -> Option<String> {
+    quoted_after_marks(trimmed, word, &['"'], false)
+}
+
+/// The same, with the quote marks this tongue allows. ExUnit writes a
+/// name in double quotes only (single ones are a charlist there);
+/// ruby takes both, and rubocop's default asks for SINGLE ones on a
+/// string with no interpolation -- so `test 'greets a user' do` is
+/// what a great many Rails projects actually hold. Measured by the
+/// author 2026-09-07: with double quotes alone that line read as no
+/// test at all, which is the very fault wave 0059 exists to fix,
+/// wearing the other spelling.
+fn quoted_after_marks(
+    trimmed: &str,
+    word: &str,
+    marks: &[char],
+    keep_escapes: bool,
+) -> Option<String> {
     let rest = trimmed.strip_prefix(word)?.trim_start();
-    let rest = rest.strip_prefix('"')?;
+    let quote = rest.chars().next().filter(|c| marks.contains(c))?;
+    let rest = &rest[quote.len_utf8()..];
     // The closing quote is the first UNESCAPED one: `test "it's
     // \"quoted\"" do` is one name, and splitting at the first quote
     // cut it in the middle -- the tag above it then had "no test
@@ -1094,10 +1174,20 @@ fn quoted_after(trimmed: &str, word: &str) -> Option<String> {
     while let Some((at, ch)) = chars.next() {
         match ch {
             '\\' => match chars.next() {
-                Some((_, escaped)) => name.push(escaped),
+                // The backslash is kept where the CALLER resolves the
+                // escapes itself: ruby turns `\t` into a tab before
+                // ActiveSupport builds the method name, and a reader
+                // that dropped the backslash here could no longer
+                // tell that letter from this one (review 0059 R-10).
+                Some((_, escaped)) => {
+                    if keep_escapes {
+                        name.push('\\');
+                    }
+                    name.push(escaped);
+                }
                 None => return None,
             },
-            '"' => {
+            ch if ch == quote => {
                 closed = Some(at);
                 break;
             }
@@ -1111,7 +1201,10 @@ fn quoted_after(trimmed: &str, word: &str) -> Option<String> {
         return None;
     }
     let tail = tail.trim();
-    if tail.is_empty() || tail.starts_with("do") || tail.starts_with(',') {
+    // `)` closes a call written with parentheses -- `test("x") do`,
+    // the form ActiveSupport takes beside the bare one (review 0059
+    // R-10). ExUnit never writes it, so nothing else changes.
+    if tail.is_empty() || tail.starts_with("do") || tail.starts_with(',') || tail.starts_with(')') {
         Some(name)
     } else {
         None

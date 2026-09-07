@@ -212,6 +212,15 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         extra_limits.push(t("limit-ruby-form"));
         // The second reading and its own borders (wave 0047).
         extra_limits.push(t("limit-rspec-border"));
+        // And the third, where the project is Rails: the person must
+        // learn from the tool itself that the battery is now another
+        // command and that keel runs a script from their own tree --
+        // the prose of a wave is not where that is said (review 0059
+        // R-7; the same rule this contract already carries for the
+        // second reading's border).
+        if crate::ruby::rails_root(root) {
+            extra_limits.push(t("adapter-rails-reading"));
+        }
         // And which files in test/ this adapter walked past (R-19).
         let unread = crate::ruby::unread_files(root);
         if !unread.is_empty() {
