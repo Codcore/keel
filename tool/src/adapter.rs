@@ -303,6 +303,14 @@ pub fn run_line(root: &Path, file: &Path, test: &str, line: usize) -> String {
                 t("run-line-rspec-note")
             )
         }
+        // The third reading's line is the one a person in a Rails
+        // application actually types: `bin/rails test <file> -n
+        // <method>`. Measured 2026-09-07 -- `ruby -Itest` boots no
+        // application, so the advice was a line that could not work
+        // where it was given (wave 0059).
+        Some(Language::Ruby) if crate::ruby::rails_root(root) => {
+            format!("bin/rails test {} -n {test}", relative.display())
+        }
         Some(Language::Ruby) => format!("ruby -Itest {} -n {test}", relative.display()),
         _ => {
             let stem = file

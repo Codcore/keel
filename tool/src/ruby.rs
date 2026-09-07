@@ -152,7 +152,47 @@ fn snake_case(word: &str) -> String {
     out
 }
 
-/// Runs exactly the tagged test (`ruby -Itest <file> -n <method>`).
+/// Is this a Rails application? TWO marks together, and neither
+/// alone: `bin/rails` (the command Rails gives a person) and
+/// `config/application.rb` (the application it boots). Measured on a
+/// real application 2026-09-07; asked of the PROJECT and never of the
+/// config, because a person writing `adapter = "ruby"` should not
+/// have to know that their project is called something else.
+///
+/// Rails is not another tongue -- it is another LAYOUT of this one,
+/// and this is the third reading of ruby beside minitest and rspec
+/// (the second arrived in wave 0047). What changes is the command:
+/// the battery of a Rails application is `bin/rails test`, because
+/// `ruby -Itest` never boots the application at all.
+pub fn rails_root(root: &Path) -> bool {
+    root.join("bin/rails").is_file() && root.join("config/application.rb").is_file()
+}
+
+/// The runner for this project, with the arguments that reach the
+/// same minitest either way: Rails through its own `bin/rails test`,
+/// a plain project through `ruby -Itest`. `-E UTF-8` is the adapter's
+/// word to its child about the encoding of the arguments (wave 0051)
+/// and rides on both roads.
+fn minitest_command(root: &Path, args: &[String]) -> Command {
+    if rails_root(root) {
+        let mut command = Command::new(root.join("bin/rails"));
+        command.arg("test").args(args).current_dir(root);
+        // Rails boots the application to run its tests, and the
+        // environment is the one Rails itself names for that.
+        command.env("RAILS_ENV", "test");
+        return command;
+    }
+    let mut command = Command::new("ruby");
+    command
+        .args(["-E", "UTF-8"])
+        .arg("-Itest")
+        .args(args)
+        .current_dir(root);
+    command
+}
+
+/// Runs exactly the tagged test (`ruby -Itest <file> -n <method>`, or
+/// `bin/rails test <file> -n <method>` where the project is Rails).
 ///
 /// The honest limit of this tongue, and §7.12 foresaw it: **ruby does
 /// not tell "failed" from "did not load" by its exit code** -- both
@@ -166,18 +206,21 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
         return run_spec(root, tag);
     }
     let relative = tag.file.strip_prefix(root).unwrap_or(&tag.file);
-    let mut command = Command::new("ruby");
     // The encoding of the arguments is the adapter's word to its
     // child, not the machine's locale: under `LANG=` ruby read `-n
     // test_ünïcode` in ASCII-8BIT and selected nothing (global review
-    // 2026-09-06 R-19; wave 0051), while `-E UTF-8` runs it.
-    command
-        .args(["-E", "UTF-8"])
-        .arg("-Itest")
-        .arg(relative)
-        .arg("-n")
-        .arg(&tag.test)
-        .current_dir(root);
+    // 2026-09-06 R-19; wave 0051), while `-E UTF-8` runs it. Where
+    // the project is Rails, the same selection rides on `bin/rails
+    // test <file> -n <method>` -- measured on a real application,
+    // exit 0 green and 1 red.
+    let mut command = minitest_command(
+        root,
+        &[
+            relative.display().to_string(),
+            "-n".to_string(),
+            tag.test.clone(),
+        ],
+    );
     // The first reading forgot to forget the hook (global review
     // 2026-09-06, bugs cut R-18): a test that asks git for its
     // repository saw the hook's under GIT_DIR.
@@ -242,13 +285,11 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     for file in minitest_files(root)? {
         let relative = file.strip_prefix(root).unwrap_or(&file);
         let stem = crate::adapter::battery_key(root, &file);
-        let mut command = Command::new("ruby");
-        command
-            .args(["-E", "UTF-8"])
-            .arg("-Itest")
-            .arg(relative)
-            .arg("-v")
-            .current_dir(root);
+        // One process per file on both roads, so the key of the
+        // battery stays the file it came from (§7.13's verdicts are
+        // per test, and the courts above ask by file stem).
+        let mut command =
+            minitest_command(root, &[relative.display().to_string(), "-v".to_string()]);
         crate::scope::forget_the_hook(&mut command);
         let run = command.output().map_err(|e| Refusal {
             file: root.to_path_buf(),

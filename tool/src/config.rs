@@ -96,6 +96,18 @@ impl Language {
         }
     }
 
+    /// The same, asked of a PROJECT rather than of the tongue
+    /// alone: a Rails application runs its battery with `bin/rails
+    /// test`, because `ruby -Itest` never boots the application and
+    /// so loads none of its tests (measured on a real application,
+    /// wave 0059). Everything else answers as the tongue does.
+    pub fn battery_command_in(&self, root: &std::path::Path) -> String {
+        match self {
+            Language::Ruby if crate::ruby::rails_root(root) => "bin/rails test".to_string(),
+            _ => self.battery_command().to_string(),
+        }
+    }
+
     /// One name per tongue, in the order `NAMES` gives them: what
     /// the wizard offers and what a project is asked to write.
     pub fn choices() -> Vec<&'static str> {
