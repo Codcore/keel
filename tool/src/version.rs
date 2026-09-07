@@ -8,6 +8,14 @@ use crate::i18n::{t, ta};
 use crate::targs;
 use std::path::Path;
 
+/// A word for a person to paste, safe in a shell: the pin is a
+/// stranger's string, and `x; echo PWNED` in it made two commands of
+/// the advised one (review 0057 R-10). The apostrophe inside is
+/// closed, escaped and reopened, as the run lines of the adapter do.
+fn shell_quoted(word: &str) -> String {
+    format!("'{}'", word.replace('\'', "'\\''"))
+}
+
 /// The road a pin's own SHAPE takes, mirrored from `release_tag` in
 /// install.sh (wave 0057): `v?MAJOR.MINOR.PATCH(-prerelease)?` reaches
 /// a published release -- archive and `.sha256`, no git and no cargo --
@@ -61,7 +69,14 @@ pub fn report(root: &Path) -> String {
                     ta(
                         "version-pin-hand",
                         targs!(
-                            "pin" => pin.to_string(),
+                            // Quoted, as the KEEL_REF form used to be
+                            // (review 0057 R-10): the pin comes from a
+                            // keel.toml a stranger wrote, the line is
+                            // for a person to paste, and `x; echo` in
+                            // it made two commands of one. An empty
+                            // pin now shows as '' instead of a line
+                            // that looks finished (R-14).
+                            "pin" => shell_quoted(pin),
                             "installer" => crate::generated::INSTALLER.to_string()
                         )
                     ),
@@ -73,7 +88,10 @@ pub fn report(root: &Path) -> String {
                     // lamp told every pin alike that nothing checks a
                     // checksum there (queue after 0055, bugs R-26).
                     if release_shaped(pin) {
-                        ta("version-pin-road-release", targs!("pin" => pin.to_string()))
+                        ta(
+                            "version-pin-road-release",
+                            targs!("pin" => shell_quoted(pin)),
+                        )
                     } else {
                         t("version-pin-road-ref")
                     },

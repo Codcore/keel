@@ -147,8 +147,20 @@ fn world(name: &str) -> (Sandbox, World) {
     (dir, world)
 }
 
-/// One run of the real install.sh. Returns (what it said, exit code).
+/// One run of the real install.sh, the ref handed as KEEL_REF.
 fn install(world: &World, git_ref: Option<&str>) -> (String, i32) {
+    install_as(world, git_ref, false)
+}
+
+/// The same run with the ref handed POSITIONALLY -- the form the lamp
+/// advises since wave 0057 (`sh install.sh <pin>`). Review 0057 R-13:
+/// the probe asserted the new words while every run still went
+/// through the variable, so the advised spelling was never played.
+fn install_positional(world: &World, git_ref: &str) -> (String, i32) {
+    install_as(world, Some(git_ref), true)
+}
+
+fn install_as(world: &World, git_ref: Option<&str>, positional: bool) -> (String, i32) {
     let path = format!(
         "{}:{}",
         world.stub.display(),
@@ -163,7 +175,17 @@ fn install(world: &World, git_ref: Option<&str>) -> (String, i32) {
         .env("KEEL_HOME", &world.home)
         .env("KEEL_BIN", &world.bin)
         .env("KEEL_HOME_FOR_STUB", &world.home)
-        .env("KEEL_REF", git_ref.unwrap_or(""));
+        .env(
+            "KEEL_REF",
+            if positional {
+                ""
+            } else {
+                git_ref.unwrap_or("")
+            },
+        );
+    if let (true, Some(git_ref)) = (positional, git_ref) {
+        command.arg(git_ref);
+    }
     // The stub reads KEEL_HOME to know where to write.
     command.env("KEEL_HOME", &world.home);
     // No release stands anywhere this world can reach: an empty
@@ -216,9 +238,11 @@ fn the_pin_has_a_hand() {
     // install.sh` to be the same road (the positional argument IS
     // KEEL_REF), and the lamp now hands the shorter form.
     assert!(
-        said.contains("sh install.sh 0.0.1-not-this-binary"),
+        said.contains("sh install.sh '0.0.1-not-this-binary'"),
         "it names the command that fetches exactly that version, with \
-         the version already in it:\n{said}"
+         the version already in it -- QUOTED, because the pin is a \
+         stranger's string and `x; echo` in it made two commands of \
+         one (review 0057 R-10):\n{said}"
     );
     assert!(
         said.contains("install.sh"),
@@ -248,6 +272,15 @@ fn the_pin_has_a_hand() {
 
     // -- what the hand does ------------------------------------------
     let (_keep, w) = world("pinhand");
+
+    // The spelling the lamp advises -- the ref handed positionally,
+    // which install.sh reads as KEEL_REF (review 0057 R-13).
+    let (said, code) = install_positional(&w, "v2.0.0");
+    assert_eq!(code, 0, "the advised spelling installs:\n{said}");
+    assert!(
+        said.contains("v2.0.0"),
+        "and names the version it took:\n{said}"
+    );
 
     // Named version: exactly that ref lands, not the tip.
     let (said, code) = install(&w, Some("v2.0.0"));
@@ -311,7 +344,7 @@ fn the_advice_leads_with_the_road_that_works() {
     let (said, code) = keel(&["version", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "the lamp never refuses over a mismatch:\n{said}");
     assert!(
-        said.contains("sh install.sh 9.9.9"),
+        said.contains("sh install.sh '9.9.9'"),
         "the shortest form of the road that works is what a person is \
          handed:\n{said}"
     );
@@ -324,6 +357,30 @@ fn the_advice_leads_with_the_road_that_works() {
         !said.contains("checksum там не звіряє ніхто"),
         "never the sentence of the OTHER road: this pin's road does \
          check one:\n{said}"
+    );
+    // The promise is that the road LEADS, not that it is mentioned
+    // (review 0057 R-2: two mutants that swapped the rows passed the
+    // whole battery). The command comes first, its road next, the
+    // border last -- a warning before the thing it warns about is
+    // the very shape this wave took away.
+    let command_at = said.find("sh install.sh").expect("the command");
+    let road_at = said.find("дорога цього піна").expect("the road");
+    let border_at = said.find("межа:").expect("the border");
+    assert!(
+        command_at < road_at && road_at < border_at,
+        "the rows stand in the order a person reads them -- command, \
+         road, border:\n{said}"
+    );
+    assert!(
+        said[road_at..border_at]
+            .find("реліз")
+            .is_some_and(|release| {
+                said[road_at..border_at]
+                    .find("KEEL_REF")
+                    .is_none_or(|other| release < other)
+            }),
+        "and the road line leads with the release, not with the form \
+         that builds from source:\n{said}"
     );
 
     // -- a pin that is a ref: the road from source ------------------
