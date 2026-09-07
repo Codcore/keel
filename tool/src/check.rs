@@ -212,6 +212,15 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         extra_limits.push(t("limit-ruby-form"));
         // The second reading and its own borders (wave 0047).
         extra_limits.push(t("limit-rspec-border"));
+        // And the third, where the project is Rails: the person must
+        // learn from the tool itself that the battery is now another
+        // command and that keel runs a script from their own tree --
+        // the prose of a wave is not where that is said (review 0059
+        // R-7; the same rule this contract already carries for the
+        // second reading's border).
+        if crate::ruby::rails_root(root) {
+            extra_limits.push(t("adapter-rails-reading"));
+        }
         // And which files in test/ this adapter walked past (R-19).
         let unread = crate::ruby::unread_files(root);
         if !unread.is_empty() {
@@ -417,6 +426,21 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 .transforms
                 .iter()
                 .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
+        // The exception §2.11 names since the operator's decision of
+        // 2026-09-07: a contract carries promises that outlive the
+        // wave, so a wave that touches one is FULL by §6.8 -- even
+        // when every transform of it is a chore. Without it the debt
+        // of the release (three paragraphs of prose in two contracts,
+        // not one new promise) was a wave the norm forbade twice
+        // over: §2.11 asked for light, §6.8 for full. Asked HERE and
+        // not through `docs::heavy`, because that one answers with
+        // the first reason it finds, and `Transforms` outranks
+        // `Contract`.
+        let carries_a_contract = wave
+            .transforms
+            .iter()
+            .any(|(_, tr)| tr.files.iter().any(docs::names_a_contract));
+        let chores_only = chores_only && !carries_a_contract;
         // A wave with no scenario cannot withdraw one, so that road
         // of `heavy` never leads here (review 0052 R-8).
         let why = if chores_only {
@@ -1467,16 +1491,24 @@ fn uncommitted_transforms(root: &Path, wave: &docs::Wave, base: &str) -> Vec<(St
         if transform.files.is_empty() || committed.contains(name.as_str()) {
             continue;
         }
-        let mut dirs: std::collections::BTreeMap<&str, usize> = Default::default();
+        // Keyed by the NAME the row means, like the filter below
+        // (review 0057 R-9 measured the halves disagreeing: `check`
+        // said "assembled" while `next` said "work on").
+        let mut dirs: std::collections::BTreeMap<String, usize> = Default::default();
         for line in &transform.files {
-            if let docs::ScopeLine::OneNewIn(d) = line {
-                *dirs.entry(d.as_str()).or_insert(0) += 1;
+            if let docs::ScopeLine::OneNewIn(_) = line {
+                *dirs.entry(line.name()).or_insert(0) += 1;
             }
         }
+        // By the name the row means, not its spelling (wave 0057).
         let done = transform.files.iter().all(|line| match line {
-            docs::ScopeLine::Path(p) => changed.contains(p),
-            docs::ScopeLine::OneNewIn(d) => {
-                added.iter().filter(|f| f.starts_with(d.as_str())).count() == dirs[d.as_str()]
+            docs::ScopeLine::Path(_) => changed.contains(line.name().as_str()),
+            docs::ScopeLine::OneNewIn(_) => {
+                added
+                    .iter()
+                    .filter(|f| f.starts_with(line.name().as_str()))
+                    .count()
+                    == dirs[&line.name()]
             }
         });
         if done {

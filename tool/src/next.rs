@@ -320,16 +320,23 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
         // Every `one new in` line promises exactly one file (§4.1;
         // review 0012 R-8): any other count leaves the transform the
         // step -- "assembled" is not said over what scope reddens.
-        let mut dirs: BTreeMap<&str, usize> = BTreeMap::new();
+        // Keyed by the NAME the row means, like the filter below
+        // (review 0057 R-9).
+        let mut dirs: BTreeMap<String, usize> = BTreeMap::new();
         for line in &transform.files {
-            if let docs::ScopeLine::OneNewIn(d) = line {
-                *dirs.entry(d.as_str()).or_insert(0) += 1;
+            if let docs::ScopeLine::OneNewIn(_) = line {
+                *dirs.entry(line.name()).or_insert(0) += 1;
             }
         }
+        // By the name the row means, not its spelling (wave 0057).
         let untouched = transform.files.iter().any(|line| match line {
-            docs::ScopeLine::Path(p) => !changed.contains(p),
-            docs::ScopeLine::OneNewIn(d) => {
-                added.iter().filter(|f| f.starts_with(d.as_str())).count() != dirs[d.as_str()]
+            docs::ScopeLine::Path(_) => !changed.contains(line.name().as_str()),
+            docs::ScopeLine::OneNewIn(_) => {
+                added
+                    .iter()
+                    .filter(|f| f.starts_with(line.name().as_str()))
+                    .count()
+                    != dirs[&line.name()]
             }
         });
         if !untouched {
@@ -454,6 +461,17 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
             .transforms
             .iter()
             .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
+    // The exception of §2.11 since the operator's decision of
+    // 2026-09-07, read here exactly as `check` reads it: a wave that
+    // names a contract among its files is FULL by §6.8, chores and
+    // all -- the prose of a contract is worth the two human looks,
+    // and forbidding such a wave left the debt of the release with
+    // nowhere to live.
+    let carries_a_contract = wave
+        .transforms
+        .iter()
+        .any(|(_, tr)| tr.files.iter().any(docs::names_a_contract));
+    let chores_only = chores_only && !carries_a_contract;
     if chores_only && let Some(heavy) = docs::heavy(wave) {
         let why = match heavy {
             docs::Heavy::Transforms(count) => ta(

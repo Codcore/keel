@@ -172,13 +172,26 @@ fn the_weight_is_read_from_the_branch_too() {
         !said.contains("легка хвиля їде в свій один PR"),
         "and `next` does not lead a contract change to one PR:\n{said}"
     );
-    // The instead of a wave without a promise does not send it to
-    // name the contract -- §2.11 would take it there (review 0052
-    // R-5); and where it is named anyway, `next` reads §2.11 as
-    // `check` does, never "time for the PR".
+    // The step's new word, held by its substance (review 0058 R-1).
+    // Until then the assert was `contains("дай їй сценарій") ||
+    // contains("§2.11")`, and the old text -- the one the exception
+    // made false -- satisfied it just as well: a mutant putting it
+    // back walked through the whole battery. Since the exception of
+    // §2.11 such a wave is lawful, so the step names the ONE move
+    // that makes it so, and its price.
     assert!(
-        said.contains("дай їй сценарій") || said.contains("§2.11"),
-        "a chores-only wave is told to get a promise or drop the change:\n{said}"
+        said.contains("назви його у files") && said.contains("§6.8") && said.contains("§2.11"),
+        "the step names the move that makes such a wave lawful -- name the \
+         contract among the files of a transform, and the wave is full:\n{said}"
+    );
+    assert!(
+        said.contains("план окремо, робота окремо"),
+        "and the price of that move: two approvals, plan apart and work \
+         apart (§2.11's exception):\n{said}"
+    );
+    assert!(
+        !said.contains("дай їй сценарій"),
+        "and it no longer asks for a promise a prose fix does not have:\n{said}"
     );
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
@@ -200,16 +213,29 @@ fn the_weight_is_read_from_the_branch_too() {
             "tidy: the contract named",
         ],
     );
+    // Since the operator's decision of 2026-09-07 (wave 0058) this
+    // case is the EXCEPTION §2.11 now names: a wave that carries a
+    // contract is full by §6.8, chores and all -- the promise of this
+    // scenario holds in its core ("a contract is changed only by a
+    // full wave"), and naming the contract is what makes the wave
+    // full. What stays a finding is the branch that changes a
+    // contract the wave does NOT name, played above.
     let (said, code) = keel(&dir, &["check"]);
     assert!(
-        said.contains("§2.11") && said.contains("контракт"),
-        "a chores-only wave that names a contract is §2.11's finding:\n{said}"
+        !said.contains("мусить бути легкою"),
+        "a chores-only wave that NAMES a contract is lawful and full \
+         (§2.11's exception, §6.8):\n{said}"
     );
-    assert_eq!(code, 1, "and the check is red:\n{said}");
-    let (said, _) = keel(&dir, &["next"]);
     assert!(
-        said.contains("§2.11") && !said.contains("час PR"),
-        "and `next` leads where `check` does, not to the PR (§9.2):\n{said}"
+        said.contains("повна (§6.8)"),
+        "what stays a finding is the OTHER half of §6.8 -- a full wave \
+         whose file was born on the work branch never had the plan PR:\n{said}"
+    );
+    assert_eq!(code, 1, "and that finding reddens the check:\n{said}");
+    let (said, _) = keel(&dir, &["status"]);
+    assert!(
+        said.contains("вага повна"),
+        "and the weight it carries is full:\n{said}"
     );
 
     // --- two chore transforms: a wave of chores alone must be light,

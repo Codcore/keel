@@ -272,8 +272,17 @@ fn courts_deaf_to_the_environment() {
         "close names this project's wave and its lack:\n{hooked}"
     );
     let seen = fs::read_to_string(dir.join("seen-git.txt")).unwrap_or_default();
+    // Both sides resolved before they are compared: on macOS the
+    // sandbox lives under /var, which is a symlink to /private/var,
+    // and git answers with the resolved name -- so the two spellings
+    // of ONE directory made this assert fail on a machine where
+    // nothing was wrong (measured by the author, 2026-09-07).
+    let home = fs::canonicalize(&*dir).unwrap_or_else(|_| dir.to_path_buf());
+    let seen_home = fs::canonicalize(seen.trim())
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| seen.trim().to_string());
     assert!(
-        seen.trim().starts_with(dir.to_str().unwrap()),
+        seen_home.starts_with(home.to_str().unwrap()),
         "the battery ran in this project's world, not the stranger's (R-3): {seen:?}"
     );
 

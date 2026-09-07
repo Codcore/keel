@@ -188,6 +188,69 @@ pub fn lockfiles(root: &Path) -> Vec<String> {
     }
 }
 
+/// One thing the tongue's runner leaves in the tree, and WHERE it
+/// may be met (wave 0057; review R-7 measured the second half
+/// missing: a project's own `docs/target/notes.md` became furniture
+/// because `target` is a name rust leaves).
+pub struct Leaving {
+    /// The path from the project's root, or the bare directory name
+    /// when the runner writes it at any depth. A directory carries
+    /// its trailing slash.
+    pub path: String,
+    /// Met at ANY depth -- pytest writes a `__pycache__` beside every
+    /// module it imports, npm a `node_modules` in every workspace
+    /// member -- or only at the one place the adapter names, as a
+    /// build directory is.
+    pub anywhere: bool,
+}
+
+/// What this tongue's runner leaves in the tree.
+///
+/// Measured in sandboxes before the plan of wave 0057, not guessed:
+/// `pytest` writes `__pycache__/` beside every module it imports and
+/// `.pytest_cache/` at the root; `npm install` writes `node_modules/`
+/// as soon as the project has one dependency; ruby's minitest and
+/// rspec left NOTHING in a bare project, and so ruby's list is empty
+/// and the frame says so; elixir and rust leave the build directory
+/// the adapter already names -- and that one is met at its place
+/// alone.
+///
+/// Two courts read this one list (queue after 0055, bugs R-21): the
+/// ignore advice of `keel init` -- which told python, javascript and
+/// ruby alike that "this tongue builds nothing", while pytest was
+/// filling the tree -- and the scope court, for which a directory the
+/// runner wrote without being asked is furniture, not this wave's
+/// work.
+pub fn leavings(root: &Path) -> Vec<Leaving> {
+    let anywhere = |name: &str| Leaving {
+        path: name.to_string(),
+        anywhere: true,
+    };
+    match language_of(root) {
+        Some(Language::Python) => vec![anywhere("__pycache__/"), anywhere(".pytest_cache/")],
+        Some(Language::JavaScript) => vec![anywhere("node_modules/")],
+        // `bin/rails test` writes: `log/test.log`, `tmp/`, and the
+        // test database. Rails's own `.gitignore` covers them, so
+        // nothing hurt -- but "this tongue leaves nothing of its own"
+        // was said to a person for whom it is false (review 0059
+        // R-12), and the scope court reads this same list.
+        Some(Language::Ruby) if crate::ruby::rails_root(root) => {
+            vec![anywhere("log/"), anywhere("tmp/")]
+        }
+        Some(Language::Ruby) => Vec::new(),
+        _ => match build_dir(root) {
+            BuildDir::At(path) => {
+                let relative = path.strip_prefix(root).unwrap_or(Path::new(""));
+                vec![Leaving {
+                    path: format!("{}/", relative.to_string_lossy().replace('\\', "/")),
+                    anywhere: false,
+                }]
+            }
+            _ => Vec::new(),
+        },
+    }
+}
+
 pub fn build_dir(root: &Path) -> BuildDir {
     match language_of(root) {
         // pytest builds nothing -- and, told so, writes nothing
@@ -246,6 +309,23 @@ pub fn run_line(root: &Path, file: &Path, test: &str, line: usize) -> String {
                 relative.display(),
                 shell_quoted(test),
                 t("run-line-rspec-note")
+            )
+        }
+        // The third reading's line is the one a person in a Rails
+        // application actually types: `bin/rails test <file> -n
+        // <method>`. Measured 2026-09-07 -- `ruby -Itest` boots no
+        // application, so the advice was a line that could not work
+        // where it was given (wave 0059).
+        Some(Language::Ruby) if crate::ruby::rails_root(root) => {
+            // Quoted, as the rspec line beside it is: a Rails name is
+            // arbitrary text, so apostrophes, quotes and `#` survive
+            // into the method name, and an unquoted line left the
+            // person's shell waiting for a closing quote (review 0046
+            // R-5, measured again here as review 0059 R-5).
+            format!(
+                "bin/rails test {} -n {}",
+                relative.display(),
+                shell_quoted(test)
             )
         }
         Some(Language::Ruby) => format!("ruby -Itest {} -n {test}", relative.display()),

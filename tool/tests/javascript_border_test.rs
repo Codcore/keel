@@ -322,14 +322,16 @@ fn a_tongue_that_cannot_tell_says_so() {
         "and names the file in test/ it did not read:\n{said}"
     );
 
-    // The frame's own row about this tongue: nothing is built, so
-    // there is no build directory to ignore -- said, not guessed
-    // (review 0046 R-11 asked where the javascript case of that
-    // probe was).
+    // The frame's own row about this tongue: what npm LEAVES, named
+    // by the adapter -- said, not guessed (review 0046 R-11 asked
+    // where the javascript case of that probe was). Until wave 0057
+    // the row said "this tongue builds nothing", which was true of
+    // the build directory and false of the tree: `npm install`
+    // writes node_modules/ (queue after 0055, bugs R-21).
     let (said, _) = keel(&dir, &["init"]);
     assert!(
-        said.contains("нічого не збирає"),
-        "the ignore row says this tongue builds nothing:\n{said}"
+        said.contains("node_modules/"),
+        "the ignore row names what npm leaves in the tree:\n{said}"
     );
 
     // And `keel next` names the directory the project KEEPS its
@@ -375,8 +377,20 @@ fn a_tongue_that_cannot_tell_says_so() {
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
     );
+    // What is asked is the SELECTION -- one test ran, and it was this
+    // one -- not the shape of node's report. The advice line carries
+    // no `--test-reporter`, so the runner prints whatever its version
+    // calls default: TAP up to node 20, the spec report from node 22
+    // on. Asserting the TAP spelling made this probe red on node 24
+    // over a line that did exactly what it promised (measured by the
+    // author, 2026-09-07). What keel READS is another matter and
+    // another code path: `javascript::node` asks for
+    // `--test-reporter=tap` itself.
+    let one_test = ["# tests 1", "tests 1"]
+        .iter()
+        .any(|shape| ran.contains(shape));
     assert!(
-        out.status.success() && ran.contains("ok 1 - it's fine (a.b)") && ran.contains("# tests 1"),
+        out.status.success() && ran.contains("it's fine (a.b)") && one_test,
         "pasted into a shell, the line runs that one test and no other:\n{line}\n{ran}"
     );
 }

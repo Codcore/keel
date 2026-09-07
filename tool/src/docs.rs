@@ -54,6 +54,62 @@ pub enum TransformKind {
     Chore(String),
 }
 
+impl ScopeLine {
+    /// The row as the person wrote it -- the words of every finding
+    /// quote this, so they can find it with their eyes.
+    pub fn as_written(&self) -> &str {
+        match self {
+            ScopeLine::Path(p) => p.as_str(),
+            ScopeLine::OneNewIn(d) => d.as_str(),
+        }
+    }
+
+    /// The one name this row means, for every court that compares a
+    /// row with a name git gave (wave 0057).
+    pub fn name(&self) -> String {
+        one_name(self.as_written())
+    }
+}
+
+/// One name for one file (wave 0057; queue after 0055, bugs R-22).
+/// A person writes the rows of scope by hand and git gives the names
+/// it keeps, so `./src/a.rs` was ONE file to everybody and TWO to the
+/// courts: one finding said the branch touched a file no transform
+/// names, its mirror said the named file went untouched, and neither
+/// said they were the same file. Every court that compares a row with
+/// a name compares this instead of the raw string.
+///
+/// `.` and empty segments fall away (`./src//a.rs` is `src/a.rs`);
+/// the trailing slash of `one new in <dir>/` stays, because a
+/// directory is not a file. `..` is deliberately NOT resolved here: a
+/// row that leaves the root is not a file of this wave at all, and
+/// `outside_root` names it aloud rather than letting a quiet `..`
+/// reach outside the tree.
+pub fn one_name(row: &str) -> String {
+    let row = row.trim();
+    let dir = row.ends_with('/');
+    let mut parts: Vec<&str> = Vec::new();
+    for part in row.split('/') {
+        if part.is_empty() || part == "." {
+            continue;
+        }
+        parts.push(part);
+    }
+    let mut name = parts.join("/");
+    if dir && !name.is_empty() {
+        name.push('/');
+    }
+    name
+}
+
+/// A row that does not name a file of this tree: it climbs out with
+/// `..` or starts at the machine's root. Normalising `.` never
+/// legalises either (wave 0057).
+pub fn outside_root(row: &str) -> bool {
+    let row = row.trim();
+    row.starts_with('/') || row.split('/').any(|part| part == "..")
+}
+
 /// A transform is a portion of work, closed by a commit under its
 /// slug -- one or several (§2.4, §6.2).
 #[derive(Debug, Clone)]
@@ -122,26 +178,41 @@ pub fn heavy(wave: &Wave) -> Option<Heavy> {
     }
     for (_, transform) in &wave.transforms {
         // "Creates or changes a contract" is read off the DECLARED
-        // FILES, in both spellings §4.1 allows. Review 0036 R-4
-        // measured a chore declaring `one new in keel/contracts/`
-        // sailing through as light -- the very hole this rule exists
-        // to close. And `contracts:` is NOT one of them: the
-        // vocabulary of chapter 3 calls it "what the work leans on",
-        // and leaning on a contract changes nothing (review R-9,
-        // which measured a lawful light wave turned red by it).
+        // FILES, in both spellings §4.1 allows -- and the reading
+        // itself lives in one place, `names_a_contract`, because the
+        // court of §2.11 asks the same question (review 0058 R-2).
+        // Review 0036 R-4 measured a chore declaring `one new in
+        // keel/contracts/` sailing through as light: the very hole
+        // this rule exists to close.
         for line in &transform.files {
-            let touches = match line {
-                ScopeLine::Path(path) => path.starts_with("keel/contracts/"),
-                ScopeLine::OneNewIn(dir) => {
-                    dir.starts_with("keel/contracts") || dir == "keel/contracts/"
-                }
-            };
-            if touches {
+            if names_a_contract(line) {
                 return Some(Heavy::Contract);
             }
         }
     }
     None
+}
+
+/// Does this row of `files` name a contract? ONE question in ONE
+/// place: review 0058 R-2 measured two readings of it -- `heavy` asked
+/// `starts_with("keel/contracts")` without the slash for `one new in`,
+/// the exception of §2.11 in `check`/`next` asked it with -- and
+/// `one new in keel/contractsfoo/` passed one and failed the other,
+/// so the wave was light by one rule and full by the other: the very
+/// dead end wave 0058 exists to close.
+///
+/// The NAME, not the spelling (wave 0057): `./keel/contracts/x.md` is
+/// the same contract, and a light wave must not slip past this rule
+/// by a leading dot. The bare directory counts, because `one new in
+/// keel/contracts` is how §4.1 lets a person say "a contract, name
+/// still unknown"; `keel/contractsfoo/` is a different directory and
+/// counts for nothing. And `contracts:` is NOT one of these rows: the
+/// vocabulary of chapter 3 calls it "what the work leans on", and
+/// leaning on a contract changes nothing (review R-9, which measured
+/// a lawful light wave turned red by it).
+pub fn names_a_contract(line: &ScopeLine) -> bool {
+    let name = line.name();
+    name == "keel/contracts" || name.starts_with("keel/contracts/")
 }
 
 /// A contract is a promise that outlives its wave (§2.6-§2.8).

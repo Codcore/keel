@@ -193,8 +193,9 @@ pub fn plan_findings(
     )?;
     let mut out = Vec::new();
     let locks = crate::adapter::lockfiles(root);
+    let leavings = crate::adapter::leavings(root);
     for file in changed_raw.lines().map(str::trim) {
-        if file.is_empty() || furniture(root, config, file, &locks) {
+        if file.is_empty() || furniture(root, config, file, &locks, &leavings) {
             continue;
         }
         // The finding is hung on the file it accuses: review 0036
@@ -221,10 +222,43 @@ pub fn plan_findings(
 /// 0052). One reading now, `generated::is_furniture`, for both
 /// courts. A project's own file under a generated name that the tool
 /// never wrote is code here -- named in the contract.
-fn furniture(root: &Path, config: &Config, file: &str, locks: &[String]) -> bool {
+/// A path the tongue's runner left, not the wave's work (wave 0057):
+/// `tests/__pycache__/a.pyc` is pytest's, wherever it sits. WHERE a
+/// leaving may be met is the adapter's word, not a guess from its
+/// shape: `__pycache__/` and `node_modules/` at any depth, a build
+/// directory at its own place alone. Review 0057 R-7 measured the
+/// guess: a project's own `docs/target/notes.md` and
+/// `vendor/node_modules/mine/index.js` fell silently out of scope.
+fn left_by_runner(file: &str, leavings: &[crate::adapter::Leaving]) -> bool {
+    leavings.iter().any(|left| {
+        let name = left.path.trim_end_matches('/');
+        if name.is_empty() {
+            return false;
+        }
+        if left.anywhere {
+            file.split('/').any(|part| part == name)
+        } else {
+            file.starts_with(&format!("{name}/"))
+        }
+    })
+}
+
+fn furniture(
+    root: &Path,
+    config: &Config,
+    file: &str,
+    locks: &[String],
+    leavings: &[crate::adapter::Leaving],
+) -> bool {
     file.starts_with("keel/")
         || file == "keel.toml"
         || crate::generated::is_furniture(root, config, file)
+        // What the runner leaves is the runner's, not the wave's
+        // (queue after 0055, bugs R-21): a stranger who ran their
+        // battery once and committed everything had `keel check`
+        // call pytest's `.pyc` files drift -- and the frame had told
+        // them this tongue leaves nothing worth ignoring.
+        || left_by_runner(file, leavings)
         // The tongue's own, named by the adapter (wave 0055): a lock
         // file the runner writes without being asked is not this
         // wave's work, and the first build through the hook made one
@@ -399,34 +433,54 @@ pub fn findings(
     let changed: BTreeSet<&str> = changed_raw.lines().map(str::trim).collect();
     let added: BTreeSet<&str> = added_raw.lines().map(str::trim).collect();
 
-    let mut declared: BTreeSet<&str> = BTreeSet::new();
+    // Rows are compared by the name they mean, not by the spelling
+    // (wave 0057): `./src/a.rs` and `src/a.rs` are one file. The
+    // spelling is kept beside the name, because the words of a
+    // finding must quote the row as the person wrote it.
+    let mut declared: std::collections::BTreeMap<String, &str> = Default::default();
     // Every `one new in` line is a promise of one file: two lines
     // over one directory promise two (§4.1 -- "need two, write two
     // lines"; review R-1).
-    let mut dirs: std::collections::BTreeMap<&str, u64> = Default::default();
+    let mut dirs: std::collections::BTreeMap<String, (u64, &str)> = Default::default();
+    // A row that climbs out of the tree names no file of this wave.
+    let mut outside: Vec<&str> = Vec::new();
     for (_, transform) in &wave.transforms {
         for line in &transform.files {
+            let written = line.as_written();
+            if crate::docs::outside_root(written) {
+                outside.push(written);
+                continue;
+            }
             match line {
                 ScopeLine::Path(p) => {
-                    declared.insert(p.as_str());
+                    declared.insert(line.name(), p.as_str());
                 }
-                ScopeLine::OneNewIn(d) => *dirs.entry(d.as_str()).or_insert(0) += 1,
+                ScopeLine::OneNewIn(d) => {
+                    let seen = dirs.entry(line.name()).or_insert((0, d.as_str()));
+                    seen.0 += 1;
+                }
             }
         }
     }
 
     let mut out = Vec::new();
     let locks = crate::adapter::lockfiles(root);
+    // Asked ONCE per comparison, like the locks beside it (review
+    // 0055 R-13: the question costs a manifest read).
+    let leavings = crate::adapter::leavings(root);
 
     // Drift (§4.6): touched yet never declared. A *new* file inside a
     // `one new in` directory is judged by the count below, not here;
     // an old file changed there is drift like anywhere else -- the
     // promise spoke only of one new file.
     for file in &changed {
-        if file.is_empty() || declared.contains(file) || furniture(root, config, file, &locks) {
+        if file.is_empty()
+            || declared.contains_key(*file)
+            || furniture(root, config, file, &locks, &leavings)
+        {
             continue;
         }
-        if added.contains(file) && dirs.keys().any(|d| file.starts_with(d)) {
+        if added.contains(file) && dirs.keys().any(|d| file.starts_with(d.as_str())) {
             continue;
         }
         out.push((
@@ -438,26 +492,37 @@ pub fn findings(
     // The other way (§4.4): declared yet untouched, judged across the
     // whole branch (§4.5), not any single commit. keel/ stays outside
     // the comparison on this side too (§4.8; review R-3).
-    for file in &declared {
-        if file.starts_with("keel/") {
+    for (name, written) in &declared {
+        if name.starts_with("keel/") {
             continue;
         }
-        if !changed.contains(file) {
+        if !changed.contains(name.as_str()) {
             out.push((
-                ta("scope-untouched", targs!("file" => file.to_string())),
+                ta("scope-untouched", targs!("file" => written.to_string())),
                 t("scope-untouched-instead"),
             ));
         }
     }
 
+    // A row that leaves the root (`../x`, `/x`): not drift, not an
+    // untouched file -- no file of this tree at all, and said so by
+    // name rather than left to fail every comparison in silence
+    // (wave 0057).
+    for row in &outside {
+        out.push((
+            ta("scope-outside", targs!("file" => row.to_string())),
+            t("scope-outside-instead"),
+        ));
+    }
+
     // `one new in <dir>/`: as many new files as there are lines --
     // fewer is a finding, more is a finding, the exact count is
     // silence (§4.1). One line keeps the crisp zero/two words.
-    for (dir, promised) in &dirs {
+    for (name, (promised, dir)) in &dirs {
         let new_here: Vec<&str> = added
             .iter()
             .copied()
-            .filter(|f| !f.is_empty() && f.starts_with(dir))
+            .filter(|f| !f.is_empty() && f.starts_with(name.as_str()))
             .collect();
         let found = new_here.len() as u64;
         if found == *promised {

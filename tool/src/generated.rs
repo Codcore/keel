@@ -739,11 +739,11 @@ fn workflow(root: &Path, config: &Config) -> String {
             "      - name: the battery\n        run: |\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}{}\n\
              \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}\u{20}rspec\n{inside}",
-            Language::Ruby.battery_command()
+            Language::Ruby.battery_command_in(root)
         ),
         Some(language) => format!(
             "      - name: the battery\n        run: {}\n{inside}",
-            language.battery_command()
+            language.battery_command_in(root)
         ),
         None => "      # No battery step: keel.toml names no adapter this\n\
                  \u{20}\u{20}\u{20}\u{20}\u{20}\u{20}# release leads, so it does not know how this project\n\

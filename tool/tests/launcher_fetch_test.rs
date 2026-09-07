@@ -380,11 +380,16 @@ fn the_installer_takes_the_release_before_the_source() {
     let releases = serve(&dir, "v2.0.0", "2.0.0", false);
 
     // The PATH without cargo really has none -- or the case below
-    // proves nothing.
+    // proves nothing. Asked by what the directory HOLDS, not by what
+    // it is called: the name only ever caught `~/.cargo/bin` and
+    // `~/.rustup/…`, so on a machine whose cargo came from a package
+    // manager (`/opt/homebrew/bin/cargo`) the bare PATH still carried
+    // one, and the guard below stopped the probe (measured by the
+    // author on macOS, 2026-09-07).
     let bare: String = std::env::var("PATH")
         .unwrap_or_default()
         .split(':')
-        .filter(|dir| !dir.contains("cargo") && !dir.contains("rustup"))
+        .filter(|dir| !Path::new(dir).join("cargo").exists())
         .collect::<Vec<_>>()
         .join(":");
     let out = Command::new("sh")
