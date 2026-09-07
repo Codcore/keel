@@ -256,7 +256,8 @@ impl Config {
     /// a pin that could only name the version could not tell two
     /// installed releases apart at all. The release moved the number
     /// and did not end that case: a build of the branch main answers
-    /// `1.0.0` exactly as the release does. The ref is
+    /// the SAME number as the release does -- `1.1.0` since wave
+    /// 0060, and whatever the crate says after the next one. The ref is
     /// what the installer wrote to the disk beside the binary --
     /// `.keel-ref` in the version's own home -- and the binary reads
     /// it there itself (wave 0050). It used to take the launcher's

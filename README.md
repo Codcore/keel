@@ -129,8 +129,11 @@ that brings what is not. It never runs a different version — the wrong binary
 in silence is worse than a refusal. Before it hands over it checks the binary
 is the one that was installed. `keel version` lists what stands here.
 
-A **version** may be named — first argument or `KEEL_REF` — and then exactly
-that git ref is installed:
+A **version** may be named — first argument or `KEEL_REF`. A NUMBER
+(`1.1.0`) goes the release road: `install.sh` fetches the published archive
+and its `.sha256`, verifies the checksum and unpacks the binary — no git and
+no cargo needed. Anything else — a tag, a branch, a commit — is a git ref, and
+then exactly that ref is built from source:
 
 ```bash
 KEEL_REF="<tag or commit>" sh install.sh
@@ -185,8 +188,10 @@ outside `tool/`, so `KEEL_REF=v0.8.9` still refuses by name — and a project's
 pin could only name a branch or a commit. Now the pin is a version: the
 launcher and `install.sh` take the published archive and its `.sha256` and
 build nothing. A version pin still names ONE home: on a machine carrying both
-the release and a build of the branch, two homes answer `1.0.0`, and the
-launcher refuses by name and says to pin the ref instead (review 0041 R-1) --
+the release and a build of the branch, two homes answer the SAME number --
+`1.1.0` since wave 0060, and whatever the crate says after the next release --
+and the launcher refuses by name and says to pin the ref instead (review 0041
+R-1; the sentence is written with a number, so wave 0060 measured it again) --
 that machine is keel's own developer, not a corner. The order for the next
 number is the operator's line: bump the crate's version and this project's own
 pin in ONE commit (the pin court compares the pin with the binary built from
