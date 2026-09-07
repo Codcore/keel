@@ -70,8 +70,11 @@ pub fn world(dir: &Path) -> World {
     git(&repo, &["tag", "v2.0.0"]);
     // A THIRD ref that answers with a crate version already taken --
     // which is keel's own everyday shape, not a corner: every ref
-    // answered 0.1.0 until v1.0.0, and since the release a build of
-    // main answers 1.0.0 as the tag v1.0.0 does. Review 0041 R-1:
+    // answered 0.1.0 until v1.0.0, and since then a build of main
+    // answers whatever number the crate carries -- the same one the
+    // matching tag answers with (1.1.0 since wave 0060). The numbers
+    // BELOW are this fixture's own synthetic world and mean nothing
+    // about the real keel. Review 0041 R-1:
     // the fixture used to give each ref its own number, so the
     // collision could not happen in it at all, and the launcher's
     // silent pick went unseen.
