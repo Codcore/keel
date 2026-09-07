@@ -119,7 +119,11 @@ fn project(name: &str, test_body: &str) -> common::Sandbox {
         ),
     )
     .unwrap();
-    std::fs::write(dir.join("keel/reviews/0001-a-wave.md"), "# Рецензія\n\nok\n").unwrap();
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
     std::fs::write(dir.join("test/models/toy_test.rb"), test_body).unwrap();
     git(&dir, &["init", "-q", "-b", "main"]);
     git(&dir, &["add", "-A"]);
@@ -217,10 +221,10 @@ fn a_rails_project_is_judged_out_of_the_box() {
         "the step hands the line a person in Rails actually types, with \
          the method ActiveSupport built:\n{said}"
     );
-    assert!(
-        !said.contains("ruby -Itest test/models"),
-        "and not the line that boots no application:\n{said}"
-    );
+    // No mirror assert here: `dead_assert_test` is right that a
+    // negative one over a line nothing prints can never fail. What is
+    // asked is asked above -- the line IS the Rails one, and one line
+    // is handed per tag.
     let (said, _) = keel(&dir, &["update"]);
     let workflow = std::fs::read_to_string(dir.join(".github/workflows/keel.yml")).unwrap_or(said);
     assert!(

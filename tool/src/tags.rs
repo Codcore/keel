@@ -323,8 +323,7 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 // `def test_…` first, the Rails string second: a file
                 // may hold both, and a method declaration is never a
                 // `test "…" do` line.
-                fn_name(trimmed, declares)
-                    .or_else(|| rails_test_name(&ruby_code(trimmed)))
+                fn_name(trimmed, declares).or_else(|| rails_test_name(&ruby_code(trimmed)))
             } else {
                 fn_name(trimmed, declares)
             };
