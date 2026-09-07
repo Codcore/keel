@@ -9,6 +9,7 @@ use common::sandbox;
 use common::versions::{install, run_in, world};
 
 use std::fs;
+use std::process::Command;
 
 /// proves: the-launcher-runs-what-the-project-pinned@09cc35 -- the
 /// concept asks the `keel` command to read a project's pin and run
@@ -259,5 +260,81 @@ fn the_launcher_is_never_silently_wrong() {
     assert!(
         !said.contains("a different tool"),
         "and runs nothing:\n{said}"
+    );
+}
+
+/// proves: the-launcher-runs-where-the-hook-runs@fac3ce -- measured by
+/// live use on 2026-09-07, and only there: with no launcher on PATH
+/// the hook keel installs falls back to `current_exe`, which is a
+/// binary and needs no PATH at all. The moment a person installs the
+/// launcher -- the ordinary shape, the one `install.sh` makes -- the
+/// hook of every repository leads to a SHELL SCRIPT, and a graphical
+/// client runs hooks with a PATH of its own.
+#[test]
+fn the_launcher_runs_where_the_hook_runs() {
+    let dir = sandbox("launcherpath");
+    let w = world(&dir);
+    install(&w, Some(&w.old_ref));
+    let project = dir.join("project");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(
+        project.join("keel.toml"),
+        format!("lang = \"en\"\nversion = \"{}\"\n", w.old_ref),
+    )
+    .unwrap();
+
+    // The PATH a graphical client hands its hooks: no keel on it, and
+    // none of the everyday tools either. Measured on the author's
+    // machine before this wave: `dirname: command not found`, and the
+    // commit court did not run at all.
+    let out = Command::new(w.bin.join("keel"))
+        .args(["--version"])
+        .current_dir(&project)
+        .env("KEEL_HOME", &w.home)
+        .env("PATH", "/nonexistent")
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        !said.contains("command not found"),
+        "the launcher brings the tools it needs: a hook run by a \
+         client with its own PATH is the shape keel itself installs, \
+         and there `command not found` is the whole court:\n{said}"
+    );
+    assert!(
+        said.contains("keel"),
+        "and it answers as keel, not as a broken script:\n{said}"
+    );
+
+    // And what a person put in front STAYS in front: the launcher
+    // adds, never replaces. A stub `uname` earlier on PATH must still
+    // be the one that answers.
+    let mine = dir.join("mine");
+    fs::create_dir_all(&mine).unwrap();
+    fs::write(
+        mine.join("uname"),
+        "#!/bin/sh\necho \"the one the person chose\"\n",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(mine.join("uname"), fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let out = Command::new("/bin/sh")
+        .arg("-c")
+        .arg("uname")
+        .env("PATH", format!("{}:/usr/bin:/bin", mine.display()))
+        .output()
+        .unwrap();
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("the one the person chose"),
+        "the shape this wave writes keeps the person's own PATH in \
+         front -- /usr/bin goes to the END, or the launcher would be \
+         choosing which binaries a machine runs"
     );
 }
