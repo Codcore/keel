@@ -227,6 +227,34 @@ install_launcher() {
     # reading ~/.keel and finding no version from inside its own home
     # (final review 2026-09-06, bugs R-11).
     printf '%s\n' "export KEEL_HOME=\"\${KEEL_HOME:-$KEEL_HOME}\"" >> "$1"
+    # The tools this script needs, where the PATH it was handed has
+    # none. A git hook is the ordinary case: the hook keel installs
+    # carries an absolute path to THIS file, and a graphical client
+    # runs hooks with a PATH of its own -- measured by live use
+    # 2026-09-07, where the whole commit court was `dirname: command
+    # not found`. Appended, never prepended: what a person put in
+    # front of their PATH stays in front, and this launcher does not
+    # choose which binaries a machine runs (wave 0062).
+    cat >> "$1" <<'LAUNCHER_PATH'
+# Each directory asked about SEPARATELY: this script needs tools from
+# both, and they are not the same tools. Measured on macOS by review
+# 0062 R-2: dirname, grep, head, sed, cut and uname live only in
+# /usr/bin, while cat, mkdir, rm, mv and chmod live only in /bin -- so
+# a PATH carrying /usr/bin alone passed the old single question and
+# then failed on `cat`, printing a refusal that was not even true
+# ("keel.toml pins a version, and it is not installed here" over a
+# version that was). Appended, never prepended: what a person put in
+# front of their PATH stays in front, and this launcher does not
+# choose which binaries a machine runs.
+for keel_dir in /usr/bin /bin; do
+    case ":${PATH:-}:" in
+        *":$keel_dir:"*) ;;
+        *) PATH="${PATH:+$PATH:}$keel_dir" ;;
+    esac
+done
+export PATH
+unset keel_dir
+LAUNCHER_PATH
     cat >> "$1" <<'LAUNCHER'
 #
 # It reads the `version` a project pins in keel.toml and runs exactly
