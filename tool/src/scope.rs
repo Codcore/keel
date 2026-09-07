@@ -193,8 +193,9 @@ pub fn plan_findings(
     )?;
     let mut out = Vec::new();
     let locks = crate::adapter::lockfiles(root);
+    let leavings = crate::adapter::leavings(root);
     for file in changed_raw.lines().map(str::trim) {
-        if file.is_empty() || furniture(root, config, file, &locks) {
+        if file.is_empty() || furniture(root, config, file, &locks, &leavings) {
             continue;
         }
         // The finding is hung on the file it accuses: review 0036
@@ -221,10 +222,38 @@ pub fn plan_findings(
 /// 0052). One reading now, `generated::is_furniture`, for both
 /// courts. A project's own file under a generated name that the tool
 /// never wrote is code here -- named in the contract.
-fn furniture(root: &Path, config: &Config, file: &str, locks: &[String]) -> bool {
+/// A path the tongue's runner left, not the wave's work (wave 0057):
+/// `tests/__pycache__/a.pyc` is pytest's, wherever it sits. A leaving
+/// of one segment (`__pycache__/`) is met at ANY depth -- pytest
+/// writes one beside every module it imports; a leaving that names a
+/// place (`tool/target/`) is met at that place alone.
+fn left_by_runner(file: &str, leavings: &[String]) -> bool {
+    leavings.iter().any(|left| {
+        let left = left.trim_end_matches('/');
+        if left.contains('/') {
+            file.starts_with(&format!("{left}/"))
+        } else {
+            file.split('/').any(|part| part == left)
+        }
+    })
+}
+
+fn furniture(
+    root: &Path,
+    config: &Config,
+    file: &str,
+    locks: &[String],
+    leavings: &[String],
+) -> bool {
     file.starts_with("keel/")
         || file == "keel.toml"
         || crate::generated::is_furniture(root, config, file)
+        // What the runner leaves is the runner's, not the wave's
+        // (queue after 0055, bugs R-21): a stranger who ran their
+        // battery once and committed everything had `keel check`
+        // call pytest's `.pyc` files drift -- and the frame had told
+        // them this tongue leaves nothing worth ignoring.
+        || left_by_runner(file, leavings)
         // The tongue's own, named by the adapter (wave 0055): a lock
         // file the runner writes without being asked is not this
         // wave's work, and the first build through the hook made one
@@ -431,13 +460,18 @@ pub fn findings(
 
     let mut out = Vec::new();
     let locks = crate::adapter::lockfiles(root);
+    // Asked ONCE per comparison, like the locks beside it (review
+    // 0055 R-13: the question costs a manifest read).
+    let leavings = crate::adapter::leavings(root);
 
     // Drift (§4.6): touched yet never declared. A *new* file inside a
     // `one new in` directory is judged by the count below, not here;
     // an old file changed there is drift like anywhere else -- the
     // promise spoke only of one new file.
     for file in &changed {
-        if file.is_empty() || declared.contains_key(*file) || furniture(root, config, file, &locks)
+        if file.is_empty()
+            || declared.contains_key(*file)
+            || furniture(root, config, file, &locks, &leavings)
         {
             continue;
         }

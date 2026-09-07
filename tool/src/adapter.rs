@@ -188,6 +188,41 @@ pub fn lockfiles(root: &Path) -> Vec<String> {
     }
 }
 
+/// What this tongue's runner leaves in the tree, said as paths from
+/// the project's root -- directories carry their trailing slash.
+///
+/// Measured in sandboxes before the plan of wave 0057, not guessed:
+/// `pytest` writes `__pycache__/` beside every module it imports and
+/// `.pytest_cache/` at the root; `npm install` writes `node_modules/`
+/// as soon as the project has one dependency; ruby's minitest and
+/// rspec left NOTHING in a bare project, and so ruby's list is empty
+/// and the frame says so; elixir and rust leave the build directory
+/// the adapter already names.
+///
+/// Two courts read this one list (queue after 0055, bugs R-21): the
+/// ignore advice of `keel init` -- which told python, javascript and
+/// ruby alike that "this tongue builds nothing", while pytest was
+/// filling the tree -- and the scope court, for which a directory the
+/// runner wrote without being asked is furniture, not this wave's
+/// work.
+pub fn leavings(root: &Path) -> Vec<String> {
+    match language_of(root) {
+        Some(Language::Python) => vec!["__pycache__/".to_string(), ".pytest_cache/".to_string()],
+        Some(Language::JavaScript) => vec!["node_modules/".to_string()],
+        Some(Language::Ruby) => Vec::new(),
+        _ => match build_dir(root) {
+            BuildDir::At(path) => {
+                let relative = path.strip_prefix(root).unwrap_or(Path::new(""));
+                vec![format!(
+                    "{}/",
+                    relative.to_string_lossy().replace('\\', "/")
+                )]
+            }
+            _ => Vec::new(),
+        },
+    }
+}
+
 pub fn build_dir(root: &Path) -> BuildDir {
     match language_of(root) {
         // pytest builds nothing -- and, told so, writes nothing

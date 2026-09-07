@@ -235,44 +235,53 @@ fn ignore_row(root: &Path) -> String {
             None => t("init-ignore-no-adapter"),
         };
     }
-    // The rule names the directory THIS tongue builds into, asked of
-    // the adapter that already knows (review 0042 R-3): the cargo
-    // constant stood here, so an elixir project was told its build
-    // directory is `_build/` and advised to ignore `target/` -- one
-    // line contradicting itself, and following it left `_build` under
-    // git, which is the very harm this reminder exists for.
-    let rule = match crate::adapter::build_dir(root) {
-        crate::adapter::BuildDir::At(path) => format!(
-            "{}/",
-            path.file_name().unwrap_or_default().to_string_lossy()
-        ),
-        _ => format!("{}/", crate::adapter::BUILD_DIR),
-    };
-    // Which directory to ask about is the adapter's answer: the
-    // crate may live one level down (keel's own shape), a tongue may
-    // build nothing at all, and a root the adapter cannot name is
-    // said aloud, never guessed. Review 0038 R-18 caught the middle
-    // case wearing the last one's words -- a ruby project was told
-    // its crate could not be found.
-    let build = match crate::adapter::build_dir(root) {
-        crate::adapter::BuildDir::At(path) => path
-            .strip_prefix(root)
-            .unwrap_or(Path::new(""))
-            .to_path_buf(),
-        crate::adapter::BuildDir::Nothing => return t("init-ignore-nothing-built"),
-        crate::adapter::BuildDir::Unknown => {
-            let reason = crate::adapter::crate_root(root)
-                .err()
-                .map(|refusal| refusal.reason)
-                .unwrap_or_default();
-            return ta("init-ignore-no-crate", targs!("error" => reason));
-        }
-    };
+    // A tongue whose crate cannot be found is said aloud, never
+    // guessed. Review 0038 R-18 caught this case wearing another's
+    // words -- a ruby project was told its crate could not be found.
+    if let crate::adapter::BuildDir::Unknown = crate::adapter::build_dir(root) {
+        let reason = crate::adapter::crate_root(root)
+            .err()
+            .map(|refusal| refusal.reason)
+            .unwrap_or_default();
+        return ta("init-ignore-no-crate", targs!("error" => reason));
+    }
+    // What the RUNNER leaves, not one build directory (wave 0057):
+    // python leaves two paths and no build directory at all, and
+    // before this the frame told python, javascript and ruby alike
+    // that the tongue "builds nothing" while pytest was filling the
+    // tree with `__pycache__/` (queue after 0055, bugs R-21).
+    let leavings = crate::adapter::leavings(root);
+    if leavings.is_empty() {
+        return t("init-ignore-leaves-nothing");
+    }
+    leavings
+        .iter()
+        .map(|left| ignore_row_for(root, left))
+        .collect::<Vec<String>>()
+        .join("\n")
+}
+
+/// One leaving, judged: is git already ignoring it, by a rule that
+/// travels with the repository?
+fn ignore_row_for(root: &Path, left: &str) -> String {
+    // The rule is the name a person writes in .gitignore -- the last
+    // segment, which matches at any depth; `shown` is the path from
+    // the root, which is what git is asked about. Review 0042 R-3:
+    // the cargo constant used to stand here, so an elixir project was
+    // told its build directory is `_build/` and advised to ignore
+    // `target/` -- one line contradicting itself.
+    let rule = format!(
+        "{}/",
+        left.trim_end_matches('/')
+            .rsplit('/')
+            .next()
+            .unwrap_or(left)
+    );
     // Asked with the trailing slash git wants: a directory-only
     // rule (target/) matches a path only when the path is named as
     // a directory -- and before the first build there is no
     // directory on disk to speak for itself.
-    let shown = format!("{}/", build.display());
+    let shown = left.to_string();
     // git judges its own rules -- the root file, the nested ones
     // cargo writes beside a crate, the local exclude. Reading a
     // single file instead raised a false alarm on keel itself,

@@ -84,7 +84,11 @@ fn the_tongue_names_what_its_runner_leaves() {
     // --- python: two paths, each with the exact line for .gitignore
     let dir = project("leav-py", "python");
     std::fs::create_dir_all(dir.join("tests")).unwrap();
-    std::fs::write(dir.join("tests/test_a.py"), "def test_ok():\n    assert True\n").unwrap();
+    std::fs::write(
+        dir.join("tests/test_a.py"),
+        "def test_ok():\n    assert True\n",
+    )
+    .unwrap();
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "the project"]);
     let (said, code) = keel(&dir, &["init", "--no-ask"]);
@@ -126,16 +130,22 @@ fn the_tongue_names_what_its_runner_leaves() {
     // --- and the scope court knows the leavings as furniture
     let dir = keel_sandbox("leav-scope");
     std::fs::create_dir_all(dir.join("tests")).unwrap();
-    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"python\"\n").unwrap();
+    std::fs::write(
+        dir.join("keel.toml"),
+        "lang = \"uk\"\nadapter = \"python\"\n",
+    )
+    .unwrap();
     std::fs::write(dir.join("pkg.py"), "def add(a, b):\n    return a + b\n").unwrap();
     std::fs::write(
         dir.join("tests/test_a.py"),
         "def test_ok():\n    assert True\n",
     )
     .unwrap();
+    // A chore wave: this sandbox is about scope, not about proving a
+    // promise, and a chore promises nothing to run (§2.11).
     let wave = format!(
-        "---\nscenarios:\n  it-works:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-works\n    files:\n      - pkg.py\n      - tests/test_a.py\n{}---\n\n## scenario: it-works\n{BODY}## transform: work\nтіло роботи\n",
-        decisions_except(&["functional.correctness"])
+        "---\ntransforms:\n  work:\n    chore: \"робота над кодом\"\n    files:\n      - pkg.py\n      - tests/test_a.py\n{}---\n\n## Why\n\n{BODY}## transform: work\nтіло роботи\n",
+        decisions_except(&[])
     );
     std::fs::write(dir.join("keel/waves/0001-a-wave.md"), wave).unwrap();
     std::fs::write(
@@ -150,7 +160,11 @@ fn the_tongue_names_what_its_runner_leaves() {
     // The work, and beside it exactly what pytest leaves -- committed,
     // because the frame had told this person there was nothing to
     // ignore.
-    std::fs::write(dir.join("pkg.py"), "def add(a, b):\n    return a + b\n# work\n").unwrap();
+    std::fs::write(
+        dir.join("pkg.py"),
+        "def add(a, b):\n    return a + b\n# work\n",
+    )
+    .unwrap();
     std::fs::create_dir_all(dir.join("tests/__pycache__")).unwrap();
     std::fs::create_dir_all(dir.join(".pytest_cache/v")).unwrap();
     std::fs::write(dir.join("tests/__pycache__/test_a.pyc"), "compiled\n").unwrap();
@@ -167,9 +181,6 @@ fn the_tongue_names_what_its_runner_leaves() {
         !said.contains("__pycache__"),
         "what the runner left is furniture, not drift:\n{said}"
     );
-    assert!(
-        !said.contains(".pytest_cache"),
-        "both of them:\n{said}"
-    );
+    assert!(!said.contains(".pytest_cache"), "both of them:\n{said}");
     assert_eq!(code, 0, "so the branch is green:\n{said}");
 }
