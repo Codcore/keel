@@ -16,6 +16,8 @@ transforms:
     files:
       - tool/src/ruby.rs
       - tool/src/config.rs
+      - tool/src/adapter.rs
+      - tool/src/generated.rs
   the-contract-says-the-third-reading:
     chore: "контракт адаптера каже третє читання: як Rails пізнається, чим біжить батарея і чим біжить один тест"
     files:
@@ -111,8 +113,15 @@ test_…`. Імʼя — те, яке будує ActiveSupport: `test_` плюс 
 `ruby::rails_root` питає дві прикмети. `run_test` і `run_all` над
 Rails-проєктом кличуть `bin/rails test`; вироки читає той самий читач
 minitest (`-v`, рядок `Клас#метод = <час> s = <позначка>`), бо Rails
-жене той самий minitest. `config::battery_command` каже Rails-команду
-там, де проєкт Rails.
+жене той самий minitest. `config::battery_command_in` каже Rails-команду
+там, де проєкт Rails, і згенерований workflow бере саме її
+(`generated.rs`).
+
+**Дрейф (§4.6), названий тут.** `tool/src/adapter.rs` і
+`tool/src/generated.rs` план не називав: замір казав про батарею і про
+один тест, а порада §9.2 і крок CI — це ті самі дві команди, тільки
+сказані людині. Лишити їх ruby-івськими означало б дати людині рядок,
+який у її проєкті не працює, — вада, задля якої хвиля й існує.
 
 ## transform: the-contract-says-the-third-reading
 
