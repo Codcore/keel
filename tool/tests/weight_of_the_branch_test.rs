@@ -200,16 +200,29 @@ fn the_weight_is_read_from_the_branch_too() {
             "tidy: the contract named",
         ],
     );
+    // Since the operator's decision of 2026-09-07 (wave 0058) this
+    // case is the EXCEPTION §2.11 now names: a wave that carries a
+    // contract is full by §6.8, chores and all -- the promise of this
+    // scenario holds in its core ("a contract is changed only by a
+    // full wave"), and naming the contract is what makes the wave
+    // full. What stays a finding is the branch that changes a
+    // contract the wave does NOT name, played above.
     let (said, code) = keel(&dir, &["check"]);
     assert!(
-        said.contains("§2.11") && said.contains("контракт"),
-        "a chores-only wave that names a contract is §2.11's finding:\n{said}"
+        !said.contains("мусить бути легкою"),
+        "a chores-only wave that NAMES a contract is lawful and full \
+         (§2.11's exception, §6.8):\n{said}"
     );
-    assert_eq!(code, 1, "and the check is red:\n{said}");
-    let (said, _) = keel(&dir, &["next"]);
     assert!(
-        said.contains("§2.11") && !said.contains("час PR"),
-        "and `next` leads where `check` does, not to the PR (§9.2):\n{said}"
+        said.contains("повна (§6.8)"),
+        "what stays a finding is the OTHER half of §6.8 -- a full wave \
+         whose file was born on the work branch never had the plan PR:\n{said}"
+    );
+    assert_eq!(code, 1, "and that finding reddens the check:\n{said}");
+    let (said, _) = keel(&dir, &["status"]);
+    assert!(
+        said.contains("вага повна"),
+        "and the weight it carries is full:\n{said}"
     );
 
     // --- two chore transforms: a wave of chores alone must be light,
