@@ -180,10 +180,16 @@ fn the_courts_hold_their_mutants() {
         .parent()
         .unwrap()
         .join("install.sh");
+    // A PATH with no cargo on it, asked by what each directory HOLDS
+    // (see launcher_fetch_test): with the question asked by NAME, a
+    // machine whose cargo is `/opt/homebrew/bin/cargo` kept it, the
+    // installer fell back to building from source instead of
+    // refusing, and this probe measured the fallback rather than the
+    // refusal (measured by the author on macOS, 2026-09-07).
     let bare_path = std::env::var("PATH")
         .unwrap_or_default()
         .split(':')
-        .filter(|d| !d.contains("cargo") && !d.contains("rustup"))
+        .filter(|d| !Path::new(d).join("cargo").exists())
         .collect::<Vec<_>>()
         .join(":");
     let install = |shims: &Path, releases: &str| {

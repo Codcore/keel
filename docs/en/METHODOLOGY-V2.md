@@ -14,7 +14,7 @@
 > follows them. Where the two disagree, the Ukrainian one is right —
 > and the disagreement is a defect to report, not a choice to make.
 >
-> `translated_from: 42969f` — the revision of the Ukrainian text this
+> `translated_from: 3309c4` — the revision of the Ukrainian text this
 > translation was made from (constitution, rule 4: whoever leans on a
 > text holds its revision). `keel check` compares it with the
 > Ukrainian methodology as it now stands: change the original and the
@@ -211,7 +211,19 @@ dependency bump, formatting, documentation. In the header it carries
 an ordinary transform: the list of files, the slug in the commit, the
 scope checks in both directions. A wave whose transforms are all
 chores must be light: a large body of work with no promise at all is a
-reason to stop and think, not to slip through.
+reason to stop and think, not to slip through. **The exception is a
+contract:** a wave that creates or changes a contract is full by §6.8
+even when every transform of it is a chore. A contract carries promises
+that outlive the wave, so the price of touching even its prose is the
+same full ceremony -- plan apart, work apart. Without this exception a
+wave of chores over a contract could not exist at all: §2.11 asked for
+light, §6.8 for full, and the court refused both (the operator's
+decision of 2026-09-07). The exception is unconditional: one contract
+row in `files` makes a wave of any number of chores full, so "a reason
+to stop and think" stands where no contract is named (named by review
+0058, R-4). That a change of the promises themselves could ride under
+"a chore over a contract" is not something the machine tells apart --
+the fresh reader holds it (§9.9).
 
 **§2.12.** A promise can die. A later wave marks a scenario or a
 contract `withdrawn: "<reason>"`, optionally
@@ -324,7 +336,11 @@ declare it. The exception is the project's account of itself: `README`
 and `BACKLOG` at the root. A paragraph about what the project has
 become carries no promise a test would prove, so it has no wave and
 can have none — and forbidding what has no lawful place is how you
-grow a workaround.
+grow a workaround. The rule is textual: the machine judges branches,
+not what stands on the trunk (§7.10; `work_in_trunk` asks another
+question -- whether the branch's work is already in the trunk, §6.5),
+so the reviewer (§9.9) and the person who merges hold it, not a check
+(constitution, rule 6; the operator's decision of 2026-09-07).
 
 **§4.12.** A document that changed its name says so itself: the new
 file carries `renamed_from: <old slug>` in its header. Then the
@@ -619,6 +635,19 @@ forms:
 - `<transform>: <text>` — work; the hook allows it only if the tests
   of its scenarios are green.
 
+A subject with no slug stands **outside the courts**: the gate lets it
+through and says so aloud. What rides on it is what belongs to no
+transform -- the record of a review (§9.9) and an entry in the journal.
+Such a commit does not become the wave's work: scope judges its files
+like any other (§4.6), and "the transform is assembled" does not see
+it. A merge does not belong here, though it too rides unjudged: its
+subject `merge: ...` carries a slug, and on a wave's branch the gate
+refuses it -- a merge passes because it stands on the trunk, where the
+branch is no wave (measured by review 0058, R-7). An UNKNOWN slug is
+not "outside the courts" but a mistake: the gate refuses it by name,
+and the slug of another wave is one case of that (the operator's
+decision of 2026-09-07).
+
 There is no "commit" field in the header and there will not be: that
 would be a status written by hand, against §6.1.
 
@@ -779,7 +808,10 @@ same way a cut is: "we deliberately do not do this" is also a
 statement about somebody else's code, and it can be false from the
 moment it is written — the library may do it by default. Before
 writing that something is not there, look and make sure it really is
-not.
+not. The rule is textual: whether the author looked into the library
+is not something the machine knows (§7.10) -- the reviewer holds it
+with the four questions (§9.9; constitution, rule 6; the operator's
+decision of 2026-09-07).
 
 **§10.6.** *Revoked.* In v1 nine obligatory lines of trace lived here
 — an agent wrote them from memory without opening the file, so they

@@ -377,8 +377,20 @@ fn a_tongue_that_cannot_tell_says_so() {
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
     );
+    // What is asked is the SELECTION -- one test ran, and it was this
+    // one -- not the shape of node's report. The advice line carries
+    // no `--test-reporter`, so the runner prints whatever its version
+    // calls default: TAP up to node 20, the spec report from node 22
+    // on. Asserting the TAP spelling made this probe red on node 24
+    // over a line that did exactly what it promised (measured by the
+    // author, 2026-09-07). What keel READS is another matter and
+    // another code path: `javascript::node` asks for
+    // `--test-reporter=tap` itself.
+    let one_test = ["# tests 1", "tests 1"]
+        .iter()
+        .any(|shape| ran.contains(shape));
     assert!(
-        out.status.success() && ran.contains("ok 1 - it's fine (a.b)") && ran.contains("# tests 1"),
+        out.status.success() && ran.contains("it's fine (a.b)") && one_test,
         "pasted into a shell, the line runs that one test and no other:\n{line}\n{ran}"
     );
 }

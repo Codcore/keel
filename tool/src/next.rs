@@ -461,6 +461,17 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
             .transforms
             .iter()
             .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
+    // The exception of §2.11 since the operator's decision of
+    // 2026-09-07, read here exactly as `check` reads it: a wave that
+    // names a contract among its files is FULL by §6.8, chores and
+    // all -- the prose of a contract is worth the two human looks,
+    // and forbidding such a wave left the debt of the release with
+    // nowhere to live.
+    let carries_a_contract = wave
+        .transforms
+        .iter()
+        .any(|(_, tr)| tr.files.iter().any(docs::names_a_contract));
+    let chores_only = chores_only && !carries_a_contract;
     if chores_only && let Some(heavy) = docs::heavy(wave) {
         let why = match heavy {
             docs::Heavy::Transforms(count) => ta(

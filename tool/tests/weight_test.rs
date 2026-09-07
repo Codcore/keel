@@ -375,3 +375,245 @@ fn the_weight_comes_from_the_file() {
         "the lawful two-PR sequence of §8.1 is not a finding:\n{said}"
     );
 }
+
+/// proves: chores-alone-may-carry-a-contract@8f652e -- §2.11 said a
+/// wave whose transforms are all chores must be light; §6.8 said a
+/// wave that changes a contract is full. The debt of the release --
+/// three paragraphs of prose in two contracts, not one new promise --
+/// was both, so no such wave could exist and `keel check` refused it
+/// (measured 2026-09-07). The operator's decision of 2026-09-07:
+/// §6.8 wins, and §2.11 gets that exception.
+#[test]
+fn chores_alone_may_carry_a_contract() {
+    // Chores alone, and a contract among the files: lawful, and FULL.
+    let dir = project("chore-contract");
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    std::fs::write(
+        dir.join("keel/contracts/fresh.md"),
+        "---\nmodule: toy\nexports: [\"pub fn a()\"]\n---\n\nтіло контракту\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        format!(
+            "---\ntransforms:\n  words:\n    chore: \"проза контракту\"\n    files:\n      - keel/contracts/fresh.md\n{}---\n\n## transform: words\nтіло роботи\n",
+            decided()
+        ),
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "words: the prose of a contract"],
+    );
+
+    let (said, _) = keel(&dir, "status");
+    assert!(
+        said.contains("вага повна"),
+        "a wave that changes a contract is full (§6.8):\n{said}"
+    );
+    let (said, _) = keel(&dir, "check");
+    assert!(
+        !said.contains("мусить бути легкою"),
+        "and §2.11 does not forbid it: the exception is exactly this \
+         case (the operator's decision of 2026-09-07):\n{said}"
+    );
+    let (said, _) = keel(&dir, "next");
+    assert!(
+        !said.contains("дай їй сценарій"),
+        "the step stops asking for a promise a prose fix does not \
+         have, and names the weight instead:\n{said}"
+    );
+
+    // The exception is NARROW: chores alone with two transforms and
+    // no contract is still the finding §2.11 exists for.
+    let dir = project("chore-two");
+    git(&dir, &["checkout", "-q", "-b", "0002-b-wave"]);
+    std::fs::write(
+        dir.join("keel/waves/0002-b-wave.md"),
+        format!(
+            "---\ntransforms:\n  one:\n    chore: \"перша\"\n    files:\n      - src/lib.rs\n  two:\n    chore: \"друга\"\n    files:\n      - Cargo.toml\n{}---\n\n## transform: one\nтіло\n\n## transform: two\nтіло\n",
+            decided()
+        ),
+    )
+    .unwrap();
+    std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn f() {}\n").unwrap();
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"toy\"\nversion = \"0.1.1\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "one: two chores and no contract"],
+    );
+    let (said, code) = keel(&dir, "check");
+    assert!(
+        said.contains("мусить бути легкою"),
+        "big work without a single promise is still a reason to stop \
+         and think (§2.11):\n{said}"
+    );
+    assert_eq!(code, 1, "and the branch is red for it:\n{said}");
+
+    // The exception is not narrow along the OTHER axis, and the norm
+    // now says so aloud (review 0058 R-4): one contract row makes a
+    // wave of ANY number of chores full. Measured here, because the
+    // choice to ask about the contract apart from `docs::heavy` --
+    // where `Transforms` outranks `Contract` -- is exactly what this
+    // case turns on, and a mutant reading the verdict of `heavy`
+    // instead walked through the whole battery.
+    let dir = project("chore-two-and-a-contract");
+    git(&dir, &["checkout", "-q", "-b", "0003-c-wave"]);
+    std::fs::write(
+        dir.join("keel/contracts/fresh.md"),
+        "---\nmodule: toy\nexports: [\"pub fn a()\"]\n---\n\nтіло контракту\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("keel/waves/0003-c-wave.md"),
+        format!(
+            "---\ntransforms:\n  words:\n    chore: \"проза контракту\"\n    files:\n      - keel/contracts/fresh.md\n  more:\n    chore: \"друга\"\n    files:\n      - Cargo.toml\n{}---\n\n## transform: words\nтіло\n\n## transform: more\nтіло\n",
+            decided()
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"toy\"\nversion = \"0.1.1\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "words: two chores and a contract"],
+    );
+    let (said, _) = keel(&dir, "check");
+    assert!(
+        !said.contains("мусить бути легкою"),
+        "two chores and a contract: the exception holds for a wave of any \
+         size, and the court asks about the contract apart from the first \
+         verdict of `heavy` (§2.11, §6.8):\n{said}"
+    );
+    let (said, _) = keel(&dir, "status");
+    assert!(
+        said.contains("вага повна"),
+        "and such a wave is full:\n{said}"
+    );
+
+    // The NAME, not the spelling (wave 0057, review 0058 R-8): the
+    // exception must read `./keel/contracts/x.md` as the contract it
+    // is, or a leading dot puts the wave back in the dead end.
+    let dir = project("chore-contract-dot");
+    git(&dir, &["checkout", "-q", "-b", "0004-d-wave"]);
+    std::fs::write(
+        dir.join("keel/contracts/fresh.md"),
+        "---\nmodule: toy\nexports: [\"pub fn a()\"]\n---\n\nтіло контракту\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("keel/waves/0004-d-wave.md"),
+        format!(
+            "---\ntransforms:\n  words:\n    chore: \"проза контракту\"\n    files:\n      - ./keel/contracts/fresh.md\n{}---\n\n## transform: words\nтіло\n",
+            decided()
+        ),
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "words: the prose of a contract"],
+    );
+    let (said, _) = keel(&dir, "check");
+    assert!(
+        !said.contains("мусить бути легкою"),
+        "a dot does not hide the contract from the exception:\n{said}"
+    );
+
+    // And the mirror of the same reading (review 0058 R-2): a
+    // DIFFERENT directory whose name merely starts with the letters
+    // of this one is no contract to either rule. Before the readings
+    // were made one, `docs::heavy` called such a wave full and §2.11
+    // demanded it light -- the dead end this wave exists to close,
+    // reopened by a row nobody would write on purpose.
+    let dir = project("chore-contract-lookalike");
+    git(&dir, &["checkout", "-q", "-b", "0005-e-wave"]);
+    std::fs::create_dir_all(dir.join("keel/contractsfoo")).unwrap();
+    std::fs::write(dir.join("keel/contractsfoo/x.md"), "не контракт\n").unwrap();
+    std::fs::write(
+        dir.join("keel/waves/0005-e-wave.md"),
+        format!(
+            "---\ntransforms:\n  words:\n    chore: \"прибирання\"\n    files:\n      - one new in keel/contractsfoo/\n{}---\n\n## transform: words\nтіло\n",
+            decided()
+        ),
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "words: a directory of its own"],
+    );
+    let (said, _) = keel(&dir, "check");
+    assert!(
+        !said.contains("мусить бути легкою"),
+        "one rule, one reading: a lookalike directory is no contract, so \
+         the wave is simply light and lawful (§2.11, review 0058 R-2):\n{said}"
+    );
+    let (said, _) = keel(&dir, "status");
+    assert!(
+        said.contains("вага легка"),
+        "and light is what its weight says, with no second rule calling \
+         it full:\n{said}"
+    );
+
+    // The step's word in ENGLISH too (review 0058 R-1): a mutant that
+    // put the pre-exception text back walked the whole battery in
+    // both tongues. This sandbox is the other side of the exception
+    // -- the branch changes a contract the wave does NOT name --
+    // because that is where the step speaks at all.
+    let dir = project("chore-contract-en");
+    std::fs::write(dir.join("keel.toml"), "lang = \"en\"\nadapter = \"rust\"\n").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "the tongue of this sandbox"]);
+    git(&dir, &["checkout", "-q", "-b", "0006-f-wave"]);
+    std::fs::write(
+        dir.join("keel/waves/0006-f-wave.md"),
+        format!(
+            "---\ntransforms:\n  tidy:\n    chore: \"прибирання\"\n    files:\n      - src/lib.rs\n{}---\n\n## transform: tidy\nтіло\n",
+            decided()
+        ),
+    )
+    .unwrap();
+    std::fs::write(dir.join("keel/reviews/0006-f-wave.md"), "# Review\n\nok\n").unwrap();
+    std::fs::write(
+        dir.join("keel/contracts/ext.md"),
+        "---\nmodule: toy\nexports: [\"pub fn a()\"]\n---\n\nчужа обіцянка\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\n// tidy\n").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &[
+            "commit",
+            "-q",
+            "--no-verify",
+            "-m",
+            "tidy: work and a contract change",
+        ],
+    );
+    let (said, _) = keel(&dir, "next");
+    assert!(
+        said.contains("name it among the files") && said.contains("§6.8") && said.contains("§2.11"),
+        "the step in English names the same move -- name the contract among \
+         the files, and the wave is full:\n{said}"
+    );
+    assert!(
+        said.contains("plan apart and work apart"),
+        "and the same price, two approvals:\n{said}"
+    );
+    assert!(
+        !said.contains("give it a scenario"),
+        "and no longer asks for a promise a prose fix does not have:\n{said}"
+    );
+}
