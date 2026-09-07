@@ -205,6 +205,29 @@ fn a_rails_project_is_judged_out_of_the_box() {
         "and the green one is not dragged in with it:\n{said}"
     );
 
+    // --- the advice a person is handed is the line Rails answers
+    // to, and the generated CI runs the project's own battery ---
+    // The wave's work is not done yet, so the step is the one that
+    // hands a person the run line of the promise's own test.
+    let dir = project("railsadvice", &test_file(&rev));
+    git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    let (said, _) = keel(&dir, &["next"]);
+    assert!(
+        said.contains("bin/rails test") && said.contains("-n test_greets_a_user"),
+        "the step hands the line a person in Rails actually types, with \
+         the method ActiveSupport built:\n{said}"
+    );
+    assert!(
+        !said.contains("ruby -Itest test/models"),
+        "and not the line that boots no application:\n{said}"
+    );
+    let (said, _) = keel(&dir, &["update"]);
+    let workflow = std::fs::read_to_string(dir.join(".github/workflows/keel.yml")).unwrap_or(said);
+    assert!(
+        workflow.contains("bin/rails test"),
+        "and the generated workflow runs the battery Rails runs:\n{workflow}"
+    );
+
     // --- a project WITHOUT the two marks stays on the first reading ---
     let dir = project("railsnomarks", &test_file(&rev));
     std::fs::remove_file(dir.join("bin/rails")).unwrap();

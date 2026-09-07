@@ -86,6 +86,16 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
             .file_name()
             .and_then(|n| n.to_str())
             .is_some_and(|n| n.ends_with("_spec.rb"));
+        // Rails declares a test by a STRING inside an ordinary ruby
+        // file: `test "greets a user" do` in an
+        // `ActiveSupport::TestCase`. Measured on a real application
+        // before wave 0059: the reader knew `def test_…` alone, so a
+        // Rails promise could not be proven at all -- not a corner
+        // but the framework's everyday style. The third reading of
+        // this tongue rides in the same file as the first, because
+        // the DECLARATION is what differs and the file cannot say
+        // which of the two it uses.
+        let minitest = file.extension().and_then(|e| e.to_str()) == Some("rb") && !spec;
         let mut groups: Vec<(SpecGroup, usize)> = Vec::new();
         let mut heredoc_end: Option<String> = None;
         // A STACK of classes, because they nest: pytest names a
@@ -309,6 +319,12 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                         full.join("::")
                     })
                 }
+            } else if minitest {
+                // `def test_…` first, the Rails string second: a file
+                // may hold both, and a method declaration is never a
+                // `test "…" do` line.
+                fn_name(trimmed, declares)
+                    .or_else(|| rails_test_name(&ruby_code(trimmed)))
             } else {
                 fn_name(trimmed, declares)
             };
@@ -390,6 +406,39 @@ fn declares(file: &Path) -> &'static [&'static str] {
 /// and exactly as `mix test --only` selects it.
 pub fn test_name(trimmed: &str) -> Option<String> {
     quoted_after(trimmed, "test ")
+}
+
+/// Rails names a test by a STRING and builds the method itself:
+/// `test "greets a user" do` becomes `test_greets_a_user`, which is
+/// the name minitest reports and the name `-n` selects. This reader
+/// returns THAT name, not the string, because a tag must carry the
+/// name the runner answers to.
+///
+/// The rule is ActiveSupport's own: `"test_" + name.gsub(/\s+/, "_")`
+/// -- every RUN of whitespace becomes one underscore, and nothing
+/// else is touched (a name with non-ASCII letters keeps them, as
+/// wave 0051 measured for `-n`).
+pub fn rails_test_name(code: &str) -> Option<String> {
+    let name = quoted_after(code.trim_start(), "test ")?;
+    if name.trim().is_empty() {
+        // ActiveSupport refuses a nameless test itself; nothing here
+        // can carry a tag either.
+        return None;
+    }
+    let mut out = String::from("test_");
+    let mut space = false;
+    for ch in name.chars() {
+        if ch.is_whitespace() {
+            space = true;
+            continue;
+        }
+        if space {
+            out.push('_');
+            space = false;
+        }
+        out.push(ch);
+    }
+    Some(out)
 }
 
 /// Opening parentheses on this line less closing ones -- a decorator
