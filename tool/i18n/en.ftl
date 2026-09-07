@@ -667,8 +667,10 @@ newc-skel-body = whose words this contract lets outlive the wave — and why (§
 version-running = keel { $version } -- the binary answering
 version-pin-held = pin keel.toml: "{ $pin }" -- held; the courts judge with this very binary
 version-pin-mismatch = pin keel.toml: "{ $pin }" -- NOT this binary: the courts refuse until the pin and the binary meet
-version-pin-hand = { "  " }to take exactly that one: KEEL_REF="{ $pin }" sh install.sh -- or curl -fsSL { $installer } | sh -s -- { $pin }
-version-pin-hand-border = { "  " }the border: KEEL_REF takes a git ref (a tag or a commit) of this repository BY NAME and builds it from source -- nothing verifies a checksum on that road. The pin's number itself goes the other one: a published release, its archive and its .sha256; where no release answers that number, that road is not there and a ref must be named. Where no tag carries the name, install.sh refuses with the list of the ones that do; the tags of the older generation (v0.8.11 and below) do not build at all, the crate having lived outside tool/ back then
+version-pin-hand = { "  " }to take exactly that one: sh install.sh { $pin } -- or curl -fsSL { $installer } | sh -s -- { $pin }
+version-pin-road-release = { "  " }this pin's road: a published release, its archive and its .sha256 -- no git and no cargo (KEEL_REF="{ $pin }" sh install.sh does the same: the road is picked by the shape of the number, not by the variable)
+version-pin-road-ref = { "  " }this pin's road: a git ref (a branch, a tag or a commit) -- cloned and built from source, and nothing verifies a checksum there; this pin has no version shape, so no release can answer it
+version-pin-hand-border = { "  " }the border: there may be no tag of that name -- then install.sh refuses with the list of the ones there are; the tags of the older generation (v0.8.11 and below) do not build at all, the crate having lived outside tool/ back then; a version with no release and no tag of its own builds from the branch the remote leads with, and only when what it builds answers that very number
 version-pin-none = the version field is not set -- no pin; the concept advises one: version = "{ $version }"
 version-installed = { "  " }standing here: { $version }  (ref { $ref })
 version-installed-none = { "  " }no version stands here (~/.keel/versions/ is empty)

@@ -210,8 +210,13 @@ fn the_pin_has_a_hand() {
     .unwrap();
     let (said, code) = keel(&["version", dir.to_str().unwrap()]);
     assert_eq!(code, 0, "the lamp never refuses over a mismatch:\n{said}");
+    // The promise is a COMMAND that works and carries the version
+    // (§2.3 of the scenario), not one spelling of it: wave 0057
+    // measured `sh install.sh <pin>` and `KEEL_REF="<pin>" sh
+    // install.sh` to be the same road (the positional argument IS
+    // KEEL_REF), and the lamp now hands the shorter form.
     assert!(
-        said.contains("KEEL_REF=\"0.0.1-not-this-binary\""),
+        said.contains("sh install.sh 0.0.1-not-this-binary"),
         "it names the command that fetches exactly that version, with \
          the version already in it:\n{said}"
     );
