@@ -1473,10 +1473,15 @@ fn uncommitted_transforms(root: &Path, wave: &docs::Wave, base: &str) -> Vec<(St
                 *dirs.entry(d.as_str()).or_insert(0) += 1;
             }
         }
+        // By the name the row means, not its spelling (wave 0057).
         let done = transform.files.iter().all(|line| match line {
-            docs::ScopeLine::Path(p) => changed.contains(p),
+            docs::ScopeLine::Path(_) => changed.contains(line.name().as_str()),
             docs::ScopeLine::OneNewIn(d) => {
-                added.iter().filter(|f| f.starts_with(d.as_str())).count() == dirs[d.as_str()]
+                added
+                    .iter()
+                    .filter(|f| f.starts_with(line.name().as_str()))
+                    .count()
+                    == dirs[d.as_str()]
             }
         });
         if done {

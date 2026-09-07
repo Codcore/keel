@@ -14,6 +14,11 @@ transforms:
     implements: [declared-and-touched-are-one-file]
     files:
       - tool/src/scope.rs
+      - tool/src/docs.rs
+      - tool/src/check.rs
+      - tool/src/next.rs
+      - tool/i18n/uk.ftl
+      - tool/i18n/en.ftl
       - tool/tests/scope_path_test.rs
       - keel/contracts/tool-scope.md
   the-tongue-names-its-leavings:
@@ -173,6 +178,15 @@ cargo), а `KEEL_REF` стоїть другим і названий тим, чи
 рядок. Проба `scope_path_test.rs` грає рівно ту пісочницю, яку зміряно:
 `./src/a.rs` проти `src/a.rs`, і поруч — `..`, який лишається відмовою.
 Контракт `tool-scope.md` дістає рядок про нормалізацію і про її межу.
+
+**Дрейф (§4.6), названий тут.** Нормалізація мусить жити в одному
+місці, і це `docs::one_name` поруч із самим рядком scope, а не в
+`scope.rs`: рядки порівнюють ЧОТИРИ суди — scope, «трансформа
+зібрана» (`check.rs`), крок §9.2 (`next.rs`) і вивід ваги
+(`docs.rs`, §6.8). Останній був окремою дірою: `./keel/contracts/x.md`
+проносив контракт повз правило повної ваги. Тому в files трансформи
+стоять `docs.rs`, `check.rs`, `next.rs` і обидві мови (`scope-outside`
+— нові слова).
 
 ## transform: the-tongue-names-its-leavings
 

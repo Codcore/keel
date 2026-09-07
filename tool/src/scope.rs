@@ -399,18 +399,32 @@ pub fn findings(
     let changed: BTreeSet<&str> = changed_raw.lines().map(str::trim).collect();
     let added: BTreeSet<&str> = added_raw.lines().map(str::trim).collect();
 
-    let mut declared: BTreeSet<&str> = BTreeSet::new();
+    // Rows are compared by the name they mean, not by the spelling
+    // (wave 0057): `./src/a.rs` and `src/a.rs` are one file. The
+    // spelling is kept beside the name, because the words of a
+    // finding must quote the row as the person wrote it.
+    let mut declared: std::collections::BTreeMap<String, &str> = Default::default();
     // Every `one new in` line is a promise of one file: two lines
     // over one directory promise two (§4.1 -- "need two, write two
     // lines"; review R-1).
-    let mut dirs: std::collections::BTreeMap<&str, u64> = Default::default();
+    let mut dirs: std::collections::BTreeMap<String, (u64, &str)> = Default::default();
+    // A row that climbs out of the tree names no file of this wave.
+    let mut outside: Vec<&str> = Vec::new();
     for (_, transform) in &wave.transforms {
         for line in &transform.files {
+            let written = line.as_written();
+            if crate::docs::outside_root(written) {
+                outside.push(written);
+                continue;
+            }
             match line {
                 ScopeLine::Path(p) => {
-                    declared.insert(p.as_str());
+                    declared.insert(line.name(), p.as_str());
                 }
-                ScopeLine::OneNewIn(d) => *dirs.entry(d.as_str()).or_insert(0) += 1,
+                ScopeLine::OneNewIn(d) => {
+                    let seen = dirs.entry(line.name()).or_insert((0, d.as_str()));
+                    seen.0 += 1;
+                }
             }
         }
     }
@@ -423,10 +437,11 @@ pub fn findings(
     // an old file changed there is drift like anywhere else -- the
     // promise spoke only of one new file.
     for file in &changed {
-        if file.is_empty() || declared.contains(file) || furniture(root, config, file, &locks) {
+        if file.is_empty() || declared.contains_key(*file) || furniture(root, config, file, &locks)
+        {
             continue;
         }
-        if added.contains(file) && dirs.keys().any(|d| file.starts_with(d)) {
+        if added.contains(file) && dirs.keys().any(|d| file.starts_with(d.as_str())) {
             continue;
         }
         out.push((
@@ -438,26 +453,37 @@ pub fn findings(
     // The other way (§4.4): declared yet untouched, judged across the
     // whole branch (§4.5), not any single commit. keel/ stays outside
     // the comparison on this side too (§4.8; review R-3).
-    for file in &declared {
-        if file.starts_with("keel/") {
+    for (name, written) in &declared {
+        if name.starts_with("keel/") {
             continue;
         }
-        if !changed.contains(file) {
+        if !changed.contains(name.as_str()) {
             out.push((
-                ta("scope-untouched", targs!("file" => file.to_string())),
+                ta("scope-untouched", targs!("file" => written.to_string())),
                 t("scope-untouched-instead"),
             ));
         }
     }
 
+    // A row that leaves the root (`../x`, `/x`): not drift, not an
+    // untouched file -- no file of this tree at all, and said so by
+    // name rather than left to fail every comparison in silence
+    // (wave 0057).
+    for row in &outside {
+        out.push((
+            ta("scope-outside", targs!("file" => row.to_string())),
+            t("scope-outside-instead"),
+        ));
+    }
+
     // `one new in <dir>/`: as many new files as there are lines --
     // fewer is a finding, more is a finding, the exact count is
     // silence (§4.1). One line keeps the crisp zero/two words.
-    for (dir, promised) in &dirs {
+    for (name, (promised, dir)) in &dirs {
         let new_here: Vec<&str> = added
             .iter()
             .copied()
-            .filter(|f| !f.is_empty() && f.starts_with(dir))
+            .filter(|f| !f.is_empty() && f.starts_with(name.as_str()))
             .collect();
         let found = new_here.len() as u64;
         if found == *promised {

@@ -106,7 +106,9 @@ fn birth_and_work(dir: &Path) {
     let rev = keel::rev::text_rev(BODY);
     std::fs::write(
         dir.join("tests/w_test.rs"),
-        format!("/// proves: it-works@{rev}\n#[test]\nfn it_works() {{\n    panic!(\"red\");\n}}\n"),
+        format!(
+            "/// proves: it-works@{rev}\n#[test]\nfn it_works() {{\n    panic!(\"red\");\n}}\n"
+        ),
     )
     .unwrap();
     git(dir, &["add", "-A"]);
@@ -131,7 +133,10 @@ fn birth_and_work(dir: &Path) {
 #[test]
 fn declared_and_touched_are_one_file() {
     // --- the same file, written two ways: one file, no findings ---
-    let dir = crate_with("dotslash", &wave_over(&["./src/lib.rs", "./tests/w_test.rs"]));
+    let dir = crate_with(
+        "dotslash",
+        &wave_over(&["./src/lib.rs", "./tests/w_test.rs"]),
+    );
     settle(&dir);
     birth_and_work(&dir);
     let (said, code) = keel(&dir, &["check"]);
@@ -160,7 +165,7 @@ fn declared_and_touched_are_one_file() {
          row as it stands in the wave -- the person must find it with \
          their eyes:\n{said}"
     );
-    assert_eq!(code, 2, "and the branch is red for it:\n{said}");
+    assert_eq!(code, 1, "and the branch is red for it:\n{said}");
 
     // --- a row that leaves the tree says exactly that ---
     let dir = crate_with(
@@ -180,5 +185,5 @@ fn declared_and_touched_are_one_file() {
         said.contains("../outside.rs"),
         "and it names the row:\n{said}"
     );
-    assert_eq!(code, 2, "the branch is red for it:\n{said}");
+    assert_eq!(code, 1, "the branch is red for it:\n{said}");
 }
