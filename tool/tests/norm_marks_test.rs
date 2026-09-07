@@ -31,6 +31,14 @@ fn paragraph<'a>(text: &'a str, head: &str) -> &'a str {
     &rest[..end]
 }
 
+/// The same paragraph as one line: the norm is wrapped by hand, so a
+/// sentence this probe looks for lives across a line break as often as
+/// not, and a `contains` over the raw text would hold only until the
+/// next reflow.
+fn flat(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// proves: the-norm-names-what-holds-it@b8e77f
 #[test]
 fn the_norm_names_what_holds_it() {
@@ -96,6 +104,60 @@ fn the_norm_names_what_holds_it() {
             word.contains("§8.4") && word.contains("§6.2"),
             "{tongue}: §6.3 says a revert is work only under the slug (§8.4), else outside judgement (§6.2):\n{word}"
         );
+    }
+
+    // --- §2.11: the exception of wave 0058, and its width ---
+    //
+    // Held here because nothing else holds it (review 0058 R-5): a
+    // mutant that took the paragraph out of the English text and out
+    // of the root copy walked the whole battery, and both "the
+    // methodology of this binary" rows stayed green -- the skeleton
+    // compares chapters and numbers, not sentences, and
+    // `translated_from` holds the Ukrainian side alone.
+    let root = repo_file("METHODOLOGY.md");
+    for (tongue, text, mark, price) in [
+        ("uk", &uk, "Виняток — контракт", "план окремо, робота окремо"),
+        ("en", &en, "The exception is a contract", "plan apart, work apart"),
+        ("root copy", &root, "The exception is a contract", "plan apart, work apart"),
+    ] {
+        let word = flat(paragraph(text, "**§2.11."));
+        assert!(
+            word.contains(mark) && word.contains("§6.8") && word.contains(price),
+            "{tongue}: §2.11 names the exception of a contract, its paragraph \
+             (§6.8) and its price:\n{word}"
+        );
+        assert!(
+            word.contains("§9.9"),
+            "{tongue}: and says who holds what the machine cannot tell apart \
+             -- a change of the promises under a chore:\n{word}"
+        );
+    }
+    // The width of it, said aloud rather than left to be discovered
+    // (review 0058 R-4): one contract row makes a wave of any number
+    // of chores full.
+    for (tongue, text, width) in [
+        ("uk", &uk, "безумовний"),
+        ("en", &en, "unconditional"),
+        ("root copy", &root, "unconditional"),
+    ] {
+        let word = flat(paragraph(text, "**§2.11."));
+        assert!(
+            word.contains(width),
+            "{tongue}: §2.11 says the exception is unconditional:\n{word}"
+        );
+    }
+
+    // --- §4.11 and §10.5 carry the mark of a text-held rule ---
+    for (tongue, text) in [("uk", &uk), ("en", &en), ("root copy", &root)] {
+        let mark = if tongue == "uk" { "текстове" } else { "textual" };
+        for head in ["**§4.11.", "**§10.5."] {
+            let word = flat(paragraph(text, head));
+            assert!(
+                word.contains(mark) && word.contains("§9.9") && word.contains("§7.10"),
+                "{tongue}: {head} marks itself text-held, held by the reviewer \
+                 (§9.9), because of §7.10:\n{word}"
+            );
+        }
     }
 
     // --- the translation records the Ukrainian revision as it now

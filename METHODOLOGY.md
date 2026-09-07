@@ -213,9 +213,12 @@ that outlive the wave, so the price of touching even its prose is the
 same full ceremony -- plan apart, work apart. Without this exception a
 wave of chores over a contract could not exist at all: §2.11 asked for
 light, §6.8 for full, and the court refused both (the operator's
-decision of 2026-09-07). That a change of the promises themselves could
-ride under "a chore over a contract" is not something the machine tells
-apart -- the fresh reader holds it (§9.9).
+decision of 2026-09-07). The exception is unconditional: one contract
+row in `files` makes a wave of any number of chores full, so "a reason
+to stop and think" stands where no contract is named (named by review
+0058, R-4). That a change of the promises themselves could ride under
+"a chore over a contract" is not something the machine tells apart --
+the fresh reader holds it (§9.9).
 
 **§2.12.** A promise can die. A later wave marks a scenario or a
 contract `withdrawn: "<reason>"`, optionally
@@ -629,12 +632,16 @@ forms:
 
 A subject with no slug stands **outside the courts**: the gate lets it
 through and says so aloud. What rides on it is what belongs to no
-transform -- the record of a review (§9.9), an entry in the journal, a
-merge. Such a commit does not become the wave's work: scope judges its
-files like any other (§4.6), and "the transform is assembled" does not
-see it. The slug of ANOTHER wave is not "outside the courts" but a
-mistake: the gate refuses it by name (the operator's decision of
-2026-09-07).
+transform -- the record of a review (§9.9) and an entry in the journal.
+Such a commit does not become the wave's work: scope judges its files
+like any other (§4.6), and "the transform is assembled" does not see
+it. A merge does not belong here, though it too rides unjudged: its
+subject `merge: ...` carries a slug, and on a wave's branch the gate
+refuses it -- a merge passes because it stands on the trunk, where the
+branch is no wave (measured by review 0058, R-7). An UNKNOWN slug is
+not "outside the courts" but a mistake: the gate refuses it by name,
+and the slug of another wave is one case of that (the operator's
+decision of 2026-09-07).
 
 There is no "commit" field in the header and there will not be: that
 would be a status written by hand, against §6.1.
