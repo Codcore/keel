@@ -188,6 +188,61 @@ pub fn lockfiles(root: &Path) -> Vec<String> {
     }
 }
 
+/// One thing the tongue's runner leaves in the tree, and WHERE it
+/// may be met (wave 0057; review R-7 measured the second half
+/// missing: a project's own `docs/target/notes.md` became furniture
+/// because `target` is a name rust leaves).
+pub struct Leaving {
+    /// The path from the project's root, or the bare directory name
+    /// when the runner writes it at any depth. A directory carries
+    /// its trailing slash.
+    pub path: String,
+    /// Met at ANY depth -- pytest writes a `__pycache__` beside every
+    /// module it imports, npm a `node_modules` in every workspace
+    /// member -- or only at the one place the adapter names, as a
+    /// build directory is.
+    pub anywhere: bool,
+}
+
+/// What this tongue's runner leaves in the tree.
+///
+/// Measured in sandboxes before the plan of wave 0057, not guessed:
+/// `pytest` writes `__pycache__/` beside every module it imports and
+/// `.pytest_cache/` at the root; `npm install` writes `node_modules/`
+/// as soon as the project has one dependency; ruby's minitest and
+/// rspec left NOTHING in a bare project, and so ruby's list is empty
+/// and the frame says so; elixir and rust leave the build directory
+/// the adapter already names -- and that one is met at its place
+/// alone.
+///
+/// Two courts read this one list (queue after 0055, bugs R-21): the
+/// ignore advice of `keel init` -- which told python, javascript and
+/// ruby alike that "this tongue builds nothing", while pytest was
+/// filling the tree -- and the scope court, for which a directory the
+/// runner wrote without being asked is furniture, not this wave's
+/// work.
+pub fn leavings(root: &Path) -> Vec<Leaving> {
+    let anywhere = |name: &str| Leaving {
+        path: name.to_string(),
+        anywhere: true,
+    };
+    match language_of(root) {
+        Some(Language::Python) => vec![anywhere("__pycache__/"), anywhere(".pytest_cache/")],
+        Some(Language::JavaScript) => vec![anywhere("node_modules/")],
+        Some(Language::Ruby) => Vec::new(),
+        _ => match build_dir(root) {
+            BuildDir::At(path) => {
+                let relative = path.strip_prefix(root).unwrap_or(Path::new(""));
+                vec![Leaving {
+                    path: format!("{}/", relative.to_string_lossy().replace('\\', "/")),
+                    anywhere: false,
+                }]
+            }
+            _ => Vec::new(),
+        },
+    }
+}
+
 pub fn build_dir(root: &Path) -> BuildDir {
     match language_of(root) {
         // pytest builds nothing -- and, told so, writes nothing

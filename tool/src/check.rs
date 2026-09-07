@@ -1467,16 +1467,24 @@ fn uncommitted_transforms(root: &Path, wave: &docs::Wave, base: &str) -> Vec<(St
         if transform.files.is_empty() || committed.contains(name.as_str()) {
             continue;
         }
-        let mut dirs: std::collections::BTreeMap<&str, usize> = Default::default();
+        // Keyed by the NAME the row means, like the filter below
+        // (review 0057 R-9 measured the halves disagreeing: `check`
+        // said "assembled" while `next` said "work on").
+        let mut dirs: std::collections::BTreeMap<String, usize> = Default::default();
         for line in &transform.files {
-            if let docs::ScopeLine::OneNewIn(d) = line {
-                *dirs.entry(d.as_str()).or_insert(0) += 1;
+            if let docs::ScopeLine::OneNewIn(_) = line {
+                *dirs.entry(line.name()).or_insert(0) += 1;
             }
         }
+        // By the name the row means, not its spelling (wave 0057).
         let done = transform.files.iter().all(|line| match line {
-            docs::ScopeLine::Path(p) => changed.contains(p),
-            docs::ScopeLine::OneNewIn(d) => {
-                added.iter().filter(|f| f.starts_with(d.as_str())).count() == dirs[d.as_str()]
+            docs::ScopeLine::Path(_) => changed.contains(line.name().as_str()),
+            docs::ScopeLine::OneNewIn(_) => {
+                added
+                    .iter()
+                    .filter(|f| f.starts_with(line.name().as_str()))
+                    .count()
+                    == dirs[&line.name()]
             }
         });
         if done {

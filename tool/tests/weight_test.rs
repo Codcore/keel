@@ -148,6 +148,39 @@ fn the_weight_comes_from_the_file() {
          two human looks §6.8 asks for:\n{said}"
     );
 
+    // The same contract, written with a leading `./` -- one file, one
+    // weight (wave 0057; review R-4 measured this fix without a
+    // probe, and a mutant that read the raw spelling passed the whole
+    // battery). Before the normalisation `./keel/contracts/…` slipped
+    // past the rule and the wave called itself light.
+    let dir = project("full-dot");
+    git(&dir, &["checkout", "-q", "-b", "0004-d-wave"]);
+    std::fs::write(
+        dir.join("keel/contracts/fresh.md"),
+        "---\nmodule: toy\nexports: [\"pub fn a()\"]\n---\n\nтіло контракту\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("keel/waves/0004-d-wave.md"),
+        format!(
+            "---\ntransforms:\n  work:\n    chore: \"дрібниця\"\n    files:\n      - ./src/lib.rs\n      - ./keel/contracts/fresh.md\n{}---\n\n## transform: work\nтіло роботи\n",
+            decided()
+        ),
+    )
+    .unwrap();
+    std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn e() {}\n").unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "work: a chore with a dotted contract"],
+    );
+    let (said, _) = keel(&dir, "status");
+    assert!(
+        said.contains("вага повна"),
+        "a contract written as ./keel/contracts/… is the same contract \
+         (§6.8):\n{said}"
+    );
+
     // Withdrawing a promise makes a wave full too: a promise dying is
     // exactly the risk §6.8 wants two people to see.
     let dir = project("withdrawn");
