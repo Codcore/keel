@@ -54,7 +54,40 @@ static REMEMBERED: std::sync::OnceLock<
 /// on a revision nobody could prove, quietly and once per process.
 /// A failure that repeats costs a few processes; a failure that is
 /// believed costs a court.
+/// The questions this memory is allowed to answer, by name.
+///
+/// Review 0061 R-3 measured what a nameless memory costs: a mutant
+/// that widened it to everything `git_line` asks -- `diff`, `status`,
+/// `rev-list`, `merge-base` -- passed the whole battery in silence,
+/// because the only guard was a ratio of processes to answers. The
+/// border of this memory is not "what is cheap to remember" but "what
+/// cannot change while one command runs": a commit's content, the
+/// list of commits that touched a path, and whether git serves this
+/// tree at all. Anything about the WORKING state -- the branch, the
+/// diff, the status -- is asked fresh, every time.
+fn may_be_remembered(args: &[&str]) -> bool {
+    match args {
+        ["show", _] => true,
+        ["log", "--format=%H", "--", _] => true,
+        ["rev-parse", "--git-dir"] => true,
+        ["rev-parse", "--is-shallow-repository"] => true,
+        ["rev-parse", "--show-toplevel"] => true,
+        _ => false,
+    }
+}
+
 pub(crate) fn remembered(root: &Path, args: &[&str]) -> Option<String> {
+    // A question outside the named border goes straight to git, and
+    // no answer of it is ever kept: the border holds by a court here,
+    // not by the attention of whoever adds the next caller.
+    if !may_be_remembered(args) {
+        return git_at(root)
+            .args(args)
+            .output()
+            .ok()
+            .filter(|out| out.status.success())
+            .map(|out| String::from_utf8_lossy(&out.stdout).into_owned());
+    }
     let key = (root.to_path_buf(), args.join("\u{1f}"));
     let memory = REMEMBERED.get_or_init(Default::default);
     if let Ok(seen) = memory.lock() {
@@ -188,9 +221,22 @@ fn branch_by_git(root: &Path) -> Option<String> {
     if top != std::fs::canonicalize(root).ok()? {
         return None;
     }
-    let name = remembered(root, &["branch", "--show-current"])?
-        .trim()
-        .to_string();
+    // The BRANCH is asked fresh every time, and stays out of the
+    // memory above (review 0061 R-2). Where the toplevel of a tree is
+    // a fact about the tree, the branch is a fact about its WORKING
+    // STATE: a checkout changes it, and a library caller may check
+    // one out between two questions. The wave's own prose said the
+    // memory holds only what does not change within a run; the branch
+    // does not belong in that sentence, and thirteen processes saved
+    // are not worth a court answering about a branch that has moved.
+    let out = git_at(root)
+        .args(["branch", "--show-current"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
     if name.is_empty() { None } else { Some(name) }
 }
 

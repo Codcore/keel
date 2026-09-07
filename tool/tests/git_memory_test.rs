@@ -130,7 +130,7 @@ fn project(name: &str) -> common::Sandbox {
     dir
 }
 
-/// proves: the-court-asks-git-once-for-the-same-answer@3d7fb6
+/// proves: the-court-asks-git-once-for-the-same-answer@1df4a7
 #[test]
 fn the_court_asks_git_once_for_the_same_answer() {
     let dir = project("gitmemory");
@@ -294,4 +294,116 @@ fn the_court_asks_git_once_for_the_same_answer() {
         "and where history could not testify the court says so and \
          reddens, rather than passing the wave in silence:\n{stumbled}"
     );
+}
+
+/// proves: the-court-asks-git-once-for-the-same-answer@1df4a7 -- the
+/// second half of the promise: "the same court over two different
+/// trees in one process does not confuse their answers".
+///
+/// Review 0061 R-1 measured that nothing held it: every probe runs
+/// keel as a SEPARATE PROCESS per sandbox, so two trees never met in
+/// one memory, and a mutant that dropped the root from the key walked
+/// the whole battery. This one calls the library directly -- which is
+/// supported use, `keel::scope` being public -- and asks the hand
+/// itself, twice, over two trees.
+#[test]
+fn one_process_two_trees_and_no_mixed_answers() {
+    let one = project("gittreeone");
+    let two = project("gittreetwo");
+    // Two trees, two branches, in THIS process: the memory of the
+    // hand is shared between them, and only the root in its key keeps
+    // one tree's answer out of the other's court.
+    git(&one, &["checkout", "-q", "-b", "0001-one-wave"]);
+    git(&two, &["checkout", "-q", "-b", "0002-two-wave"]);
+    let heard_one = keel::scope::current_branch(&one);
+    let heard_two = keel::scope::current_branch(&two);
+    assert_eq!(
+        heard_one.as_deref(),
+        Some("0001-one-wave"),
+        "the first tree answers for itself"
+    );
+    assert_eq!(
+        heard_two.as_deref(),
+        Some("0002-two-wave"),
+        "and the second for itself -- not the first tree's answer \
+         handed on by a memory that forgot which tree it was asked \
+         about (review 0061 R-1)"
+    );
+    // Asked again, in the other order: an answer kept under a
+    // root-less key would surface here even if the first pair passed.
+    assert_eq!(
+        keel::scope::current_branch(&two).as_deref(),
+        Some("0002-two-wave"),
+        "and asking twice does not swap them either"
+    );
+    assert_eq!(
+        keel::scope::current_branch(&one).as_deref(),
+        Some("0001-one-wave"),
+        "in either direction"
+    );
+}
+
+/// proves: the-court-asks-git-once-for-the-same-answer@1df4a7 -- the
+/// BORDER of the memory, held by a court and not by attention.
+///
+/// Review 0061 R-3 measured what a nameless border costs: a mutant
+/// that widened the memory to everything the hand asks -- `diff`,
+/// `status`, `rev-list`, `merge-base` -- passed the whole battery,
+/// because the only guard was a ratio of processes to answers. Today
+/// nothing would be bitten by it; the next caller who remembers the
+/// working tree would be, and the battery would say nothing.
+#[test]
+fn the_memory_holds_only_what_cannot_change_within_a_run() {
+    // --- the behaviour: what IS about the working state answers
+    // afresh, however often it is asked ---
+    let dir = project("gitfresh");
+    assert_eq!(
+        keel::scope::current_branch(&dir).as_deref(),
+        Some("main"),
+        "the branch is read"
+    );
+    git(&dir, &["checkout", "-q", "-b", "0009-moved"]);
+    assert_eq!(
+        keel::scope::current_branch(&dir).as_deref(),
+        Some("0009-moved"),
+        "and read AGAIN after a checkout -- the branch is a fact about \
+         the working state, not about the tree, and a memory that kept \
+         it would answer about a branch that has moved (review 0061 R-2)"
+    );
+
+    // --- the border itself, by name: the hand says which questions it
+    // may keep, and that list holds nothing about the working state ---
+    let hand = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/scope.rs"),
+    )
+    .unwrap();
+    let border = hand
+        .split_once("fn may_be_remembered")
+        .and_then(|(_, rest)| rest.split_once("\n}\n"))
+        .map(|(body, _)| body.to_string())
+        .unwrap_or_else(|| {
+            panic!("the hand names the border of its memory in `may_be_remembered`")
+        });
+    for wide in ["=> true,\n        _ => true", "if true", "_ => true"] {
+        assert!(
+            !border.contains(wide),
+            "the border is a LIST, not a yes: `{wide}` in it would let \
+             the next caller remember anything at all, and the battery \
+             would say nothing (review 0061 R-3)"
+        );
+    }
+    for changing in ["status", "diff", "rev-list", "merge-base", "branch"] {
+        assert!(
+            !border.contains(changing),
+            "and nothing about the WORKING state is in it -- `{changing}` \
+             changes between two questions of one run:\n{border}"
+        );
+    }
+    for stable in ["show", "log", "--git-dir", "--is-shallow-repository"] {
+        assert!(
+            border.contains(stable),
+            "while what cannot change within a run is named there: \
+             `{stable}` is missing:\n{border}"
+        );
+    }
 }
