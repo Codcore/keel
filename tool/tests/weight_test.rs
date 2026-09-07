@@ -402,7 +402,10 @@ fn chores_alone_may_carry_a_contract() {
     )
     .unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "words: the prose of a contract"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "words: the prose of a contract"],
+    );
 
     let (said, _) = keel(&dir, "status");
     assert!(
@@ -441,7 +444,10 @@ fn chores_alone_may_carry_a_contract() {
     )
     .unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "one: two chores and no contract"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "one: two chores and no contract"],
+    );
     let (said, code) = keel(&dir, "check");
     assert!(
         said.contains("мусить бути легкою"),

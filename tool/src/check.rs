@@ -417,6 +417,22 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 .transforms
                 .iter()
                 .all(|(_, tr)| matches!(tr.kind, docs::TransformKind::Chore(_)));
+        // The exception §2.11 names since the operator's decision of
+        // 2026-09-07: a contract carries promises that outlive the
+        // wave, so a wave that touches one is FULL by §6.8 -- even
+        // when every transform of it is a chore. Without it the debt
+        // of the release (three paragraphs of prose in two contracts,
+        // not one new promise) was a wave the norm forbade twice
+        // over: §2.11 asked for light, §6.8 for full. Asked HERE and
+        // not through `docs::heavy`, because that one answers with
+        // the first reason it finds, and `Transforms` outranks
+        // `Contract`.
+        let carries_a_contract = wave.transforms.iter().any(|(_, tr)| {
+            tr.files
+                .iter()
+                .any(|line| line.name().starts_with("keel/contracts/"))
+        });
+        let chores_only = chores_only && !carries_a_contract;
         // A wave with no scenario cannot withdraw one, so that road
         // of `heavy` never leads here (review 0052 R-8).
         let why = if chores_only {
