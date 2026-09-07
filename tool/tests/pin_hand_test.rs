@@ -285,3 +285,59 @@ fn the_pin_has_a_hand() {
         "and nothing was installed:\n{said}"
     );
 }
+
+/// proves: the-advice-leads-with-the-road-that-works@1a48d6 -- the
+/// lamp said one road for every pin: "KEEL_REF takes a git ref of
+/// this repository BY NAME and builds from source -- nothing checks
+/// a checksum there". Measured on keel 1.0.0 against a `file://`
+/// release: `KEEL_REF="1.0.0" sh install.sh` fetched the published
+/// archive and verified its sha256, exactly as `sh install.sh 1.0.0`
+/// does -- the pin's own SHAPE picks the road, and the words named
+/// the wrong one for every version pin (queue after 0055, bugs R-26).
+#[test]
+fn the_advice_leads_with_the_road_that_works() {
+    // -- a pin shaped like a version: the release road -------------
+    let dir = sandbox("advice-version");
+    fs::write(
+        dir.join("keel.toml"),
+        "lang = \"uk\"\nadapter = \"rust\"\nversion = \"9.9.9\"\n",
+    )
+    .unwrap();
+    let (said, code) = keel(&["version", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the lamp never refuses over a mismatch:\n{said}");
+    assert!(
+        said.contains("sh install.sh 9.9.9"),
+        "the shortest form of the road that works is what a person is \
+         handed:\n{said}"
+    );
+    assert!(
+        said.contains("реліз") && said.contains(".sha256"),
+        "and the road is named for what it is -- a published release \
+         whose checksum is verified:\n{said}"
+    );
+    assert!(
+        !said.contains("checksum там не звіряє ніхто"),
+        "never the sentence of the OTHER road: this pin's road does \
+         check one:\n{said}"
+    );
+
+    // -- a pin that is a ref: the road from source ------------------
+    let dir = sandbox("advice-ref");
+    fs::write(
+        dir.join("keel.toml"),
+        "lang = \"uk\"\nadapter = \"rust\"\nversion = \"my-branch\"\n",
+    )
+    .unwrap();
+    let (said, code) = keel(&["version", dir.to_str().unwrap()]);
+    assert_eq!(code, 0, "the lamp never refuses over a mismatch:\n{said}");
+    assert!(
+        said.contains("git ref") && said.contains("checksum там не звіряє ніхто"),
+        "a pin no release can answer takes the road from source, and \
+         the words say what that road does not check:\n{said}"
+    );
+    assert!(
+        !said.contains("опублікований реліз, його архів"),
+        "and the release road is not offered for a name no release \
+         carries:\n{said}"
+    );
+}
