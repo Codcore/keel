@@ -229,6 +229,14 @@ pub fn leavings(root: &Path) -> Vec<Leaving> {
     match language_of(root) {
         Some(Language::Python) => vec![anywhere("__pycache__/"), anywhere(".pytest_cache/")],
         Some(Language::JavaScript) => vec![anywhere("node_modules/")],
+        // `bin/rails test` writes: `log/test.log`, `tmp/`, and the
+        // test database. Rails's own `.gitignore` covers them, so
+        // nothing hurt -- but "this tongue leaves nothing of its own"
+        // was said to a person for whom it is false (review 0059
+        // R-12), and the scope court reads this same list.
+        Some(Language::Ruby) if crate::ruby::rails_root(root) => {
+            vec![anywhere("log/"), anywhere("tmp/")]
+        }
         Some(Language::Ruby) => Vec::new(),
         _ => match build_dir(root) {
             BuildDir::At(path) => {
@@ -301,6 +309,23 @@ pub fn run_line(root: &Path, file: &Path, test: &str, line: usize) -> String {
                 relative.display(),
                 shell_quoted(test),
                 t("run-line-rspec-note")
+            )
+        }
+        // The third reading's line is the one a person in a Rails
+        // application actually types: `bin/rails test <file> -n
+        // <method>`. Measured 2026-09-07 -- `ruby -Itest` boots no
+        // application, so the advice was a line that could not work
+        // where it was given (wave 0059).
+        Some(Language::Ruby) if crate::ruby::rails_root(root) => {
+            // Quoted, as the rspec line beside it is: a Rails name is
+            // arbitrary text, so apostrophes, quotes and `#` survive
+            // into the method name, and an unquoted line left the
+            // person's shell waiting for a closing quote (review 0046
+            // R-5, measured again here as review 0059 R-5).
+            format!(
+                "bin/rails test {} -n {}",
+                relative.display(),
+                shell_quoted(test)
             )
         }
         Some(Language::Ruby) => format!("ruby -Itest {} -n {test}", relative.display()),

@@ -16,6 +16,20 @@ transforms:
     files:
       - tool/src/ruby.rs
       - tool/src/config.rs
+      - tool/src/adapter.rs
+      - tool/src/generated.rs
+      - tool/src/ask.rs
+      - tool/src/init.rs
+      - tool/src/check.rs
+      - tool/i18n/uk.ftl
+      - tool/i18n/en.ftl
+      - keel/contracts/tool-ask.md
+  journal:
+    chore: "запис хвилі: звіт свіжого рецензента, стаття журналу і зняті рядки черги (§4.11)"
+    files:
+      - docs/uk/V2-PROCESS.md
+      - BACKLOG.md
+      - keel/reviews/0059-rails-out-of-the-box.md
   the-contract-says-the-third-reading:
     chore: "контракт адаптера каже третє читання: як Rails пізнається, чим біжить батарея і чим біжить один тест"
     files:
@@ -31,7 +45,7 @@ decisions:
   interaction.learnability: "тримає: крок §9.2 дає команду, яку людина в Rails справді набирає"
   interaction.operability: "не застосовується"
   interaction.user-engagement: "не застосовується"
-  interaction.inclusivity: "не застосовується"
+  interaction.inclusivity: "тримає доробка (рецензія R-1): імʼя тесту поза ASCII біжить і на дорозі Rails — слово про кодування їде туди через RUBYOPT, бо `-E UTF-8` для `bin/rails` було б аргументом `rails test`; зміряно під LC_ALL=C з обох боків"
   interaction.user-assistance: "не застосовується"
   interaction.self-descriptiveness: "тримає: контракт адаптера каже третє читання своїм текстом"
   interaction.user-error-protection: "тримає: проєкт без bin/rails і config/application.rb лишається на першому читанні — розпізнавання питає дві прикмети, не одну"
@@ -111,9 +125,22 @@ test_…`. Імʼя — те, яке будує ActiveSupport: `test_` плюс 
 `ruby::rails_root` питає дві прикмети. `run_test` і `run_all` над
 Rails-проєктом кличуть `bin/rails test`; вироки читає той самий читач
 minitest (`-v`, рядок `Клас#метод = <час> s = <позначка>`), бо Rails
-жене той самий minitest. `config::battery_command` каже Rails-команду
-там, де проєкт Rails.
+жене той самий minitest. `config::battery_command_in` каже Rails-команду
+там, де проєкт Rails, і згенерований workflow бере саме її
+(`generated.rs`).
+
+**Дрейф (§4.6), названий тут.** `tool/src/adapter.rs` і
+`tool/src/generated.rs` план не називав: замір казав про батарею і про
+один тест, а порада §9.2 і крок CI — це ті самі дві команди, тільки
+сказані людині. Лишити їх ruby-івськими означало б дати людині рядок,
+який у її проєкті не працює, — вада, задля якої хвиля й існує.
 
 ## transform: the-contract-says-the-third-reading
 
 Контракт `tool-adapter-ruby` каже третє читання і його межі.
+
+## transform: journal
+
+Звіт свіжого рецензента (§9.9) у історію гілки; стаття журналу; зняті
+рядки черги і записана нова — швидкість батареї (рішення оператора
+2026-09-07).

@@ -152,7 +152,88 @@ fn snake_case(word: &str) -> String {
     out
 }
 
-/// Runs exactly the tagged test (`ruby -Itest <file> -n <method>`).
+/// Is this a Rails application? TWO marks together, and neither
+/// alone: `bin/rails` (the command Rails gives a person) and
+/// `config/application.rb` (the application it boots). Measured on a
+/// real application 2026-09-07; asked of the PROJECT and never of the
+/// config, because a person writing `adapter = "ruby"` should not
+/// have to know that their project is called something else.
+///
+/// Rails is not another tongue -- it is another LAYOUT of this one,
+/// and this is the third reading of ruby beside minitest and rspec
+/// (the second arrived in wave 0047). What changes is the command:
+/// the battery of a Rails application is `bin/rails test`, because
+/// `ruby -Itest` never boots the application at all.
+pub fn rails_root(root: &Path) -> bool {
+    root.join("bin/rails").is_file() && root.join("config/application.rb").is_file()
+}
+
+/// The runner for this project, with the arguments that reach the
+/// same minitest either way: Rails through its own `bin/rails test`,
+/// a plain project through `ruby -Itest`. The adapter's word to its
+/// child about the encoding of the arguments (wave 0051) rides on
+/// both roads -- as the flag where ruby is called directly, and as
+/// RUBYOPT where the call goes through the project's own script,
+/// which would read a `-E` of its own as an argument of `rails test`
+/// (review 0059 R-1 measured the loss before it was said this way).
+fn minitest_command(root: &Path, args: &[String]) -> Command {
+    if rails_root(root) {
+        let mut command = Command::new(root.join("bin/rails"));
+        command.arg("test").args(args).current_dir(root);
+        // Rails boots the application to run its tests, and the
+        // environment is the one Rails itself names for that.
+        command.env("RAILS_ENV", "test");
+        // The SAME word about encoding, said the only way this road
+        // can say it: `bin/rails` is a script of the project, and a
+        // `-E UTF-8` handed to it would be an argument of `rails
+        // test`, not of ruby. Review 0059 R-1 measured the loss on a
+        // real sandbox -- under `LC_ALL=C` a test named `вітає
+        // ünïcode` ran NOTHING on this road while the plain one ran
+        // it green, which is bug R-19 of the global review
+        // 2026-09-06 (wave 0051) risen again on a new road. RUBYOPT
+        // is ruby's own door for exactly this, and what already
+        // stands in it is kept: the project may have put its own
+        // options there.
+        let mut opts = std::env::var("RUBYOPT").unwrap_or_default();
+        if !opts.contains("-EUTF-8") && !opts.contains("-E UTF-8") {
+            if !opts.is_empty() {
+                opts.push(' ');
+            }
+            opts.push_str("-EUTF-8");
+        }
+        command.env("RUBYOPT", opts);
+        return command;
+    }
+    let mut command = Command::new("ruby");
+    command
+        .args(["-E", "UTF-8"])
+        .arg("-Itest")
+        .args(args)
+        .current_dir(root);
+    command
+}
+
+/// Whose failure it was, said by name (review 0059 R-4): on the
+/// Rails road the thing that did not start is `bin/rails` -- a script
+/// of the project, which may simply be non-executable -- and telling
+/// a person to "put ruby on PATH" sends them looking where nothing is
+/// wrong.
+fn runner_failed(root: &Path, error: &std::io::Error) -> String {
+    if rails_root(root) {
+        return ta("adapter-rails-failed", targs!("error" => error.to_string()));
+    }
+    ta("adapter-ruby-failed", targs!("error" => error.to_string()))
+}
+
+fn runner_failed_instead(root: &Path) -> String {
+    if rails_root(root) {
+        return t("adapter-rails-failed-instead");
+    }
+    t("adapter-ruby-failed-instead")
+}
+
+/// Runs exactly the tagged test (`ruby -Itest <file> -n <method>`, or
+/// `bin/rails test <file> -n <method>` where the project is Rails).
 ///
 /// The honest limit of this tongue, and §7.12 foresaw it: **ruby does
 /// not tell "failed" from "did not load" by its exit code** -- both
@@ -166,26 +247,29 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
         return run_spec(root, tag);
     }
     let relative = tag.file.strip_prefix(root).unwrap_or(&tag.file);
-    let mut command = Command::new("ruby");
     // The encoding of the arguments is the adapter's word to its
     // child, not the machine's locale: under `LANG=` ruby read `-n
     // test_ünïcode` in ASCII-8BIT and selected nothing (global review
-    // 2026-09-06 R-19; wave 0051), while `-E UTF-8` runs it.
-    command
-        .args(["-E", "UTF-8"])
-        .arg("-Itest")
-        .arg(relative)
-        .arg("-n")
-        .arg(&tag.test)
-        .current_dir(root);
+    // 2026-09-06 R-19; wave 0051), while `-E UTF-8` runs it. Where
+    // the project is Rails, the same selection rides on `bin/rails
+    // test <file> -n <method>` -- measured on a real application,
+    // exit 0 green and 1 red.
+    let mut command = minitest_command(
+        root,
+        &[
+            relative.display().to_string(),
+            "-n".to_string(),
+            tag.test.clone(),
+        ],
+    );
     // The first reading forgot to forget the hook (global review
     // 2026-09-06, bugs cut R-18): a test that asks git for its
     // repository saw the hook's under GIT_DIR.
     crate::scope::forget_the_hook(&mut command);
     let out = command.output().map_err(|e| Refusal {
         file: root.to_path_buf(),
-        reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
-        instead: t("adapter-ruby-failed-instead"),
+        reason: runner_failed(root, &e),
+        instead: runner_failed_instead(root),
     })?;
     let said = format!(
         "{}{}",
@@ -242,18 +326,16 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     for file in minitest_files(root)? {
         let relative = file.strip_prefix(root).unwrap_or(&file);
         let stem = crate::adapter::battery_key(root, &file);
-        let mut command = Command::new("ruby");
-        command
-            .args(["-E", "UTF-8"])
-            .arg("-Itest")
-            .arg(relative)
-            .arg("-v")
-            .current_dir(root);
+        // One process per file on both roads, so the key of the
+        // battery stays the file it came from (§7.13's verdicts are
+        // per test, and the courts above ask by file stem).
+        let mut command =
+            minitest_command(root, &[relative.display().to_string(), "-v".to_string()]);
         crate::scope::forget_the_hook(&mut command);
         let run = command.output().map_err(|e| Refusal {
             file: root.to_path_buf(),
-            reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
-            instead: t("adapter-ruby-failed-instead"),
+            reason: runner_failed(root, &e),
+            instead: runner_failed_instead(root),
         })?;
         let said = format!(
             "{}{}",

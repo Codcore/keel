@@ -96,6 +96,32 @@ impl Language {
         }
     }
 
+    /// The same, asked of a PROJECT rather than of the tongue
+    /// alone: a Rails application runs its battery with `bin/rails
+    /// test`, because `ruby -Itest` never boots the application and
+    /// so loads none of its tests (measured on a real application,
+    /// wave 0059). Everything else answers as the tongue does.
+    pub fn battery_command_in(&self, root: &std::path::Path) -> String {
+        match self {
+            // `test/system/**` is what `bin/rails test` leaves out ON
+            // PURPOSE -- a system test drives a browser -- while the
+            // closing court globs `test/**/*_test.rb` and calls each
+            // file by name, which walks around that exclusion. The
+            // step a person reads in the CI log must run what the
+            // court runs, or the two say different things about the
+            // same tree (review 0059 R-6; the same divergence review
+            // 0055 R-9 found for `spec/`).
+            Language::Ruby if crate::ruby::rails_root(root) => {
+                if root.join("test/system").is_dir() {
+                    "bin/rails test && bin/rails test:system".to_string()
+                } else {
+                    "bin/rails test".to_string()
+                }
+            }
+            _ => self.battery_command().to_string(),
+        }
+    }
+
     /// One name per tongue, in the order `NAMES` gives them: what
     /// the wizard offers and what a project is asked to write.
     pub fn choices() -> Vec<&'static str> {
