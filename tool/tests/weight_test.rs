@@ -549,7 +549,10 @@ fn chores_alone_may_carry_a_contract() {
     )
     .unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "words: a directory of its own"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "words: a directory of its own"],
+    );
     let (said, _) = keel(&dir, "check");
     assert!(
         !said.contains("мусить бути легкою"),

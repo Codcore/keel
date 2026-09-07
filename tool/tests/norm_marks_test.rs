@@ -116,9 +116,24 @@ fn the_norm_names_what_holds_it() {
     // `translated_from` holds the Ukrainian side alone.
     let root = repo_file("METHODOLOGY.md");
     for (tongue, text, mark, price) in [
-        ("uk", &uk, "Виняток — контракт", "план окремо, робота окремо"),
-        ("en", &en, "The exception is a contract", "plan apart, work apart"),
-        ("root copy", &root, "The exception is a contract", "plan apart, work apart"),
+        (
+            "uk",
+            &uk,
+            "Виняток — контракт",
+            "план окремо, робота окремо",
+        ),
+        (
+            "en",
+            &en,
+            "The exception is a contract",
+            "plan apart, work apart",
+        ),
+        (
+            "root copy",
+            &root,
+            "The exception is a contract",
+            "plan apart, work apart",
+        ),
     ] {
         let word = flat(paragraph(text, "**§2.11."));
         assert!(
@@ -149,7 +164,11 @@ fn the_norm_names_what_holds_it() {
 
     // --- §4.11 and §10.5 carry the mark of a text-held rule ---
     for (tongue, text) in [("uk", &uk), ("en", &en), ("root copy", &root)] {
-        let mark = if tongue == "uk" { "текстове" } else { "textual" };
+        let mark = if tongue == "uk" {
+            "текстове"
+        } else {
+            "textual"
+        };
         for head in ["**§4.11.", "**§10.5."] {
             let word = flat(paragraph(text, head));
             assert!(
