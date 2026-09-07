@@ -188,6 +188,8 @@ tags-spec-one-liner-instead = give the example a name -- `it "…" do … end` (
 tags-spec-shared = the tag proves: { $scenario }@{ $rev } stands over an example inside shared_examples -- it has as many names as the places that include it, and none of them is the one
 tags-spec-shared-instead = put the tag on an example outside shared_examples (§5.5), or on a separate example that calls the shared behaviour
 tags-spec-dynamic = the tag proves: { $scenario }@{ $rev } stands over an example whose name rspec builds at run time (a string with { "#{…}" }) -- no reader of the source can know it
+tags-rails-dynamic = the tag proves: { $scenario }@{ $rev } stands over a test whose name is built at run time (`#{"{"}…{"}"}`): keel cannot name what does not exist yet
+tags-rails-dynamic-instead = give the test a settled name -- that is what ActiveSupport turns into a method, and what `-n` selects
 tags-spec-dynamic-instead = name the example with a plain string (§5.5): the tag holds the full description, and it must be known before the run
 tags-spec-nonliteral = the tag proves: { $scenario }@{ $rev } stands under a group whose description is not a literal -- `{ $what }` -- and rspec will name it otherwise than the reader reads it
 tags-spec-nonliteral-instead = name the group with a string or a module constant (§5.5): a variable, a method or a value constant gives a name the reader does not know
@@ -279,6 +281,9 @@ review-protocol-report = the report lands as keel/reviews/{ $wave }.md next to t
 
 ## adapter module
 adapter-ruby-failed = ruby did not start: { $error }
+adapter-rails-failed = bin/rails did not start: { $error }
+adapter-rails-failed-instead = it is a script of your project, not a command of the system: check that bin/rails is there and executable (the adapter calls it exactly as a person would)
+adapter-rails-reading = the third reading of ruby: the project has bin/rails and config/application.rb, so both the battery and the single test go through `bin/rails test` -- keel runs a script from your tree; test names are read from `test "…" do` the way ActiveSupport builds them
 adapter-ruby-failed-instead = put ruby on PATH -- the adapter calls it exactly as a person would in a terminal
 adapter-ruby-broken = the test file { $error }
 adapter-ruby-broken-instead = ruby builds nothing ahead: a file that did not load gives no verdict for any test in it -- mend it and run again

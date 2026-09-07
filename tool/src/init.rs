@@ -83,7 +83,7 @@ pub fn run(root: &Path, answers: &Answers) -> Result<(String, usize), Refusal> {
         // The wizard's hand writes it (wave 0026): answered fields
         // stand as lines, unanswered ones stay comments, so a default
         // never passes itself off as a choice.
-        let text = crate::ask::config_text(answers);
+        let text = crate::ask::config_text(root, answers);
         match crate::plan::write_new(&config, &text).map_err(|refusal| refusal.reason) {
             Ok(()) => {
                 report.push_str(&ta("init-born", targs!("piece" => "keel.toml".to_string())));
@@ -370,7 +370,7 @@ pub fn setup(root: &Path, answers: &crate::ask::Answers) -> Result<(String, usiz
     // dropped. Only what the wizard asked about moves.
     let old = std::fs::read_to_string(&config).unwrap_or_default();
     let mut text = if old.trim().is_empty() {
-        crate::ask::config_text(answers)
+        crate::ask::config_text(root, answers)
     } else {
         crate::confedit::upsert_root(&old, &crate::ask::answered_rows(answers))
     };

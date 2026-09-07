@@ -6,7 +6,7 @@ exports:
   - "pub fn questions() -> Vec<Question>"
   - "pub fn from_flags(given: &[(String, String)]) -> Result<Answers, Refusal>"
   - "pub fn ask(questions: &[Question]) -> Result<Answers, Refusal>"
-  - "pub fn config_text(answers: &Answers) -> String"
+  - "pub fn config_text(root: &Path, answers: &Answers) -> String"
   - "pub fn toml_string(value: &str) -> String"
 ---
 
@@ -58,7 +58,11 @@ exports:
   Без термінала народжується той самий типовий конфіг, що й до цієї
   хвилі: закоментований словник, жодного мовчазного вибору за
   людину.
-- `config_text` — текст `keel.toml` із відповідей: відповіді стоять
+- `config_text` бере КОРІНЬ разом із відповідями: команда батареї, яку
+  майстер пропонує в `ci`, залежить від розкладки проєкту, а не лише
+  від мови — у Rails-проєкті ruby-івський рядок не піднімає додатка
+  (хвиля 0059, рецензія R-9). Далі — текст `keel.toml` із відповідей:
+  відповіді стоять
   рядками, решта словника лишається коментарями-поясненнями. Файл
   народжується дорогою 0013 (тимчасовий файл і перейменування):
   цілим або ніяк. **Кожне рядкове значення — і активний рядок, і

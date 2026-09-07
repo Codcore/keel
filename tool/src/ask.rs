@@ -414,8 +414,8 @@ pub fn from_config(config: &crate::config::Config, given: &Answers) -> Answers {
 /// as a line; an unanswered one stays a comment, so the vocabulary is
 /// still there to read and a default never passes itself off as a
 /// choice (the same honesty the config's own reading keeps).
-pub fn config_text(answers: &Answers) -> String {
-    let mut text = config_body(answers);
+pub fn config_text(root: &Path, answers: &Answers) -> String {
+    let mut text = config_body(root, answers);
     // Trust recorded here, at the moment the command is named, so
     // the gate does not refuse it on its first run: §7.16 is trust
     // on first use, and a first use that surprises the person is a
@@ -488,7 +488,7 @@ pub fn toml_string(value: &str) -> String {
 }
 
 /// The plain body of keel.toml, before any section is spliced in.
-fn config_body(answers: &Answers) -> String {
+fn config_body(root: &Path, answers: &Answers) -> String {
     // The header no longer carries a commented version line: since
     // wave 0032 the wizard ASKS about the pin, so the field is
     // written by the same hand as every other answer -- two of them
@@ -526,7 +526,11 @@ fn config_body(answers: &Answers) -> String {
         .adapter
         .as_deref()
         .and_then(crate::config::Language::named)
-        .map(|language| toml_string(language.battery_command()))
+        // Of the PROJECT, not of the tongue alone: in a Rails
+        // application the ruby line boots nothing, and `ci` is not
+        // decorative -- trust/check/close run it once a person
+        // uncomments it (review 0059 R-9).
+        .map(|language| toml_string(&language.battery_command_in(root)))
         .unwrap_or_else(|| "\"cargo test\"".to_string());
     text.push_str(&line(
         "ci",

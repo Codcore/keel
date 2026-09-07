@@ -190,6 +190,8 @@ tags-spec-one-liner-instead = дай прикладу імʼя — `it "…" do 
 tags-spec-shared = тег proves: { $scenario }@{ $rev } стоїть над прикладом усередині shared_examples — імен у нього стільки, скільки місць його включають, і жодне не одне
 tags-spec-shared-instead = постав тег на приклад поза shared_examples (§5.5), або на окремий приклад, що кличе спільну поведінку
 tags-spec-dynamic = тег proves: { $scenario }@{ $rev } стоїть над прикладом, чиє імʼя rspec будує під час бігу (рядок із { "#{…}" }) — з сирця його не прочитати
+tags-rails-dynamic = тег proves: { $scenario }@{ $rev } стоїть над тестом, чиє імʼя будується під час бігу (`#{"{"}…{"}"}`): keel не може назвати те, чого ще нема
+tags-rails-dynamic-instead = дай тестові стале імʼя — саме його ActiveSupport перетворює на метод, і саме його вибирає `-n`
 tags-spec-dynamic-instead = назви приклад звичайним рядком (§5.5): тег тримає повний опис, а його треба знати до бігу
 tags-spec-nonliteral = тег proves: { $scenario }@{ $rev } стоїть під групою, чий опис не літерал — `{ $what }` — і rspec назве її інакше, ніж прочитає читач
 tags-spec-nonliteral-instead = назви групу рядком чи константою-модулем (§5.5): змінна, метод чи константа-значення дають імʼя, якого читач не знає
@@ -281,6 +283,9 @@ review-protocol-report = звіт лягає файлом keel/reviews/{ $wave }
 
 ## модуль adapter
 adapter-ruby-failed = ruby не запустився: { $error }
+adapter-rails-failed = bin/rails не запустився: { $error }
+adapter-rails-failed-instead = це скрипт твого проєкту, не команда системи: перевір, що bin/rails на місці й виконуваний (адаптер кличе його так само, як людина в терміналі)
+adapter-rails-reading = третє читання ruby: проєкт має bin/rails і config/application.rb, тож і батарея, і один тест ідуть `bin/rails test` — keel виконує скрипт із твого дерева; імена тестів читаються з `test "…" do` так, як їх будує ActiveSupport
 adapter-ruby-failed-instead = постав ruby на PATH — адаптер кличе його так само, як людина в терміналі
 adapter-ruby-broken = тестовий файл { $error }
 adapter-ruby-broken-instead = ruby не збирає наперед: файл, який не завантажився, не дає вироку жодному тесту — полагодь його і повтори

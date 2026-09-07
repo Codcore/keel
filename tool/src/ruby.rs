@@ -170,9 +170,12 @@ pub fn rails_root(root: &Path) -> bool {
 
 /// The runner for this project, with the arguments that reach the
 /// same minitest either way: Rails through its own `bin/rails test`,
-/// a plain project through `ruby -Itest`. `-E UTF-8` is the adapter's
-/// word to its child about the encoding of the arguments (wave 0051)
-/// and rides on both roads.
+/// a plain project through `ruby -Itest`. The adapter's word to its
+/// child about the encoding of the arguments (wave 0051) rides on
+/// both roads -- as the flag where ruby is called directly, and as
+/// RUBYOPT where the call goes through the project's own script,
+/// which would read a `-E` of its own as an argument of `rails test`
+/// (review 0059 R-1 measured the loss before it was said this way).
 fn minitest_command(root: &Path, args: &[String]) -> Command {
     if rails_root(root) {
         let mut command = Command::new(root.join("bin/rails"));
@@ -180,6 +183,25 @@ fn minitest_command(root: &Path, args: &[String]) -> Command {
         // Rails boots the application to run its tests, and the
         // environment is the one Rails itself names for that.
         command.env("RAILS_ENV", "test");
+        // The SAME word about encoding, said the only way this road
+        // can say it: `bin/rails` is a script of the project, and a
+        // `-E UTF-8` handed to it would be an argument of `rails
+        // test`, not of ruby. Review 0059 R-1 measured the loss on a
+        // real sandbox -- under `LC_ALL=C` a test named `вітає
+        // ünïcode` ran NOTHING on this road while the plain one ran
+        // it green, which is bug R-19 of the global review
+        // 2026-09-06 (wave 0051) risen again on a new road. RUBYOPT
+        // is ruby's own door for exactly this, and what already
+        // stands in it is kept: the project may have put its own
+        // options there.
+        let mut opts = std::env::var("RUBYOPT").unwrap_or_default();
+        if !opts.contains("-EUTF-8") && !opts.contains("-E UTF-8") {
+            if !opts.is_empty() {
+                opts.push(' ');
+            }
+            opts.push_str("-EUTF-8");
+        }
+        command.env("RUBYOPT", opts);
         return command;
     }
     let mut command = Command::new("ruby");
@@ -189,6 +211,25 @@ fn minitest_command(root: &Path, args: &[String]) -> Command {
         .args(args)
         .current_dir(root);
     command
+}
+
+/// Whose failure it was, said by name (review 0059 R-4): on the
+/// Rails road the thing that did not start is `bin/rails` -- a script
+/// of the project, which may simply be non-executable -- and telling
+/// a person to "put ruby on PATH" sends them looking where nothing is
+/// wrong.
+fn runner_failed(root: &Path, error: &std::io::Error) -> String {
+    if rails_root(root) {
+        return ta("adapter-rails-failed", targs!("error" => error.to_string()));
+    }
+    ta("adapter-ruby-failed", targs!("error" => error.to_string()))
+}
+
+fn runner_failed_instead(root: &Path) -> String {
+    if rails_root(root) {
+        return t("adapter-rails-failed-instead");
+    }
+    t("adapter-ruby-failed-instead")
 }
 
 /// Runs exactly the tagged test (`ruby -Itest <file> -n <method>`, or
@@ -227,8 +268,8 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
     crate::scope::forget_the_hook(&mut command);
     let out = command.output().map_err(|e| Refusal {
         file: root.to_path_buf(),
-        reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
-        instead: t("adapter-ruby-failed-instead"),
+        reason: runner_failed(root, &e),
+        instead: runner_failed_instead(root),
     })?;
     let said = format!(
         "{}{}",
@@ -293,8 +334,8 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         crate::scope::forget_the_hook(&mut command);
         let run = command.output().map_err(|e| Refusal {
             file: root.to_path_buf(),
-            reason: ta("adapter-ruby-failed", targs!("error" => e.to_string())),
-            instead: t("adapter-ruby-failed-instead"),
+            reason: runner_failed(root, &e),
+            instead: runner_failed_instead(root),
         })?;
         let said = format!(
             "{}{}",
