@@ -1975,22 +1975,22 @@ pub(crate) fn history_testifies(root: &Path) -> bool {
 /// the contract file (§5.6). Any git trouble reads as "not found":
 /// the strict verdict stands where history cannot testify.
 pub(crate) fn revision_in_history(root: &Path, relative: &str, recorded: &str) -> bool {
-    let log = crate::scope::git_at(root)
-        .args(["log", "--format=%H", "--", relative])
-        .output();
-    let Ok(log) = log else { return false };
-    if !log.status.success() {
+    // Both questions go through the memory of wave 0061, and this is
+    // the call site that made the wave: EVERY reference to a contract
+    // walked the whole history of its file, asking git for the
+    // content of each commit again. Eight waves leaning on one
+    // contract with seventy commits behind it cost 560 processes for
+    // seventy different answers -- on keel's own tree, 3546 `show`
+    // calls out of 4604, and a minute of a person's waiting.
+    let Some(log) = crate::scope::remembered(root, &["log", "--format=%H", "--", relative]) else {
         return false;
-    }
-    for sha in String::from_utf8_lossy(&log.stdout).lines() {
-        let show = crate::scope::git_at(root)
-            .args(["show", &format!("{}:{relative}", sha.trim())])
-            .output();
-        let Ok(show) = show else { continue };
-        if !show.status.success() {
+    };
+    for sha in log.lines() {
+        let sha = sha.trim();
+        let Some(text) = crate::scope::remembered(root, &["show", &format!("{sha}:{relative}")])
+        else {
             continue;
-        }
-        let text = String::from_utf8_lossy(&show.stdout);
+        };
         if rev::matches(recorded, &rev::text_rev(&text)) {
             return true;
         }
@@ -2002,19 +2002,17 @@ pub(crate) fn revision_in_history(root: &Path, relative: &str, recorded: &str) -
 /// history to testify, and no verdict is passed on old revisions
 /// (§5.6).
 fn has_git(root: &Path) -> bool {
-    let out = crate::scope::git_at(root)
-        .args(["rev-parse", "--git-dir"])
-        .output();
-    matches!(out, Ok(o) if o.status.success())
+    // Asked 225 times in one run before wave 0061, and the answer is
+    // the same every time: whether git serves this tree.
+    crate::scope::remembered(root, &["rev-parse", "--git-dir"]).is_some()
 }
 
 /// A shallow clone's history is truncated -- old revisions cannot be
 /// verified there, and the absence of history is not the wave's
 /// fault.
 pub(crate) fn is_shallow(root: &Path) -> bool {
-    let out = crate::scope::git_at(root)
-        .args(["rev-parse", "--is-shallow-repository"])
-        .output();
-    matches!(out, Ok(o) if o.status.success()
-        && String::from_utf8_lossy(&o.stdout).trim() == "true")
+    // The same, 227 times: a clone does not become shallow, or stop
+    // being so, while one command runs.
+    crate::scope::remembered(root, &["rev-parse", "--is-shallow-repository"])
+        .is_some_and(|said| said.trim() == "true")
 }

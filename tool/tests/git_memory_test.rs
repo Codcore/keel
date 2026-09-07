@@ -214,4 +214,84 @@ fn the_court_asks_git_once_for_the_same_answer() {
         said.contains("посилань на контракти звірено: 8"),
         "and every one of the eight references is still judged:\n{said}"
     );
+
+    // --- and a memory that remembered a FAILURE would be worse than
+    // no memory at all ---
+    //
+    // §5.6 judges a closed wave's old record against HISTORY, so "git
+    // could not say" is the answer that decides. A single stumble --
+    // a busy index.lock, a moment of trouble -- must cost exactly the
+    // question it broke, and nothing after it. Remember the failure,
+    // and one stumble decides every later question the same way,
+    // silently and once per process.
+    //
+    // Two closed waves, two DIFFERENT old revisions, and a git that
+    // fails the first history question and answers truly ever after:
+    // exactly one finding, not two.
+    let dir = project("gitstumble");
+    let older = dir.join("older.md");
+    let mut revs: Vec<String> = Vec::new();
+    for step in [4, 5] {
+        std::fs::write(
+            &older,
+            format!("---\nmodule: toy\nexports: [\"pub fn a()\"]\n---\n\nтіло контракту, редакція {step}\n"),
+        )
+        .unwrap();
+        revs.push(keel::rev::contract_rev(&older).unwrap());
+    }
+    std::fs::remove_file(&older).unwrap();
+    for (n, rev) in revs.iter().enumerate() {
+        let slug = format!("000{}-a-wave", n + 1);
+        std::fs::write(
+            dir.join(format!("keel/waves/{slug}.md")),
+            format!(
+                "---\ntransforms:\n  work{n}:\n    chore: \"дрібниця\"\n    contracts: [kept@{rev}]\n    files:\n      - src/lib.rs\n{}---\n\n## transform: work{n}\nтіло\n",
+                decided(&[])
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join(format!("keel/reviews/{slug}.md")),
+            "# Рецензія\n\nok\n",
+        )
+        .unwrap();
+    }
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "two closed waves, two old records"],
+    );
+
+    let shim = dir.join("stumble");
+    std::fs::create_dir_all(&shim).unwrap();
+    let once = dir.join("stumbled-once");
+    std::fs::write(
+        shim.join("git"),
+        format!(
+            "#!/bin/sh\ncase \"$*\" in *'log --format=%H'*) if [ ! -f '{}' ]; then : > '{}'; echo 'fatal: a moment of trouble' >&2; exit 128; fi ;; esac\nexec /usr/bin/git \"$@\"\n",
+            once.display(),
+            once.display()
+        ),
+    )
+    .unwrap();
+    executable(&shim.join("git"));
+    let (stumbled, _) = keel_counting(&dir, &shim, &["check"]);
+    assert!(once.exists(), "the shim really did stumble:\n{stumbled}");
+    let broken = stumbled
+        .lines()
+        .filter(|line| line.contains("червоне") && line.contains("kept@"))
+        .count();
+    assert_eq!(
+        broken, 1,
+        "one stumble costs ONE question and nothing after it -- a \
+         remembered failure would decide both waves the same way, \
+         quietly, once per process:\n{stumbled}"
+    );
+    // And the direction of the loss is the safe one: the court gets
+    // STRICTER where git could not answer, never quieter.
+    assert!(
+        stumbled.contains("стара редакція законна (§5.6)"),
+        "and where history could not testify the court says so and \
+         reddens, rather than passing the wave in silence:\n{stumbled}"
+    );
 }
