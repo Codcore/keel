@@ -467,11 +467,10 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
     // all -- the prose of a contract is worth the two human looks,
     // and forbidding such a wave left the debt of the release with
     // nowhere to live.
-    let carries_a_contract = wave.transforms.iter().any(|(_, tr)| {
-        tr.files
-            .iter()
-            .any(|line| line.name().starts_with("keel/contracts/"))
-    });
+    let carries_a_contract = wave
+        .transforms
+        .iter()
+        .any(|(_, tr)| tr.files.iter().any(docs::names_a_contract));
     let chores_only = chores_only && !carries_a_contract;
     if chores_only && let Some(heavy) = docs::heavy(wave) {
         let why = match heavy {

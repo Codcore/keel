@@ -178,30 +178,41 @@ pub fn heavy(wave: &Wave) -> Option<Heavy> {
     }
     for (_, transform) in &wave.transforms {
         // "Creates or changes a contract" is read off the DECLARED
-        // FILES, in both spellings §4.1 allows. Review 0036 R-4
-        // measured a chore declaring `one new in keel/contracts/`
-        // sailing through as light -- the very hole this rule exists
-        // to close. And `contracts:` is NOT one of them: the
-        // vocabulary of chapter 3 calls it "what the work leans on",
-        // and leaning on a contract changes nothing (review R-9,
-        // which measured a lawful light wave turned red by it).
+        // FILES, in both spellings §4.1 allows -- and the reading
+        // itself lives in one place, `names_a_contract`, because the
+        // court of §2.11 asks the same question (review 0058 R-2).
+        // Review 0036 R-4 measured a chore declaring `one new in
+        // keel/contracts/` sailing through as light: the very hole
+        // this rule exists to close.
         for line in &transform.files {
-            // The NAME, not the spelling (wave 0057): `./keel/contracts/x.md`
-            // is the same contract, and a light wave must not slip
-            // past this rule by a leading dot.
-            let name = line.name();
-            let touches = match line {
-                ScopeLine::Path(_) => name.starts_with("keel/contracts/"),
-                ScopeLine::OneNewIn(_) => {
-                    name.starts_with("keel/contracts") || name == "keel/contracts/"
-                }
-            };
-            if touches {
+            if names_a_contract(line) {
                 return Some(Heavy::Contract);
             }
         }
     }
     None
+}
+
+/// Does this row of `files` name a contract? ONE question in ONE
+/// place: review 0058 R-2 measured two readings of it -- `heavy` asked
+/// `starts_with("keel/contracts")` without the slash for `one new in`,
+/// the exception of §2.11 in `check`/`next` asked it with -- and
+/// `one new in keel/contractsfoo/` passed one and failed the other,
+/// so the wave was light by one rule and full by the other: the very
+/// dead end wave 0058 exists to close.
+///
+/// The NAME, not the spelling (wave 0057): `./keel/contracts/x.md` is
+/// the same contract, and a light wave must not slip past this rule
+/// by a leading dot. The bare directory counts, because `one new in
+/// keel/contracts` is how §4.1 lets a person say "a contract, name
+/// still unknown"; `keel/contractsfoo/` is a different directory and
+/// counts for nothing. And `contracts:` is NOT one of these rows: the
+/// vocabulary of chapter 3 calls it "what the work leans on", and
+/// leaning on a contract changes nothing (review R-9, which measured
+/// a lawful light wave turned red by it).
+pub fn names_a_contract(line: &ScopeLine) -> bool {
+    let name = line.name();
+    name == "keel/contracts" || name.starts_with("keel/contracts/")
 }
 
 /// A contract is a promise that outlives its wave (§2.6-§2.8).

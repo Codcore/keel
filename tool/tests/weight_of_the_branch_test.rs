@@ -172,13 +172,26 @@ fn the_weight_is_read_from_the_branch_too() {
         !said.contains("легка хвиля їде в свій один PR"),
         "and `next` does not lead a contract change to one PR:\n{said}"
     );
-    // The instead of a wave without a promise does not send it to
-    // name the contract -- §2.11 would take it there (review 0052
-    // R-5); and where it is named anyway, `next` reads §2.11 as
-    // `check` does, never "time for the PR".
+    // The step's new word, held by its substance (review 0058 R-1).
+    // Until then the assert was `contains("дай їй сценарій") ||
+    // contains("§2.11")`, and the old text -- the one the exception
+    // made false -- satisfied it just as well: a mutant putting it
+    // back walked through the whole battery. Since the exception of
+    // §2.11 such a wave is lawful, so the step names the ONE move
+    // that makes it so, and its price.
     assert!(
-        said.contains("дай їй сценарій") || said.contains("§2.11"),
-        "a chores-only wave is told to get a promise or drop the change:\n{said}"
+        said.contains("назви його у files") && said.contains("§6.8") && said.contains("§2.11"),
+        "the step names the move that makes such a wave lawful -- name the \
+         contract among the files of a transform, and the wave is full:\n{said}"
+    );
+    assert!(
+        said.contains("план окремо, робота окремо"),
+        "and the price of that move: two approvals, plan apart and work \
+         apart (§2.11's exception):\n{said}"
+    );
+    assert!(
+        !said.contains("дай їй сценарій"),
+        "and it no longer asks for a promise a prose fix does not have:\n{said}"
     );
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),

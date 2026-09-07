@@ -427,11 +427,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         // not through `docs::heavy`, because that one answers with
         // the first reason it finds, and `Transforms` outranks
         // `Contract`.
-        let carries_a_contract = wave.transforms.iter().any(|(_, tr)| {
-            tr.files
-                .iter()
-                .any(|line| line.name().starts_with("keel/contracts/"))
-        });
+        let carries_a_contract = wave
+            .transforms
+            .iter()
+            .any(|(_, tr)| tr.files.iter().any(docs::names_a_contract));
         let chores_only = chores_only && !carries_a_contract;
         // A wave with no scenario cannot withdraw one, so that road
         // of `heavy` never leads here (review 0052 R-8).
