@@ -320,21 +320,23 @@ fn wave_step(root: &Path, wave: &docs::Wave, waves: &[docs::Wave]) -> Result<Str
         // Every `one new in` line promises exactly one file (§4.1;
         // review 0012 R-8): any other count leaves the transform the
         // step -- "assembled" is not said over what scope reddens.
-        let mut dirs: BTreeMap<&str, usize> = BTreeMap::new();
+        // Keyed by the NAME the row means, like the filter below
+        // (review 0057 R-9).
+        let mut dirs: BTreeMap<String, usize> = BTreeMap::new();
         for line in &transform.files {
-            if let docs::ScopeLine::OneNewIn(d) = line {
-                *dirs.entry(d.as_str()).or_insert(0) += 1;
+            if let docs::ScopeLine::OneNewIn(_) = line {
+                *dirs.entry(line.name()).or_insert(0) += 1;
             }
         }
         // By the name the row means, not its spelling (wave 0057).
         let untouched = transform.files.iter().any(|line| match line {
             docs::ScopeLine::Path(_) => !changed.contains(line.name().as_str()),
-            docs::ScopeLine::OneNewIn(d) => {
+            docs::ScopeLine::OneNewIn(_) => {
                 added
                     .iter()
                     .filter(|f| f.starts_with(line.name().as_str()))
                     .count()
-                    != dirs[d.as_str()]
+                    != dirs[&line.name()]
             }
         });
         if !untouched {
