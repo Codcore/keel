@@ -25,7 +25,6 @@ decisions:
   performance.capacity: "не застосовується"
   performance.resource-utilisation: "не застосовується"
   compatibility.co-existence: "тримає ця хвиля: launcher не міняє PATH людини — він лише додає /usr/bin і /bin ДО свого власного, і лише якщо їх там нема; те, що людина поклала в PATH сама, лишається попереду"
-  compatibility.interoperability: "не застосовується"
   interaction.appropriateness-recognisability: "не застосовується"
   interaction.learnability: "не застосовується"
   interaction.operability: "не застосовується"
@@ -37,6 +36,7 @@ decisions:
   reliability.fault-tolerance: "названо межу: launcher не вміє працювати БЕЗ /usr/bin і /bin зовсім — він шелловий скрипт і кличе утиліти; хвиля робить те, що можна: не покладатись на PATH, який дав чужий процес"
   reliability.recoverability: "не застосовується"
   security.confidentiality: "не застосовується"
+  compatibility.interoperability: "названо межу (рецензія 0062 R-6): доповнений PATH ЕКСПОРТУЄТЬСЯ, тож його успадковує все, що launcher запускає далі — бінарник keel, git, адаптер і батарея чужого проєкту; у проєкті, де людина звузила PATH навмисно, батарея побачить його ширшим на дві системні теки"
   security.integrity: "названо ризик і його межу: додавати теки в PATH — це вибір, ЯКИЙ бінарник побіжить. Додаються рівно дві системні теки і рівно в кінець власного PATH, тож підмінити ними нічого не можна: що людина поставила попереду, те й виграє"
   security.non-repudiation: "не застосовується"
   security.accountability: "не застосовується"
@@ -48,7 +48,7 @@ decisions:
   maintainability.modifiability: "не застосовується"
   flexibility.adaptability: "не застосовується"
   flexibility.scalability: "не застосовується"
-  flexibility.installability: "не застосовується"
+  flexibility.installability: "названо вголос (рецензія 0062 R-6): виправлення живе у ФАЙЛІ launcher-а, який install.sh пише під час установки, тож у того, у кого launcher уже стоїть, він лишається зламаним, доки людина не перевстановить keel новішої версії. Іншої дороги нема: launcher себе не оновлює — і це та сама межа, яку контракт уже називає про пін"
   flexibility.replaceability: "не застосовується"
   safety.operational-constraints: "не застосовується"
   safety.risk-identification: "не застосовується"
@@ -101,6 +101,13 @@ nonexistent` — те саме, що дає графічний клієнт), **
 Перші рядки launcher-а: якщо в PATH нема `/usr/bin` — додати його і
 `/bin` у кінець. Не заміна PATH, а доповнення; вибір людини не
 чіпається.
+
+**Дві межі, названі вголос після рецензії (R-6).** Перша: виправлення
+доїжджає лише перевстановленням — launcher себе не оновлює, тож у того,
+хто вже поставив keel, він лишається зламаним до наступного
+`install.sh`. Друга: доповнений PATH експортується далі і його
+успадковує все, що launcher запускає, — бінарник, git, адаптер,
+батарея чужого проєкту.
 
 **Дрейф (§4.6), названий тут.** `tool/tests/frame_tongue_test.rs` план
 не називав. Це та проба, що вперше почервоніла на машині оператора, і
