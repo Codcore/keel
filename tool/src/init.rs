@@ -254,11 +254,14 @@ fn ignore_row(root: &Path) -> String {
     if leavings.is_empty() {
         return t("init-ignore-leaves-nothing");
     }
+    // Every row of the list carries the two spaces of its
+    // neighbours: the caller indents the FIRST line only, and before
+    // this the second and later rows stood out (review 0057 R-6).
     leavings
         .iter()
-        .map(|left| ignore_row_for(root, left))
+        .map(|left| ignore_row_for(root, &left.path))
         .collect::<Vec<String>>()
-        .join("\n")
+        .join("\n  ")
 }
 
 /// One leaving, judged: is git already ignoring it, by a rule that

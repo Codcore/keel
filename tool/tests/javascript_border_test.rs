@@ -322,14 +322,16 @@ fn a_tongue_that_cannot_tell_says_so() {
         "and names the file in test/ it did not read:\n{said}"
     );
 
-    // The frame's own row about this tongue: nothing is built, so
-    // there is no build directory to ignore -- said, not guessed
-    // (review 0046 R-11 asked where the javascript case of that
-    // probe was).
+    // The frame's own row about this tongue: what npm LEAVES, named
+    // by the adapter -- said, not guessed (review 0046 R-11 asked
+    // where the javascript case of that probe was). Until wave 0057
+    // the row said "this tongue builds nothing", which was true of
+    // the build directory and false of the tree: `npm install`
+    // writes node_modules/ (queue after 0055, bugs R-21).
     let (said, _) = keel(&dir, &["init"]);
     assert!(
-        said.contains("нічого не збирає"),
-        "the ignore row says this tongue builds nothing:\n{said}"
+        said.contains("node_modules/"),
+        "the ignore row names what npm leaves in the tree:\n{said}"
     );
 
     // And `keel next` names the directory the project KEEPS its

@@ -20,6 +20,7 @@ transforms:
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/scope_path_test.rs
+      - tool/tests/weight_test.rs
       - keel/contracts/tool-scope.md
   the-tongue-names-its-leavings:
     implements: [the-tongue-names-what-its-runner-leaves]
@@ -34,6 +35,7 @@ transforms:
       - keel/contracts/tool-adapter-javascript.md
       - keel/contracts/tool-adapter-ruby.md
       - tool/tests/leavings_test.rs
+      - tool/tests/javascript_border_test.rs
   the-advice-leads-with-the-release:
     implements: [the-advice-leads-with-the-road-that-works]
     files:
@@ -188,16 +190,46 @@ cargo), а `KEEL_REF` стоїть другим і названий тим, чи
 стоять `docs.rs`, `check.rs`, `next.rs` і обидві мови (`scope-outside`
 — нові слова).
 
+**Дрейф рецензії (§4.6).** Дві проби дописано в files уже після
+вироку: `weight_test.rs` — бо дірку ваги (`./keel/contracts/…`)
+виправили без проби, і мутант, що читав сире написання, проходив усю
+батарею (R-4); `javascript_border_test.rs` — бо перейменований ключ
+слів лишив його червоним, а з ним **недоведеною закриту хвилю 0046**
+(R-1, важка). Червону батарею я проґавив власним заміром: прогнав її
+крізь `sort | uniq -c | sort -rn | head -8`, і єдиний рядок FAILED
+опинився за межею `head`. Тепер батарея рахується кодом виходу cargo
+і сумою всіх рядків `test result`.
+
+**Ще одна межа, названа рецензією 0057 R-11:** `one_name` обрізає
+пробіли з країв рядка — тож `" src/a.rs "` теж один файл із
+`src/a.rs`. Це названо в контракті поруч із межею `..`, а не лишене
+приємною несподіванкою.
+
 ## transform: the-tongue-names-its-leavings
 
-`adapter.rs`: `leavings(root) -> Vec<String>` — що бігун цієї мови
-лишає в дереві (`__pycache__/`, `.pytest_cache/` для python;
-`node_modules/` для javascript; `.rspec_status` для ruby; для rust і
-elixir — тека збірки, яку вони вже мають). `scope.rs`: меблі питають
-цей перелік раз на порівняння, поруч із lock-файлами. `init.rs`: рада
-ignore називає всі шляхи мови, а не одну теку, і слово «ця мова нічого
-не збирає» лишається тільки там, де це правда. Контракти адаптерів і
-`tool-scope.md` кажуть це.
+`adapter.rs`: `leavings(root) -> Vec<Leaving>` — що бігун цієї мови
+лишає в дереві **і де це можна зустріти**: `__pycache__/` і
+`.pytest_cache/` для python, `node_modules/` для javascript — на
+будь-якій глибині; тека збірки rust і elixir — на своєму місці.
+`scope.rs`: меблі питають цей перелік раз на порівняння, поруч із
+lock-файлами. `init.rs`: рада ignore називає всі шляхи мови, а не одну
+теку. Контракти адаптерів і `tool-scope.md` кажуть це.
+
+**Замір виправив обіцянку і тут (§4.6).** План писав, що ruby лишає
+`.rspec_status`. Зміряно: у голому проєкті ні `ruby -Itest`, ні
+`rspec` не лишили нічого свого (`.rspec_status` пише лише той, хто
+налаштував `example_status_persistence_file_path`, і це рядок
+проєкту, не мови). Тож перелік ruby **порожній**, і рада каже це
+вголос — «бігун цієї мови не лишає в дереві нічого свого». Сценарій
+обіцяв «те саме для javascript і ruby»; для ruby «те саме» означає
+чесний порожній перелік, і це названо тут, а не залишене здогадом
+(рецензія 0057 R-8).
+
+**Межа, названа рецензією 0057 R-7.** Де саме зустрічати лишок —
+слово адаптера, не здогад із форми рядка: інакше `docs/target/notes.md`
+і `vendor/node_modules/mine/index.js` тихо випадали зі scope. Проба
+грає обидва боки: файл, чиє ІМʼЯ несе лишок (`my__pycache__helper.py`),
+лишається дрейфом.
 
 ## transform: the-advice-leads-with-the-release
 

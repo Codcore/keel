@@ -223,17 +223,22 @@ pub fn plan_findings(
 /// courts. A project's own file under a generated name that the tool
 /// never wrote is code here -- named in the contract.
 /// A path the tongue's runner left, not the wave's work (wave 0057):
-/// `tests/__pycache__/a.pyc` is pytest's, wherever it sits. A leaving
-/// of one segment (`__pycache__/`) is met at ANY depth -- pytest
-/// writes one beside every module it imports; a leaving that names a
-/// place (`tool/target/`) is met at that place alone.
-fn left_by_runner(file: &str, leavings: &[String]) -> bool {
+/// `tests/__pycache__/a.pyc` is pytest's, wherever it sits. WHERE a
+/// leaving may be met is the adapter's word, not a guess from its
+/// shape: `__pycache__/` and `node_modules/` at any depth, a build
+/// directory at its own place alone. Review 0057 R-7 measured the
+/// guess: a project's own `docs/target/notes.md` and
+/// `vendor/node_modules/mine/index.js` fell silently out of scope.
+fn left_by_runner(file: &str, leavings: &[crate::adapter::Leaving]) -> bool {
     leavings.iter().any(|left| {
-        let left = left.trim_end_matches('/');
-        if left.contains('/') {
-            file.starts_with(&format!("{left}/"))
+        let name = left.path.trim_end_matches('/');
+        if name.is_empty() {
+            return false;
+        }
+        if left.anywhere {
+            file.split('/').any(|part| part == name)
         } else {
-            file.split('/').any(|part| part == left)
+            file.starts_with(&format!("{name}/"))
         }
     })
 }
@@ -243,7 +248,7 @@ fn furniture(
     config: &Config,
     file: &str,
     locks: &[String],
-    leavings: &[String],
+    leavings: &[crate::adapter::Leaving],
 ) -> bool {
     file.starts_with("keel/")
         || file == "keel.toml"

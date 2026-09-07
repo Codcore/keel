@@ -444,7 +444,7 @@ check-checked-head = what was checked:
 check-checked-headers = headers -- vocabulary and shape (chapters 2-4, §7.9)
 check-checked-refs = contract references and their revisions (§7.1, §7.3), an old revision judged against the file's history for closed waves (§5.6)
 check-checked-graph = graph links (chapter 3: cuts, silence, implements, depends_on, successors, scope crossings of open waves; §7.2, §8.8, §10.3)
-check-checked-scope = scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8; outside the comparison, as furniture: keel/, keel.toml, generated files in the shape this release writes, and the lock file the tongue's runner leaves)
+check-checked-scope = scope of the branch named as a wave (§4.1, §4.4-§4.6, §4.8; outside the comparison, as furniture: keel/, keel.toml, generated files in the shape this release writes, the lock file of the tongue, and what its runner leaves -- directories such as __pycache__/ or a build directory)
 check-checked-tags = scenario revisions in test tags (§5.5, §7.5) and tags vanished against the fork point (§7.15)
 check-checked-trust = trust of verify/ci commands against recorded fingerprints (§7.16, §2.8)
 check-checked-holding = the form of contracts held (§7.6, §2.9)
@@ -622,13 +622,13 @@ init-stands = { "  " }already stands: { $piece } — not a byte is touched
 init-fed = { "  " }fed: { $piece } — .gitkeep, so the standing empty directory outlives git
 init-failed = { "  " }did not stand: { $piece } — { $error }; instead: clear the obstruction and re-run keel init
 init-config-header = keel.toml — keel's settings in this project; uncomment a line to enable it, the defaults stay with keel's own words (where this vocabulary comes from: keel method §2.9)
-init-ignore-missing = ignore rules: git ignores nothing of the adapter's build directory ({ $path }) — add exactly this line to .gitignore: { $rule } (the frame advises; it writes no file of the project's own)
-init-ignore-stands = ignore rules: the build directory ({ $path }) stands ignored — the rule comes from { $source }, and it travels with the repository
-init-ignore-exclude-only = ignore rules: { $path } is ignored only by { $source }, which does not travel with the repository — add exactly this line to .gitignore: { $rule }
-init-ignore-no-crate = ignore rules: the adapter found no crate to name a build directory by ({ $error })
-init-ignore-no-adapter = ignore rules: no adapter of this release is named in keel.toml, so there is no build directory to name
+init-ignore-missing = ignore rules: git ignores nothing of { $path } -- what this tongue's runner leaves — add exactly this line to .gitignore: { $rule } (the frame advises; it writes no file of the project's own)
+init-ignore-stands = ignore rules: { $path }, what the runner leaves, stands ignored — the rule comes from { $source }, and it travels with the repository
+init-ignore-exclude-only = ignore rules: { $path }, what the runner leaves, is ignored only by { $source }, which does not travel with the repository — add exactly this line to .gitignore: { $rule }
+init-ignore-no-crate = ignore rules: the adapter found no crate to name what its runner leaves by ({ $error })
+init-ignore-no-adapter = ignore rules: no adapter of this release is named in keel.toml, so there is nobody to say what a runner leaves
 init-ignore-leaves-nothing = ignore rules: this tongue's runner leaves nothing of its own in the tree -- there is nothing to ignore
-init-ignore-unknown-adapter = ignore rules: the adapter is named "{ $name }", and this release does not serve it — its own wave will bring its build directory
+init-ignore-unknown-adapter = ignore rules: the adapter is named "{ $name }", and this release does not serve it — its own wave will say what its runner leaves
 init-ignore-unjudged = ignore rules: git said nothing here ({ $error }) — the rule is not judged
 init-eight-seven = §8.7: turn squash and rebase merging off in the repository settings — the rule is held by the disabled button, not by memory
 init-next = onwards — keel plan <the first wave>
@@ -668,7 +668,7 @@ version-running = keel { $version } -- the binary answering
 version-pin-held = pin keel.toml: "{ $pin }" -- held; the courts judge with this very binary
 version-pin-mismatch = pin keel.toml: "{ $pin }" -- NOT this binary: the courts refuse until the pin and the binary meet
 version-pin-hand = { "  " }to take exactly that one: sh install.sh { $pin } -- or curl -fsSL { $installer } | sh -s -- { $pin }
-version-pin-road-release = { "  " }this pin's road: a published release, its archive and its .sha256 -- no git and no cargo (KEEL_REF="{ $pin }" sh install.sh does the same: the road is picked by the shape of the number, not by the variable)
+version-pin-road-release = { "  " }this pin's road: a published release, its archive and its .sha256 -- no git and no cargo (KEEL_REF={ $pin } sh install.sh does the same: the road is picked by the shape of the number, not by the variable)
 version-pin-road-ref = { "  " }this pin's road: a git ref (a branch, a tag or a commit) -- cloned and built from source, and nothing verifies a checksum there; this pin has no version shape, so no release can answer it
 version-pin-hand-border = { "  " }the border: there may be no tag of that name -- then install.sh refuses with the list of the ones there are; the tags of the older generation (v0.8.11 and below) do not build at all, the crate having lived outside tool/ back then; a version with no release and no tag of its own builds from the branch the remote leads with, and only when what it builds answers that very number
 version-pin-none = the version field is not set -- no pin; the concept advises one: version = "{ $version }"
