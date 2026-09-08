@@ -102,9 +102,18 @@ fn the_plan_meets_a_reader_before_the_merge() {
     let dir = project("planreview");
     git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
 
-    // The plan is full by every mechanical measure.
-    let (said, code) = keel(&dir, &["check"]);
-    assert_eq!(code, 0, "the plan is green by the machine:\n{said}");
+    // The plan is full by every mechanical measure EXCEPT the one
+    // wave 0066 added after this wave was written: a bare formula is
+    // now a finding of its own. That is the whole point of the two
+    // waves meeting -- what this package shows a reader, the court
+    // has since learned to say itself -- and the questions below are
+    // about the OTHER half, which no court judges.
+    let (said, _) = keel(&dir, &["check"]);
+    assert!(
+        said.contains("без причини"),
+        "the machine now names the shrug itself (wave 0066), and this \
+         probe's fixture carries exactly one:\n{said}"
+    );
 
     // And the package for a reader assembles HERE, on the plan
     // branch, where it was a refusal before this wave.
@@ -376,5 +385,99 @@ fn the_plan_package_keeps_every_promise_it_makes() {
         said.contains("не називає жодної прочитаної хвилі"),
         "and it says WHAT is wrong -- the slug names no wave -- instead \
          of advising a branch the person already stands on:\n{said}"
+    );
+}
+
+/// A chore wave whose forty answers all carry a reason: no promise
+/// closes a cut, no cut is silent, no answer is the bare formula.
+/// This is the ordinary shape of a release wave -- four of the six
+/// waves of this tree without scenarios are releases (review 0065
+/// F-4) -- and it is exactly where the package used to claim
+/// "every question above" over nothing at all.
+fn chore_project(name: &str) -> common::Sandbox {
+    let dir = keel_sandbox(name);
+    std::fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
+    std::fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(dir.join("src/lib.rs"), "pub fn a() {}\n").unwrap();
+    let mut decided = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        decided.push_str(&format!(
+            "  {cut}: \"не застосовується, бо ця хвиля піднімає одне число\"\n"
+        ));
+    }
+    std::fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        format!(
+            "---\ntransforms:\n  work:\n    chore: \"одне число\"\n    files:\n      - src/lib.rs\n{decided}---\n\n## transform: work\nтіло роботи\n"
+        ),
+    )
+    .unwrap();
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    dir
+}
+
+/// proves: the-plan-meets-a-reader-before-the-merge@6db853 -- the
+/// package says so when it has nothing to ask.
+///
+/// Debt of review 0065 F-4, and review 0066 F-6 found it paid with no
+/// probe at all: a mutant that removed the line entirely left the
+/// whole battery green. The package used to end with "every question
+/// above is «yes or no, and why»" over a body with no questions in
+/// it -- on a release wave, the one wave whose single expensive
+/// answer is the semver number itself.
+#[test]
+fn the_plan_package_says_when_it_has_nothing_to_ask() {
+    let dir = chore_project("planquiet");
+    git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
+    let (said, code) = keel(&dir, &["review"]);
+    assert_eq!(
+        code, 0,
+        "a plan branch of a chore wave gives a package:\n{said}"
+    );
+    assert!(
+        said.contains("питань нема"),
+        "and the package says aloud that it has nothing to ask:\n{said}"
+    );
+    assert!(
+        !said.contains("кожне питання вище"),
+        "instead of pointing at questions it never printed:\n{said}"
+    );
+
+    // And it stops saying so the moment one section fills: a single
+    // bare formula is a question, and then the footer must go back to
+    // pointing at it.
+    //
+    // The formula here is CAPITALIZED on purpose. Review 0066 F-4
+    // measured two courts answering the same question by different
+    // rules -- `keel check` reddened on "Не застосовується" while the
+    // plan package said aloud "no questions here". There is one
+    // function now (`graph::is_formula_alone`), and this line is what
+    // holds it: put the old private copy back, and this case fails.
+    let dir = chore_project("planquietnot");
+    let card = dir.join("keel/waves/0001-a-wave.md");
+    let text = std::fs::read_to_string(&card).unwrap().replace(
+        "  security.integrity: \"не застосовується, бо ця хвиля піднімає одне число\"",
+        "  security.integrity: \"Не застосовується\"",
+    );
+    std::fs::write(&card, text).unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "one shrug"]);
+    git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
+    let (said, code) = keel(&dir, &["review"]);
+    assert_eq!(code, 0, "the package still builds:\n{said}");
+    assert!(
+        said.contains("security.integrity"),
+        "and now it names the one empty answer:\n{said}"
+    );
+    assert!(
+        !said.contains("питань нема"),
+        "so «no questions» is gone the moment there is one:\n{said}"
     );
 }

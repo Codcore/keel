@@ -25,7 +25,9 @@ fn all_decided_except(covered: &[&str]) -> String {
     let mut block = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
         if !covered.contains(cut) {
-            block.push_str(&format!("  {cut}: \"n/a\"\n"));
+            block.push_str(&format!(
+                "  {cut}: \"n/a, бо ця пісочниця грає інший розріз\"\n"
+            ));
         }
     }
     block
@@ -533,7 +535,9 @@ fn silence_forbidden() {
             && *cut != "performance.capacity"
             && *cut != "safety.fail-safe"
         {
-            decisions.push_str(&format!("  {cut}: \"n/a\"\n"));
+            decisions.push_str(&format!(
+                "  {cut}: \"n/a, бо ця пісочниця грає інший розріз\"\n"
+            ));
         }
     }
     write(

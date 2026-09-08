@@ -114,7 +114,7 @@ fn plan_package(root: &Path, wave: &docs::Wave, silent: &[String]) -> Result<Str
     let mut shrugs: Vec<(String, String)> = wave
         .decisions
         .iter()
-        .filter(|(_, said)| is_bare_formula(said))
+        .filter(|(_, said)| crate::graph::is_formula_alone(said))
         .map(|(cut, said)| (cut.clone(), said.trim().to_string()))
         .collect();
     shrugs.sort();
@@ -175,6 +175,19 @@ fn plan_package(root: &Path, wave: &docs::Wave, silent: &[String]) -> Result<Str
         .unwrap();
     }
 
+    // A package with no question in it is the case this tool is most
+    // likely to meet on a release wave -- no promise, every answer
+    // explained -- and review 0065 F-4 measured it: four lines, and
+    // not one of them says that nothing was found. Silence that looks
+    // like a broken command is worse than a short answer.
+    // And then the footer is NOT printed: it points at "every question
+    // above", and above there are none. Review 0066 F-6 caught the
+    // package saying both in one breath -- the payment of 0065 F-4 was
+    // made without a probe, and half of it was missing.
+    if silent.is_empty() && by_promise.is_empty() && shrugs.is_empty() {
+        writeln!(out, "\n  {}", t("review-plan-nothing")).unwrap();
+        return Ok(out);
+    }
     writeln!(out, "\n{}", t("review-plan-footer")).unwrap();
     Ok(out)
 }
@@ -206,18 +219,6 @@ fn promise_line(text: &str, name: &str) -> String {
             cut
         }
     }
-}
-
-/// An answer that is the FORMULA and nothing else. Measured over all
-/// 64 waves of this tree: no answer in it stands between "formula
-/// alone" and "formula plus an explanation", so the question is asked
-/// exactly, and neither a length nor a word list is needed.
-fn is_bare_formula(said: &str) -> bool {
-    let said = said.trim().trim_end_matches(['.', '—', '-', ':']).trim();
-    matches!(
-        said,
-        "не застосовується" | "not applicable" | "does not apply" | "н/д" | "n/a"
-    )
 }
 
 /// The wave's file, read the one way BOTH packages read it.
