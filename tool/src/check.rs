@@ -402,7 +402,20 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             }
             Err(refusal) => push_refusal_row(&mut rows, root, &refusal),
         }
-        for (reason, instead) in graph::wave_findings(wave) {
+        // §10.3 asks an answer to carry a REASON, and until wave 0066
+        // the machine only asked whether an answer was there at all.
+        // Only for a wave still being WRITTEN: history is not
+        // rewritten by a new rule -- 831 bare answers stand in the
+        // waves already merged (the operator's decision of
+        // 2026-09-08). "Still being written" is this project's own
+        // word, asked the same way §5.6 asks it.
+        let still_open = !open_slugs.is_empty() && open_slugs.iter().any(|s| *s == wave.slug);
+        let reason_rows = if still_open {
+            graph::reason_findings(wave)
+        } else {
+            Vec::new()
+        };
+        for (reason, instead) in graph::wave_findings(wave).into_iter().chain(reason_rows) {
             rows.push((
                 wave_path.clone(),
                 Some(format!(
