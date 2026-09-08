@@ -102,9 +102,18 @@ fn the_plan_meets_a_reader_before_the_merge() {
     let dir = project("planreview");
     git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
 
-    // The plan is full by every mechanical measure.
-    let (said, code) = keel(&dir, &["check"]);
-    assert_eq!(code, 0, "the plan is green by the machine:\n{said}");
+    // The plan is full by every mechanical measure EXCEPT the one
+    // wave 0066 added after this wave was written: a bare formula is
+    // now a finding of its own. That is the whole point of the two
+    // waves meeting -- what this package shows a reader, the court
+    // has since learned to say itself -- and the questions below are
+    // about the OTHER half, which no court judges.
+    let (said, _) = keel(&dir, &["check"]);
+    assert!(
+        said.contains("без причини"),
+        "the machine now names the shrug itself (wave 0066), and this \
+         probe's fixture carries exactly one:\n{said}"
+    );
 
     // And the package for a reader assembles HERE, on the plan
     // branch, where it was a refusal before this wave.
