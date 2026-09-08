@@ -286,6 +286,7 @@ review-plan-decided-header = cuts decided without a reason -- a reason, or a shr
 review-plan-decided = { $cut }: "{ $said }"
 review-plan-decided-more = { "  " }…and { $count } more: §10.3 asks for a reason -- "does not apply, BECAUSE…" -- not the formula alone; at this count the question is not about one cut but about how this plan was written
 review-plan-crowded = { $scenarios } promises closing { $cuts } cuts: one decision in three voices -- worth rereading whether a pair was dragged in because the slot was free
+review-plan-nothing = no questions here: no promise closes a cut, no answer is the bare formula, and all forty are answered. This is the ordinary shape of a chore wave (a release, a journal entry); what is left to read is the card itself
 review-plan-footer = every question above is answered yes or no, and why. A person answers it, or a fresh agent; the tool only says where to look
 review-not-wave = the branch "{ $branch }" is not named as a wave (§8.2) — the package does not guess which wave it is for
 review-not-wave-instead = checkout the wave's branch: the package is assembled for the branch's wave (§9.9)

@@ -175,6 +175,14 @@ fn plan_package(root: &Path, wave: &docs::Wave, silent: &[String]) -> Result<Str
         .unwrap();
     }
 
+    // A package with no question in it is the case this tool is most
+    // likely to meet on a release wave -- no promise, every answer
+    // explained -- and review 0065 F-4 measured it: four lines, and
+    // not one of them says that nothing was found. Silence that looks
+    // like a broken command is worse than a short answer.
+    if silent.is_empty() && by_promise.is_empty() && shrugs.is_empty() {
+        writeln!(out, "\n  {}", t("review-plan-nothing")).unwrap();
+    }
     writeln!(out, "\n{}", t("review-plan-footer")).unwrap();
     Ok(out)
 }
