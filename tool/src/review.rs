@@ -17,6 +17,153 @@ use std::path::Path;
 
 /// Assembles the §9.9 package for the branch's wave (§8.2); any
 /// other branch is a refusal aloud -- which wave the package is for
+/// The wave a PLAN branch is named after (§8.2: `plan/<wave>`), or
+/// None where the branch is not one.
+fn plan_branch_wave(root: &Path, waves: &[docs::Wave]) -> Option<String> {
+    let branch = scope::current_branch(root)?;
+    let named = branch.strip_prefix("plan/")?;
+    waves
+        .iter()
+        .find(|w| w.slug == named)
+        .map(|w| w.slug.clone())
+}
+
+/// The package a plan gets: not the whole plan to read, but the
+/// places where untruth lives.
+///
+/// The requirement that shapes this is speed, and it is the operator's
+/// own (2026-09-08): a review of the plan that takes fifteen minutes
+/// of reading will not be done, and the hole stays exactly where it
+/// was. So the tool narrows -- it knows where to look, and the reader
+/// answers ten questions instead of forty.
+///
+/// What it does NOT do: judge whether an answer is true. The machine
+/// catches an ABSENT answer already (`graph-silence`); an untrue one
+/// is caught by a reader, and this package only says where.
+fn plan_package(root: &Path, wave: &docs::Wave) -> String {
+    let text = std::fs::read_to_string(root.join("keel/waves").join(format!("{}.md", wave.slug)))
+        .unwrap_or_default();
+    let mut out = t("review-plan-title");
+    out.push('\n');
+    writeln!(out, "{}", t("review-plan-why")).unwrap();
+
+    // Cuts closed by a promise, each beside the promise that closes
+    // it and the promise's own words: the reader's one question is
+    // whether THIS promise proves THIS cut, and they judge the text,
+    // never a retelling.
+    let mut covered: Vec<(String, String, String)> = Vec::new();
+    for (name, scenario) in &wave.scenarios {
+        if scenario.withdrawn.is_some() {
+            continue;
+        }
+        for cut in &scenario.covers {
+            let body = section(&text, &format!("scenario: {name}")).unwrap_or_default();
+            covered.push((cut.clone(), name.clone(), body));
+        }
+    }
+    covered.sort();
+    if !covered.is_empty() {
+        writeln!(out, "\n{}", t("review-plan-covered-header")).unwrap();
+        for (cut, scenario, body) in &covered {
+            writeln!(
+                out,
+                "  {}",
+                ta(
+                    "review-plan-covered",
+                    targs!("cut" => cut.clone(), "scenario" => scenario.clone())
+                )
+            )
+            .unwrap();
+            let line = body
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty())
+                .unwrap_or("")
+                .to_string();
+            writeln!(
+                out,
+                "{}",
+                ta("review-plan-covered-body", targs!("body" => line))
+            )
+            .unwrap();
+        }
+    }
+
+    // Cuts decided with a bare formula and no reason after it: "не
+    // застосовується" alone is mechanically an answer and empty of
+    // one. §10.3 asks for a reason -- "не застосовується, бо…".
+    let mut shrugs: Vec<(String, String)> = wave
+        .decisions
+        .iter()
+        .map(|(cut, said)| (cut.clone(), said.clone()))
+        .filter(|(_, said)| {
+            let said = said.trim();
+            !said.contains("бо")
+                && !said.contains("because")
+                && !said.contains(':')
+                && said.chars().count() < 40
+        })
+        .collect();
+    shrugs.sort();
+    if !shrugs.is_empty() {
+        writeln!(out, "\n{}", t("review-plan-decided-header")).unwrap();
+        // FIVE, and the count of the rest. The requirement that shapes
+        // this package is speed: a review that hands a person
+        // twenty-five lines is the forty-question reading it was meant
+        // to replace, and it will not be done. Five is enough to see
+        // whether this plan writes reasons at all -- which is the
+        // question §10.3 actually asks.
+        const SHOWN: usize = 5;
+        for (cut, said) in shrugs.iter().take(SHOWN) {
+            writeln!(
+                out,
+                "  {}",
+                ta(
+                    "review-plan-decided",
+                    targs!("cut" => cut.clone(), "said" => said.trim().to_string())
+                )
+            )
+            .unwrap();
+        }
+        if shrugs.len() > SHOWN {
+            writeln!(
+                out,
+                "  {}",
+                ta(
+                    "review-plan-decided-more",
+                    targs!("count" => (shrugs.len() - SHOWN) as u64)
+                )
+            )
+            .unwrap();
+        }
+    }
+
+    // More cuts closed than promises made: the rule "exactly one live
+    // cover per cut" pushes an author to drag a pair in when there
+    // are more promises than qualities they speak about -- measured
+    // on a real wave, where three promises of four were one decision
+    // in three voices.
+    let promises = wave
+        .scenarios
+        .iter()
+        .filter(|(_, s)| s.withdrawn.is_none())
+        .count();
+    if promises > 0 && covered.len() > promises {
+        writeln!(
+            out,
+            "\n  {}",
+            ta(
+                "review-plan-crowded",
+                targs!("scenarios" => promises as u64, "cuts" => covered.len() as u64)
+            )
+        )
+        .unwrap();
+    }
+
+    writeln!(out, "\n{}", t("review-plan-footer")).unwrap();
+    out
+}
+
 /// is not guessed.
 pub fn package(root: &Path) -> Result<String, Refusal> {
     let scan = docs::scan(root)?;
@@ -24,6 +171,21 @@ pub fn package(root: &Path) -> Result<String, Refusal> {
         // A package over unread documents would guess; check names
         // every broken file -- fix them first.
         return Err(refusal);
+    }
+    // The PLAN branch gets a package of its own (wave 0064). Until
+    // now this was a refusal -- "the branch is not named as a wave" --
+    // so the only fresh eye a wave ever got arrived at closing, when
+    // all the work was already done under the plan it should have
+    // judged. The forty answers are written HERE; the approval of
+    // §6.6 stands between, held by nothing but a person's reading.
+    //
+    // The suit is one and the same -- a fresh eye over promises -- so
+    // it stays one command, and the FORM of the package follows the
+    // branch, exactly as `keel next` already gives different steps on
+    // different branches (the operator's decision of 2026-09-08).
+    if let Some(slug) = plan_branch_wave(root, &scan.waves) {
+        let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
+        return Ok(plan_package(root, wave));
     }
     let Some(slug) = scope::branch_wave(root, &scan.waves) else {
         let branch = scope::current_branch(root).unwrap_or_else(|| "?".to_string());
