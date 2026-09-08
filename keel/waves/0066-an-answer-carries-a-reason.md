@@ -10,6 +10,7 @@ transforms:
     implements: [an-answer-without-a-reason-is-a-finding]
     files:
       - tool/src/graph.rs
+      - tool/src/check.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - tool/tests/reason_test.rs
@@ -112,3 +113,9 @@ decisions:
 ## transform: the-norm-says-who-holds-it
 
 §10.3 каже, що причину тримає машина, і на кого суд поширюється.
+
+**Дрейф (§4.6), названий тут.** `tool/src/check.rs` план не називав:
+суд живе в `graph`, але питання «чи ця хвиля ще пишеться» знає лише
+`check` — там уже є слово `closed`, яким §5.6 відрізняє історію від
+роботи. Кликати суд звідти означає взяти наявне поняття, а не завести
+друге, що з ним розійдеться.

@@ -14,7 +14,7 @@
 > follows them. Where the two disagree, the Ukrainian one is right —
 > and the disagreement is a defect to report, not a choice to make.
 >
-> `translated_from: 3309c4` — the revision of the Ukrainian text this
+> `translated_from: 69df21` — the revision of the Ukrainian text this
 > translation was made from (constitution, rule 4: whoever leans on a
 > text holds its revision). `keel check` compares it with the
 > Ukrainian methodology as it now stands: change the original and the
