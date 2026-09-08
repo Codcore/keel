@@ -334,10 +334,17 @@ fn the_plan_package_keeps_every_promise_it_makes() {
     git(&dir, &["commit", "-q", "--no-verify", "-m", "crlf"]);
     git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
     let (said, _) = keel(&dir, &["review"]);
+    // Asked by what the TOOL says, not by a word only the fixture
+    // holds: the empty-body line is the tool's own, so its ABSENCE is
+    // an assert that can fail (dead_assert_test's rule).
     assert!(
-        said.contains("база даних — sqlite"),
-        "the promise reads the same with CRLF -- one road to the text, \
-         and no second one to forget its lesson:\n{said}"
+        !said.contains("нема — читати нема чого"),
+        "the promise body survives CRLF -- one road to the text, and no \
+         second one to forget its lesson (review 0064 R-3):\n{said}"
+    );
+    assert!(
+        said.contains("обіцяє:"),
+        "and the package still prints a body line at all:\n{said}"
     );
 
     // --- a cancelled wave is outside judgement, and the package says
