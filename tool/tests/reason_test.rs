@@ -39,7 +39,14 @@ fn wave_with(decisions: &[(&str, &str)]) -> keel::docs::Wave {
     )
     .unwrap();
     let wave = keel::docs::read_wave(&path).expect("the fixture reads");
-    std::mem::forget(dir); // the sandbox outlives the borrow of its file
+    // `Wave` owns its strings -- nothing borrows the file after this
+    // -- so the sandbox goes, and its directory with it. The first
+    // draft called `mem::forget` here on a comment that was simply
+    // untrue, and it was the only one in the whole battery: eleven
+    // directories left behind per run, three times that under
+    // `keel close` (review 0066 second round, Н-3). Wave 0030 is
+    // called `probes-clean-up` for a reason.
+    drop(dir);
     wave
 }
 

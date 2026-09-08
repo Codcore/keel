@@ -437,7 +437,10 @@ fn the_plan_package_says_when_it_has_nothing_to_ask() {
     let dir = chore_project("planquiet");
     git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
     let (said, code) = keel(&dir, &["review"]);
-    assert_eq!(code, 0, "a plan branch of a chore wave gives a package:\n{said}");
+    assert_eq!(
+        code, 0,
+        "a plan branch of a chore wave gives a package:\n{said}"
+    );
     assert!(
         said.contains("питань нема"),
         "and the package says aloud that it has nothing to ask:\n{said}"
@@ -459,12 +462,10 @@ fn the_plan_package_says_when_it_has_nothing_to_ask() {
     // holds it: put the old private copy back, and this case fails.
     let dir = chore_project("planquietnot");
     let card = dir.join("keel/waves/0001-a-wave.md");
-    let text = std::fs::read_to_string(&card)
-        .unwrap()
-        .replace(
-            "  security.integrity: \"не застосовується, бо ця хвиля піднімає одне число\"",
-            "  security.integrity: \"Не застосовується\"",
-        );
+    let text = std::fs::read_to_string(&card).unwrap().replace(
+        "  security.integrity: \"не застосовується, бо ця хвиля піднімає одне число\"",
+        "  security.integrity: \"Не застосовується\"",
+    );
     std::fs::write(&card, text).unwrap();
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "one shrug"]);

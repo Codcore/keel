@@ -107,7 +107,10 @@ fn the_court_of_reasons_knows_where_it_may_run() {
     let dir = project("reasonopen", "performance.capacity", true);
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
     let (said, code) = keel(&dir, &["check"]);
-    assert_eq!(code, 1, "a bare formula reddens a wave being written:\n{said}");
+    assert_eq!(
+        code, 1,
+        "a bare formula reddens a wave being written:\n{said}"
+    );
     assert!(
         says_reason(&said) && said.contains("performance.capacity"),
         "and the finding names the cut whose answer says nothing:\n{said}"
@@ -118,7 +121,11 @@ fn the_court_of_reasons_knows_where_it_may_run() {
     // border, and NOTHING in the battery noticed. This case is that
     // notice.
     let dir = project("reasonclosed", "performance.capacity", true);
-    std::fs::write(dir.join("keel/reviews/0001-a-wave.md"), "# Рецензія\n\nok\n").unwrap();
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "the wave is in the trunk"]);
     let (said, code) = keel(&dir, &["check"]);
@@ -136,7 +143,11 @@ fn the_court_of_reasons_knows_where_it_may_run() {
     // long ago, printed under the tool's own line saying history is
     // not rewritten.
     let dir = project("reasonnoadapter", "performance.capacity", false);
-    std::fs::write(dir.join("keel/reviews/0001-a-wave.md"), "# Рецензія\n\nok\n").unwrap();
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "the wave is in the trunk"]);
     let (said, _) = keel(&dir, &["check"]);
