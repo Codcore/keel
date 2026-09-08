@@ -469,10 +469,21 @@ fn main() -> ExitCode {
                 }
             };
             keel::i18n::init(&config.lang);
-            let said = keel::close::judge(&root).map(|(report, blockers)| {
+            let said = keel::close::judge(&root).map(|(report, blockers, red)| {
                 let code = i32::from(blockers > 0);
-                let fields: Vec<(&'static str, serde_json::Value)> =
-                    vec![("blockers", serde_json::json!(blockers))];
+                // `red` is the same text the prose verdict carries --
+                // a field so a harness reads the reason instead of
+                // parsing a report (wave 0070, issue #45). A field
+                // ADDED leaves the envelope's version alone; only a
+                // field whose meaning changes moves it.
+                let red: Vec<serde_json::Value> = red
+                    .into_iter()
+                    .map(|one| serde_json::json!({"command": one.command, "words": one.words}))
+                    .collect();
+                let fields: Vec<(&'static str, serde_json::Value)> = vec![
+                    ("blockers", serde_json::json!(blockers)),
+                    ("red_commands", serde_json::json!(red)),
+                ];
                 (report, code, fields)
             });
             deliver("close", &root, &config.lang, json, said)

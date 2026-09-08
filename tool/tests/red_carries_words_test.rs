@@ -150,6 +150,28 @@ fn a_red_gate_carries_the_words_that_made_it_red() {
          see how far the gate got:\n{out}"
     );
 
+    // --- the window says it IS a window ---
+    // A gate that speaks more than the window holds: the report must
+    // carry both ends and say how much of the middle it cut, or the
+    // window becomes the new silence -- longer, and still lying.
+    let loud = "i=1\nwhile [ $i -le 200 ]; do echo line-$i; i=$((i+1)); done\nexit 1\n";
+    let dir = project("gateloud", loud);
+    let (out, code) = keel(&["close", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a red gate blocks the wave:\n{out}");
+    assert!(
+        out.contains("line-1") && out.contains("line-200"),
+        "both ends of a long output are in the report:\n{out}"
+    );
+    assert!(
+        out.contains("lines cut from the middle"),
+        "and the window says how much of the middle it cut -- a window \
+         that does not name itself is the new silence:\n{out}"
+    );
+    assert!(
+        !out.contains("line-100"),
+        "the middle really is cut, not merely announced:\n{out}"
+    );
+
     // --- a green gate stays silent: success is silence (§7.16) ---
     let dir = project("gatequiet", QUIET_STEPS);
     let (out, code) = keel(&["close", dir.to_str().unwrap()]);

@@ -114,7 +114,7 @@ fn directory_bytes(path: &Path) -> u64 {
         .sum()
 }
 
-pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
+pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // Research never merges (§4.13). This is the court that says
     // whether a branch may go in, so this is where the ban lives --
     // and it is said before anything is built, since nothing here
@@ -320,6 +320,10 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     // merge; distrust is check's verdict, said here by name only.
     // The project's ci follows through the same gate (wave 0019).
     let mut verify_count: u64 = 0;
+    // Every command of the repository's files that ran and failed,
+    // with its words -- verify and ci alike, in the order the court
+    // met them (wave 0070).
+    let mut red_commands: Vec<RedCommand> = Vec::new();
     let mut verify_blockers = 0usize;
     // Counted apart from the broken ones: a promise whose proof did
     // not run is not a broken promise, and one word for both would
@@ -355,6 +359,10 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
                 targs!("command" => command.clone(), "contract" => contract.slug.clone()),
             )),
             Err(words) => {
+                red_commands.push(RedCommand {
+                    command: command.clone(),
+                    words: words.clone(),
+                });
                 verify_lines.push(ta(
                     "close-verify-failed",
                     targs!("command" => command.clone(), "contract" => contract.slug.clone(), "words" => words),
@@ -441,6 +449,14 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
             Ok(()) => ta("close-ci-passed", targs!("command" => command.to_string())),
             Err(words) => {
                 ci_blocker = 1;
+                // The same words go to the JSON package as a field of
+                // their own (wave 0070): a harness that wants the
+                // reason must not parse prose to find it -- that is
+                // exactly what the package exists to spare it.
+                red_commands.push(RedCommand {
+                    command: command.to_string(),
+                    words: words.clone(),
+                });
                 ta(
                     "close-ci-failed",
                     targs!("command" => command.to_string(), "words" => words),
@@ -663,15 +679,54 @@ pub fn judge(root: &Path) -> Result<(String, usize), Refusal> {
     Ok((
         report,
         blockers + verify_blockers + form_blockers + ci_blocker + red_tests,
+        red_commands,
     ))
 }
 
+/// One command of the repository's files that ran and failed, with
+/// the words it left. The prose verdict already carries them; this is
+/// the same text in the JSON package, so a harness reads the reason
+/// from a field instead of parsing a report (wave 0070, issue #45).
+#[derive(Debug, Clone)]
+pub struct RedCommand {
+    pub command: String,
+    pub words: String,
+}
+
+/// How many lines of a red command's output the report carries from
+/// each end. Issue #45 came from a project whose gate is ten steps
+/// (setup, rubocop, erb_lint, reek, flay, flog, brakeman, gitleaks,
+/// tests, seeds): the failing step speaks in the middle, and the last
+/// line came from tailwind. A window from both ends catches the step
+/// that broke and the tail that ended it; the middle, where a
+/// thousand green lines live, is what gets cut.
+///
+/// The number is per COMMAND, not per report: this project has three
+/// `verify` commands plus its `ci`, and a budget shared between them
+/// would let the last one eat what the first needed.
+const WINDOW: usize = 40;
+
 /// Runs one trusted command from the repository's files through
 /// `sh -c` at the root -- the verify of a contract, the project's
-/// ci: success is silence; failure carries the command's last
-/// non-empty line of stderr, else stdout, else the keyed word (0010
-/// review R-5) -- no raw English inside a localized verdict. A
-/// command that does not start fails with the system's words.
+/// ci: success is silence; failure carries the command's OUTPUT, in
+/// a window from both ends, stderr then stdout, with a line saying
+/// how much was cut -- else the keyed word (0010 review R-5) when
+/// there was nothing to carry. A command that does not start fails
+/// with the system's words.
+///
+/// Wave 0070, from issue #45: this held `child.output()` -- the whole
+/// of both streams -- and kept ONE line, the last non-empty one. A
+/// ten-step gate could not be diagnosed from its own log, and the
+/// advice to run the command again is addressed to nobody on a
+/// runner, where the environment that produced the failure is gone
+/// when the job ends. The output was always in hand; it was thrown
+/// away.
+///
+/// The text carried is the command's own, verbatim: its language, its
+/// encoding, its words. Only the colours go (`visible`), because a
+/// verdict quoting an escape sequence says nothing. Nothing is
+/// masked, and the verdict says so -- a masker weaker than gitleaks
+/// would give a false calm, which is worse than an honest warning.
 fn run_command(root: &Path, command: &str) -> Result<(), String> {
     let mut child = std::process::Command::new("sh");
     child.arg("-c").arg(command).current_dir(root);
@@ -691,13 +746,58 @@ fn run_command(root: &Path, command: &str) -> Result<(), String> {
     }
     let stderr = String::from_utf8_lossy(&out.stderr);
     let stdout = String::from_utf8_lossy(&out.stdout);
-    Err(stderr
-        .lines()
-        .rev()
-        .map(visible)
-        .find(|l| !l.is_empty())
-        .or_else(|| stdout.lines().rev().map(visible).find(|l| !l.is_empty()))
-        .unwrap_or_else(|| t("close-verify-no-words")))
+    let mut said = String::new();
+    for (stream, text) in [("stderr", &stderr), ("stdout", &stdout)] {
+        let window = window_of(text);
+        if window.is_empty() {
+            continue;
+        }
+        said.push_str(&ta("close-said-stream", targs!("stream" => stream)));
+        said.push('\n');
+        said.push_str(&window);
+    }
+    if said.is_empty() {
+        return Err(t("close-verify-no-words"));
+    }
+    Err(said)
+}
+
+/// The visible lines of one stream, `WINDOW` from each end, with a
+/// line naming what was cut. Empty when the stream said nothing that
+/// survives `visible` -- a stream of pure colour is a stream of no
+/// words, and the caller skips it rather than printing a heading over
+/// nothing.
+fn window_of(text: &str) -> String {
+    let lines: Vec<String> = text.lines().map(visible).collect();
+    if lines.iter().all(|l| l.is_empty()) {
+        return String::new();
+    }
+    let mut out = String::new();
+    if lines.len() <= WINDOW * 2 + 1 {
+        for line in &lines {
+            out.push_str("    ");
+            out.push_str(line);
+            out.push('\n');
+        }
+        return out;
+    }
+    for line in &lines[..WINDOW] {
+        out.push_str("    ");
+        out.push_str(line);
+        out.push('\n');
+    }
+    out.push_str("    ");
+    out.push_str(&ta(
+        "close-said-cut",
+        targs!("count" => (lines.len() - WINDOW * 2) as u64),
+    ));
+    out.push('\n');
+    for line in &lines[lines.len() - WINDOW..] {
+        out.push_str("    ");
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
 }
 
 /// The visible text of a line: the colours a command paints are not
