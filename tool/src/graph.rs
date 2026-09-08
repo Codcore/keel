@@ -48,6 +48,26 @@ static CUTS: [&str; 40] = [
     "safety.safe-integration",
 ];
 
+/// The cuts this wave answers nowhere -- neither in a live `covers`
+/// nor in `decisions` (§10.3). The court reddens over them
+/// (`graph-silence`); the plan package asks the SAME hand, so a
+/// reader is never sent to judge a plan the tool has already refused
+/// (wave 0064, review R-5).
+pub fn silent_cuts(wave: &Wave) -> Vec<String> {
+    let mut answered: std::collections::BTreeSet<&str> = wave
+        .scenarios
+        .iter()
+        .filter(|(_, s)| s.withdrawn.is_none())
+        .flat_map(|(_, s)| s.covers.iter().map(|c| c.as_str()))
+        .collect();
+    answered.extend(wave.decisions.iter().map(|(c, _)| c.as_str()));
+    CUTS.iter()
+        .copied()
+        .filter(|c| !answered.contains(c))
+        .map(|c| c.to_string())
+        .collect()
+}
+
 pub fn cuts() -> &'static [&'static str] {
     &CUTS
 }
