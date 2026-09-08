@@ -333,13 +333,13 @@ pub fn scan_text(file: &Path, text: &str) -> Result<Vec<TestTag>, Refusal> {
                 // `-n test_greets_#{…}`, then "the run did not
                 // execute the test", then advice to check the tag,
                 // which was never the fault (review 0059 R-8).
-                if pending.is_some() && declared_here.is_none() {
-                    if let Some(name) = rails_test_name(&code) {
-                        if name.contains("#{") {
-                            let (scenario, rev) = pending.take().unwrap();
-                            return Err(js_refusal(file, "tags-rails-dynamic", &scenario, &rev));
-                        }
-                    }
+                if pending.is_some()
+                    && declared_here.is_none()
+                    && let Some(name) = rails_test_name(&code)
+                    && name.contains("#{")
+                {
+                    let (scenario, rev) = pending.take().unwrap();
+                    return Err(js_refusal(file, "tags-rails-dynamic", &scenario, &rev));
                 }
                 declared_here.or_else(|| rails_test_name(&code))
             } else {

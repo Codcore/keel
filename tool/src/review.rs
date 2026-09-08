@@ -17,17 +17,6 @@ use std::path::Path;
 
 /// Assembles the §9.9 package for the branch's wave (§8.2); any
 /// other branch is a refusal aloud -- which wave the package is for
-/// The wave a PLAN branch is named after (§8.2: `plan/<wave>`), or
-/// None where the branch is not one.
-fn plan_branch_wave(root: &Path, waves: &[docs::Wave]) -> Option<String> {
-    let branch = scope::current_branch(root)?;
-    let named = branch.strip_prefix("plan/")?;
-    waves
-        .iter()
-        .find(|w| w.slug == named)
-        .map(|w| w.slug.clone())
-}
-
 /// The package a plan gets: not the whole plan to read, but the
 /// places where untruth lives.
 ///
