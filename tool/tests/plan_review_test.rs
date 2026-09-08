@@ -75,7 +75,12 @@ fn project(name: &str) -> common::Sandbox {
             // and empty of one.
             decided.push_str(&format!("  {cut}: \"не застосовується\"\n"));
         } else {
-            decided.push_str(&format!("  {cut}: \"не про цю пісочницю\"\n"));
+            // A REASON, as §10.3 asks -- so the one shrug below is the
+            // only line the package should name, and the probe plays
+            // exactly what it promises.
+            decided.push_str(&format!(
+                "  {cut}: \"не застосовується, бо ця пісочниця грає лише один розріз\"\n"
+            ));
         }
     }
     std::fs::write(
