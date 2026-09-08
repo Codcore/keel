@@ -48,6 +48,61 @@ static CUTS: [&str; 40] = [
     "safety.safe-integration",
 ];
 
+/// The finding §10.3 asks for and the machine never made: an answer
+/// that is a formula and nothing else.
+///
+/// Asked apart from `wave_findings` because it needs to know whether
+/// the wave is still being WRITTEN. A closed wave is history: 831 bare
+/// answers of this tree's own past are not rewritten by a new rule
+/// (the operator's decision of 2026-09-08). The border is open/closed
+/// and never the number -- §8.5 says the digits in a wave's name are a
+/// unique prefix, not an order.
+pub fn reason_findings(wave: &Wave) -> Vec<(String, String)> {
+    use crate::i18n::{t, ta};
+    use crate::targs;
+    let empty: Vec<&str> = wave
+        .decisions
+        .iter()
+        .filter(|(_, said)| is_formula_alone(said))
+        .map(|(cut, _)| cut.as_str())
+        .collect();
+    if empty.is_empty() {
+        return Vec::new();
+    }
+    vec![(
+        ta("graph-no-reason", targs!("cuts" => empty.join(", "))),
+        t("graph-no-reason-instead"),
+    )]
+}
+
+/// An answer that is the FORMULA and nothing else -- mechanically an
+/// answer, and empty of one (§10.3 asks for the reason after it).
+///
+/// The list is closed and short because the tree says it can be:
+/// across all 64 waves measured before wave 0066 no answer stood
+/// between "formula alone" and "formula plus an explanation". The
+/// first attempt at this question (the plan package of wave 0064)
+/// asked about length and about words, and a reviewer measured it
+/// catching honest short reasons while missing long empty ones.
+pub fn is_formula_alone(said: &str) -> bool {
+    let said = said
+        .trim()
+        .trim_end_matches(['.', '!', '—', '-', ':', ';'])
+        .trim();
+    // An answer that trims away to nothing is the emptiest of all: a
+    // dash, a dot, a colon standing alone.
+    said.is_empty()
+        || matches!(
+            said.to_lowercase().as_str(),
+            "не застосовується"
+                | "не застосовне"
+                | "not applicable"
+                | "does not apply"
+                | "н/д"
+                | "n/a"
+        )
+}
+
 /// The cuts this wave answers nowhere -- neither in a live `covers`
 /// nor in `decisions` (§10.3). The court reddens over them
 /// (`graph-silence`); the plan package asks the SAME hand, so a

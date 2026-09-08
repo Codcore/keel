@@ -788,10 +788,15 @@ written down:
 - **decided** — a line in `decisions:` with a reason: "does not apply,
   because…" or "we deliberately do not do this, because…".
 
-There is no third answer: silence is forbidden at the level of the
-field. A cut that is in nobody's `covers` and in no `decisions` means
-the plan is incomplete, and the check is red before any review. This
-is the plan author's duty; a reviewer's pass does not lift it.
+The answer carries a REASON, and the machine holds that, not
+the text alone (the operator's decision of 2026-09-08): "does not
+apply" by itself is mechanically an answer and empty of one, so `keel
+check` calls it a finding. Waves still being written are judged; a
+closed wave is history and is not rewritten. There is no third answer:
+silence is forbidden at the level of the field. A cut that is in
+nobody's `covers` and in no `decisions` means the plan is incomplete,
+and the check is red before any review. This is the plan author's
+duty; a reviewer's pass does not lift it.
 
 **§10.4.** Refusal is a lawful answer. "There are no backups in this
 wave — the volume is zero" is a decision, said aloud and recorded with

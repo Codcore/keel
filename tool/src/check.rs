@@ -402,7 +402,32 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             }
             Err(refusal) => push_refusal_row(&mut rows, root, &refusal),
         }
-        for (reason, instead) in graph::wave_findings(wave) {
+        // §10.3 asks an answer to carry a REASON, and until wave 0066
+        // the machine only asked whether an answer was there at all.
+        // Only for a wave still being WRITTEN: history is not
+        // rewritten by a new rule -- 831 bare answers stand in the
+        // waves already merged (the operator's decision of
+        // 2026-09-08). "Still being written" is this project's own
+        // word, asked the same way §5.6 asks it.
+        // `closed` above answers "no" for two DIFFERENT reasons: the
+        // wave is being written, or the question could not be asked at
+        // all -- the project named no adapter, or one test tag in the
+        // tree is broken, and then `close::structural` says false for
+        // EVERY wave. §5.6 leans on the same `closed`, and there "no"
+        // is the safe side: a blessing withheld. Here the safe side is
+        // the opposite one, and review 0066 F-2 measured the price:
+        // with no adapter named, this court printed 49 findings over
+        // waves merged long ago, under its own line saying history is
+        // not rewritten. So the court runs only where the question was
+        // really asked -- the same `tags_judged` the scope court above
+        // already keeps.
+        let still_open = tags_judged && open_slugs.contains(&wave.slug);
+        let reason_rows = if still_open {
+            graph::reason_findings(wave)
+        } else {
+            Vec::new()
+        };
+        for (reason, instead) in graph::wave_findings(wave).into_iter().chain(reason_rows) {
             rows.push((
                 wave_path.clone(),
                 Some(format!(

@@ -62,7 +62,9 @@ fn keel(dir: &Path, args: &[&str]) -> (String, i32) {
 fn all_decided() -> String {
     let mut block = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
-        block.push_str(&format!("  {cut}: \"n/a\"\n"));
+        block.push_str(&format!(
+            "  {cut}: \"n/a, бо ця пісочниця грає інший розріз\"\n"
+        ));
     }
     block
 }
