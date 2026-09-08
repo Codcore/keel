@@ -65,7 +65,7 @@ fn main() {
             }
         }
     }
-    worst.sort_by(|a, b| b.0.cmp(&a.0));
+    worst.sort_by_key(|row| std::cmp::Reverse(row.0));
     println!("files scanned: {files}");
     println!("files whose text changed: {changed}");
     println!("files LOSING a declaration: {lost_files} (total lost: {lost_total})");

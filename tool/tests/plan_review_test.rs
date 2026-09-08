@@ -163,32 +163,6 @@ fn the_plan_meets_a_reader_before_the_merge() {
 fn the_plan_package_keeps_every_promise_it_makes() {
     // --- SPEED: the package stays short whatever the plan's size ---
     let dir = project("planbig");
-    let mut wave = String::from("---\nscenarios:\n");
-    for n in 1..=6 {
-        wave.push_str(&format!(
-            "  promise-{n}:\n    covers: [{}]\n",
-            [
-                "functional.correctness",
-                "functional.completeness",
-                "performance.capacity",
-                "security.integrity",
-                "reliability.availability"
-            ]
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| *i < 5)
-            .map(|(_, c)| format!("{c}-{n}"))
-            .collect::<Vec<_>>()
-            .join(", ")
-            .replace("-1", "")
-            .replace("-2", "")
-            .replace("-3", "")
-            .replace("-4", "")
-            .replace("-5", "")
-            .replace("-6", "")
-        ));
-        break;
-    }
     // A plan with SIX promises over the real cut names: the shape
     // review 0064 measured at 75 lines.
     let mut scenarios = String::from("scenarios:\n");
@@ -205,7 +179,7 @@ fn the_plan_package_keeps_every_promise_it_makes() {
     }
     let mut decided = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
-        if cuts.contains(&cut.as_ref()) {
+        if cuts.contains(cut) {
             continue;
         }
         decided.push_str(&format!(
@@ -223,7 +197,6 @@ fn the_plan_package_keeps_every_promise_it_makes() {
         format!("---\n{scenarios}transforms:\n  work:\n    implements:\n      - promise-0\n    files:\n      - src/lib.rs\n{decided}---\n\n{body}## transform: work\nтіло роботи\n"),
     )
     .unwrap();
-    let _ = wave;
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "six promises"]);
     git(&dir, &["checkout", "-q", "-b", "plan/0001-a-wave"]);
