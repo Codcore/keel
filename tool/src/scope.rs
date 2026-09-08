@@ -66,14 +66,14 @@ static REMEMBERED: std::sync::OnceLock<
 /// tree at all. Anything about the WORKING state -- the branch, the
 /// diff, the status -- is asked fresh, every time.
 fn may_be_remembered(args: &[&str]) -> bool {
-    match args {
-        ["show", _] => true,
-        ["log", "--format=%H", "--", _] => true,
-        ["rev-parse", "--git-dir"] => true,
-        ["rev-parse", "--is-shallow-repository"] => true,
-        ["rev-parse", "--show-toplevel"] => true,
-        _ => false,
-    }
+    matches!(
+        args,
+        ["show", _]
+            | ["log", "--format=%H", "--", _]
+            | ["rev-parse", "--git-dir"]
+            | ["rev-parse", "--is-shallow-repository"]
+            | ["rev-parse", "--show-toplevel"]
+    )
 }
 
 pub(crate) fn remembered(root: &Path, args: &[&str]) -> Option<String> {
@@ -90,10 +90,10 @@ pub(crate) fn remembered(root: &Path, args: &[&str]) -> Option<String> {
     }
     let key = (root.to_path_buf(), args.join("\u{1f}"));
     let memory = REMEMBERED.get_or_init(Default::default);
-    if let Ok(seen) = memory.lock() {
-        if let Some(answer) = seen.get(&key) {
-            return Some(answer.clone());
-        }
+    if let Ok(seen) = memory.lock()
+        && let Some(answer) = seen.get(&key)
+    {
+        return Some(answer.clone());
     }
     let answer = git_at(root)
         .args(args)
