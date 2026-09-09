@@ -361,7 +361,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
             Err(words) => {
                 red_commands.push(RedCommand {
                     command: command.clone(),
-                    words: words.clone(),
+                    words: unmarked(&words),
                 });
                 verify_lines.push(ta(
                     "close-verify-failed",
@@ -455,7 +455,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
                 // exactly what the package exists to spare it.
                 red_commands.push(RedCommand {
                     command: command.to_string(),
-                    words: words.clone(),
+                    words: unmarked(&words),
                 });
                 ta(
                     "close-ci-failed",
@@ -774,6 +774,7 @@ fn run_command(root: &Path, command: &str) -> Result<(), String> {
         if window.is_empty() {
             continue;
         }
+        said.push(FRAME_MARK);
         said.push_str(&ta("close-said-stream", targs!("stream" => stream)));
         said.push('\n');
         said.push_str(&window);
@@ -782,7 +783,7 @@ fn run_command(root: &Path, command: &str) -> Result<(), String> {
         return Err(t("close-verify-no-words"));
     }
     if mangled {
-        said.push(QUOTE_MARK);
+        said.push(FRAME_MARK);
         said.push_str("    ");
         said.push_str(&t("close-said-not-utf8"));
         said.push('\n');
@@ -823,25 +824,59 @@ const FLOOR_PER_COMMAND: usize = 6;
 /// cut. A ceiling that eats the verdict is worse than no ceiling.
 const QUOTE_MARK: char = '\u{1}';
 
+/// The same words without the marks: what goes into the JSON package
+/// and into any other reader that is not the report. The marks are
+/// the report's own bookkeeping, and a package carrying them would
+/// break the promise that the field holds the same text as the prose
+/// (review 0070, third round: six U+0001 per red command).
+fn unmarked(words: &str) -> String {
+    words.replace(QUOTE_MARK, "").replace(FRAME_MARK, "")
+}
+
+/// The mark on the court's OWN lines inside a block -- the frame that
+/// says whose stream this is, how much is shown, how much was cut,
+/// whether the bytes were UTF-8. They belong to the block, so the
+/// ceiling must see them to know where a block ends -- and they are
+/// the court speaking, so the ceiling must never eat them.
+///
+/// The first cut of the ceiling marked them like the quote itself,
+/// and every block lost its own "N shown, M cut" line: the window
+/// stopped saying it was a window in exactly the report where the
+/// ceiling made it one.
+const FRAME_MARK: char = '\u{2}';
+
 /// The report with its quoted lines bounded, and bounded FAIRLY: each
-/// command's block keeps at least `FLOOR_PER_COMMAND` lines, and the
-/// rest of the ceiling is shared evenly. The court's own verdicts are
-/// never touched -- they carry no `QUOTE_MARK`.
+/// command's block keeps at least `FLOOR_PER_COMMAND` quoted lines,
+/// and the rest of the ceiling is shared evenly.
+///
+/// Two things are never cut. The court's verdicts outside a block
+/// carry no mark at all. The court's frame INSIDE a block -- whose
+/// stream, how much shown, how much cut, whether the bytes were UTF-8
+/// -- carries `FRAME_MARK`, so the ceiling can see where the block
+/// ends without eating the only line that says the block was cut.
+///
+/// `REPORT_CAP` is therefore a target, not a hard bound: with more
+/// red commands than `REPORT_CAP / FLOOR_PER_COMMAND`, the floor
+/// wins and the report grows -- 101 red commands keep 606 lines, not
+/// 400. That is deliberate: a command with no words at all is the
+/// defect this wave exists to remove, and a ceiling that restores it
+/// for the last commands would restore it in the worst place.
 fn capped_report(report: String) -> String {
+    let marked = |l: &str| l.starts_with(QUOTE_MARK) || l.starts_with(FRAME_MARK);
     let quoted = report.lines().filter(|l| l.starts_with(QUOTE_MARK)).count();
     if quoted <= REPORT_CAP {
-        return report.replace(QUOTE_MARK, "");
+        return report.replace(QUOTE_MARK, "").replace(FRAME_MARK, "");
     }
     // How many blocks there are: a block is a run of quoted lines,
     // and one command may have two (stderr and stdout).
     let mut blocks = 0usize;
     let mut inside = false;
     for line in report.lines() {
-        let marked = line.starts_with(QUOTE_MARK);
-        if marked && !inside {
+        let here = marked(line);
+        if here && !inside {
             blocks += 1;
         }
-        inside = marked;
+        inside = here;
     }
     let allowance = (REPORT_CAP / blocks.max(1)).max(FLOOR_PER_COMMAND);
 
@@ -852,35 +887,52 @@ fn capped_report(report: String) -> String {
     let mut out = String::with_capacity(report.len());
     let mut i = 0usize;
     while i < lines.len() {
-        if !lines[i].starts_with(QUOTE_MARK) {
+        if !marked(lines[i]) {
             out.push_str(lines[i]);
             out.push('\n');
             i += 1;
             continue;
         }
         let start = i;
-        while i < lines.len() && lines[i].starts_with(QUOTE_MARK) {
+        while i < lines.len() && marked(lines[i]) {
             i += 1;
         }
         let block = &lines[start..i];
-        if block.len() <= allowance {
+        // The court's own frame lines never count against the budget
+        // and are never dropped: it is the QUOTE they bound that the
+        // ceiling is for.
+        let quotes: Vec<&&str> = block.iter().filter(|l| l.starts_with(QUOTE_MARK)).collect();
+        if quotes.len() <= allowance {
             for line in block {
-                out.push_str(line.trim_start_matches(QUOTE_MARK));
+                out.push_str(
+                    line.trim_start_matches(QUOTE_MARK)
+                        .trim_start_matches(FRAME_MARK),
+                );
                 out.push('\n');
             }
             continue;
         }
         let head = allowance / 2;
         let tail = allowance - head;
-        for line in &block[..head] {
-            out.push_str(line.trim_start_matches(QUOTE_MARK));
-            out.push('\n');
-        }
-        let cut = block.len() - head - tail;
-        out.push_str("    ");
-        out.push_str(&ta("close-said-report-cut", targs!("count" => cut as u64)));
-        out.push('\n');
-        for line in &block[block.len() - tail..] {
+        let cut = quotes.len() - head - tail;
+        let mut seen = 0usize;
+        let mut said = false;
+        for line in block {
+            if line.starts_with(FRAME_MARK) {
+                out.push_str(line.trim_start_matches(FRAME_MARK));
+                out.push('\n');
+                continue;
+            }
+            seen += 1;
+            if seen > head && seen <= head + cut {
+                if !said {
+                    out.push_str("    ");
+                    out.push_str(&ta("close-said-report-cut", targs!("count" => cut as u64)));
+                    out.push('\n');
+                    said = true;
+                }
+                continue;
+            }
             out.push_str(line.trim_start_matches(QUOTE_MARK));
             out.push('\n');
         }
@@ -964,7 +1016,7 @@ fn window_of(text: &str) -> String {
         for line in text.lines() {
             put(&mut out, line);
         }
-        out.push(QUOTE_MARK);
+        out.push(FRAME_MARK);
         out.push_str("    ");
         out.push_str(&ta("close-said-shown", targs!("count" => total as u64)));
         out.push('\n');
@@ -973,7 +1025,7 @@ fn window_of(text: &str) -> String {
     for line in text.lines().take(WINDOW) {
         put(&mut out, line);
     }
-    out.push(QUOTE_MARK);
+    out.push(FRAME_MARK);
     out.push_str("    ");
     out.push_str(&ta(
         "close-said-cut",

@@ -384,4 +384,45 @@ fn the_quote_keeps_its_shape_and_the_ceiling_eats_only_quotes() {
         "the court's own verdict survives the ceiling whole -- a \
          ceiling that eats the verdict is worse than no ceiling:\n{out}"
     );
+    // And every cut block still says it was cut. The first ceiling
+    // marked the court's own frame like the quote and ate it: the
+    // window stopped saying it was a window in exactly the report
+    // where the ceiling made it one.
+    assert!(
+        out.matches("cut from the middle").count() >= 8,
+        "every block that was cut says so -- the frame is the court's \
+         word, not the command's, and the ceiling must not eat it:\n{out}"
+    );
+    // No mark of the report's own bookkeeping reaches the reader.
+    assert!(
+        !out.contains('\u{1}') && !out.contains('\u{2}'),
+        "and the marks the report keeps for itself never reach the \
+         page:\n{:?}",
+        out.chars()
+            .filter(|c| *c == '\u{1}' || *c == '\u{2}')
+            .count()
+    );
+
+    // --- the package carries the same text, and no bookkeeping ---
+    // The marks are the report's own; a field that carried them would
+    // break the promise that it holds the same words as the prose.
+    let dir = project("ceilingjson", MANY_STEPS);
+    let out = keel_out(&["close", "--json", dir.to_str().unwrap()]);
+    assert!(
+        !out.contains("\\u0001") && !out.contains("\\u0002"),
+        "the JSON package carries no mark of the report's bookkeeping:\n{out}"
+    );
+    let package: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    let words = package["red_commands"][0]["words"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    assert!(
+        !words.contains('\u{1}') && !words.contains('\u{2}'),
+        "not in the field itself either:\n{words:?}"
+    );
+    assert!(
+        words.contains("RUBOCOP: 3 offenses detected"),
+        "and it is still the same text as the prose:\n{words}"
+    );
 }
