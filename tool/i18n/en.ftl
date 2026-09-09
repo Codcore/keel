@@ -550,7 +550,8 @@ close-form-judged = the form court (§7.6): { $count } findings -- the same cont
 close-form-blockers = form the code does not hold: { $count } -- a contract whose form the code does not hold does not merge (§7.6)
 close-verify-count = verify commands judged: { $count }
 close-verify-passed = verify "{ $command }" of { $contract } — passed
-close-verify-failed = verify "{ $command }" of { $contract } — FAILED ({ $words }) — a broken foreign promise does not merge (§2.8)
+close-verify-failed = verify "{ $command }" of { $contract } — FAILED — a broken foreign promise does not merge (§2.8)
+{ $words }
 close-verify-untrusted = verify "{ $command }" of { $contract } — did not run: not trusted (§7.16), so nobody proved the contract's promise; check holds that verdict; instead: read the command again and record trust by hand with keel trust
 close-red-blockers = the battery saw red: { $count } -- they failed while the court watched, so the wave does not close; whether a scenario claims them is beside the point: a court that saw red and closed is worse than a court that did not run
 close-verify-blockers = broken foreign promises: { $count } — the exit is red
@@ -558,7 +559,8 @@ close-verify-unproven = contract promises whose proof did not run: { $count } --
 close-ci-unproven = the project's own gate (ci) did not run: the command is not trusted (§7.16) -- this tree was not judged by it; check holds the verdict of distrust, and while it is red the tree does not merge; instead: keel trust
 close-verify-no-words = the command left no words
 close-ci-passed = ci "{ $command }" — passed: the project's own gate is green
-close-ci-failed = ci "{ $command }" — FAILED ({ $words }) — the project's own gate is red, the wave does not merge (§7.16); run the command yourself to see its whole word
+close-ci-failed = ci "{ $command }" — FAILED — the project's own gate is red, the wave does not merge (§7.16)
+{ $words }
 close-ci-untrusted = ci "{ $command }" — did not run: not trusted (§7.16), so the project's own gate did not judge this tree; check holds that verdict; instead: read the command again and record trust by hand with keel trust
 close-ci-none = ci = "none" — a refusal aloud, lawful; nothing runs
 close-ci-undecided = ci = "" — undecided; nothing runs (check's finding)
@@ -938,3 +940,9 @@ adapter-javascript-broken-instead = node says so with the same exit code as a fa
 limit-javascript-border = not checked by exit code: node does not tell "failed" from "did not load" -- both are 1 -- and a name that matches nothing gives 0 and counts the file itself as a passed test; so the verdict is read from TAP (`ok`/`not ok` with the test's name) and the code is never asked
 limit-javascript-reads = not checked: the adapter reads only test/** and tests/** named *.test.js / .mjs / .cjs / .ts / .mts -- node collects wider (*-test.*, *_test.*, test-*.*, anything under test/); two tests of one name in different describes cannot be told apart, since TAP and --test-name-pattern know only the bare name -- so every line of that name is read, and a red among them is red; a t.test subtest holds no tag (the tag goes on the parent test); jest/vitest/mocha are not read
 limit-javascript-unread = not checked: the adapter does not read { $file } -- tests are named *.test.js (or .ts), and a tag there was not read
+close-said-stream = { "    " }— what the command said ({ $stream }), verbatim and unmasked:
+close-said-cut = … { $shown } shown, { $count } cut from the middle …
+close-said-shown = … { $count } shown — that is the whole output …
+close-said-long = … +{ $count } characters of this line cut …
+close-said-not-utf8 = … the output was not all UTF-8: invalid bytes replaced with the replacement character …
+close-said-report-cut = { "  " }… the report is too long: { $count } quoted lines cut …

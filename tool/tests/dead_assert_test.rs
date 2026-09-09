@@ -103,13 +103,14 @@ fn a_court_that_cannot_fail_is_not_a_court() {
     // the probe's own fixture. Nothing can print it, so the assert
     // is green for ever.
     //
-    // Six such phrases are alive all the same, and each says why:
-    // five are lines the tool would BUILD out of parts (a name, a
-    // path, a version, a runner's own banner) if it regressed, and
-    // one guards a sentence the norm used to carry. They are named
-    // here rather than left to a reader's judgement -- a court with
-    // an unwritten exception is not a court.
-    const GUARDS: [(&str, &str); 7] = [
+    // Nine such phrases are alive all the same, and each says why:
+    // most are lines the tool would BUILD out of parts (a name, a
+    // path, a version, a runner's own banner, a shape it used to
+    // print) if it regressed; one guards a sentence the norm used to
+    // carry, and one a line of output a window must cut. They are
+    // named here rather than left to a reader's judgement -- a court
+    // with an unwritten exception is not a court.
+    const GUARDS: [(&str, &str); 9] = [
         // The full name mix would print if the reader put a test
         // into a describe block it is not in.
         ("elixir_border_test.rs", "a group it works"),
@@ -133,6 +134,17 @@ fn a_court_that_cannot_fail_is_not_a_court() {
         // itself, and the whole point of the assert is that no such
         // echo appears.
         ("config_quoting_test.rs", "TOML parse error"),
+        // The shape the ci verdict had before wave 0070: the last
+        // line the command happened to print, squeezed into
+        // parentheses that read as a duration. The words are the
+        // probe's own fixture, but the PARENTHESES are the old
+        // format, and only a regression would put them back.
+        ("red_carries_words_test.rs", "(tailwind: rebuilding)"),
+        // The middle of a 200-line output, which the window must cut.
+        // The fixture writes `line-$i` in a shell loop, so no line of
+        // this probe spells the hundredth -- and printing it is
+        // exactly what a window that stopped cutting would do.
+        ("red_carries_words_test.rs", "line-100"),
     ];
 
     let mut corpus = String::new();
