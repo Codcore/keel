@@ -689,9 +689,15 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
 }
 
 /// One command of the repository's files that ran and failed, with
-/// the words it left. The prose verdict already carries them; this is
-/// the same text in the JSON package, so a harness reads the reason
-/// from a field instead of parsing a report (wave 0070, issue #45).
+/// the words it left, so a harness reads the reason from a field
+/// instead of parsing a report (wave 0070, issue #45).
+///
+/// The same WINDOW as the prose, but not the same text: the report's
+/// ceiling shares four hundred lines between every red command, and
+/// this field does not -- each entry keeps its window whole. On a
+/// hundred commands the prose carries six lines each and the field
+/// eighty. The ceiling is for a person and for one `report` string;
+/// this is for a machine, and a machine wants them all.
 #[derive(Debug, Clone)]
 pub struct RedCommand {
     pub command: String,

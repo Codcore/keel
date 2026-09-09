@@ -408,18 +408,11 @@ fn the_quote_keeps_its_shape_and_the_ceiling_eats_only_quotes() {
     // break the promise that it holds the same words as the prose.
     let dir = project("ceilingjson", MANY_STEPS);
     let out = keel_out(&["close", "--json", dir.to_str().unwrap()]);
-    // Asked of the BYTES, not of a spelling: a JSON escape is one
-    // way a control character can travel, and a literal is another.
-    assert!(
-        !out.chars().any(|c| c == '\u{1}' || c == '\u{2}'),
-        "the JSON package carries no mark of the report's bookkeeping, \
-         in any spelling:\n{out}"
-    );
-    assert!(
-        !out.contains(char::from_u32(1).unwrap())
-            && !out.to_lowercase().contains(&format!("{}u0001", '\\')),
-        "nor as an escape:\n{out}"
-    );
+    // Asked of the PARSED value, not of the printed text: serde
+    // escapes a control byte, so hunting `\u{1}` in what `println!`
+    // wrote is a predicate that can never be true. The third round of
+    // review 0070 proved it -- under a mutant that really did leak
+    // the mark, that assert passed and only its neighbour failed.
     let package: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
     let words = package["red_commands"][0]["words"]
         .as_str()
@@ -427,10 +420,92 @@ fn the_quote_keeps_its_shape_and_the_ceiling_eats_only_quotes() {
         .to_string();
     assert!(
         !words.contains('\u{1}') && !words.contains('\u{2}'),
-        "not in the field itself either:\n{words:?}"
+        "the field carries no mark of the report's bookkeeping:\n{words:?}"
+    );
+    assert!(
+        !package["report"]
+            .as_str()
+            .unwrap_or_default()
+            .contains('\u{1}'),
+        "and neither does the prose it travels with:\n{out}"
     );
     assert!(
         words.contains("RUBOCOP: 3 offenses detected"),
         "and it is still the same text as the prose:\n{words}"
+    );
+}
+
+/// proves: a-red-gate-carries-the-words-that-made-it-red@372893 -- the
+/// ceiling shares, and the floor holds.
+///
+/// The fourth round of review 0070 measured two promises still with
+/// no court, and both are the SHAPE of the ceiling rather than its
+/// existence: a first-come budget (nine commands, five fed, four
+/// silent) and the floor itself, which only bites past
+/// `REPORT_CAP / FLOOR_PER_COMMAND` commands -- and the biggest probe
+/// until now had nine.
+///
+/// Each command speaks its own name, because a shared marker cannot
+/// tell whether nine commands were heard or one was heard nine times.
+#[test]
+fn the_ceiling_shares_and_the_floor_holds() {
+    let dir = project("share", "exit 0\n");
+    // Enough red commands to cross the floor's threshold: past
+    // REPORT_CAP / FLOOR_PER_COMMAND the even share falls under the
+    // floor, and the floor is what keeps a command from silence.
+    let commands = 80usize;
+    for n in 1..=commands {
+        write(
+            &dir,
+            &format!("bin/v{n}"),
+            &format!(
+                "i=1\nwhile [ $i -le 30 ]; do echo MARK{n}-line-$i; i=$((i+1)); done\nexit 1\n"
+            ),
+        );
+        write(
+            &dir,
+            &format!("keel/contracts/c{n}.md"),
+            &format!(
+                "---\nmodule: c{n}\nexports:\n  - \"pub fn a()\"\nverify: \"sh bin/v{n}\"\n---\n\nтіло\n"
+            ),
+        );
+    }
+    let mut conf = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    for n in 1..=commands {
+        let one = format!("sh bin/v{n}");
+        conf.push_str(&format!(
+            "\"{one}\" = \"{}\"\n",
+            keel::trust::fingerprint(&one)
+        ));
+    }
+    write(&dir, "keel.toml", &conf);
+    write(&dir, "src/lib.rs", "pub fn a() {}\n");
+
+    let (out, code) = keel(&["close", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "eighty red verifies block the wave:\n{out}");
+
+    // Every command was heard: a budget spent first-come left the
+    // last ones silent, and the reader could not tell they had run.
+    let heard = (1..=commands)
+        .filter(|n| out.contains(&format!("MARK{n}-line-")))
+        .count();
+    assert_eq!(
+        heard, commands,
+        "every red command got words of its own -- {heard} of {commands} were heard, \
+         and a shared budget must not feed the first and starve the last"
+    );
+
+    // And each got at least the floor. Without it the even share
+    // falls to five lines here and keeps falling as commands are
+    // added; the floor is the promise that words do not thin out to
+    // nothing.
+    let thinnest = (1..=commands)
+        .map(|n| out.matches(&format!("MARK{n}-line-")).count())
+        .min()
+        .unwrap_or(0);
+    assert!(
+        thinnest >= 6,
+        "and no command was thinned below the floor: the quietest got \
+         {thinnest} lines"
     );
 }
