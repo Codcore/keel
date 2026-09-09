@@ -283,3 +283,105 @@ fn the_frame_keeps_the_promises_it_makes() {
         "the field that stood before this wave is untouched:\n{out}"
     );
 }
+
+/// proves: a-red-gate-carries-the-words-that-made-it-red@372893 -- the
+/// quote keeps the shape the command gave it, and the ceiling eats
+/// only quotes.
+///
+/// The second round of review 0070 measured four more promises with
+/// no court: the indent, the tab, the report ceiling, and the output
+/// of a red `verify`. Three of those ARE the fixes the first round
+/// demanded -- a repair nobody guards is a repair the next refactor
+/// undoes in silence.
+#[test]
+fn the_quote_keeps_its_shape_and_the_ceiling_eats_only_quotes() {
+    // --- the indent and the tab survive: in a diagnostic they ARE
+    // the meaning, and a caret that moved points at the wrong thing.
+    let shaped = "printf '    name = \"andrii\"\\n' >&2\n\
+                  printf '           ^^^^^^^^ offence here\\n' >&2\n\
+                  printf 'col1\\tcol2\\tcol3\\n' >&2\n\
+                  exit 1\n";
+    let dir = project("shape", shaped);
+    let (out, code) = keel(&["close", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a red gate blocks the wave:\n{out}");
+    assert!(
+        out.contains("           ^^^^^^^^ offence here"),
+        "the caret keeps its column -- trimming the quote moves it off \
+         the offence it points at:\n{out}"
+    );
+    assert!(
+        out.contains("col1\tcol2\tcol3"),
+        "and the tab survives -- dropping it welds the columns:\n{out}"
+    );
+
+    // --- a red verify carries its output too: `run_command` serves
+    // both, and the card says the radius is wider than the gate.
+    let dir = project("verifyred", "exit 0\n");
+    write(&dir, "src/lib.rs", "pub fn a() {}\n");
+    write(
+        &dir,
+        "keel/contracts/toy.md",
+        "---\nmodule: toy\nexports:\n  - \"pub fn a()\"\nverify: \"sh bin/verify\"\n---\n\nтіло\n",
+    );
+    write(
+        &dir,
+        "bin/verify",
+        "echo VERIFY-STEP-ONE ok\necho VERIFY-BROKE-HERE >&2\necho later noise >&2\nexit 1\n",
+    );
+    let text = fs::read_to_string(dir.join("keel.toml")).unwrap();
+    let verify = "sh bin/verify";
+    write(
+        &dir,
+        "keel.toml",
+        &format!(
+            "{text}\"{verify}\" = \"{}\"\n",
+            keel::trust::fingerprint(verify)
+        ),
+    );
+    let (out, code) = keel(&["close", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a red verify blocks the wave (§2.8):\n{out}");
+    assert!(
+        out.contains("VERIFY-BROKE-HERE"),
+        "and it carries its output, not the last line it printed -- \
+         `run_command` serves verify and ci alike:\n{out}"
+    );
+    assert!(
+        out.contains("unmasked"),
+        "under the same frame, with the same warning:\n{out}"
+    );
+
+    // --- the ceiling eats quotes and NOTHING ELSE, and it shares
+    // what is left instead of feeding the first commands only.
+    let loud = "i=1\nwhile [ $i -le 400 ]; do echo line-$i; i=$((i+1)); done\nexit 1\n";
+    let dir = project("ceiling", loud);
+    for n in 1..=8 {
+        write(
+            &dir,
+            &format!("keel/contracts/c{n}.md"),
+            &format!(
+                "---\nmodule: c{n}\nexports:\n  - \"pub fn a()\"\nverify: \"sh bin/ci\"\n---\n\nтіло\n"
+            ),
+        );
+    }
+    let (out, code) = keel(&["close", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "the wave does not merge:\n{out}");
+    let quoted = out.lines().filter(|l| l.starts_with("    ")).count();
+    assert!(
+        quoted <= 600,
+        "the report is bounded, not merely windowed per command: {quoted} quoted lines\n{out}"
+    );
+    // Every red command got words: a first-come budget left the last
+    // ones silent, and the reader could not tell they had spoken.
+    assert!(
+        out.matches("what the command said").count() >= 8,
+        "and EVERY red command got a frame -- a shared budget must not \
+         feed the first and starve the last:\n{out}"
+    );
+    // The court's own verdict is not quoted output, and the ceiling
+    // must not touch it.
+    assert!(
+        out.contains("the missing, by name"),
+        "the court's own verdict survives the ceiling whole -- a \
+         ceiling that eats the verdict is worse than no ceiling:\n{out}"
+    );
+}

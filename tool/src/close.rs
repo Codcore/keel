@@ -727,11 +727,17 @@ const WINDOW: usize = 40;
 /// when the job ends. The output was always in hand; it was thrown
 /// away.
 ///
-/// The text carried is the command's own, verbatim: its language, its
-/// encoding, its words. Only the colours go (`visible`), because a
-/// verdict quoting an escape sequence says nothing. Nothing is
-/// masked, and the verdict says so -- a masker weaker than gitleaks
-/// would give a false calm, which is worse than an honest warning.
+/// The text carried is the command's own, verbatim within the line:
+/// its language, its encoding, its words, its INDENT. What goes is
+/// the ANSI sequences and the bare control bytes -- every one except
+/// the tab, because in a diagnostic the indent is the meaning and a
+/// dropped tab welds columns together (review 0070 R-1). A line over
+/// `LINE_CAP` is cut and says so; `visible`, which trimmed and ate
+/// tabs, is gone with this wave.
+///
+/// Nothing is masked, and the verdict says so -- a masker weaker than
+/// gitleaks would give a false calm, which is worse than an honest
+/// warning.
 fn run_command(root: &Path, command: &str) -> Result<(), String> {
     let mut child = std::process::Command::new("sh");
     child.arg("-c").arg(command).current_dir(root);
@@ -756,7 +762,12 @@ fn run_command(root: &Path, command: &str) -> Result<(), String> {
     // "verbatim" that substitution must not be silent (review 0070
     // R-4): the reader is looking at a character the command never
     // printed, and only the tool knows it.
-    let mangled = out.stderr.len() != stderr.len() || out.stdout.len() != stdout.len();
+    // Питаємо декодер, а не довжину: обрізана чотирибайтова
+    // послідовність дає рівно один U+FFFD на три байти, довжина не
+    // міняється, і евристика на len() сліпа саме там, де підміна
+    // найтиповіша (рецензія 0070, друге коло).
+    let mangled =
+        std::str::from_utf8(&out.stderr).is_err() || std::str::from_utf8(&out.stdout).is_err();
     let mut said = String::new();
     for (stream, text) in [("stderr", &stderr), ("stdout", &stdout)] {
         let window = window_of(text);
@@ -771,6 +782,7 @@ fn run_command(root: &Path, command: &str) -> Result<(), String> {
         return Err(t("close-verify-no-words"));
     }
     if mangled {
+        said.push(QUOTE_MARK);
         said.push_str("    ");
         said.push_str(&t("close-said-not-utf8"));
         said.push('\n');
@@ -792,35 +804,86 @@ const LINE_CAP: usize = 400;
 /// JSON package puts the whole report in ONE field.
 const REPORT_CAP: usize = 400;
 
-/// The report with its quoted lines bounded. Only the QUOTED lines
-/// are cut -- the court's own verdicts are the report and are never
-/// dropped, however many waves a project has. A quoted line is one
-/// this module indented by four spaces inside a command's window.
+/// The fewest lines any one command keeps when the report is over
+/// its ceiling. A budget spent first-come leaves the last commands
+/// with nothing -- review 0070 measured fifteen of twenty getting not
+/// one word, which is exactly what `WINDOW` three constants above
+/// forbids for the same reason.
+const FLOOR_PER_COMMAND: usize = 6;
+
+/// A byte no command's output can carry into the report: `quoted`
+/// drops every control character except the tab, so this mark cannot
+/// be forged from outside. It rides on each quoted line and is
+/// stripped on the way out.
+///
+/// The first cut of this ceiling recognised a quoted line by its four
+/// spaces of indent -- and the court's OWN verdicts are indented too.
+/// Review 0070 measured the result: the list of a wave's lacks
+/// vanished under its own heading, with nothing saying it had been
+/// cut. A ceiling that eats the verdict is worse than no ceiling.
+const QUOTE_MARK: char = '\u{1}';
+
+/// The report with its quoted lines bounded, and bounded FAIRLY: each
+/// command's block keeps at least `FLOOR_PER_COMMAND` lines, and the
+/// rest of the ceiling is shared evenly. The court's own verdicts are
+/// never touched -- they carry no `QUOTE_MARK`.
 fn capped_report(report: String) -> String {
-    let quoted_lines = report.lines().filter(|l| l.starts_with("    ")).count();
-    if quoted_lines <= REPORT_CAP {
-        return report;
+    let quoted = report.lines().filter(|l| l.starts_with(QUOTE_MARK)).count();
+    if quoted <= REPORT_CAP {
+        return report.replace(QUOTE_MARK, "");
     }
-    let mut out = String::with_capacity(report.len());
-    let mut kept = 0usize;
-    let mut said = false;
+    // How many blocks there are: a block is a run of quoted lines,
+    // and one command may have two (stderr and stdout).
+    let mut blocks = 0usize;
+    let mut inside = false;
     for line in report.lines() {
-        if line.starts_with("    ") {
-            if kept >= REPORT_CAP {
-                if !said {
-                    out.push_str(&ta(
-                        "close-said-report-cut",
-                        targs!("count" => (quoted_lines - REPORT_CAP) as u64),
-                    ));
-                    out.push('\n');
-                    said = true;
-                }
-                continue;
-            }
-            kept += 1;
+        let marked = line.starts_with(QUOTE_MARK);
+        if marked && !inside {
+            blocks += 1;
         }
-        out.push_str(line);
+        inside = marked;
+    }
+    let allowance = (REPORT_CAP / blocks.max(1)).max(FLOOR_PER_COMMAND);
+
+    // Each block is walked twice: once to know its length, once to
+    // print its head and tail. Cheap -- the report is already in
+    // memory and already bounded per command.
+    let lines: Vec<&str> = report.lines().collect();
+    let mut out = String::with_capacity(report.len());
+    let mut i = 0usize;
+    while i < lines.len() {
+        if !lines[i].starts_with(QUOTE_MARK) {
+            out.push_str(lines[i]);
+            out.push('\n');
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < lines.len() && lines[i].starts_with(QUOTE_MARK) {
+            i += 1;
+        }
+        let block = &lines[start..i];
+        if block.len() <= allowance {
+            for line in block {
+                out.push_str(line.trim_start_matches(QUOTE_MARK));
+                out.push('\n');
+            }
+            continue;
+        }
+        let head = allowance / 2;
+        let tail = allowance - head;
+        for line in &block[..head] {
+            out.push_str(line.trim_start_matches(QUOTE_MARK));
+            out.push('\n');
+        }
+        let cut = block.len() - head - tail;
+        out.push_str("    ");
+        out.push_str(&ta("close-said-report-cut", targs!("count" => cut as u64)));
         out.push('\n');
+        for line in &block[block.len() - tail..] {
+            out.push_str(line.trim_start_matches(QUOTE_MARK));
+            out.push('\n');
+        }
     }
     out
 }
@@ -891,6 +954,7 @@ fn window_of(text: &str) -> String {
         return String::new();
     }
     fn put(out: &mut String, line: &str) {
+        out.push(QUOTE_MARK);
         out.push_str("    ");
         out.push_str(&quoted(line));
         out.push('\n');
@@ -900,6 +964,7 @@ fn window_of(text: &str) -> String {
         for line in text.lines() {
             put(&mut out, line);
         }
+        out.push(QUOTE_MARK);
         out.push_str("    ");
         out.push_str(&ta("close-said-shown", targs!("count" => total as u64)));
         out.push('\n');
@@ -908,6 +973,7 @@ fn window_of(text: &str) -> String {
     for line in text.lines().take(WINDOW) {
         put(&mut out, line);
     }
+    out.push(QUOTE_MARK);
     out.push_str("    ");
     out.push_str(&ta(
         "close-said-cut",
