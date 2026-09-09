@@ -408,9 +408,17 @@ fn the_quote_keeps_its_shape_and_the_ceiling_eats_only_quotes() {
     // break the promise that it holds the same words as the prose.
     let dir = project("ceilingjson", MANY_STEPS);
     let out = keel_out(&["close", "--json", dir.to_str().unwrap()]);
+    // Asked of the BYTES, not of a spelling: a JSON escape is one
+    // way a control character can travel, and a literal is another.
     assert!(
-        !out.contains("\\u0001") && !out.contains("\\u0002"),
-        "the JSON package carries no mark of the report's bookkeeping:\n{out}"
+        !out.chars().any(|c| c == '\u{1}' || c == '\u{2}'),
+        "the JSON package carries no mark of the report's bookkeeping, \
+         in any spelling:\n{out}"
+    );
+    assert!(
+        !out.contains(char::from_u32(1).unwrap())
+            && !out.to_lowercase().contains(&format!("{}u0001", '\\')),
+        "nor as an escape:\n{out}"
     );
     let package: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
     let words = package["red_commands"][0]["words"]

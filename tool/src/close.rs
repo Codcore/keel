@@ -830,7 +830,10 @@ const QUOTE_MARK: char = '\u{1}';
 /// break the promise that the field holds the same text as the prose
 /// (review 0070, third round: six U+0001 per red command).
 fn unmarked(words: &str) -> String {
-    words.replace(QUOTE_MARK, "").replace(FRAME_MARK, "")
+    words
+        .chars()
+        .filter(|c| *c != QUOTE_MARK && *c != FRAME_MARK)
+        .collect()
 }
 
 /// The mark on the court's OWN lines inside a block -- the frame that
@@ -865,7 +868,7 @@ fn capped_report(report: String) -> String {
     let marked = |l: &str| l.starts_with(QUOTE_MARK) || l.starts_with(FRAME_MARK);
     let quoted = report.lines().filter(|l| l.starts_with(QUOTE_MARK)).count();
     if quoted <= REPORT_CAP {
-        return report.replace(QUOTE_MARK, "").replace(FRAME_MARK, "");
+        return unmarked(&report);
     }
     // How many blocks there are: a block is a run of quoted lines,
     // and one command may have two (stderr and stdout).
