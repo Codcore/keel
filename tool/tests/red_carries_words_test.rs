@@ -40,6 +40,16 @@ fn keel(args: &[&str]) -> (String, i32) {
     )
 }
 
+/// Only stdout: the price line of the closing court goes to stderr,
+/// and a package glued to it is no package.
+fn keel_out(args: &[&str]) -> String {
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(args)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
 fn git(dir: &Path, args: &[&str]) {
     let out = Command::new("git")
         .arg("-C")
@@ -163,9 +173,9 @@ fn a_red_gate_carries_the_words_that_made_it_red() {
         "both ends of a long output are in the report:\n{out}"
     );
     assert!(
-        out.contains("lines cut from the middle"),
-        "and the window says how much of the middle it cut -- a window \
-         that does not name itself is the new silence:\n{out}"
+        out.contains("cut from the middle") && out.contains("80 shown"),
+        "and the window says BOTH how much it shows and how much it cut \
+         -- a window that does not name itself is the new silence:\n{out}"
     );
     assert!(
         !out.contains("line-100"),
@@ -180,5 +190,96 @@ fn a_red_gate_carries_the_words_that_made_it_red() {
         !out.contains("quiet-marker"),
         "and a green gate's output is NOT poured into the report -- \
          success stays silence:\n{out}"
+    );
+}
+
+/// proves: a-red-gate-carries-the-words-that-made-it-red@372893 -- the
+/// promises the frame makes about itself.
+///
+/// Review 0070 measured eleven mutants against the first cut of this
+/// work and five went through GREEN: the typed JSON field, the words
+/// "unmasked", the NUMBER of cut lines, the name of the stream, and
+/// the output of `verify`. Each of those is a promise the card makes
+/// by name, and a promise no probe holds is a promise the next
+/// refactor drops in silence. This is that probe.
+#[test]
+fn the_frame_keeps_the_promises_it_makes() {
+    let dir = project("framewords", MANY_STEPS);
+    let (out, code) = keel(&["close", dir.to_str().unwrap()]);
+    assert_eq!(code, 1, "a red gate blocks the wave:\n{out}");
+
+    // The frame names WHICH stream it is quoting: rubocop spoke on
+    // stderr and tailwind's timing on stdout, and a reader who cannot
+    // tell them apart is reading one soup.
+    assert!(
+        out.contains("(stderr)") && out.contains("(stdout)"),
+        "the frame names the stream it quotes:\n{out}"
+    );
+    // And it warns that the quote is unfiltered. The whole argument
+    // of `security.confidentiality` -- that a masker weaker than
+    // gitleaks gives a false calm -- rests on the tool saying so.
+    assert!(
+        out.contains("unmasked"),
+        "and it warns that nothing in the quote is masked:\n{out}"
+    );
+
+    // The cut NUMBER is the number, not a decoration: a window that
+    // says «some lines cut» is a window that can lie by drifting.
+    let loud = "i=1\nwhile [ $i -le 200 ]; do echo line-$i; i=$((i+1)); done\nexit 1\n";
+    let dir = project("framecount", loud);
+    let (out, _) = keel(&["close", dir.to_str().unwrap()]);
+    assert!(
+        out.contains("120 cut from the middle"),
+        "200 lines, 80 shown, so 120 remain in the middle of ONE stream \
+         -- the number is counted, not decorative:\n{out}"
+    );
+
+    // A line longer than the cap is cut, and the cut says so IN the
+    // line: a window that counts lines and not their length lets a
+    // single three-megabyte line through whole (review 0070 R-2).
+    let long = "python3 -c \"print('x'*5000)\"\nexit 1\n";
+    let dir = project("framelong", long);
+    let (out, _) = keel(&["close", dir.to_str().unwrap()]);
+    assert!(
+        out.contains("characters of this line cut"),
+        "a line longer than the cap is cut and says so:\n{out}"
+    );
+    assert!(
+        out.lines().all(|l| l.chars().count() < 1000),
+        "and no line of the report is left unbounded:\n{}",
+        out.lines().map(|l| l.chars().count()).max().unwrap_or(0)
+    );
+
+    // Output that was not valid UTF-8 comes back with the replacement
+    // character, and the frame says so rather than letting the reader
+    // believe the command printed it (review 0070 R-4).
+    let bytes = "printf 'before \\351\\357 after\\n' >&2\nexit 1\n";
+    let dir = project("framebytes", bytes);
+    let (out, _) = keel(&["close", dir.to_str().unwrap()]);
+    assert!(
+        out.contains("not all UTF-8"),
+        "a stream that was not UTF-8 is named as such:\n{out}"
+    );
+
+    // The typed JSON field carries the same words as the prose: a
+    // harness must not have to parse a report to find the reason.
+    let dir = project("framejson", MANY_STEPS);
+    let out = keel_out(&["close", "--json", dir.to_str().unwrap()]);
+    let package: serde_json::Value = serde_json::from_str(out.trim())
+        .unwrap_or_else(|e| panic!("close --json is a package: {e}\n{out}"));
+    let red = package["red_commands"]
+        .as_array()
+        .unwrap_or_else(|| panic!("the package carries red_commands:\n{out}"));
+    assert_eq!(red.len(), 1, "one command failed, one entry:\n{out}");
+    assert!(
+        red[0]["words"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("RUBOCOP: 3 offenses detected"),
+        "and the field carries the same words as the prose:\n{out}"
+    );
+    assert!(
+        package["blockers"].as_u64().unwrap_or(0) >= 1,
+        "the field that stood before this wave is untouched:\n{out}"
     );
 }

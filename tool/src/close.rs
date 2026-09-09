@@ -676,6 +676,11 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         ));
         report.push('\n');
     }
+    // The last ceiling, over everything the commands said together.
+    // Per-command windows do not bound a project with twenty red
+    // contracts -- review 0070 R-3 measured 1691 lines from twenty --
+    // and `--json` puts this whole report into ONE field.
+    let report = capped_report(report);
     Ok((
         report,
         blockers + verify_blockers + form_blockers + ci_blocker + red_tests,
@@ -746,6 +751,12 @@ fn run_command(root: &Path, command: &str) -> Result<(), String> {
     }
     let stderr = String::from_utf8_lossy(&out.stderr);
     let stdout = String::from_utf8_lossy(&out.stdout);
+    // A stream that was not valid UTF-8 comes back with U+FFFD in
+    // place of the bytes that were not. Under a frame that says
+    // "verbatim" that substitution must not be silent (review 0070
+    // R-4): the reader is looking at a character the command never
+    // printed, and only the tool knows it.
+    let mangled = out.stderr.len() != stderr.len() || out.stdout.len() != stdout.len();
     let mut said = String::new();
     for (stream, text) in [("stderr", &stderr), ("stdout", &stdout)] {
         let window = window_of(text);
@@ -759,61 +770,81 @@ fn run_command(root: &Path, command: &str) -> Result<(), String> {
     if said.is_empty() {
         return Err(t("close-verify-no-words"));
     }
+    if mangled {
+        said.push_str("    ");
+        said.push_str(&t("close-said-not-utf8"));
+        said.push('\n');
+    }
     Err(said)
 }
 
-/// The visible lines of one stream, `WINDOW` from each end, with a
-/// line naming what was cut. Empty when the stream said nothing that
-/// survives `visible` -- a stream of pure colour is a stream of no
-/// words, and the caller skips it rather than printing a heading over
-/// nothing.
-fn window_of(text: &str) -> String {
-    let lines: Vec<String> = text.lines().map(visible).collect();
-    if lines.iter().all(|l| l.is_empty()) {
-        return String::new();
+/// How many characters of one quoted line the report carries. A
+/// window that counts LINES and not their length is no window at all:
+/// a single `print('x' * 3_000_000)` walked through the first cut of
+/// this whole, and so did a progress bar, whose twenty thousand
+/// frames are separated by `\r` and are therefore ONE line to
+/// `lines()` (review 0070 R-2, measured: 289 665 bytes).
+const LINE_CAP: usize = 400;
+
+/// How many lines the whole report carries from all commands
+/// together. Per-command windows do not bound a project with twenty
+/// red contracts (review 0070 R-3, measured: 1691 lines), and the
+/// JSON package puts the whole report in ONE field.
+const REPORT_CAP: usize = 400;
+
+/// The report with its quoted lines bounded. Only the QUOTED lines
+/// are cut -- the court's own verdicts are the report and are never
+/// dropped, however many waves a project has. A quoted line is one
+/// this module indented by four spaces inside a command's window.
+fn capped_report(report: String) -> String {
+    let quoted_lines = report.lines().filter(|l| l.starts_with("    ")).count();
+    if quoted_lines <= REPORT_CAP {
+        return report;
     }
-    let mut out = String::new();
-    if lines.len() <= WINDOW * 2 + 1 {
-        for line in &lines {
-            out.push_str("    ");
-            out.push_str(line);
-            out.push('\n');
+    let mut out = String::with_capacity(report.len());
+    let mut kept = 0usize;
+    let mut said = false;
+    for line in report.lines() {
+        if line.starts_with("    ") {
+            if kept >= REPORT_CAP {
+                if !said {
+                    out.push_str(&ta(
+                        "close-said-report-cut",
+                        targs!("count" => (quoted_lines - REPORT_CAP) as u64),
+                    ));
+                    out.push('\n');
+                    said = true;
+                }
+                continue;
+            }
+            kept += 1;
         }
-        return out;
-    }
-    for line in &lines[..WINDOW] {
-        out.push_str("    ");
-        out.push_str(line);
-        out.push('\n');
-    }
-    out.push_str("    ");
-    out.push_str(&ta(
-        "close-said-cut",
-        targs!("count" => (lines.len() - WINDOW * 2) as u64),
-    ));
-    out.push('\n');
-    for line in &lines[lines.len() - WINDOW..] {
-        out.push_str("    ");
         out.push_str(line);
         out.push('\n');
     }
     out
 }
 
-/// The visible text of a line: the colours a command paints are not
-/// words. `cargo fmt --check` ends its diff with a bare reset
-/// sequence, and a verdict quoting that escape says nothing at all
-/// -- found in the field on slugline, wave 0019; the same school as
-/// 0010 review R-5, where a verdict must carry words, not noise.
-fn visible(line: &str) -> String {
+/// One line of a command's output as the report may carry it: the
+/// colours and the bare control bytes go, because a verdict quoting
+/// an escape sequence says nothing -- and NOTHING ELSE goes.
+///
+/// This is deliberately not `visible`, which also trims and drops
+/// tabs. Review 0070 R-1 measured what that costs under a frame that
+/// says "verbatim": rubocop's caret stopped pointing at the offence
+/// (`^^^^` moved four columns left), rustc's moved two, and
+/// `col1\tcol2` became `col1col2`. In diagnostics the indent IS the
+/// meaning, and a frame that promises the command's own words must
+/// keep them.
+///
+/// A line longer than `LINE_CAP` is cut, and the cut says so in the
+/// line itself -- silence there would be the same lie one size up.
+fn quoted(line: &str) -> String {
     let mut out = String::with_capacity(line.len());
     let mut chars = line.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '\u{1b}' {
             if chars.peek() == Some(&'[') {
-                // A CSI sequence: the opener is not its final byte
-                // (the first cut of this fix broke right here), so
-                // it is eaten before the hunt for one in @..~.
                 chars.next();
                 for c in chars.by_ref() {
                     if ('@'..='~').contains(&c) {
@@ -821,19 +852,72 @@ fn visible(line: &str) -> String {
                     }
                 }
             } else {
-                // Two-character escapes such as ESC ( B.
                 chars.next();
             }
             continue;
         }
-        if c.is_control() {
-            // Bare control bytes are not words either: rustfmt
-            // paints a shift-in after every reset.
+        // The tab stays: it is the only control character that
+        // carries meaning in a diagnostic, and dropping it welds
+        // columns together.
+        if c.is_control() && c != '\t' {
             continue;
         }
         out.push(c);
     }
-    out.trim().to_string()
+    if out.chars().count() > LINE_CAP {
+        let kept: String = out.chars().take(LINE_CAP).collect();
+        let cut = out.chars().count() - LINE_CAP;
+        return format!(
+            "{kept}{}",
+            ta("close-said-long", targs!("count" => cut as u64))
+        );
+    }
+    out
+}
+
+/// The lines of one stream as the report carries them: `WINDOW` from
+/// each end, with a line naming how many are shown and how many were
+/// cut. Empty when the stream said nothing that survives `quoted` --
+/// a stream of pure colour is a stream of no words, and the caller
+/// skips it rather than printing a heading over nothing.
+///
+/// Only the lines that get printed are read through `quoted`: the
+/// first cut mapped every line of a million-line output and paid 5.6x
+/// the instructions and 2.3x the memory for six kilobytes of print
+/// (review 0070 R-8, measured).
+fn window_of(text: &str) -> String {
+    let total = text.lines().count();
+    if total == 0 || text.lines().all(|l| quoted(l).trim().is_empty()) {
+        return String::new();
+    }
+    fn put(out: &mut String, line: &str) {
+        out.push_str("    ");
+        out.push_str(&quoted(line));
+        out.push('\n');
+    }
+    let mut out = String::new();
+    if total <= WINDOW * 2 + 1 {
+        for line in text.lines() {
+            put(&mut out, line);
+        }
+        out.push_str("    ");
+        out.push_str(&ta("close-said-shown", targs!("count" => total as u64)));
+        out.push('\n');
+        return out;
+    }
+    for line in text.lines().take(WINDOW) {
+        put(&mut out, line);
+    }
+    out.push_str("    ");
+    out.push_str(&ta(
+        "close-said-cut",
+        targs!("shown" => (WINDOW * 2) as u64, "count" => (total - WINDOW * 2) as u64),
+    ));
+    out.push('\n');
+    for line in text.lines().skip(total - WINDOW) {
+        put(&mut out, line);
+    }
+    out
 }
 
 /// Structural closure -- without running the tests: every live
