@@ -471,11 +471,15 @@ fn main() -> ExitCode {
             keel::i18n::init(&config.lang);
             let said = keel::close::judge(&root).map(|(report, blockers, red)| {
                 let code = i32::from(blockers > 0);
-                // `red` is the same text the prose verdict carries --
-                // a field so a harness reads the reason instead of
-                // parsing a report (wave 0070, issue #45). A field
-                // ADDED leaves the envelope's version alone; only a
-                // field whose meaning changes moves it.
+                // The same WINDOW as the prose, but not the same
+                // text: the report shares four hundred lines between
+                // every red command and this field does not, so a
+                // hundred commands give six lines each in the prose
+                // and eighty here. A field so a harness reads the
+                // reason instead of parsing a report (wave 0070,
+                // issue #45). A field ADDED leaves the envelope's
+                // version alone; only a field whose meaning changes
+                // moves it.
                 let red: Vec<serde_json::Value> = red
                     .into_iter()
                     .map(|one| serde_json::json!({"command": one.command, "words": one.words}))

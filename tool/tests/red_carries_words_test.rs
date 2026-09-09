@@ -349,6 +349,25 @@ fn the_quote_keeps_its_shape_and_the_ceiling_eats_only_quotes() {
         out.contains("unmasked"),
         "under the same frame, with the same warning:\n{out}"
     );
+    // And into the package by the same road. Both hands write the
+    // very same expression, and a court over only one of them lets a
+    // refactor drop the other in silence -- review 0070, fifth round,
+    // measured exactly that mutant going green.
+    let package: serde_json::Value =
+        serde_json::from_str(keel_out(&["close", "--json", dir.to_str().unwrap()]).trim())
+            .expect("close --json is a package");
+    let words = package["red_commands"][0]["words"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    assert!(
+        words.contains("VERIFY-BROKE-HERE"),
+        "a red verify reaches the typed field too:\n{words}"
+    );
+    assert!(
+        !words.contains('\u{1}') && !words.contains('\u{2}'),
+        "and carries no mark of the report's bookkeeping:\n{words:?}"
+    );
 
     // --- the ceiling eats quotes and NOTHING ELSE, and it shares
     // what is left instead of feeding the first commands only.

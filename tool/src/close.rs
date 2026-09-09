@@ -833,8 +833,10 @@ const QUOTE_MARK: char = '\u{1}';
 /// The same words without the marks: what goes into the JSON package
 /// and into any other reader that is not the report. The marks are
 /// the report's own bookkeeping, and a package carrying them would
-/// break the promise that the field holds the same text as the prose
-/// (review 0070, third round: six U+0001 per red command).
+/// put control bytes in a field that promises the command's own words
+/// (review 0070, third round: six U+0001 per red command). What the
+/// field carries is the same WINDOW as the prose, not the same text
+/// -- the report's ceiling shares its lines and the field does not.
 fn unmarked(words: &str) -> String {
     words
         .chars()
