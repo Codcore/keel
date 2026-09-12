@@ -143,6 +143,37 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         // check names every broken file -- fix them first.
         return Err(refusal);
     }
+    // The cheap court first (wave 0068). Measured before the work, on
+    // one tree and one commit: a branch touching a file no transform
+    // of its wave names gives `keel check` exit 1 and `keel close`
+    // exit 0 -- the court that lets a branch into a merge was blind
+    // to what the cheaper court beside it had already found. Two
+    // waves were returned by a reviewer for exactly that, and the
+    // first command the reviewer ran was the one the author had not.
+    //
+    // It is asked BEFORE the battery, and that is half the wave:
+    // thirteen minutes of tests to learn what six seconds would have
+    // said is not a price, it is waiting. The report says WHICH court
+    // stopped the run, because three different reasons under one word
+    // "blockers" make a verdict a riddle.
+    let checked = crate::check::run(root, &config)?;
+    if checked.findings > 0 {
+        let mut report = t("close-title");
+        report.push('\n');
+        report.push_str(&ta(
+            "close-check-red",
+            targs!("count" => checked.findings as u64),
+        ));
+        report.push('\n');
+        for (file, reason) in checked.rows.iter() {
+            let Some(reason) = reason else { continue };
+            report.push_str(&format!("  {file} — {reason}\n"));
+        }
+        report.push_str(&t("close-check-red-instead"));
+        report.push('\n');
+        return Ok((report, checked.findings, Vec::new()));
+    }
+
     // The price, said before it is paid (wave 0031). This court
     // builds the judged project into ITS OWN target directory on
     // purpose -- an inherited shared cache shifts verdicts (§6.7,
