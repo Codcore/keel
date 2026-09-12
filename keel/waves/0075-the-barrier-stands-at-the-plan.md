@@ -1,9 +1,10 @@
 ---
 depends_on:
   - 0068-the-closing-court-is-not-narrower-than-ci
+  - 0071-a-red-battery-carries-its-words
 
 scenarios:
-  the-plan-meets-a-reader-before-the-merge:
+  the-plan-has-its-own-reader-and-its-own-report:
     covers:
       - functional.completeness
       - interaction.user-error-protection
@@ -13,7 +14,7 @@ scenarios:
 
 transforms:
   the-court-asks-for-the-plans-reader:
-    implements: [the-plan-meets-a-reader-before-the-merge]
+    implements: [the-plan-has-its-own-reader-and-its-own-report]
     files:
       - tool/src/close.rs
       - tool/src/next.rs
@@ -51,9 +52,85 @@ decisions:
   maintainability.testability: "тримає: обидва боки проби потрібні — план без звіту червоніє, план зі звітом зеленіє, і робоча гілка НЕ зараховує `-plan.md` замість свого"
   flexibility.adaptability: "не застосовується: від мови й адаптера хвиля не залежить"
   flexibility.scalability: "не застосовується: один шлях, один запит до git"
-  flexibility.installability: "не застосовується"
+  flexibility.installability: "не застосовується, бо хвиля не чіпає ні install.sh, ні launcher, ні теґів: вона міняє те, чого суд вимагає в уже встановленому інструменті"
   flexibility.replaceability: "названо борг, і він гострий: це ЗВУЖЕННЯ зеленого для всіх користувачів — план-PR, який учора зливався, завтра не зливається. Число ставить хвиля релізу; ця лишає борг названим"
   safety.operational-constraints: "не застосовується: ні часу, ні місця хвиля не коштує"
   safety.risk-identification: "названо два ризики. Перший: хвиля червонить ворота в чужих проєктах — хтось зустріне це посеред роботи, і запис релізу мусить попередити. Другий, тонший: якщо суд шукатиме `-plan.md` НЕ точним іменем, а підрядком, він зарахує звіт роботи за звіт плану, і заслін зникне мовчки — рівно та вада, від якої застерігає заявник"
   safety.hazard-warning: "тримає: попередження в записі релізу обов'язкове — див. co-existence"
   safety.safe-integration: "не застосовується: нових процесів хвиля не запускає"
+---
+
+# 0075 — заслін стоїть на плані
+
+Закриває issue #53.
+
+## Що зміряно, і на чому
+
+Бінарник **1.4.0 із релізу**, пісочниця: повна хвиля, її план на
+гілці `plan/0019-a-full-wave`, тека `keel/reviews/` порожня.
+
+```
+$ keel check .   → exit 0
+$ keel close .   → exit 0
+$ ls keel/reviews/ | wc -l
+0
+```
+
+План-PR зелений і зливний **без жодного рецензента** — у той єдиний
+момент, коли план ще можна відхилити як план (§6.6).
+
+І друга половина, та сама пісочниця:
+
+```
+$ keel next .
+the step: this is the plan branch of wave 0019-a-full-wave (§8.3) —
+prove the plan's fullness (keel check, the map), merge the plan PR;
+the work will ride the branch "0019-a-full-wave" -- and then give the
+plan a fresh eye: `keel review` here assembles the PLAN package and
+names the answers worth rereading before the merge (§9.9)
+```
+
+«Злий план-PR», а тоді «дай свіже око **перед merge**» — в одному
+реченні, в такому порядку. Агент, що читає згори вниз, мерджить.
+
+## Чому це не дрібниця
+
+§9.9 каже, що заслін тримає машина. Зміряно — не тримає. Те, що
+машина справді тримає, — це рецензію **роботи**: `keel close` без
+`keel/reviews/<хвиля>.md` роботу не закриває. Але затвердження **плану**
+— це merge план-PR (§6.6), і до нього жодної роботи ще не видано. Той
+merge агент може зробити сьогодні з зеленими воротами й без рецензента.
+
+## Чим лагодити НЕ можна, і це слова заявника
+
+Не можна вимагати `keel/reviews/<хвиля>.md` на план-гілці. Такий файл
+переїде з планом на робочу гілку від народження і задовольнить ворота,
+які існують, щоб вимагати рецензію **роботи**. Зміряно на хвилях 0011
+і 0013: `close` шукає це ім'я за присутністю.
+
+Тому ім'я інше: **`keel/reviews/<хвиля>-plan.md`**, і суд мусить
+шукати його **точним іменем**. Пошук підрядком зарахував би звіт роботи
+за звіт плану, і заслін зник би мовчки — рівно та вада, від якої
+застерігає заявник.
+
+## scenario: the-plan-has-its-own-reader-and-its-own-report
+
+На гілці `plan/<хвиля>` суд закриття червоніє, доки в історії гілки
+нема `keel/reviews/<хвиля>-plan.md`. А `keel next` там веде до
+рецензента **перед** merge, а не після.
+
+Червоним народжується на пісочниці заміру: план-гілка повної хвилі,
+`keel/reviews/` порожня, `keel close` сьогодні дає exit 0.
+
+Другий бік: той самий план зі звітом плану — зелений.
+
+Третій бік, і без нього заслін уявний: **звіт роботи не зараховується
+за звіт плану**. Файл `keel/reviews/<хвиля>.md` на план-гілці лишає
+суд червоним; і навпаки, `-plan.md` на робочій гілці не задовольняє
+ворота §9.9 над роботою.
+
+## transform: the-court-asks-for-the-plans-reader
+
+`close.rs` питає точне ім'я тим самим способом, яким питає звіт
+роботи; `next.rs` міняє порядок речення. Слова в обох мовах, клауза в
+`tool-close.md`.
