@@ -120,7 +120,7 @@ fn project(name: &str) -> common::Sandbox {
     dir
 }
 
-/// proves: a-non-ascii-name-survives-its-runner@0000000
+/// proves: a-non-ascii-name-survives-its-runner@724e9e
 #[test]
 fn a_non_ascii_name_survives_its_runner() {
     if !common::machine_has("mix").ready() {
@@ -151,4 +151,78 @@ fn a_non_ascii_name_survives_its_runner() {
          `+pc latin1` beats anything the hand appends -- the tool \
          says THAT, and says how to fix it:\n{said}"
     );
+}
+
+/// proves: a-non-ascii-name-survives-its-runner@724e9e
+///
+/// The elixir road is where §6.3 is satisfied; the others are green
+/// from birth, and that is said aloud rather than hidden behind the
+/// one red. What holds them is not a red birth but this probe and the
+/// mutants of the work's review: break a hand's reading and one of
+/// these sides falls.
+#[test]
+fn every_hand_carries_a_name() {
+    // The name goes above U+00FF on every road, for the same reason
+    // as above: latin1 carries everything below it whole.
+    let roads: [(&str, &str, &str, &str, &str); 3] = [
+        (
+            "python",
+            "pytest",
+            "pyproject.toml",
+            "[project]\nname = \"toy\"\nversion = \"0.1.0\"\n",
+            "tests/test_toy.py",
+        ),
+        (
+            "javascript",
+            "node",
+            "package.json",
+            "{\n  \"name\": \"toy\",\n  \"version\": \"1.0.0\"\n}\n",
+            "test/toy.test.js",
+        ),
+        (
+            "ruby",
+            "rspec",
+            "Gemfile",
+            "source \"https://rubygems.org\"\ngem \"rspec\"\n",
+            "spec/toy_spec.rb",
+        ),
+    ];
+    for (tongue, runner, manifest, manifest_body, test_path) in roads {
+        if !common::machine_has(runner).ready() {
+            // Said aloud, never passed in silence: on a machine
+            // without the runner this road was not walked, and the
+            // wave names that as its sharpest limit.
+            eprintln!("{runner} is not on this machine: the {tongue} road was not walked");
+            continue;
+        }
+        let dir = keel_sandbox(&format!("name{tongue}"));
+        std::fs::write(
+            dir.join("keel.toml"),
+            format!("lang = \"uk\"\nadapter = \"{tongue}\"\n"),
+        )
+        .unwrap();
+        std::fs::write(dir.join(manifest), manifest_body).unwrap();
+        let body = match tongue {
+            "python" => format!("def test_a():\n    \"\"\"{NAME}\"\"\"\n    assert True\n"),
+            "javascript" => format!(
+                "const {{ test }} = require(\"node:test\");\nconst assert = require(\"node:assert\");\n\ntest(\"{NAME}\", () => {{\n  assert.ok(true);\n}});\n"
+            ),
+            _ => format!(
+                "RSpec.describe \"toy\" do\n  it \"{NAME}\" do\n    expect(true).to be true\n  end\nend\n"
+            ),
+        };
+        let path = dir.join(test_path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, body).unwrap();
+        git(&dir, &["init", "-q", "-b", "main"]);
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", "base"]);
+
+        let (said, _) = keel_without_a_locale(&dir, &["close"]);
+        assert!(
+            !said.contains('\u{FFFD}'),
+            "the {tongue} hand carries a name above U+00FF whole, \
+             whatever the environment says about encodings:\n{said}"
+        );
+    }
 }
