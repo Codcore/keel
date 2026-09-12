@@ -252,12 +252,13 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // (§7.13): the adapter keeps its word -- one battery, one cargo
     // run -- and the court folds the runs.
     //
-    // ...unless the cheap court above already found something on this
-    // branch. Then the battery does not run at all, and that is the
-    // whole of what the finding costs: the report below is written in
-    // full, courts and wave states and all, because a person asking
-    // "is this closed" is owed the answer, not only the reason the
-    // answer was cheap.
+    // It runs even where the documents court above has already found
+    // something. The first cut of this wave stopped here to save the
+    // thirteen minutes, and the battery measured what that costs:
+    // twenty-eight probes lost their subject, because they call
+    // `keel close` on sandboxes the documents court calls red on
+    // purpose. Six seconds instead of thirteen minutes was the
+    // SECOND sentence of the card, not the first.
     let mut battery: Battery = BTreeMap::new();
     for _ in 0..BATTERY_RUNS {
         for (key, green) in adapter::run_all(root)? {
@@ -283,18 +284,6 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         targs!("count" => battery.len() as u64, "runs" => BATTERY_RUNS as u64),
     ));
     report.push('\n');
-    if !blocking.is_empty() {
-        report.push_str(&ta(
-            "close-check-red",
-            targs!("count" => blocking.len() as u64),
-        ));
-        report.push('\n');
-        for (file, reason) in &blocking {
-            report.push_str(&format!("  {file} — {reason}\n"));
-        }
-        report.push_str(&t("close-check-red-instead"));
-        report.push('\n');
-    }
     // What the court just watched fail, by name (bug audit B6): it
     // ran the battery three times, saw red, and said only that the
     // wave is not closed -- so a person had to run the whole battery
@@ -636,6 +625,35 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // adapter (wave 0043). A court that did not run says so and a
     // person knows they do not know; a court that saw red and left
     // green passes itself off as read.
+    // The documents court's findings on this branch's own files
+    // (wave 0068), among the other summary lines rather than above
+    // them: it is one of the reasons the wave does not close, and a
+    // reader counts them in one place.
+    //
+    // ...with one exception, and it is a decision, not an oversight.
+    // On the branch of a wave that is approved and NOT STARTED the
+    // findings are printed and not counted: everything the scope
+    // court can say there reduces to "the work has not begun", which
+    // is the very state the footer announces, and §6.6 -- a plan PR
+    // merges as a plan -- would otherwise be a dead letter. Nothing
+    // is hidden: they are named file by file here, and `keel check`
+    // carries the same list with an exit code of its own.
+    if !blocking.is_empty() {
+        report.push_str(&ta(
+            if own_plan {
+                "close-check-red-plan"
+            } else {
+                "close-check-red"
+            },
+            targs!("count" => blocking.len() as u64),
+        ));
+        report.push('\n');
+        for (file, reason) in &blocking {
+            report.push_str(&format!("  {file} — {reason}\n"));
+        }
+        report.push_str(&t("close-check-red-instead"));
+        report.push('\n');
+    }
     if red_tests > 0 {
         report.push_str(&ta(
             "close-red-blockers",
@@ -745,7 +763,12 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     let report = capped_report(report);
     Ok((
         report,
-        blockers + verify_blockers + form_blockers + ci_blocker + red_tests + blocking.len(),
+        blockers
+            + verify_blockers
+            + form_blockers
+            + ci_blocker
+            + red_tests
+            + if own_plan { 0 } else { blocking.len() },
         red_commands,
     ))
 }
