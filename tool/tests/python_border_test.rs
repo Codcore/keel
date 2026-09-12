@@ -87,15 +87,12 @@ fn project(name: &str, test_body: &str) -> common::Sandbox {
 
 fn gate(dir: &Path) -> (String, i32) {
     git(dir, &["checkout", "-q", "-b", "0001-a-wave"]);
-    // The branch does its work: a wave that declares a file and
-    // never touches it is unfinished, and since wave 0068 the
-    // closing court says so before it spends a battery.
-    let touched = dir.join("src/toy/__init__.py");
-    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
-    body.push_str("\n# touched by the branch\n");
-    std::fs::write(&touched, body).unwrap();
-    git(dir, &["add", "-A"]);
-    git(dir, &["commit", "-q", "-m", "work: the declared file"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(dir);
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, "work: тіло\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
@@ -268,15 +265,12 @@ fn a_refusal_carries_pytests_own_words() {
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "more"]);
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
-    // The branch does its work: a wave that declares a file and
-    // never touches it is unfinished, and since wave 0068 the
-    // closing court says so before it spends a battery.
-    let touched = dir.join("src/toy/__init__.py");
-    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
-    body.push_str("\n# touched by the branch\n");
-    std::fs::write(&touched, body).unwrap();
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(&dir);
     let (said, code) = keel(&dir, &["close"]);
     assert_ne!(code, 0, "a collection that broke is a refusal:\n{said}");
     assert!(

@@ -106,7 +106,7 @@ fn project(name: &str, manifest_tail: &str, test_body: &str) -> Sandbox {
         &dir,
         "keel/waves/0009-w.md",
         &format!(
-            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs]\n{}---\n\n## scenario: s\n\n{BODY}\n## transform: t\n\nthe work\n",
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs, tests/t_test.rs]\n{}---\n\n## scenario: s\n\n{BODY}\n## transform: t\n\nthe work\n",
             all_decided_except(&["functional.correctness"])
         ),
     );
@@ -115,6 +115,12 @@ fn project(name: &str, manifest_tail: &str, test_body: &str) -> Sandbox {
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "the trunk"]);
     git(&dir, &["checkout", "-q", "-b", "0009-w"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(&dir);
     dir
 }
 
@@ -196,6 +202,21 @@ fn the_courts_agree_on_one_tree() {
     );
     write(&dir, "src/thing.rs", "pub fn thing() {}\n");
     write(&dir, "src/lib.rs", "pub mod thing;\n");
+    // The wave names what this branch actually writes -- the module
+    // and the contract beside it. Wave 0068 made the closing court
+    // carry the scope court's findings, and a fixture that writes
+    // two files it never declared measures that complaint instead of
+    // the distrust it came for. Naming the contract file among them
+    // is what makes this a wave that may grow one at all: §6.8 reads
+    // the weight off the wave's own files.
+    write(
+        &dir,
+        "keel/waves/0009-w.md",
+        &format!(
+            "---\nscenarios:\n  s: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [s]\n    files: [src/lib.rs, src/thing.rs, tests/t_test.rs, keel/contracts/toy-thing.md]\n{}---\n\n## scenario: s\n\n{BODY}\n## transform: t\n\nthe work\n",
+            all_decided_except(&["functional.correctness"])
+        ),
+    );
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "t: the work"]);
     let (check, check_code) = keel(&dir, &["check"]);

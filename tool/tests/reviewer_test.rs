@@ -62,15 +62,6 @@ fn project(name: &str) -> common::Sandbox {
     // The wave, its proof and its work live on the wave's own branch,
     // so `next` sees the work done and the report missing.
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
-    // The branch does its work: a wave that declares a file and
-    // never touches it is unfinished, and since wave 0068 the
-    // closing court says so before it spends a battery.
-    let touched = dir.join("src/lib.rs");
-    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
-    body.push_str("\n// touched by the branch\n");
-    std::fs::write(&touched, body).unwrap();
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let mut d = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
         if *cut != "functional.correctness" {
@@ -80,7 +71,7 @@ fn project(name: &str) -> common::Sandbox {
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
         format!(
-            "---\nscenarios:\n  it-holds:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-holds\n    files:\n      - src/lib.rs\n{d}---\n\n## scenario: it-holds\nтіло обіцянки\n\n## transform: work\nтіло роботи\n"
+            "---\nscenarios:\n  it-holds:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-holds\n    files:\n      - src/lib.rs\n      - tests/w_test.rs\n{d}---\n\n## scenario: it-holds\nтіло обіцянки\n\n## transform: work\nтіло роботи\n"
         ),
     )
     .unwrap();
@@ -200,15 +191,12 @@ fn every_wave_has_its_reviewer() {
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "base"]);
     git(&dir, &["checkout", "-q", "-b", "0002-b-wave"]);
-    // The branch does its work: a wave that declares a file and
-    // never touches it is unfinished, and since wave 0068 the
-    // closing court says so before it spends a battery.
-    let touched = dir.join("src/lib.rs");
-    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
-    body.push_str("\n// touched by the branch\n");
-    std::fs::write(&touched, body).unwrap();
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(&dir);
     let (said, code) = keel(&dir, "close");
     assert_eq!(
         code, 1,

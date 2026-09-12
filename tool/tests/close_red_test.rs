@@ -76,17 +76,12 @@ fn settle(dir: &Path) {
     git(dir, &["add", "-A"]);
     git(dir, &["commit", "-q", "-m", "init"]);
     git(dir, &["checkout", "-q", "-b", "0001-a-wave"]);
-    // The branch does the work it declared: a wave that names a
-    // file and never touches it is unfinished, and since wave 0068
-    // the closing court says so before it spends a battery.
-    // The wave declares `one new in lib/` (§4.1), so the branch adds
-    // exactly one file there -- modifying a file already present
-    // would be drift, and the court is right to say so.
-    let touched = dir.join("lib/touched.rb");
-    std::fs::create_dir_all(touched.parent().unwrap()).unwrap();
-    std::fs::write(&touched, "# the work of this branch\n").unwrap();
-    git(dir, &["add", "-A"]);
-    git(dir, &["commit", "-q", "-m", "work: the declared file"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(dir);
 }
 
 /// The whole scenario, in the three tongues this release leads.
@@ -338,17 +333,12 @@ fn the_shapes_a_red_test_comes_in() {
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "init"]);
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
-    // The branch does the work it declared: a wave that names a
-    // file and never touches it is unfinished, and since wave 0068
-    // the closing court says so before it spends a battery.
-    // A declared DIRECTORY means "one new file in it" (§4.2), so the
-    // branch adds one -- modifying a file that was already there is
-    // drift, and the court is right to say so.
-    let touched = dir.join("lib/touched.rb");
-    std::fs::create_dir_all(touched.parent().unwrap()).unwrap();
-    std::fs::write(&touched, "# the work of this branch\n").unwrap();
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(&dir);
     let (said, _) = closing(&dir);
     assert!(
         said.contains("план-PR") || said.contains("затверджена"),

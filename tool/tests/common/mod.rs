@@ -35,6 +35,124 @@ pub fn keel_sandbox(name: &str) -> Sandbox {
     sandbox
 }
 
+/// The branch does the work its wave declared, and does it lawfully.
+///
+/// Since wave 0068 the closing court is not narrower than `keel
+/// check`: a wave whose file is never touched (§4.4), whose promise
+/// was never born red (§6.3), or whose transform no commit closes
+/// (§6.2) is unfinished, and the court says so before it spends a
+/// battery. A sandbox that calls `keel close` therefore has to BE
+/// what it depicts -- a branch that did its work -- or the probe
+/// measures the court's complaint about the fixture instead of the
+/// thing it came for.
+///
+/// The declaration is READ, not passed in: the hand asks
+/// `keel::docs::scan` for the wave the branch is named after and
+/// keeps exactly what that wave says. A fixture whose wave file
+/// changes stays lawful without anybody remembering a second place --
+/// and a hand given the file by hand is precisely how the first cut
+/// of this wave produced a sandbox that touched one file and declared
+/// another.
+///
+/// A branch that names no wave is left alone: several probes are
+/// about that very state, and inventing work there would erase the
+/// thing they measure.
+pub fn did_the_work(dir: &Path) {
+    let branch = std::process::Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .current_dir(dir)
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .unwrap_or_default();
+    let Ok(scan) = keel::docs::scan(dir) else {
+        return;
+    };
+    let Some(wave) = scan.waves.iter().find(|wave| wave.slug == branch) else {
+        return;
+    };
+    // Red first, and every promise of it: a tagged test the branch
+    // never saw fail proves nothing (§6.3), and the sandboxes write
+    // the test and its tag in one breath.
+    for (_, transform) in &wave.transforms {
+        if let keel::docs::TransformKind::Implements(promises) = &transform.kind {
+            for promise in promises {
+                in_git(dir, &["add", "-A"]);
+                in_git(
+                    dir,
+                    &[
+                        "commit",
+                        "-q",
+                        "--allow-empty",
+                        "-m",
+                        &format!("red: {promise}"),
+                    ],
+                );
+            }
+        }
+    }
+    // Then the work, one commit per transform under its own slug:
+    // that is what closes a transform (§6.2), and a commit named
+    // anything else leaves it open however much the files changed.
+    for (slug, transform) in &wave.transforms {
+        for row in &transform.files {
+            match row {
+                keel::docs::ScopeLine::Path(path) => append_to(&dir.join(path)),
+                // `one new in <dir>/` is one new file there and no
+                // other (§4.1) -- a modified neighbour is drift.
+                keel::docs::ScopeLine::OneNewIn(place) => {
+                    let place = dir.join(place.trim_end_matches('/'));
+                    std::fs::create_dir_all(&place).unwrap();
+                    append_to(&place.join("from-the-branch.txt"));
+                }
+            }
+        }
+        in_git(dir, &["add", "-A"]);
+        in_git(
+            dir,
+            &[
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                &format!("{slug}: the files this transform declared"),
+            ],
+        );
+    }
+}
+
+/// One line at the end of a file, with the comment leader its tongue
+/// uses: the declared file is source the runner will compile.
+fn append_to(path: &Path) {
+    let leader = match path.extension().and_then(|kind| kind.to_str()) {
+        Some("rs" | "js" | "ts" | "mjs" | "cjs" | "jsx" | "tsx") => "//",
+        Some("txt" | "md") => "",
+        _ => "#",
+    };
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
+    let mut body = std::fs::read_to_string(path).unwrap_or_default();
+    body.push_str(&format!("\n{leader} the work of this branch\n"));
+    std::fs::write(path, body).unwrap();
+}
+
+/// git, inside a sandbox, with an identity of its own: a machine
+/// running the battery may have no global one.
+pub fn in_git(dir: &Path, args: &[&str]) {
+    let out = std::process::Command::new("git")
+        .args(["-c", "user.email=probe@keel", "-c", "user.name=probe"])
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap_or_else(|e| panic!("git {args:?}: {e}"));
+    assert!(
+        out.status.success(),
+        "git {args:?} in {}: {}",
+        dir.display(),
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
 /// A sandbox that removes itself when its test ends.
 ///
 /// The cleanup hangs on `Drop`, so it happens on the ordinary way out

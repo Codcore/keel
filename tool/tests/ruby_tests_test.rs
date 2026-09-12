@@ -117,15 +117,12 @@ fn ruby_tests_are_read_and_run() {
     )
     .unwrap();
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
-    // The branch does its work: a wave that declares a file and
-    // never touches it is unfinished, and since wave 0068 the
-    // closing court says so before it spends a battery.
-    let touched = dir.join("lib/toy.rb");
-    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
-    body.push_str("\n# touched by the branch\n");
-    std::fs::write(&touched, body).unwrap();
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(&dir);
     let (said, _) = keel(&dir, &["close"]);
     assert!(
         said.contains("test_it_falls"),
@@ -161,15 +158,12 @@ fn the_ruby_battery_believes_only_what_ran() {
     )
     .unwrap();
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
-    // The branch does its work: a wave that declares a file and
-    // never touches it is unfinished, and since wave 0068 the
-    // closing court says so before it spends a battery.
-    let touched = dir.join("lib/toy.rb");
-    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
-    body.push_str("\n# touched by the branch\n");
-    std::fs::write(&touched, body).unwrap();
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(&dir);
     let (said, code) = keel(&dir, &["close"]);
     assert_ne!(
         code, 0,
@@ -192,15 +186,12 @@ fn the_ruby_battery_believes_only_what_ran() {
     )
     .unwrap();
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
-    // The branch does its work: a wave that declares a file and
-    // never touches it is unfinished, and since wave 0068 the
-    // closing court says so before it spends a battery.
-    let touched = dir.join("lib/toy.rb");
-    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
-    body.push_str("\n# touched by the branch\n");
-    std::fs::write(&touched, body).unwrap();
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(&dir);
     let (said, _) = keel(&dir, &["close"]);
     assert!(
         said.contains("test_it_works_more"),
@@ -226,15 +217,12 @@ fn the_ruby_battery_believes_only_what_ran() {
     )
     .unwrap();
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
-    // The branch does its work: a wave that declares a file and
-    // never touches it is unfinished, and since wave 0068 the
-    // closing court says so before it spends a battery.
-    let touched = dir.join("lib/toy.rb");
-    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
-    body.push_str("\n# touched by the branch\n");
-    std::fs::write(&touched, body).unwrap();
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(&dir);
     let (said, _) = keel(&dir, &["close"]);
     assert!(
         said.contains("батарея: 1 тестів"),
@@ -254,15 +242,12 @@ fn a_tag_over_a_non_test_is_not_a_green_run() {
     );
     let dir = project("rubynotrun", BODY, &body);
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
-    // The branch does its work: a wave that declares a file and
-    // never touches it is unfinished, and since wave 0068 the
-    // closing court says so before it spends a battery.
-    let touched = dir.join("lib/toy.rb");
-    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
-    body.push_str("\n# touched by the branch\n");
-    std::fs::write(&touched, body).unwrap();
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(&dir);
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, "work: тіло\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
