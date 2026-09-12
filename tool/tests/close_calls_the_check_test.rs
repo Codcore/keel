@@ -95,7 +95,7 @@ fn project(name: &str) -> Sandbox {
     dir
 }
 
-/// proves: the-cheap-court-runs-first-and-locally@242d9a
+/// proves: the-cheap-court-runs-first-and-locally@ce4397
 #[test]
 fn the_cheap_court_runs_first_and_locally() {
     // --- a finding of `keel check` is a blocker of `keel close` ---
