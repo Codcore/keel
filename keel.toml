@@ -11,14 +11,17 @@ agents = ["claude", "cursor"]
 # «Дистрибуція»).
 version = "1.3.0"
 # Власний gate проєкту (щабель 17, хвиля 0019): close жене його крізь
-# довіру §7.16 — fmt над крейтом інструмента.
-ci = "cargo fmt --manifest-path tool/Cargo.toml --check"
+# довіру §7.16. Однією складеною командою — те саме, що жене CI
+# (хвиля 0068): fmt і clippy. Доти `ci` називав саму fmt, і clippy
+# ловився лише на PR — рецензент релізу 1.2.0 виніс пʼять зауважень,
+# яких місцевий суд не бачив.
+ci = "cargo fmt --manifest-path tool/Cargo.toml --check && cargo clippy --manifest-path tool/Cargo.toml --all-targets --all-features -- -D warnings"
 
 [trust]
-"cargo fmt --manifest-path tool/Cargo.toml --check" = "668c699a0a59"
 "cargo test --manifest-path tool/Cargo.toml --test frame_flags_test" = "0530ad5ea5c5"
 "cargo test --manifest-path tool/Cargo.toml --test launcher_test --test versions_test" = "d3dadca33fa6"
 "cargo test --manifest-path tool/Cargo.toml --test release_test --test launcher_fetch_test" = "9806d99959b0"
+"cargo fmt --manifest-path tool/Cargo.toml --check && cargo clippy --manifest-path tool/Cargo.toml --all-targets --all-features -- -D warnings" = "4eb825fb93fa"
 
 [generated]
 "AGENTS.md" = "4ed1ba26b22d"
