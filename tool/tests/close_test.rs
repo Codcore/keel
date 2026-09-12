@@ -164,6 +164,15 @@ fn wave_closure_judged() {
     // exit stays 0, but the footer must say that truth, not "named
     // as no unclosed wave".
     git(&dir, &["checkout", "-q", "-b", "0011-plan"]);
+    // The branch does its work: a wave that declares a file and
+    // never touches it is unfinished, and since wave 0068 the
+    // closing court says so before it spends a battery.
+    let touched = dir.join("src/lib.rs");
+    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
+    body.push_str("\n// touched by the branch\n");
+    std::fs::write(&touched, body).unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
     let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "a plan PR merges as a plan (§6.6):\n{out}");

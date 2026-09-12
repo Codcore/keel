@@ -69,6 +69,15 @@ fn the_closing_says_what_failed() {
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "base"]);
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The branch does its work: a wave that declares a file and
+    // never touches it is unfinished, and since wave 0068 the
+    // closing court says so before it spends a battery.
+    let touched = dir.join("src/lib.rs");
+    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
+    body.push_str("\n// touched by the branch\n");
+    std::fs::write(&touched, body).unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
 
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
         .args(["close", dir.to_str().unwrap()])
@@ -142,6 +151,15 @@ fn the_closing_says_what_failed() {
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "base"]);
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The branch does its work: a wave that declares a file and
+    // never touches it is unfinished, and since wave 0068 the
+    // closing court says so before it spends a battery.
+    let touched = dir.join("src/lib.rs");
+    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
+    body.push_str("\n// touched by the branch\n");
+    std::fs::write(&touched, body).unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
 
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
         .args(["close", dir.to_str().unwrap()])

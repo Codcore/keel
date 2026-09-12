@@ -139,6 +139,15 @@ fn elixir_tests_are_read_and_run() {
     )
     .unwrap();
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The branch does its work: a wave that declares a file and
+    // never touches it is unfinished, and since wave 0068 the
+    // closing court says so before it spends a battery.
+    let touched = dir.join("lib/toy.ex");
+    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
+    body.push_str("\n# touched by the branch\n");
+    std::fs::write(&touched, body).unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
     let (said, _) = keel(&dir, &["close"]);
     assert!(
         said.contains("it falls"),

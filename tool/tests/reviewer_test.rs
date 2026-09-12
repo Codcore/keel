@@ -62,6 +62,15 @@ fn project(name: &str) -> common::Sandbox {
     // The wave, its proof and its work live on the wave's own branch,
     // so `next` sees the work done and the report missing.
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The branch does its work: a wave that declares a file and
+    // never touches it is unfinished, and since wave 0068 the
+    // closing court says so before it spends a battery.
+    let touched = dir.join("src/lib.rs");
+    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
+    body.push_str("\n// touched by the branch\n");
+    std::fs::write(&touched, body).unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
     let mut d = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
         if *cut != "functional.correctness" {
@@ -191,6 +200,15 @@ fn every_wave_has_its_reviewer() {
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "base"]);
     git(&dir, &["checkout", "-q", "-b", "0002-b-wave"]);
+    // The branch does its work: a wave that declares a file and
+    // never touches it is unfinished, and since wave 0068 the
+    // closing court says so before it spends a battery.
+    let touched = dir.join("src/lib.rs");
+    let mut body = std::fs::read_to_string(&touched).unwrap_or_default();
+    body.push_str("\n// touched by the branch\n");
+    std::fs::write(&touched, body).unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
     let (said, code) = keel(&dir, "close");
     assert_eq!(
         code, 1,
