@@ -897,3 +897,128 @@ fn the_trunk_is_the_one_git_names() {
          the trunk has nothing to say here:\n{out}"
     );
 }
+
+/// The witness rule, arm by arm, and both reasons a refusal can have.
+///
+/// Review 0072 round seven measured six payments of rounds five and
+/// six held by nothing at all: remove an arm, swap a reason, and the
+/// whole battery stayed green. Each side below falls to exactly one
+/// of those mutants.
+///
+/// proves: the-trunk-is-the-one-git-names@3dcdca
+#[test]
+fn the_merge_fact_is_read_only_with_a_witness() {
+    // --- the key is believed on its own ---
+    let home = project("witnesskey", "development", "origin");
+    let work = home.join("work");
+    git(&work, &["checkout", "-q", "development"]);
+    write(
+        &work,
+        "keel/waves/0005-a-chore.md",
+        &format!(
+            "---\ntransforms:\n  tidy:\n    chore: \"дрібниця\"\n    files:\n      - src/lib.rs\n{}---\n\n## transform: tidy\nтіло\n",
+            all_decided()
+        ),
+    );
+    write(&work, "keel/reviews/0005-a-chore.md", "рецензія\n");
+    fs::write(
+        work.join("keel.toml"),
+        "lang = \"en\"\nadapter = \"rust\"\ntrunk = \"development\"\n",
+    )
+    .unwrap();
+    git(&work, &["add", "-A"]);
+    git(
+        &work,
+        &["commit", "-q", "-m", "tidy: the chore lands in the trunk"],
+    );
+    let (said, _) = keel(&["status", work.to_str().unwrap()]);
+    assert!(
+        said.contains("merging closed it"),
+        "the key names the trunk, and that is a witness on its \
+         own:\n{said}"
+    );
+
+    // --- git alone, with the names silent, is NOT a witness ---
+    //
+    // The fail-safe side (§4.10), and the cost is named in the
+    // verdict: one line of keel.toml brings the fact back. Believing
+    // git here gave a clone parked on `wip` an unmerged wave called
+    // closed.
+    fs::write(
+        work.join("keel.toml"),
+        "lang = \"en\"\nadapter = \"rust\"\n",
+    )
+    .unwrap();
+    git(&work, &["branch", "-q", "-D", "main"]);
+    git(&work, &["add", "-A"]);
+    git(
+        &work,
+        &["commit", "-q", "-m", "tidy: no name to fall back on"],
+    );
+    let (said, _) = keel(&["status", work.to_str().unwrap()]);
+    assert!(
+        !said.contains("merging closed it"),
+        "git alone is not a witness, and the court says the fact \
+         cannot be seen instead of claiming one:\n{said}"
+    );
+    assert!(
+        said.contains("keel.toml"),
+        "and it names the one line that brings it back:\n{said}"
+    );
+
+    // --- git and the names AGREE: that is a witness ---
+    //
+    // The ordinary shape, and the one the wave must leave untouched:
+    // `origin/HEAD` says `main` and the list says `main` too.
+    let home = project("witnessagree", "release", "origin");
+    let work = home.join("work");
+    git(&work, &["checkout", "-q", "release"]);
+    // git names `release` and the list of names finds `main` -- so to
+    // make the two AGREE the key is not used and `main` is what both
+    // must say: point the remote's HEAD at it.
+    git(
+        &work,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+        ],
+    );
+    git(&work, &["checkout", "-q", "main"]);
+    write(
+        &work,
+        "keel/waves/0006-a-chore.md",
+        &format!(
+            "---\ntransforms:\n  tidy:\n    chore: \"дрібниця\"\n    files:\n      - src/lib.rs\n{}---\n\n## transform: tidy\nтіло\n",
+            all_decided()
+        ),
+    );
+    write(&work, "keel/reviews/0006-a-chore.md", "рецензія\n");
+    git(&work, &["add", "-A"]);
+    git(
+        &work,
+        &["commit", "-q", "-m", "tidy: the chore lands in main"],
+    );
+    git(&work, &["checkout", "-q", "-b", "beside"]);
+    let (said, _) = keel(&["status", work.to_str().unwrap()]);
+    assert!(
+        said.contains("merging closed it"),
+        "two sources saying the same branch are a witness, and this \
+         is the shape every ordinary project has:\n{said}"
+    );
+
+    // --- a refusal says WHICH of the two reasons it had ---
+    let home = project("witnessgone", "development", "origin");
+    let work = home.join("work");
+    git(
+        &work,
+        &["update-ref", "-d", "refs/remotes/origin/development"],
+    );
+    git(&work, &["branch", "-q", "-D", "development"]);
+    let (out, _) = keel(&["check", work.to_str().unwrap()]);
+    assert!(
+        out.contains("is gone") && out.contains("development"),
+        "a branch that is gone is not a branch of the work, and the \
+         words are not the same words:\n{out}"
+    );
+}

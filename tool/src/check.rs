@@ -984,7 +984,11 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                 scope::RefusedBecause::ItIsWork => "check-trunk-refused",
                                 scope::RefusedBecause::ItIsGone => "check-trunk-gone",
                             },
-                            targs!("trunk" => named, "refused" => gone.clone()),
+                            targs!(
+                                "trunk" => named,
+                                "refused" => gone.clone(),
+                                "remote" => trunk.remote.clone().unwrap_or_else(|| "origin".to_string())
+                            ),
                         ),
                         (scope::TrunkSource::Git, Some(remote), None) => ta(
                             "check-trunk-git",
@@ -1016,7 +1020,10 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                 scope::RefusedBecause::ItIsWork => "check-trunk-refused-alone",
                                 scope::RefusedBecause::ItIsGone => "check-trunk-gone-alone",
                             },
-                            targs!("refused" => gone.clone())
+                            targs!(
+                                "refused" => gone.clone(),
+                                "remote" => scope::remote_name(root).unwrap_or_else(|| "origin".to_string())
+                            )
                         )
                     ),
                     None => scope_status,

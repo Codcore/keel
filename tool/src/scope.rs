@@ -640,7 +640,14 @@ fn resolved(root: &Path, config: Option<&crate::config::Config>) -> Resolved {
         // `?` dropping it and the line saying "nobody names it" while
         // git had just named one.
         if stands(root, head).is_none() {
-            let (_, gone) = head.rsplit_once('/')?;
+            // The PREFIX comes off, not the last slash, and a bare
+            // name keeps itself: `origin/release/stable` is the
+            // branch `release/stable`, and a symref pointed at a
+            // local ref gives a name with no slash at all. Review
+            // 0072 round seven measured both -- the first said "git
+            // names stable", which never existed, and the second
+            // dropped the answer entirely.
+            let gone = head.strip_prefix(&format!("{remote}/")).unwrap_or(head);
             return Some((gone.to_string(), String::new()));
         }
         // The PREFIX comes off, not the last slash: a default branch
@@ -806,14 +813,24 @@ fn trunk_for_the_merge_fact(root: &Path) -> Option<String> {
         (TrunkSource::Guess, _) => trunk.reference,
         // git answered, and the names say the same branch.
         (TrunkSource::Git, Some(plain)) if plain == trunk.name => trunk.reference,
-        // git answered and the names said NOTHING. Silence is not
-        // disagreement: review 0072 round six measured a project
-        // whose trunk is `development` and which has no `main` and no
-        // `master` anywhere losing the merge fact entirely -- and
-        // with it `keel next`, which stopped saying the loop was
-        // done. There is only one answer in that tree, and it is
-        // git's.
-        (TrunkSource::Git, None) => trunk.reference,
+        // git answered and the names said NOTHING -- and this is the
+        // hardest corner of the wave, measured from both sides by two
+        // rounds of review.
+        //
+        // Round six: a project whose trunk is `development` and which
+        // has no `main` and no `master` anywhere loses the merge fact
+        // entirely, and `keel next` stops saying the loop is done.
+        // Round seven: believing git there gives a clone parked on
+        // `wip` -- in that same project -- an UNMERGED wave called
+        // closed, because `wip` carries the wave file the branch
+        // itself wrote.
+        //
+        // No question of the refs tells `wip` from `development`. So
+        // the fail-safe side wins (§4.10): a fact taken without a
+        // witness is worse than no fact. The cost is real and it is
+        // curable by one line -- the courts name the key, and with it
+        // the fact is seen again.
+        (TrunkSource::Git, None) => None,
         _ => None,
     }
 }
