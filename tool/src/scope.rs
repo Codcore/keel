@@ -650,19 +650,6 @@ fn resolved(root: &Path, config: Option<&crate::config::Config>) -> Resolved {
             let gone = head.strip_prefix(&format!("{remote}/")).unwrap_or(head);
             return Some((gone.to_string(), String::new()));
         }
-        // The PREFIX comes off, not the last slash: a default branch
-        // may carry one. Review 0072 R-2 measured `origin/HEAD ->
-        // origin/release/stable` read as the branch `stable`, which
-        // stands nowhere -- the verdict named a branch that does not
-        // exist and both §4.9 and §4.12 died in silence; and where a
-        // branch `stable` did happen to exist, the comparison ran
-        // against a stranger.
-        // The prefix comes off when it is there. It is not always:
-        // `refs/remotes/origin/HEAD` may be pointed at a local ref by
-        // hand, and then `--short` gives a bare name. Review 0072
-        // round five measured that shape read as NOTHING -- the
-        // answer died in silence and the verdict said "nobody names
-        // it" while git had just named one.
         let name = head.strip_prefix(&format!("{remote}/")).unwrap_or(head);
         Some((name.to_string(), head.to_string()))
     };

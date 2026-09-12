@@ -1453,11 +1453,6 @@ fn verdict_limits(root: &Path, refs_unjudged: u64) -> Vec<String> {
         match &trunk.reference {
             // A name that stands nowhere is no base at all, and the
             // freshness of a base that does not exist is not a
-            // question. Review 0072 R-7 measured the two voices in
-            // one verdict: this line said the base was local, and the
-            // next said there was no fork point.
-            // A name that stands nowhere is no base at all, and the
-            // freshness of a base that does not exist is not a
             // question (R-7). The line that names the key and what it
             // could not find belongs to `compare_state`, which alone
             // knows whether this branch is judged against anything --
