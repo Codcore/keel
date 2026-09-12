@@ -375,7 +375,7 @@ fn two_files_of_one_name_are_two_files() {
     }
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
-        format!("---\ntransforms:\n  work:\n    chore: \"робота без обіцянок\"\n    files:\n      - lib\n{decisions}---\n\n## transform: work\nтіло роботи\n"),
+        format!("---\ntransforms:\n  work:\n    chore: \"робота без обіцянок\"\n    files:\n      - one new in lib/\n{decisions}---\n\n## transform: work\nтіло роботи\n"),
     )
     .unwrap();
     std::fs::write(

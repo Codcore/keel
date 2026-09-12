@@ -344,6 +344,13 @@ fn the_cheap_court_runs_first_and_locally() {
         "while the branch court's own finding is printed beside it, \
          uncounted:\n{closed}"
     );
+    // And the advice is the ORDINARY one here, because something
+    // counts: §10.3 is a blocker two lines above it, and telling a
+    // person there is nothing to do would be false (review R3-2).
+    assert!(
+        closed.contains("fix the files named above"),
+        "where anything counts, the advice is the plain one:\n{closed}"
+    );
 
     // --- and the same wave on its PLAN branch (§8.2) ---------------
     //
@@ -448,6 +455,115 @@ fn the_cheap_court_runs_first_and_locally() {
         "and the count says which ones it let through: the contract \
          (§6.8) and the promise worked on with no tag (§7.5), while \
          the untouched file stays exempt:\n{closed}"
+    );
+
+    // --- and where NOTHING counts, the plan has its own words -----
+    //
+    // This is the only shape in which "there is nothing to do" is
+    // true: every finding is the branch court saying the work has
+    // not begun. The first cut printed "fix them and run keel close
+    // again" here, under an exit of 0 -- sending a person to repair
+    // what the court had just let through (review R-15).
+    let dir = project("closeplanclean");
+    git(&dir, &["checkout", "-q", "main"]);
+    write(
+        &dir,
+        "keel/waves/0003-a-clean-plan.md",
+        &format!(
+            "---\nscenarios:\n  it-holds:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-holds\n    files:\n      - src/lib.rs\n{}---\n\n## scenario: it-holds\nтіло обіцянки\n\n## transform: work\nтіло роботи\n",
+            {
+                let mut block = String::from("decisions:\n");
+                for cut in keel::graph::cuts() {
+                    if *cut != "functional.correctness" {
+                        block.push_str(&format!("  {cut}: \"n/a, бо ця пісочниця грає інше\"\n"));
+                    }
+                }
+                block
+            }
+        ),
+    );
+    write(
+        &dir,
+        "keel/reviews/0003-a-clean-plan.md",
+        "# Рецензія\n\nok\n",
+    );
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "the plan"]);
+    git(&dir, &["checkout", "-q", "-b", "0003-a-clean-plan"]);
+    git(
+        &dir,
+        &["commit", "-q", "--allow-empty", "-m", "the branch stands"],
+    );
+    let (closed, close_code) = keel(&["close", dir.to_str().unwrap()]);
+    assert_eq!(
+        close_code, 0,
+        "a plan whose every finding says the work has not begun \
+         merges as a plan (§6.6):\n{closed}"
+    );
+    assert!(
+        closed.contains("nothing to do about THESE"),
+        "and the advice says so, instead of sending a person to fix \
+         what the court just let through:\n{closed}"
+    );
+
+    // --- the OTHER side of NotBegun, on the same branch -----------
+    //
+    // The `No` side held nothing: a one-line mutant making drift
+    // `NotBegun::Yes` put the exemption back over a finding that
+    // means work was DONE, and the whole battery stayed green
+    // (review R3-1). §6.8's findings do not come through
+    // `scope::findings` at all, so the probe above measures a
+    // different door. This one stands on the same plan branch and
+    // carries both kinds at once: the untouched file stays exempt,
+    // the drifted file counts.
+    let dir = keel_sandbox("closeplandrift");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    );
+    write(&dir, "src/lib.rs", "pub fn a() {}\n");
+    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
+    write(&dir, "keel/reviews/0001-a-plan.md", "# Рецензія\n\nok\n");
+    let mut decided = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        if *cut != "functional.correctness" {
+            decided.push_str(&format!("  {cut}: \"n/a, бо ця пісочниця грає інше\"\n"));
+        }
+    }
+    write(
+        &dir,
+        "keel/waves/0001-a-plan.md",
+        &format!(
+            "---\nscenarios:\n  it-holds:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-holds\n    files:\n      - src/lib.rs\n{decided}---\n\n## scenario: it-holds\nтіло обіцянки\n\n## transform: work\nтіло роботи\n"
+        ),
+    );
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    git(&dir, &["checkout", "-q", "-b", "0001-a-plan"]);
+    // The declared file is still untouched -- "not begun" -- and a
+    // file no transform names is touched: work, and wrong.
+    write(&dir, "build.rs", "fn main() {}\n");
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "a stranger, on a plan"]);
+    let (closed, close_code) = keel(&["close", dir.to_str().unwrap()]);
+    assert!(
+        closed.contains("build.rs") && closed.contains("src/lib.rs"),
+        "both findings are printed, whatever is counted:\n{closed}"
+    );
+    assert!(
+        closed.contains("findings of the documents court on this branch's own files: 1"),
+        "exactly one of the two counts: drift means the work HAS \
+         begun and is wrong, the untouched file means it has not -- \
+         and only the second is what the plan footer announces. A \
+         `NotBegun` that answered Yes to both would leave this at \
+         zero and the battery green (review R3-1):\n{closed}"
+    );
+    assert_ne!(
+        close_code, 0,
+        "and the one that counts carries the exit:\n{closed}"
     );
 
     // --- and a plan branch naming no wave at all -------------------

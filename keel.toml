@@ -11,8 +11,10 @@ agents = ["claude", "cursor"]
 # «Дистрибуція»).
 version = "1.4.0"
 # Власний gate проєкту (щабель 17, хвиля 0019): close жене його крізь
-# довіру §7.16. Однією складеною командою — те саме, що жене CI
-# (хвиля 0068): fmt і clippy. Доти `ci` називав саму fmt, і clippy
+# довіру §7.16. Однією складеною командою (хвиля 0068): fmt і clippy.
+# Не «те саме, що жене CI»: тут `--all-features`, у `tool-ci.yml` його
+# нема, тобто місцевий суд СТРОГІШИЙ — і хай червоніє в руці раніше,
+# ніж на runner-і. Доти `ci` називав саму fmt, і clippy
 # ловився лише на PR — рецензент релізу 1.2.0 виніс пʼять зауважень,
 # яких місцевий суд не бачив.
 ci = "cargo fmt --manifest-path tool/Cargo.toml --check && cargo clippy --manifest-path tool/Cargo.toml --all-targets --all-features -- -D warnings"
