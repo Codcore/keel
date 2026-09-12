@@ -1,7 +1,9 @@
 //! The elixir adapter (contract tool-adapter-elixir): the one place
 //! that knows how a mix project keeps its tests and its modules. It
-//! runs `mix` as a command of the system, exactly as a person would
-//! in a terminal, and writes nothing anywhere.
+//! runs `mix` as a command of the system and writes nothing anywhere
+//! -- with one word of its own about encoding, which the contract
+//! explains (wave 0067): a person in a terminal has a locale, and a
+//! runner keel starts may not.
 //!
 //! ExUnit, and said so aloud: this reads `mix test`, which is what a
 //! mix project has. Other runners are other waves.
@@ -170,6 +172,20 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             });
         }
         let fallen = failures(&said);
+        // A name that did not come back as text matches nothing in
+        // the file, and the court would say the battery skipped a
+        // test it ran. The project's own encoding word wins over ours
+        // (see `mix`), so this is where that choice is paid for: said
+        // aloud, with the way out, never guessed at.
+        if theirs_overrode()
+            && let Some(name) = ran(&said).into_iter().find(|name| escaped(name))
+        {
+            return Err(Refusal {
+                file: file.clone(),
+                reason: ta("adapter-elixir-name-not-text", targs!("name" => name)),
+                instead: t("adapter-elixir-name-not-text-instead"),
+            });
+        }
         for name in ran(&said) {
             let green = !fallen.contains(&name);
             out.insert((stem.clone(), name), green);
@@ -302,6 +318,31 @@ fn strip_timing(named: &str) -> &str {
     }
 }
 
+/// Whether the project's own word took the encoding away from us.
+///
+/// This is a FACT, not a guess by pattern, and the difference is the
+/// whole of review 0067 round three: a rule that called a name
+/// "mangled" because it carried `\x{` refused healthy trees -- a test
+/// may be NAMED that, and one such name in a neighbouring untagged
+/// test stopped the court over the whole project. §9.8: a guard that
+/// misses more than it catches is removed, not weakened.
+///
+/// What can be measured is this: `erl` takes the first `-kernel`
+/// occurrence, ours goes last, so if their own `ELIXIR_ERL_OPTIONS`
+/// carries `standard_io_encoding` at all, theirs won -- and only then
+/// is an escaped name evidence of anything.
+fn theirs_overrode() -> bool {
+    std::env::var_os("ELIXIR_ERL_OPTIONS")
+        .map(|theirs| theirs.to_string_lossy().into_owned())
+        .is_some_and(|theirs| theirs.contains("standard_io_encoding"))
+}
+
+/// Whether a name came back as escapes rather than text. Asked only
+/// where `theirs_overrode` is true.
+fn escaped(name: &str) -> bool {
+    name.contains('\u{FFFD}') || name.contains("\\x{")
+}
+
 /// `test <name>` and `doctest <name>` are how ExUnit prints and
 /// selects them; the courts above hold the bare name, which is what a
 /// `proves:` tag carries.
@@ -365,17 +406,48 @@ fn mix(root: &Path, args: &[String]) -> Result<(String, i32), Refusal> {
     // The judged project must not inherit the hook's repository, the
     // same law the cargo hand keeps (review 0021 R-3).
     crate::scope::forget_the_hook(&mut command);
+    // The hand says what encoding it wants read, instead of taking
+    // whatever the environment happens to say. Measured on OTP 29,
+    // one mix project, one test named `імʼя живе`:
+    //
+    //   locale stripped, nothing set  ->  * test \x{456}\x{43C}…
+    //   locale stripped, this line    ->  * test імʼя живе
+    //
+    // The lever is the kernel's standard_io_encoding, not `+pc`:
+    // `+pc` sets `io:printable_range()` and leaves the stream's own
+    // encoding latin1, which is what mangles the name. Review 0067
+    // measured the first attempt at this hand doing exactly that --
+    // sending `+pc unicode` and changing nothing at all.
+    //
+    // OURS GOES LAST, and that is the card's decision, not an
+    // accident: `erl` takes the FIRST `-kernel` occurrence, so a
+    // project that set its own encoding keeps it. Breaking someone
+    // else's project to make our own reading easier is not a trade
+    // this tool makes -- and where their word costs us the name, the
+    // court says so rather than guessing (see `theirs_overrode` below).
+    //
+    // Measured: theirs-first + latin1 -> the name is escaped and we
+    // refuse aloud; nothing set -> ours applies and the name arrives.
+    // Carried as bytes, not as text: review 0067 round three measured
+    // `-pa /café` with a raw `e9` reaching the child as
+    // `/caf\357\277\275` once it had been through a lossy decode.
+    // What a person put there is theirs, and it arrives as they wrote
+    // it.
+    let mut options = std::env::var_os("ELIXIR_ERL_OPTIONS").unwrap_or_default();
+    if !options.is_empty() {
+        options.push(" ");
+    }
+    options.push("-kernel standard_io_encoding unicode");
+    command.env("ELIXIR_ERL_OPTIONS", options);
     let out = command.output().map_err(|e| Refusal {
         file: root.to_path_buf(),
         reason: ta("adapter-elixir-failed", targs!("error" => e.to_string())),
         instead: t("adapter-elixir-failed-instead"),
     })?;
-    Ok((
-        format!(
-            "{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        ),
-        out.status.code().unwrap_or(-1),
-    ))
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    Ok((said, out.status.code().unwrap_or(-1)))
 }
