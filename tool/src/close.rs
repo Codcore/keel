@@ -169,11 +169,32 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // The branch's own are the files it changed against the base
     // (§4.6's very list) and its own wave file, which is where the
     // scope court hangs what it finds.
-    let mut mine: std::collections::BTreeSet<String> = scope::touched(root, &config)
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
-    if let Some(slug) = scope::branch_wave(root, &scan.waves) {
+    //
+    // Whose branch this is, on the work branch and on the PLAN branch
+    // alike (review R-6). `branch_wave` answers for `<wave>` only, so
+    // on `plan/<wave>` the set stayed empty and the findings were
+    // neither counted NOR printed: the court went silent exactly
+    // where §9.9's barrier at the plan is supposed to stand.
+    let own_wave = scope::branch_wave(root, &scan.waves).or_else(|| {
+        scope::plan_branch(root)
+            .filter(|planned| scan.waves.iter().any(|wave| &wave.slug == planned))
+    });
+    // And only then what it changed. The order matters: where the
+    // branch is named after no wave -- a tree with no git at all, a
+    // repository with no commit yet, main itself -- nothing is "this
+    // branch's own", the question does not arise, and asking git for
+    // a comparison base would refuse over a question nobody asked.
+    // Measured: nine probes whose sandboxes have no HEAD.
+    //
+    // Where the question DOES arise, the refusal is not swallowed
+    // (review R-13): `unwrap_or_default` shrank the list to the wave
+    // file and quietly stopped counting the rest -- the silent green
+    // this wave's own `safety.fail-safe` forbids. `keel check` says
+    // such a refusal aloud in a row of its own; here it ends the
+    // court.
+    let mut mine: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    if let Some(slug) = &own_wave {
+        mine.extend(scope::touched(root, &config)?);
         mine.insert(format!("keel/waves/{slug}.md"));
     }
     let blocking: Vec<(String, String)> = checked
@@ -186,6 +207,13 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
                 .map(|reason| (file.clone(), reason.clone()))
         })
         .collect();
+    // Which of them the BRANCH court wrote -- the only ones the plan
+    // exception below may drop (review R-5). The first cut exempted
+    // everything `check` had found, and a plan branch answering one
+    // cut with a bare formula (§10.3) went out with exit 0: the very
+    // example this wave used to argue for itself.
+    let branch_court: std::collections::BTreeSet<(String, String)> =
+        checked.branch_court.iter().cloned().collect();
     // The price, said before it is paid (wave 0031). This court
     // builds the judged project into ITS OWN target directory on
     // purpose -- an inherited shared cache shifts verdicts (§6.7,
@@ -638,14 +666,28 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // merges as a plan -- would otherwise be a dead letter. Nothing
     // is hidden: they are named file by file here, and `keel check`
     // carries the same list with an exit code of its own.
+    // What the plan exception really covers, counted rather than
+    // assumed: on the branch of a wave approved and not started, the
+    // BRANCH court's findings say "the work has not begun" and are
+    // exempt; everything else check found is a blocker there as
+    // anywhere (review R-5).
+    let exempt = if own_plan {
+        blocking
+            .iter()
+            .filter(|row| branch_court.contains(row))
+            .count()
+    } else {
+        0
+    };
+    let counted = blocking.len() - exempt;
     if !blocking.is_empty() {
         report.push_str(&ta(
-            if own_plan {
+            if exempt > 0 {
                 "close-check-red-plan"
             } else {
                 "close-check-red"
             },
-            targs!("count" => blocking.len() as u64),
+            targs!("count" => blocking.len() as u64, "counted" => counted as u64),
         ));
         report.push('\n');
         for (file, reason) in &blocking {
@@ -690,6 +732,20 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         ));
         report.push('\n');
     }
+    // The documents court's own summary line, beside the others
+    // (review R-1). Without it the footer said "no blockers" under an
+    // exit of 1: the condition below counted every reason but this
+    // one, while the exit code counted them all. That is the defect
+    // reviews 0055 R-6 and 0052 R-13 already fixed twice, and this
+    // wave -- whose thesis is that three reasons under one word make
+    // a riddle -- had put it back.
+    if counted > 0 {
+        report.push_str(&ta(
+            "close-check-blockers",
+            targs!("count" => counted as u64),
+        ));
+        report.push('\n');
+    }
     if ci_blocker > 0 {
         report.push_str(&t("close-ci-blocker"));
         report.push('\n');
@@ -728,6 +784,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         && form_blockers == 0
         && ci_blocker == 0
         && red_tests == 0
+        && counted == 0
     {
         // The branch's own wave may be named and unblocked at once:
         // a light wave waiting for its merge (review 0052 R-13 -- the
@@ -763,12 +820,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     let report = capped_report(report);
     Ok((
         report,
-        blockers
-            + verify_blockers
-            + form_blockers
-            + ci_blocker
-            + red_tests
-            + if own_plan { 0 } else { blocking.len() },
+        blockers + verify_blockers + form_blockers + ci_blocker + red_tests + counted,
         red_commands,
     ))
 }

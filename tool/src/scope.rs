@@ -261,16 +261,15 @@ pub fn spike_branch(root: &Path) -> Option<String> {
     current_branch(root).and_then(|b| b.strip_prefix("spike/").map(str::to_string))
 }
 
-/// §4.9: a plan branch carries the plan and nothing else. Everything
-/// it changed against the base that is not the methodology's own
-/// furniture (§4.8 -- the `keel/` directory, the config, and the
-/// files this release generates) is a finding by name.
-///
-/// The conformance audit (ВАЖКА-4) measured the paragraph held by
 /// The files this branch changed against its comparison base -- what
 /// the branch ANSWERS FOR. Furniture (§4.8) is out, as everywhere
 /// else: the lists that decide a verdict must all draw the same
 /// border.
+///
+/// `pub(crate)` and not `pub` on purpose (review 0068 R-12): the
+/// closure court is its only reader, and a new public entry would be
+/// a change to `tool-scope.md`'s exports -- a contract this wave has
+/// no business in.
 ///
 /// The closure court reads it to keep to its own business (wave
 /// 0068, the operator's ruling of 2026-09-12): it stops on what
@@ -278,7 +277,7 @@ pub fn spike_branch(root: &Path) -> Option<String> {
 /// to answer for. Measured when it stopped on everything: forty
 /// probe sandboxes went red at once, each of them a project `check`
 /// calls red ON PURPOSE, and none of it the branch's doing.
-pub fn touched(root: &Path, config: &Config) -> Result<Vec<String>, Refusal> {
+pub(crate) fn touched(root: &Path, config: &Config) -> Result<Vec<String>, Refusal> {
     let (base, _) = compare_base(root)?;
     let changed = git_line(
         root,
@@ -295,6 +294,12 @@ pub fn touched(root: &Path, config: &Config) -> Result<Vec<String>, Refusal> {
         .collect())
 }
 
+/// §4.9: a plan branch carries the plan and nothing else. Everything
+/// it changed against the base that is not the methodology's own
+/// furniture (§4.8 -- the `keel/` directory, the config, and the
+/// files this release generates) is a finding by name.
+///
+/// The conformance audit (ВАЖКА-4) measured the paragraph held by
 /// nothing at all: a branch called `plan/<wave>` is not named after a
 /// wave, so the scope court was skipped entirely -- and code laid
 /// down there is seen by nobody, since the work branch no longer
@@ -962,19 +967,7 @@ pub fn findings(
         if name.starts_with("keel/") {
             continue;
         }
-        // A declared name may be a DIRECTORY, and the drift side
-        // above already reads it that way: a touched `lib/toy.rb` is
-        // covered by a declared `lib`. This side read the name
-        // literally, so the same entry was "untouched" in the very
-        // verdict that called it covered. Wave 0068 surfaced it: the
-        // closing court began asking the check's findings, and two
-        // probe sandboxes that had declared `lib` for sixty waves
-        // turned red at once.
-        let touched_here = changed.contains(name.as_str())
-            || changed
-                .iter()
-                .any(|file| file.starts_with(&format!("{name}/")));
-        if !touched_here {
+        if !changed.contains(name.as_str()) {
             out.push((
                 ta("scope-untouched", targs!("file" => written.to_string())),
                 t("scope-untouched-instead"),

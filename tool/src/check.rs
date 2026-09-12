@@ -30,6 +30,16 @@ pub struct Outcome {
     pub limits: Vec<String>,
     /// How many documents this floor walked.
     pub documents: usize,
+    /// The rows the BRANCH court wrote (§4.1, §4.4-§4.6, §6.2, §6.3,
+    /// §7.5), told from the rest by where they were written and not
+    /// by their words -- every one of them lands on the wave's own
+    /// file, so the text cannot separate them.
+    ///
+    /// `keel close` needs the distinction for one case: on the branch
+    /// of a wave approved and NOT started, these say "the work has
+    /// not begun", which is the state its own footer announces, and
+    /// only these are exempt from the count (wave 0068, review R-5).
+    pub branch_court: Vec<(String, String)>,
 }
 
 /// Walks the documents under the root and reports on every file:
@@ -657,6 +667,21 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         .iter()
         .any(|w| w.cancelled.is_none() && w.transforms.iter().any(|(_, t)| !t.files.is_empty()));
     let mut scope_court = Court::Unjudged;
+    // Which rows the BRANCH court wrote, remembered as a span rather
+    // than re-derived from their words (wave 0068, review R-5).
+    //
+    // Every finding of this arm -- §4.4, §4.6, §4.1, §6.2, §6.3, §7.5
+    // -- says one thing in different words: the branch has not
+    // finished the work its wave declared. `keel close` needs to tell
+    // them from the findings of the other courts, which say something
+    // else entirely (a header that does not parse, an answer §10.3
+    // calls reasonless), and the reason cannot be read out of the
+    // text: all of them land on the same file, the wave's own.
+    // Their CONTENT and not their positions: `rows` is sorted before
+    // the report is rendered, so a span of indices taken here points
+    // somewhere else by the end -- measured, on a plan branch whose
+    // §10.3 finding and §4.4 finding swapped places.
+    let mut branch_court: Vec<(String, String)> = Vec::new();
     let scope_status = match scope::current_branch(root) {
         None => {
             scope_court = if declares_files {
@@ -755,11 +780,12 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 )
             }
             Some(slug) => {
+                let first_row = rows.len();
                 let wave_path = format!("keel/waves/{slug}.md");
                 let wave = scan.waves.iter().find(|w| w.slug == slug).unwrap();
                 let compared = scope::compare_base(root)
                     .and_then(|base| scope::findings(root, wave, config).map(|list| (base, list)));
-                match compared {
+                let said = match compared {
                     Ok(((sha, from_main), list)) => {
                         scope_court = Court::Judged;
                         // §6.8/§8.1: a FULL wave rides two branches
@@ -939,7 +965,11 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                         ));
                         t("check-scope-skipped-refused")
                     }
-                }
+                };
+                branch_court.extend(rows[first_row..].iter().filter_map(|(file, reason)| {
+                    reason.as_ref().map(|reason| (file.clone(), reason.clone()))
+                }));
+                said
             }
         },
     };
@@ -1332,6 +1362,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         rows,
         limits,
         documents,
+        branch_court,
     })
 }
 

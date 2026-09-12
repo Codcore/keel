@@ -60,7 +60,7 @@ fn wave_file(dir: &Path) {
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
         format!(
-            "---\ntransforms:\n  work:\n    chore: \"робота без обіцянок\"\n    files:\n      - one new in lib/\n{decisions}---\n\n## transform: work\nтіло роботи\n"
+            "---\ntransforms:\n  work:\n    chore: \"робота без обіцянок\"\n    files:\n      - lib\n{decisions}---\n\n## transform: work\nтіло роботи\n"
         ),
     )
     .unwrap();

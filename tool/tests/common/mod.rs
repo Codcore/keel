@@ -94,16 +94,29 @@ pub fn did_the_work(dir: &Path) {
     // that is what closes a transform (§6.2), and a commit named
     // anything else leaves it open however much the files changed.
     for (slug, transform) in &wave.transforms {
+        // `one new in <dir>/` promises ONE new file there (§4.1), and
+        // two such lines over one directory promise two. The hand
+        // counts the lines per directory rather than writing one file
+        // per line into the same name -- which is how the first cut
+        // kept a wave saying "2 new" while the branch added 1 (review
+        // R-11).
+        let mut new_in: std::collections::BTreeMap<String, usize> =
+            std::collections::BTreeMap::new();
         for row in &transform.files {
             match row {
                 keel::docs::ScopeLine::Path(path) => append_to(&dir.join(path)),
-                // `one new in <dir>/` is one new file there and no
-                // other (§4.1) -- a modified neighbour is drift.
                 keel::docs::ScopeLine::OneNewIn(place) => {
-                    let place = dir.join(place.trim_end_matches('/'));
-                    std::fs::create_dir_all(&place).unwrap();
-                    append_to(&place.join("from-the-branch.txt"));
+                    *new_in
+                        .entry(place.trim_end_matches('/').to_string())
+                        .or_default() += 1;
                 }
+            }
+        }
+        for (place, count) in new_in {
+            let place = dir.join(place);
+            std::fs::create_dir_all(&place).unwrap();
+            for nth in 0..count {
+                append_to(&place.join(format!("from-the-branch-{nth}.txt")));
             }
         }
         in_git(dir, &["add", "-A"]);
@@ -122,7 +135,16 @@ pub fn did_the_work(dir: &Path) {
 
 /// One line at the end of a file, with the comment leader its tongue
 /// uses: the declared file is source the runner will compile.
+///
+/// A declared name may be a DIRECTORY -- §4.3 allows it -- and
+/// writing to one is `IsADirectory`, which used to end the probe with
+/// a panic from inside this hand (review R-11). A directory gets a
+/// file written INSIDE it instead: that is what "the branch touched
+/// this directory" means to the drift court.
 fn append_to(path: &Path) {
+    if path.is_dir() {
+        return append_to(&path.join("from-the-branch.txt"));
+    }
     let leader = match path.extension().and_then(|kind| kind.to_str()) {
         Some("rs" | "js" | "ts" | "mjs" | "cjs" | "jsx" | "tsx") => "//",
         Some("txt" | "md") => "",
