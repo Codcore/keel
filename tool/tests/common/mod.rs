@@ -136,14 +136,23 @@ pub fn did_the_work(dir: &Path) {
 /// One line at the end of a file, with the comment leader its tongue
 /// uses: the declared file is source the runner will compile.
 ///
-/// A declared name may be a DIRECTORY -- §4.3 allows it -- and
-/// writing to one is `IsADirectory`, which used to end the probe with
-/// a panic from inside this hand (review R-11). A directory gets a
-/// file written INSIDE it instead: that is what "the branch touched
-/// this directory" means to the drift court.
+/// A declared name may be a DIRECTORY -- §4.3 allows writing one --
+/// and this hand cannot satisfy such a row. Measured (review R2-3):
+/// §4.4 reads the declared name LITERALLY, so a file written inside
+/// `lib/` does not answer a declared `lib`; it answers nothing and
+/// adds a drift finding of its own. Writing to the directory itself
+/// is `IsADirectory`, which used to end the probe with a panic from
+/// inside this hand (review R-11).
+///
+/// So a directory that already stands is left alone, and the row
+/// stays unanswered -- which is the truth about it. A sandbox that
+/// wants its declaration answered names a file, or says `one new in
+/// <dir>/`, which is what a branch adding a file there actually does.
+/// A name that is no directory yet becomes a FILE of that name: that
+/// is precisely what §4.4 reads.
 fn append_to(path: &Path) {
     if path.is_dir() {
-        return append_to(&path.join("from-the-branch.txt"));
+        return;
     }
     let leader = match path.extension().and_then(|kind| kind.to_str()) {
         Some("rs" | "js" | "ts" | "mjs" | "cjs" | "jsx" | "tsx") => "//",

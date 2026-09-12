@@ -2,7 +2,7 @@
 module: keel::scope
 exports:
   - "pub fn branch_wave(root: &Path, waves: &[Wave]) -> Option<String>"
-  - "pub fn findings(root: &Path, wave: &Wave, config: &Config) -> Result<Vec<(String, String)>, Refusal>"
+  - "pub fn findings(root: &Path, wave: &Wave, config: &Config) -> Result<Vec<(NotBegun, String, String)>, Refusal>"
   - "pub fn plan_findings(root: &Path, config: &Config) -> Result<Vec<(String, String, String)>, Refusal>"
   - "pub fn contracts_changed(root: &Path) -> Result<Vec<String>, Refusal>"
   - "pub fn slug_commits(root: &Path) -> Result<BTreeSet<String>, Refusal>"
@@ -86,6 +86,15 @@ Scope (глава 4): файли, названі до роботи, звіряю
   кілька рядків однієї теки обіцяють стільки ж файлів, і рахунки
   мусять зійтись: менше — знахідка, більше — знахідка, рівно — тихо
   (§4.1).
+- **Кожна знахідка каже, чи це «ще не починалось»** (хвиля 0068):
+  перший член кортежу — `NotBegun`. `Yes` стоїть рівно там, де
+  знахідка не свідчить ні про яку зроблену роботу: оголошений файл
+  ніхто не чіпав (§4.4) і `one new in`, де нового нема (§4.1). Усе
+  інше — `No`: дрейф, рядок поза коренем, `one new in` з неповним
+  рахунком. Це факт самої знахідки, а не місця, де її написали, і
+  саме тому він тут: `keel close` знімає з лічби `Yes` на гілці
+  хвилі, затвердженої й не початої (§6.6), і збирання за місцем
+  замість предмета двічі з'їдало чужі суди.
 - **Один файл — одне імʼя** (хвиля 0057): рядок scope пише людина, а
   імена дає git, тож порівнюються не рядки, а імена, які вони
   означають — `docs::one_name`: `./` на початку, порожні сегменти і

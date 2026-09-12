@@ -192,9 +192,20 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // this wave's own `safety.fail-safe` forbids. `keel check` says
     // such a refusal aloud in a row of its own; here it ends the
     // court.
+    //
+    // And EVERY `plan/*` branch is such a branch, whether or not a
+    // wave of that name exists yet (review R2-2): §4.9 judges code on
+    // any of them, `keel check` says so aloud -- "no wave of that
+    // name, the code on it is judged all the same" -- and the first
+    // cut of this fix filtered plan branches by a known wave, which
+    // put the silent green straight back. Those findings hang on real
+    // file paths, so `touched` alone carries them; the wave's own
+    // file goes in only where the wave exists.
     let mut mine: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    if let Some(slug) = &own_wave {
+    if own_wave.is_some() || scope::plan_branch(root).is_some() {
         mine.extend(scope::touched(root, &config)?);
+    }
+    if let Some(slug) = &own_wave {
         mine.insert(format!("keel/waves/{slug}.md"));
     }
     let blocking: Vec<(String, String)> = checked
@@ -693,7 +704,16 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         for (file, reason) in &blocking {
             report.push_str(&format!("  {file} — {reason}\n"));
         }
-        report.push_str(&t("close-check-red-instead"));
+        // ...and the advice tells the truth about THIS branch
+        // (review R-15): "fix them and run keel close again" over a
+        // plan branch whose findings are deliberately uncounted sends
+        // a person to repair what the court just let through. On a
+        // plan the work is still ahead, and the words say so.
+        report.push_str(&t(if exempt > 0 && counted == 0 {
+            "close-check-red-plan-instead"
+        } else {
+            "close-check-red-instead"
+        }));
         report.push('\n');
     }
     if red_tests > 0 {

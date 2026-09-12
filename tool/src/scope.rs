@@ -256,6 +256,30 @@ pub fn plan_branch(root: &Path) -> Option<String> {
     current_branch(root).and_then(|b| b.strip_prefix("plan/").map(str::to_string))
 }
 
+/// Whether a scope finding says ONLY that the declared work has not
+/// begun -- a declared file nobody touched yet, a `one new in` with
+/// nothing new in it.
+///
+/// `keel close` needs the distinction for one case and one only: on
+/// the branch of a wave approved and NOT started, those findings
+/// restate the state its own footer announces, so they are printed
+/// and not counted (§6.6). Everything else the branch court says --
+/// drift, a promise the branch worked on without a tag, a transform
+/// no commit closes, a contract a light wave grew -- means the work
+/// HAS begun, and counts there as anywhere.
+///
+/// It is a fact of the finding, not of where it was written: review
+/// 0068 R2-1 measured the second reading, which took every row the
+/// branch arm had pushed and so swallowed §6.8's two findings -- the
+/// very ones §9.9's second human look exists for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NotBegun {
+    /// The work declared here has not started.
+    Yes,
+    /// Something was done, and this is what is wrong with it.
+    No,
+}
+
 /// A `spike/*` branch: research, outside the methodology (§4.13).
 pub fn spike_branch(root: &Path) -> Option<String> {
     current_branch(root).and_then(|b| b.strip_prefix("spike/").map(str::to_string))
@@ -880,7 +904,7 @@ pub fn findings(
     root: &Path,
     wave: &Wave,
     config: &Config,
-) -> Result<Vec<(String, String)>, Refusal> {
+) -> Result<Vec<(NotBegun, String, String)>, Refusal> {
     let (base, _) = compare_base(root)?;
     // Renames are read as a departure plus an arrival, whatever the
     // host machine's diff.renames fancies: both names meet the
@@ -955,6 +979,7 @@ pub fn findings(
             continue;
         }
         out.push((
+            NotBegun::No,
             ta("scope-drift", targs!("file" => file.to_string())),
             t("scope-drift-instead"),
         ));
@@ -969,6 +994,7 @@ pub fn findings(
         }
         if !changed.contains(name.as_str()) {
             out.push((
+                NotBegun::Yes,
                 ta("scope-untouched", targs!("file" => written.to_string())),
                 t("scope-untouched-instead"),
             ));
@@ -981,6 +1007,7 @@ pub fn findings(
     // (wave 0057).
     for row in &outside {
         out.push((
+            NotBegun::No,
             ta("scope-outside", targs!("file" => row.to_string())),
             t("scope-outside-instead"),
         ));
@@ -1002,11 +1029,13 @@ pub fn findings(
         if *promised == 1 {
             if found == 0 {
                 out.push((
+                    NotBegun::Yes,
                     ta("scope-one-new-none", targs!("dir" => dir.to_string())),
                     t("scope-one-new-none-instead"),
                 ));
             } else {
                 out.push((
+                    NotBegun::No,
                     ta(
                         "scope-one-new-many",
                         targs!("dir" => dir.to_string(), "files" => new_here.join(", ")),
@@ -1016,6 +1045,13 @@ pub fn findings(
             }
         } else {
             out.push((
+                // Nothing new where several were promised is "not begun";
+                // some but not all is work already done wrong.
+                if found == 0 {
+                    NotBegun::Yes
+                } else {
+                    NotBegun::No
+                },
                 ta(
                     "scope-one-new-count",
                     targs!("dir" => dir.to_string(), "promised" => *promised, "found" => found),

@@ -95,7 +95,7 @@ fn project(name: &str) -> Sandbox {
     dir
 }
 
-/// proves: the-cheap-court-runs-first-and-locally@ce4397
+/// proves: the-cheap-court-runs-first-and-locally@2a86bf
 #[test]
 fn the_cheap_court_runs_first_and_locally() {
     // --- a finding of `keel check` is a blocker of `keel close` ---
@@ -324,7 +324,7 @@ fn the_cheap_court_runs_first_and_locally() {
     );
     let (closed, close_code) = keel(&["close", dir.to_str().unwrap()]);
     assert!(
-        closed.contains("the work has not begun"),
+        closed.contains("the declared work has not begun"),
         "close says which findings the plan exception covers, and \
          why:\n{closed}"
     );
@@ -374,6 +374,115 @@ fn the_cheap_court_runs_first_and_locally() {
         close_code, 0,
         "and not silent either -- a court that prints nothing and \
          leaves with 0 is the worst of the three answers:\n{closed}"
+    );
+
+    // --- the exception covers "not begun" and NOT §6.8 -----------
+    //
+    // The second reading gathered the exempt rows by WHERE they were
+    // written -- everything the branch arm pushed -- and so swallowed
+    // §6.8's two findings, the ones §9.9's second human look exists
+    // for: a light wave growing a contract, and a full wave whose
+    // file was born on the work branch. Both mean work was done, and
+    // both went out with exit 0 (review R2-1).
+    let dir = keel_sandbox("closelightcontract");
+    write(&dir, "keel.toml", "lang = \"en\"\nadapter = \"cargo\"\n");
+    write(
+        &dir,
+        "Cargo.toml",
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    );
+    write(&dir, "src/lib.rs", "pub fn a() {}\n");
+    fs::create_dir_all(dir.join("keel/contracts")).unwrap();
+    write(&dir, "keel/reviews/0001-a-plan.md", "# Рецензія\n\nok\n");
+    let mut decided = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        if *cut != "functional.correctness" {
+            decided.push_str(&format!("  {cut}: \"n/a, бо ця пісочниця грає інше\"\n"));
+        }
+    }
+    write(
+        &dir,
+        "keel/waves/0001-a-plan.md",
+        &format!(
+            "---\nscenarios:\n  it-holds:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-holds\n    files:\n      - src/lib.rs\n{decided}---\n\n## scenario: it-holds\nтіло обіцянки\n\n## transform: work\nтіло роботи\n"
+        ),
+    );
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+    git(&dir, &["checkout", "-q", "-b", "0001-a-plan"]);
+    // A contract grown by a wave whose files do not name one: §6.8
+    // and §5.7, and no tag anywhere, so the wave is still a plan.
+    write(
+        &dir,
+        "keel/contracts/toy.md",
+        "---\nmodule: toy\nexports:\n  - \"pub fn a()\"\n---\n\nThe promise, and what holds it.\n",
+    );
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &[
+            "commit",
+            "-q",
+            "-m",
+            "work: a contract this wave never named",
+        ],
+    );
+    let (checked, check_code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(check_code, 1, "check sees the contract:\n{checked}");
+    let (closed, close_code) = keel(&["close", dir.to_str().unwrap()]);
+    assert_ne!(
+        close_code, 0,
+        "a light wave growing a contract is the second human look \
+         skipped (§6.8, §5.7) -- it is no part of \"the declared work \
+         has not begun\", and the plan exception must not swallow \
+         it:\n{closed}"
+    );
+    // And the exit is not enough: a REFUSAL also leaves with a
+    // non-zero code, and the first cut of this side wrote a contract
+    // header that did not parse, so the court refused before it ever
+    // reached the documents. The counted line is what says the
+    // exception let this one through to the blockers.
+    assert!(
+        closed.contains("findings of the documents court on this branch's own files: 2"),
+        "and the count says which ones it let through: the contract \
+         (§6.8) and the promise worked on with no tag (§7.5), while \
+         the untouched file stays exempt:\n{closed}"
+    );
+
+    // --- and a plan branch naming no wave at all -------------------
+    //
+    // §4.9 judges code on ANY `plan/*`, and `keel check` says so in
+    // as many words. The first fix for R-6 filtered plan branches by
+    // a known wave, which put the silence straight back (review
+    // R2-2).
+    let dir = project("closeplannowave");
+    git(&dir, &["checkout", "-q", "main"]);
+    git(&dir, &["checkout", "-q", "-b", "plan/0002-nothing"]);
+    write(
+        &dir,
+        "src/lib.rs",
+        "pub fn a() {}\npub fn code_on_a_plan() {}\n",
+    );
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "code, on a plan branch"]);
+    let (checked, check_code) = keel(&["check", dir.to_str().unwrap()]);
+    assert_eq!(
+        check_code, 1,
+        "check judges code on a plan branch whatever it is named \
+         (§4.9):\n{checked}"
+    );
+    let (closed, close_code) = keel(&["close", dir.to_str().unwrap()]);
+    assert_ne!(
+        close_code, 0,
+        "and so does the court that admits it to a merge -- a plan \
+         branch with no wave of its name is still a plan branch, and \
+         a court that prints nothing and leaves with 0 is the silent \
+         green §4.10 calls worse than red:\n{closed}"
+    );
+    assert!(
+        closed.contains("src/lib.rs"),
+        "and it names the file:\n{closed}"
     );
 
     // --- where check is silent, close reddens nothing extra ---
