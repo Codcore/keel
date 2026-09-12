@@ -146,8 +146,9 @@ fn a_non_ascii_name_survives_its_runner() {
          a setting that may say anything\n{said}"
     );
     assert!(
-        !said.contains("\\x{"),
-        "and no escape of the runner's own making is read as a \
-         name:\n{said}"
+        said.contains("не текстом") || said.contains("unicode"),
+        "and where the runner will not be told -- an explicit \
+         `+pc latin1` beats anything the hand appends -- the tool \
+         says THAT, and says how to fix it:\n{said}"
     );
 }

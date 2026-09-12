@@ -365,17 +365,51 @@ fn mix(root: &Path, args: &[String]) -> Result<(String, i32), Refusal> {
     // The judged project must not inherit the hook's repository, the
     // same law the cargo hand keeps (review 0021 R-3).
     crate::scope::forget_the_hook(&mut command);
+    // The hand says what encoding it wants read, instead of taking
+    // whatever the environment happens to say. Measured in the field
+    // (release 1.2.0, an older OTP) and again on OTP 29: with the
+    // locale stripped the old runner printed latin1, and with
+    // `+pc latin1` the new one prints `\x{456}\x{43C}…` -- either
+    // way the name no longer matches the one in the test file, the
+    // battery's key misses, and the closing court says the battery
+    // did not run a test it ran and passed.
+    //
+    // Appended, not substituted: whatever a person or a CI put there
+    // stays. Ours comes last and therefore wins any `+pc` already
+    // present -- a runner that cannot print its own test names is not
+    // a choice worth honouring, and the wave says so aloud rather
+    // than leaving the verdict to the environment.
+    let mut flags = std::env::var("ERL_FLAGS").unwrap_or_default();
+    if !flags.trim().is_empty() {
+        flags.push(' ');
+    }
+    flags.push_str("+pc unicode");
+    command.env("ERL_FLAGS", flags);
     let out = command.output().map_err(|e| Refusal {
         file: root.to_path_buf(),
         reason: ta("adapter-elixir-failed", targs!("error" => e.to_string())),
         instead: t("adapter-elixir-failed-instead"),
     })?;
-    Ok((
-        format!(
-            "{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        ),
-        out.status.code().unwrap_or(-1),
-    ))
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    // And where the runner would not be told -- an explicit
+    // `+pc latin1` beats anything this hand appends, measured -- the
+    // tool says SO, instead of reading an escape as a name and
+    // accusing the battery of not running a test it ran and passed.
+    //
+    // Two shapes, one wound: a replacement character means the bytes
+    // were not UTF-8 at all (an older OTP with no locale, the field
+    // report of release 1.2.0), and `\x{...}` means this OTP escaped
+    // what it would not print (`+pc latin1`). Neither is a name.
+    if said.contains('\u{FFFD}') || said.contains("\\x{") {
+        return Err(Refusal {
+            file: root.to_path_buf(),
+            reason: t("adapter-elixir-not-utf8"),
+            instead: t("adapter-elixir-not-utf8-instead"),
+        });
+    }
+    Ok((said, out.status.code().unwrap_or(-1)))
 }
