@@ -53,8 +53,10 @@ fn revision_recipe_reproduced() {
         // the live text; c1cb09 until 0072 gave the config the trunk
         // key and the court over a root key written inside a table;
         // 9649a9 until review 0072 R-3 made that court read the VALUE
-        // -- an honest entry named `ci` was being refused.
-        "9a3203"
+        // -- an honest entry named `ci` was being refused; 9a3203
+        // until round two asked the border of that measure to be
+        // named aloud (R2-3).
+        "617d73"
     );
 
     // Prefix comparison (§5.2): 4-6 characters, from the start.
