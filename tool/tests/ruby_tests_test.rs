@@ -125,7 +125,7 @@ fn ruby_tests_are_read_and_run() {
     body.push_str("\n# touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let (said, _) = keel(&dir, &["close"]);
     assert!(
         said.contains("test_it_falls"),
@@ -169,7 +169,7 @@ fn the_ruby_battery_believes_only_what_ran() {
     body.push_str("\n# touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let (said, code) = keel(&dir, &["close"]);
     assert_ne!(
         code, 0,
@@ -200,7 +200,7 @@ fn the_ruby_battery_believes_only_what_ran() {
     body.push_str("\n# touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let (said, _) = keel(&dir, &["close"]);
     assert!(
         said.contains("test_it_works_more"),
@@ -234,7 +234,7 @@ fn the_ruby_battery_believes_only_what_ran() {
     body.push_str("\n# touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let (said, _) = keel(&dir, &["close"]);
     assert!(
         said.contains("батарея: 1 тестів"),
@@ -262,7 +262,7 @@ fn a_tag_over_a_non_test_is_not_a_green_run() {
     body.push_str("\n# touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, "work: тіло\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))

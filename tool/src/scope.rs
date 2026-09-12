@@ -613,7 +613,19 @@ pub fn findings(
         if name.starts_with("keel/") {
             continue;
         }
-        if !changed.contains(name.as_str()) {
+        // A declared name may be a DIRECTORY, and the drift side
+        // above already reads it that way: a touched `lib/toy.rb` is
+        // covered by a declared `lib`. This side read the name
+        // literally, so the same entry was "untouched" in the very
+        // verdict that called it covered. Wave 0068 surfaced it: the
+        // closing court began asking the check's findings, and two
+        // probe sandboxes that had declared `lib` for sixty waves
+        // turned red at once.
+        let touched_here = changed.contains(name.as_str())
+            || changed
+                .iter()
+                .any(|file| file.starts_with(&format!("{name}/")));
+        if !touched_here {
             out.push((
                 ta("scope-untouched", targs!("file" => written.to_string())),
                 t("scope-untouched-instead"),

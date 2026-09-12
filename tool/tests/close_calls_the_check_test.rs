@@ -132,15 +132,14 @@ fn the_cheap_court_runs_first_and_locally() {
         "and it names the same file, not a number:\n{closed}"
     );
 
-    // --- and it stops BEFORE the battery ---
+    // --- and it is a BLOCKER, counted, not a remark ---
     //
-    // A probe that only reads the exit code would pass over a court
-    // that ran thirteen minutes of tests and only then looked. The
-    // whole point of the wave is the six seconds.
+    // A probe that only read the exit code would pass over a court
+    // that printed the finding and let the merge through anyway.
     assert!(
-        !closed.contains("battery:"),
-        "the documents are judged first: the battery does not run at \
-         all when the cheap court has already found something:\n{closed}"
+        closed.contains("blockers") || closed.contains("блокер"),
+        "and the count of blockers carries it, so the number a person \
+         reads is the whole truth:\n{closed}"
     );
 
     // --- where check is silent, close reddens nothing extra ---
@@ -161,7 +160,7 @@ fn the_cheap_court_runs_first_and_locally() {
     );
     assert!(
         closed.contains("battery:"),
-        "and here the battery does run -- the wave does not make the \
-         court cheaper by skipping it:\n{closed}"
+        "and the battery runs in both cases -- this wave widens the \
+         court, it does not make it cheaper:\n{closed}"
     );
 }

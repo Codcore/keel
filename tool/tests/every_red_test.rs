@@ -83,7 +83,7 @@ fn settle(dir: &Path) {
     body.push_str("\n// touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(dir, &["add", "-A"]);
-    git(dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(dir, &["commit", "-q", "-m", "work: the declared file"]);
 }
 
 /// Every cut decided but the ones named -- a wave file that passes

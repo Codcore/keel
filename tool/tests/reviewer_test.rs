@@ -70,7 +70,7 @@ fn project(name: &str) -> common::Sandbox {
     body.push_str("\n// touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let mut d = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
         if *cut != "functional.correctness" {
@@ -208,7 +208,7 @@ fn every_wave_has_its_reviewer() {
     body.push_str("\n// touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let (said, code) = keel(&dir, "close");
     assert_eq!(
         code, 1,

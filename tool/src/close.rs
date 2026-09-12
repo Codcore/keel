@@ -169,8 +169,10 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // The branch's own are the files it changed against the base
     // (§4.6's very list) and its own wave file, which is where the
     // scope court hangs what it finds.
-    let mut mine: std::collections::BTreeSet<String> =
-        scope::touched(root, &config).unwrap_or_default().into_iter().collect();
+    let mut mine: std::collections::BTreeSet<String> = scope::touched(root, &config)
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
     if let Some(slug) = scope::branch_wave(root, &scan.waves) {
         mine.insert(format!("keel/waves/{slug}.md"));
     }
@@ -257,11 +259,9 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // "is this closed" is owed the answer, not only the reason the
     // answer was cheap.
     let mut battery: Battery = BTreeMap::new();
-    if blocking.is_empty() {
-        for _ in 0..BATTERY_RUNS {
-            for (key, green) in adapter::run_all(root)? {
-                battery.entry(key).or_default().push(green);
-            }
+    for _ in 0..BATTERY_RUNS {
+        for (key, green) in adapter::run_all(root)? {
+            battery.entry(key).or_default().push(green);
         }
     }
     let branch = scope::branch_wave(root, &scan.waves);
@@ -278,13 +278,12 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
 
     let mut report = t("close-title");
     report.push('\n');
-    if blocking.is_empty() {
-        report.push_str(&ta(
-            "close-battery",
-            targs!("count" => battery.len() as u64, "runs" => BATTERY_RUNS as u64),
-        ));
-        report.push('\n');
-    } else {
+    report.push_str(&ta(
+        "close-battery",
+        targs!("count" => battery.len() as u64, "runs" => BATTERY_RUNS as u64),
+    ));
+    report.push('\n');
+    if !blocking.is_empty() {
         report.push_str(&ta(
             "close-check-red",
             targs!("count" => blocking.len() as u64),

@@ -121,7 +121,7 @@ fn gate(dir: &Path) -> (String, i32) {
     body.push_str("\n// touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(dir, &["add", "-A"]);
-    git(dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(dir, &["commit", "-q", "-m", "work: the declared file"]);
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, "work: тіло\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
@@ -155,7 +155,7 @@ fn reviewed(dir: &Path) {
     body.push_str("\n// touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(dir, &["add", "-A"]);
-    git(dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(dir, &["commit", "-q", "-m", "work: the declared file"]);
 }
 
 /// proves: javascript-tests-are-read-and-run@fbbe41
@@ -462,7 +462,7 @@ fn what_node_is_handed() {
     body.push_str("\n// touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, "work: тіло\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))

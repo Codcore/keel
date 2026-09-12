@@ -95,7 +95,7 @@ fn gate(dir: &Path) -> (String, i32) {
     body.push_str("\n# touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(dir, &["add", "-A"]);
-    git(dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(dir, &["commit", "-q", "-m", "work: the declared file"]);
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, "work: тіло\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
@@ -276,7 +276,7 @@ fn a_refusal_carries_pytests_own_words() {
     body.push_str("\n# touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let (said, code) = keel(&dir, &["close"]);
     assert_ne!(code, 0, "a collection that broke is a refusal:\n{said}");
     assert!(

@@ -127,7 +127,7 @@ fn python_tests_are_read_and_run() {
     body.push_str("\n# touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, "work: тіло\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
@@ -170,7 +170,7 @@ fn python_tests_are_read_and_run() {
     body.push_str("\n# touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let (said, code) = keel(&dir, &["close"]);
     assert!(
         said.contains("батарея: 3 тестів"),
@@ -214,7 +214,7 @@ fn python_tests_are_read_and_run() {
     body.push_str("\n# touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, "work: тіло\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
@@ -300,7 +300,7 @@ fn the_shapes_pytest_comes_in() {
         body.push_str("\n# touched by the branch\n");
         std::fs::write(&touched, body).unwrap();
         git(dir, &["add", "-A"]);
-        git(dir, &["commit", "-q", "-m", "t: the declared file"]);
+        git(dir, &["commit", "-q", "-m", "work: the declared file"]);
     };
 
     // M28: a GREEN close. The tag and the battery meet on the same
@@ -397,7 +397,7 @@ fn the_shapes_pytest_comes_in() {
     body.push_str("\n# touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, "work: тіло\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))

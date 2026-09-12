@@ -77,7 +77,7 @@ fn the_closing_says_what_failed() {
     body.push_str("\n// touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
 
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
         .args(["close", dir.to_str().unwrap()])
@@ -159,7 +159,7 @@ fn the_closing_says_what_failed() {
     body.push_str("\n// touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
 
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
         .args(["close", dir.to_str().unwrap()])

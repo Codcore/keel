@@ -91,7 +91,7 @@ fn settle(dir: &Path) {
     body.push_str("\n// touched by the branch\n");
     std::fs::write(&touched, body).unwrap();
     git(dir, &["add", "-A"]);
-    git(dir, &["commit", "-q", "-m", "t: the declared file"]);
+    git(dir, &["commit", "-q", "-m", "work: the declared file"]);
 }
 
 fn run(dir: &Path, args: &[&str]) -> (String, String, i32) {
