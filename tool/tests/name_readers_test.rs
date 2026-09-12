@@ -100,6 +100,12 @@ fn frame(dir: &Path, adapter: &str, file: &str) {
     git(dir, &["add", "-A"]);
     git(dir, &["commit", "-q", "-m", "base"]);
     git(dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(dir);
 }
 
 /// The names the reader gives the tags of one file text.

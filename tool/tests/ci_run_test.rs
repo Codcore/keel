@@ -90,6 +90,18 @@ fn project_on(name: &str, branch: &str) -> Sandbox {
         ),
     );
     git(&dir, &["init", "-q", "-b", branch]);
+    // And a commit, so the branch is a branch. `git init` alone
+    // leaves HEAD pointing at nothing, and since wave 0068 the
+    // closing court asks git what this branch changed -- a question
+    // with no answer here, which it refuses aloud rather than
+    // swallowing (§4.10). A branch named after a wave always carries
+    // at least the commit that wrote the wave's file; this fixture
+    // simply never did.
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "tidy: the tree this branch stands on"],
+    );
     dir
 }
 

@@ -68,7 +68,7 @@ fn all_decided_except(covered: &[&str]) -> String {
 /// A wave file with one live scenario named `sc` and one transform.
 fn wave_text(sc: &str) -> String {
     format!(
-        "---\nscenarios:\n  {sc}: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [{sc}]\n    files: [src/lib.rs]\n{}---\n\n## scenario: {sc}\n\nbody of {sc}\n",
+        "---\nscenarios:\n  {sc}: {{covers: [functional.correctness]}}\ntransforms:\n  t:\n    implements: [{sc}]\n    files: [src/lib.rs]\n{}---\n\n## scenario: {sc}\n\nbody of {sc}\n\n## transform: t\n\nthe work\n",
         all_decided_except(&["functional.correctness"])
     )
 }
@@ -117,7 +117,7 @@ fn wave_closure_judged() {
         &dir,
         "keel/waves/0012-progress.md",
         &format!(
-            "---\nscenarios:\n  c: {{covers: [functional.correctness]}}\n  d: {{covers: [performance.capacity]}}\ntransforms:\n  t:\n    implements: [c, d]\n    files: [src/lib.rs]\n{}---\n\n## scenario: c\n\nbody of c\n\n## scenario: d\n\nbody of d\n",
+            "---\nscenarios:\n  c: {{covers: [functional.correctness]}}\n  d: {{covers: [performance.capacity]}}\ntransforms:\n  t:\n    implements: [c, d]\n    files: [src/lib.rs]\n{}---\n\n## scenario: c\n\nbody of c\n\n## scenario: d\n\nbody of d\n\n## transform: t\n\nthe work\n",
             all_decided_except(&["functional.correctness", "performance.capacity"])
         ),
     );
@@ -164,6 +164,10 @@ fn wave_closure_judged() {
     // exit stays 0, but the footer must say that truth, not "named
     // as no unclosed wave".
     git(&dir, &["checkout", "-q", "-b", "0011-plan"]);
+    // No hand here on purpose: this branch is a PLAN (§6.6), and a
+    // plan that carries work commits is no longer a plan -- §7.5
+    // says so, and the first cut of wave 0068 put them here and
+    // made the court right.
     let (out, err, code) = keel(&["close", dir.to_str().unwrap()]);
     let out = format!("{out}{err}");
     assert_eq!(code, 0, "a plan PR merges as a plan (§6.6):\n{out}");
