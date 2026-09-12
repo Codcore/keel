@@ -943,6 +943,95 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             }
         },
     };
+    // Where the trunk came from, said aloud -- and said on the PLAN
+    // branch too, which is exactly where issue #51 hurts and where no
+    // line named the trunk at all. A person whose first run after an
+    // upgrade gives different findings must be able to read the cause
+    // in the verdict instead of hunting a keel regression.
+    let scope_status = match scope_court {
+        Court::Judged | Court::UnjudgedCounted => {
+            let refused = scope::trunk_refused(root, Some(config));
+            match scope::trunk_of(root, Some(config)) {
+                Some(trunk) => {
+                    // The name AND the ref it resolved to, in one
+                    // line: a verdict that said `origin/main` on one
+                    // line and `main` on the next was read as two
+                    // answers (review 0072 R2-5).
+                    let named = match &trunk.reference {
+                        Some(reference) if *reference != trunk.name => {
+                            format!("{} ({reference})", trunk.name)
+                        }
+                        _ => trunk.name.clone(),
+                    };
+                    let line = match (trunk.source, trunk.remote.as_deref(), &refused) {
+                        // The KEY answered, and it wins the line even
+                        // when git's answer was refused beside it:
+                        // round three measured the other order saying
+                        // four untrue things at once, among them
+                        // "taken by name" over a trunk the key named
+                        // (R-3).
+                        (scope::TrunkSource::Named, _, _) => {
+                            ta("check-trunk-named", targs!("trunk" => named))
+                        }
+                        // git DID name one, and this hand would not
+                        // take it: saying "nobody names it" here
+                        // would be a lie about the cause, and the
+                        // advice that goes with it (`git remote
+                        // set-head`) leads in a circle -- the remote
+                        // is the tree whose HEAD is on that branch.
+                        (_, _, Some((gone, why))) => ta(
+                            match why {
+                                scope::RefusedBecause::ItIsWork => "check-trunk-refused",
+                                scope::RefusedBecause::ItIsGone => "check-trunk-gone",
+                            },
+                            targs!(
+                                "trunk" => named,
+                                "refused" => gone.clone(),
+                                "remote" => trunk.remote.clone().unwrap_or_else(|| "origin".to_string())
+                            ),
+                        ),
+                        (scope::TrunkSource::Git, Some(remote), None) => ta(
+                            "check-trunk-git",
+                            targs!("trunk" => named, "remote" => remote.to_string()),
+                        ),
+                        // git cannot have named it without a remote
+                        // to name it in; the arm exists so the match
+                        // is total, and it says the honest thing.
+                        (scope::TrunkSource::Git, None, None)
+                        | (scope::TrunkSource::Guess, None, None) => {
+                            ta("check-trunk-guess-alone", targs!("trunk" => named))
+                        }
+                        (scope::TrunkSource::Guess, Some(remote), None) => ta(
+                            "check-trunk-guess",
+                            targs!("trunk" => named, "remote" => remote.to_string()),
+                        ),
+                    };
+                    format!("{scope_status}\n  {line}")
+                }
+                // Nothing answered at all -- and if git answered
+                // something this hand would not take, that is the
+                // whole explanation of the silence and it must not be
+                // dropped with the answer (round three, R-4).
+                None => match &refused {
+                    Some((gone, why)) => format!(
+                        "{scope_status}\n  {}",
+                        ta(
+                            match why {
+                                scope::RefusedBecause::ItIsWork => "check-trunk-refused-alone",
+                                scope::RefusedBecause::ItIsGone => "check-trunk-gone-alone",
+                            },
+                            targs!(
+                                "refused" => gone.clone(),
+                                "remote" => scope::remote_name(root).unwrap_or_else(|| "origin".to_string())
+                            )
+                        )
+                    ),
+                    None => scope_status,
+                },
+            }
+        }
+        _ => scope_status,
+    };
     // The tag floor (§5.5, §7.5): proves tags in the test files the
     // adapter names, judged against the scenarios' current revisions.
     // A withdrawn scenario's tag is not judged (§2.12). Only the
@@ -1286,13 +1375,33 @@ fn compare_state(root: &Path, shallow: bool, has_history: bool) -> Compared {
         return Compared::No(t("limit-no-base"));
     };
     if !from_main {
-        return Compared::No(t("limit-no-trunk"));
+        // A key that names a branch this clone does not have gets its
+        // own words: the generic line advises naming the trunk in
+        // keel.toml, and that is exactly what the person already did
+        // (review 0072 R-8). The answer is remembered, so asking
+        // again here costs nothing.
+        let config = crate::config::read(root).ok();
+        let named = scope::trunk_of(root, config.as_ref())
+            .filter(|trunk| trunk.source == scope::TrunkSource::Named && trunk.reference.is_none());
+        return Compared::No(match named {
+            Some(trunk) => ta("limit-trunk-named-missing", targs!("trunk" => trunk.name)),
+            None => t("limit-no-trunk"),
+        });
     }
     // A base that IS the head is the trunk itself, once a truncated
     // history has been ruled out above: there are no commits of our
-    // own to compare, and saying so on every main-branch run would
+    // own to compare, and saying so on every trunk-branch run would
     // be noise, not honesty (the verdict-limits probe of wave 0031
     // measured exactly that).
+    //
+    // Wave 0072 tried to make this line speak on a branch of the work
+    // as well, and review round four measured what it cost: it said
+    // "§4.4 was not judged" while §4.4 stood red in the same verdict,
+    // and it named a cause -- a clone of a working tree -- in four
+    // states where there was no such clone. A line that explains what
+    // it did not do is worse than no line; what the verdict owes here
+    // it pays in the trunk line, which names the branch used and who
+    // named it.
     let _ = base;
     Compared::Yes
 }
@@ -1332,28 +1441,59 @@ fn verdict_limits(root: &Path, refs_unjudged: u64) -> Vec<String> {
     // R-8 found both hard-coded, so a project on `master` was told to
     // push its trunk and a project whose remote is `upstream` was
     // told its work does not exist.
-    let remote = remote_name(root);
-    let trunk = trunk_name(root, remote.as_deref());
-    let base = remote
-        .as_ref()
-        .map(|remote| format!("{remote}/{trunk}"))
-        .filter(|base| git_line(root, &["rev-parse", "--verify", "--quiet", base]).is_some());
-    match &base {
-        Some(base) => {
-            let behind = git_line(root, &["rev-list", "--count", &format!("{trunk}..{base}")])
-                .and_then(|n| n.parse::<u64>().ok())
-                .unwrap_or(0);
-            if behind > 0 {
-                limits.push(ta(
-                    "limit-base-stale",
-                    targs!("behind" => behind, "trunk" => trunk.clone(), "base" => base.clone()),
-                ));
+    let remote = scope::remote_name(root);
+    // One hand names the trunk, and it is `scope`'s: before wave 0072
+    // this court asked git first and the scope court asked `main`
+    // first, so on a project whose default branch is `development`
+    // the freshness line and the comparison spoke of two different
+    // branches.
+    let config = crate::config::read(root).ok();
+    let trunk = scope::trunk_of(root, config.as_ref());
+    if let Some(trunk) = &trunk {
+        match &trunk.reference {
+            // A name that stands nowhere is no base at all, and the
+            // freshness of a base that does not exist is not a
+            // question (R-7). The line that names the key and what it
+            // could not find belongs to `compare_state`, which alone
+            // knows whether this branch is judged against anything --
+            // pushing it here as well leaked it onto `spike/`
+            // branches, where §4.9 and §4.12 are not judged at all
+            // (round five, R-2).
+            None => {}
+            Some(reference) => {
+                let far = remote
+                    .as_ref()
+                    .map(|remote| format!("{remote}/{}", trunk.name))
+                    .filter(|far| {
+                        git_line(root, &["rev-parse", "--verify", "--quiet", far]).is_some()
+                    });
+                match far {
+                    // The base is local and the remote knows the same
+                    // name: how far behind it stands is worth saying.
+                    Some(far) if far != *reference => {
+                        let behind = git_line(
+                            root,
+                            &["rev-list", "--count", &format!("{reference}..{far}")],
+                        )
+                        .and_then(|n| n.parse::<u64>().ok())
+                        .unwrap_or(0);
+                        if behind > 0 {
+                            limits.push(ta(
+                                "limit-base-stale",
+                                targs!("behind" => behind, "trunk" => trunk.name.clone(), "base" => far),
+                            ));
+                        }
+                    }
+                    // The base already IS the remote-tracking ref:
+                    // there is nothing newer this clone could know.
+                    Some(_) => {}
+                    None => limits.push(ta(
+                        "limit-base-local-only",
+                        targs!("trunk" => trunk.name.clone()),
+                    )),
+                }
             }
         }
-        None => limits.push(ta(
-            "limit-base-local-only",
-            targs!("trunk" => trunk.clone()),
-        )),
     }
 
     // Whether the branch being judged has reached origin, as far as
@@ -1364,7 +1504,7 @@ fn verdict_limits(root: &Path, refs_unjudged: u64) -> Vec<String> {
     // caught this asking git directly and naming the PARENT
     // repository's branch for a project living in a subdirectory.
     if let (Some(remote), Some(branch)) = (&remote, scope::current_branch(root))
-        && branch != trunk
+        && Some(branch.as_str()) != trunk.as_ref().map(|trunk| trunk.name.as_str())
     {
         let there = format!("{remote}/{branch}");
         match git_line(root, &["rev-parse", "--verify", "--quiet", &there]) {
@@ -1598,44 +1738,6 @@ fn unborn_scenarios(
         ));
     }
     unborn
-}
-
-/// The remote this clone actually has: `origin` when it is there,
-/// otherwise the only one, and nothing at all when there are none or
-/// several (review 0031 R-8: `origin` was assumed and a project
-/// pushed to `upstream` was told its work did not exist).
-fn remote_name(root: &Path) -> Option<String> {
-    let all = git_line(root, &["remote"])?;
-    let mut names = all.lines().map(str::trim).filter(|name| !name.is_empty());
-    let first = names.next()?;
-    if all.lines().any(|name| name.trim() == "origin") {
-        return Some("origin".to_string());
-    }
-    names.next().is_none().then(|| first.to_string())
-}
-
-/// What this repository calls its trunk: what the remote's HEAD
-/// points at, else `main` if it exists, else `master` (R-8).
-fn trunk_name(root: &Path, remote: Option<&str>) -> String {
-    let head = remote.and_then(|remote| {
-        git_line(
-            root,
-            &[
-                "symbolic-ref",
-                "--short",
-                &format!("refs/remotes/{remote}/HEAD"),
-            ],
-        )
-    });
-    if let Some(name) = head.as_deref().and_then(|head| head.rsplit_once('/')) {
-        return name.1.to_string();
-    }
-    for name in ["main", "master"] {
-        if git_line(root, &["rev-parse", "--verify", "--quiet", name]).is_some() {
-            return name.to_string();
-        }
-    }
-    "main".to_string()
 }
 
 /// One line of git output, or nothing -- a question this clone

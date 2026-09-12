@@ -144,6 +144,20 @@ pub struct Config {
     pub ci: Option<String>,
     pub lang: String,
     pub mode: String,
+    /// What this project calls its trunk -- the branch every scope
+    /// comparison and every fact of a merge is measured against.
+    ///
+    /// A ROOT key, and it must stand before `[trust]` and
+    /// `[generated]`: a line appended to the end of `keel.toml` is
+    /// read as part of the last table and swallowed in silence (wave
+    /// 0072, measured on the 1.3.0 binary).
+    ///
+    /// Absent means "ask git", which is right wherever
+    /// `refs/<remote>/HEAD` is set and current. It is named here for
+    /// the two states where git answers wrongly and only the project
+    /// can correct it: a HEAD left over from before a rename, and a
+    /// CI checkout where it does not exist at all.
+    pub trunk: Option<String>,
     pub trust: Vec<(String, String)>,
     pub generated: Vec<(String, String)>,
     /// The agents the project named, as written. Judged at read
@@ -177,6 +191,7 @@ impl Default for Config {
             ci: None,
             lang: "en".to_string(),
             mode: "strict".to_string(),
+            trunk: None,
             trust: Vec::new(),
             generated: Vec::new(),
             agents: Vec::new(),
@@ -299,6 +314,7 @@ struct Raw {
     version: Option<String>,
     adapter: Option<String>,
     ci: Option<String>,
+    trunk: Option<String>,
     lang: Option<String>,
     mode: Option<String>,
     trust: Option<BTreeMap<String, String>>,
@@ -353,9 +369,61 @@ pub fn read_unpinned(root: &Path) -> Result<Config, Refusal> {
         file: path.clone(),
         reason: format!("keel.toml does not parse: {e}"),
         instead: "fix the named field; the vocabulary is: version, adapter, ci, \
-                  lang, mode, agents, hooks, [trust], [generated] (NEW-CONCEPT, Config)"
+                  trunk, lang, mode, agents, hooks, [trust], [generated] \
+                  (NEW-CONCEPT, Config)"
             .to_string(),
     })?;
+
+    // A root key written at the END of a file that already carries a
+    // table is not a root key at all: TOML reads it as a member of
+    // that table, and both `[trust]` and `[generated]` take any name
+    // at all, so nothing refuses. Measured on the 1.3.0 binary (wave
+    // 0072): `trunk = "development"` appended to the bottom was
+    // swallowed in silence -- the person who was told "name the trunk
+    // in keel.toml" did exactly that and got no answer and no error.
+    //
+    // The VALUE is what tells the two apart, and review 0072 R-3
+    // measured why it must: a project whose contract runs a command
+    // called `ci` writes `[trust] ci = "<fingerprint>"` honestly, and
+    // a court that read the name alone made that file unreadable by
+    // every command. Both tables carry the same twelve hex characters
+    // (`trust::fingerprint`), so an entry whose value is not one is
+    // no entry of theirs -- and the line is refused with the shape
+    // that works, not with a spelling that never matches.
+    const ROOT_KEYS: [&str; 8] = [
+        "version", "adapter", "ci", "trunk", "lang", "mode", "agents", "hooks",
+    ];
+    let is_mark = |value: &str| {
+        value.len() == 12
+            && value
+                .chars()
+                .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+    };
+    for (table, entries) in [
+        ("trust", raw.trust.as_ref()),
+        ("generated", raw.generated.as_ref()),
+    ] {
+        let Some(entries) = entries else { continue };
+        if let Some((named, _)) = entries
+            .iter()
+            .find(|(key, value)| ROOT_KEYS.contains(&key.as_str()) && !is_mark(value))
+        {
+            return Err(Refusal {
+                file: path,
+                reason: format!(
+                    "\"{named}\" is a root key of keel.toml, and here it stands inside \
+                     [{table}]: every line after a table header belongs to that table, \
+                     whatever the line is called"
+                ),
+                instead: format!(
+                    "move the line ABOVE the first table header -- root keys come first, \
+                     tables last. If it really is an entry of [{table}], its value is the \
+                     twelve-character mark that keel writes there (keel trust), not prose \
+                     (NEW-CONCEPT, Config)"
+                ),
+            });
+        }
+    }
 
     let lang_set = raw.lang.is_some();
     let lang = raw.lang.unwrap_or_else(|| "en".to_string());
@@ -430,6 +498,7 @@ pub fn read_unpinned(root: &Path) -> Result<Config, Refusal> {
         ci: raw.ci,
         lang,
         mode,
+        trunk: raw.trunk.filter(|named| !named.trim().is_empty()),
         trust: raw.trust.unwrap_or_default().into_iter().collect(),
         generated: raw.generated.unwrap_or_default().into_iter().collect(),
         agents,
