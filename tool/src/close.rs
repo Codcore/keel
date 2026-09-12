@@ -143,6 +143,88 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         // check names every broken file -- fix them first.
         return Err(refusal);
     }
+    // The cheap court first (wave 0068). Measured before the work, on
+    // one tree and one commit: a branch touching a file no transform
+    // of its wave names gives `keel check` exit 1 and `keel close`
+    // exit 0 -- the court that lets a branch into a merge was blind
+    // to what the cheaper court beside it had already found. Two
+    // waves were returned by a reviewer for exactly that, and the
+    // first command the reviewer ran was the one the author had not.
+    //
+    // It is asked BEFORE the battery, and that is half the wave:
+    // thirteen minutes of tests to learn what six seconds would have
+    // said is not a price, it is waiting. The report says WHICH court
+    // stopped the run, because three different reasons under one word
+    // "blockers" make a verdict a riddle.
+    let checked = crate::check::run(root, &config)?;
+    // ...and only what THIS branch answers for (the operator's ruling
+    // of 2026-09-12). The first reading stopped on every finding in
+    // the tree, and the battery measured what that means: forty probe
+    // sandboxes went red at once, each of them a project `check`
+    // calls red on purpose, none of it the branch's doing. A court
+    // that admits THIS branch to a merge is not the place to carry
+    // somebody else's old untidiness -- `keel check` carries it, and
+    // says so in full.
+    //
+    // The branch's own are the files it changed against the base
+    // (§4.6's very list) and its own wave file, which is where the
+    // scope court hangs what it finds.
+    //
+    // Whose branch this is, on the work branch and on the PLAN branch
+    // alike (review R-6). `branch_wave` answers for `<wave>` only, so
+    // on `plan/<wave>` the set stayed empty and the findings were
+    // neither counted NOR printed: the court went silent exactly
+    // where §9.9's barrier at the plan is supposed to stand.
+    let own_wave = scope::branch_wave(root, &scan.waves).or_else(|| {
+        scope::plan_branch(root)
+            .filter(|planned| scan.waves.iter().any(|wave| &wave.slug == planned))
+    });
+    // And only then what it changed. The order matters: where the
+    // branch is named after no wave -- a tree with no git at all, a
+    // repository with no commit yet, main itself -- nothing is "this
+    // branch's own", the question does not arise, and asking git for
+    // a comparison base would refuse over a question nobody asked.
+    // Measured: nine probes whose sandboxes have no HEAD.
+    //
+    // Where the question DOES arise, the refusal is not swallowed
+    // (review R-13): `unwrap_or_default` shrank the list to the wave
+    // file and quietly stopped counting the rest -- the silent green
+    // this wave's own `safety.fail-safe` forbids. `keel check` says
+    // such a refusal aloud in a row of its own; here it ends the
+    // court.
+    //
+    // And EVERY `plan/*` branch is such a branch, whether or not a
+    // wave of that name exists yet (review R2-2): §4.9 judges code on
+    // any of them, `keel check` says so aloud -- "no wave of that
+    // name, the code on it is judged all the same" -- and the first
+    // cut of this fix filtered plan branches by a known wave, which
+    // put the silent green straight back. Those findings hang on real
+    // file paths, so `touched` alone carries them; the wave's own
+    // file goes in only where the wave exists.
+    let mut mine: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    if own_wave.is_some() || scope::plan_branch(root).is_some() {
+        mine.extend(scope::touched(root, &config)?);
+    }
+    if let Some(slug) = &own_wave {
+        mine.insert(format!("keel/waves/{slug}.md"));
+    }
+    let blocking: Vec<(String, String)> = checked
+        .rows
+        .iter()
+        .filter_map(|(file, reason)| {
+            reason
+                .as_ref()
+                .filter(|_| mine.contains(file))
+                .map(|reason| (file.clone(), reason.clone()))
+        })
+        .collect();
+    // Which of them the BRANCH court wrote -- the only ones the plan
+    // exception below may drop (review R-5). The first cut exempted
+    // everything `check` had found, and a plan branch answering one
+    // cut with a bare formula (§10.3) went out with exit 0: the very
+    // example this wave used to argue for itself.
+    let branch_court: std::collections::BTreeSet<(String, String)> =
+        checked.branch_court.iter().cloned().collect();
     // The price, said before it is paid (wave 0031). This court
     // builds the judged project into ITS OWN target directory on
     // purpose -- an inherited shared cache shifts verdicts (§6.7,
@@ -208,6 +290,14 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // The battery runs several times before green is believed
     // (§7.13): the adapter keeps its word -- one battery, one cargo
     // run -- and the court folds the runs.
+    //
+    // It runs even where the documents court above has already found
+    // something. The first cut of this wave stopped here to save the
+    // thirteen minutes, and the battery measured what that costs:
+    // twenty-eight probes lost their subject, because they call
+    // `keel close` on sandboxes the documents court calls red on
+    // purpose. Six seconds instead of thirteen minutes was the
+    // SECOND sentence of the card, not the first.
     let mut battery: Battery = BTreeMap::new();
     for _ in 0..BATTERY_RUNS {
         for (key, green) in adapter::run_all(root)? {
@@ -574,6 +664,58 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // adapter (wave 0043). A court that did not run says so and a
     // person knows they do not know; a court that saw red and left
     // green passes itself off as read.
+    // The documents court's findings on this branch's own files
+    // (wave 0068), among the other summary lines rather than above
+    // them: it is one of the reasons the wave does not close, and a
+    // reader counts them in one place.
+    //
+    // ...with one exception, and it is a decision, not an oversight.
+    // On the branch of a wave that is approved and NOT STARTED the
+    // findings are printed and not counted: everything the scope
+    // court can say there reduces to "the work has not begun", which
+    // is the very state the footer announces, and §6.6 -- a plan PR
+    // merges as a plan -- would otherwise be a dead letter. Nothing
+    // is hidden: they are named file by file here, and `keel check`
+    // carries the same list with an exit code of its own.
+    // What the plan exception really covers, counted rather than
+    // assumed: on the branch of a wave approved and not started, the
+    // BRANCH court's findings say "the work has not begun" and are
+    // exempt; everything else check found is a blocker there as
+    // anywhere (review R-5).
+    let exempt = if own_plan {
+        blocking
+            .iter()
+            .filter(|row| branch_court.contains(row))
+            .count()
+    } else {
+        0
+    };
+    let counted = blocking.len() - exempt;
+    if !blocking.is_empty() {
+        report.push_str(&ta(
+            if exempt > 0 {
+                "close-check-red-plan"
+            } else {
+                "close-check-red"
+            },
+            targs!("count" => blocking.len() as u64, "counted" => counted as u64),
+        ));
+        report.push('\n');
+        for (file, reason) in &blocking {
+            report.push_str(&format!("  {file} — {reason}\n"));
+        }
+        // ...and the advice tells the truth about THIS branch
+        // (review R-15): "fix them and run keel close again" over a
+        // plan branch whose findings are deliberately uncounted sends
+        // a person to repair what the court just let through. On a
+        // plan the work is still ahead, and the words say so.
+        report.push_str(&t(if exempt > 0 && counted == 0 {
+            "close-check-red-plan-instead"
+        } else {
+            "close-check-red-instead"
+        }));
+        report.push('\n');
+    }
     if red_tests > 0 {
         report.push_str(&ta(
             "close-red-blockers",
@@ -607,6 +749,20 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         report.push_str(&ta(
             "close-form-blockers",
             targs!("count" => form_blockers as u64),
+        ));
+        report.push('\n');
+    }
+    // The documents court's own summary line, beside the others
+    // (review R-1). Without it the footer said "no blockers" under an
+    // exit of 1: the condition below counted every reason but this
+    // one, while the exit code counted them all. That is the defect
+    // reviews 0055 R-6 and 0052 R-13 already fixed twice, and this
+    // wave -- whose thesis is that three reasons under one word make
+    // a riddle -- had put it back.
+    if counted > 0 {
+        report.push_str(&ta(
+            "close-check-blockers",
+            targs!("count" => counted as u64),
         ));
         report.push('\n');
     }
@@ -648,6 +804,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         && form_blockers == 0
         && ci_blocker == 0
         && red_tests == 0
+        && counted == 0
     {
         // The branch's own wave may be named and unblocked at once:
         // a light wave waiting for its merge (review 0052 R-13 -- the
@@ -683,7 +840,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     let report = capped_report(report);
     Ok((
         report,
-        blockers + verify_blockers + form_blockers + ci_blocker + red_tests,
+        blockers + verify_blockers + form_blockers + ci_blocker + red_tests + counted,
         red_commands,
     ))
 }

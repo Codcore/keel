@@ -30,6 +30,19 @@ pub struct Outcome {
     pub limits: Vec<String>,
     /// How many documents this floor walked.
     pub documents: usize,
+    /// The findings that say ONLY that the declared work has not
+    /// begun: a declared file nobody touched, a `one new in` with
+    /// nothing new in it (§4.4, §4.1). `scope::NotBegun` decides,
+    /// finding by finding.
+    ///
+    /// `keel close` needs them for one case: on the branch of a wave
+    /// approved and NOT started, these restate the state its own
+    /// footer announces, and only these are exempt from the count
+    /// (wave 0068, reviews R-5 and R2-1). Drift, a promise worked on
+    /// without a tag, a transform no commit closes, a contract a
+    /// light wave grew -- all of those mean the work HAS begun, and
+    /// count on a plan branch as anywhere.
+    pub branch_court: Vec<(String, String)>,
 }
 
 /// Walks the documents under the root and reports on every file:
@@ -657,6 +670,23 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         .iter()
         .any(|w| w.cancelled.is_none() && w.transforms.iter().any(|(_, t)| !t.files.is_empty()));
     let mut scope_court = Court::Unjudged;
+    // Which rows the BRANCH court wrote, remembered as a span rather
+    // than re-derived from their words (wave 0068, review R-5).
+    //
+    // Every finding of this arm -- §4.4, §4.6, §4.1, §6.2, §6.3, §7.5
+    // -- says one thing in different words: the branch has not
+    // finished the work its wave declared. `keel close` needs to tell
+    // them from the findings of the other courts, which say something
+    // else entirely (a header that does not parse, an answer §10.3
+    // calls reasonless), and the reason cannot be read out of the
+    // text: all of them land on the same file, the wave's own.
+    // Gathered by SUBJECT, from the findings themselves: two earlier
+    // readings gathered by position instead, and both were wrong --
+    // the first because `rows` is sorted before rendering, so the
+    // span pointed elsewhere; the second because the branch arm also
+    // writes §6.8's two findings, which mean the opposite of "not
+    // begun" (reviews R-5, R2-1).
+    let mut branch_court: Vec<(String, String)> = Vec::new();
     let scope_status = match scope::current_branch(root) {
         None => {
             scope_court = if declares_files {
@@ -890,14 +920,17 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                                 )),
                             ));
                         }
-                        for (reason, instead) in list {
-                            rows.push((
-                                wave_path.clone(),
-                                Some(format!(
-                                    "{reason}\n           {}: {instead}",
-                                    t("word-instead")
-                                )),
-                            ));
+                        for (begun, reason, instead) in list {
+                            let row =
+                                format!("{reason}\n           {}: {instead}", t("word-instead"));
+                            // The only rows `close` may leave
+                            // uncounted on a plan branch, gathered by
+                            // what they SAY and not by where they
+                            // were written (review 0068 R2-1).
+                            if begun == scope::NotBegun::Yes {
+                                branch_court.push((wave_path.clone(), row.clone()));
+                            }
+                            rows.push((wave_path.clone(), Some(row)));
                         }
                         // §6.2, judged by the BRANCH and never on main
                         // (§6.5 judges history by its consequences): a
@@ -1332,6 +1365,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
         rows,
         limits,
         documents,
+        branch_court,
     })
 }
 
