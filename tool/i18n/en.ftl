@@ -418,10 +418,18 @@ check-tags-skipped-adapter = test tags not compared: adapter "{ $name }" is not 
 check-tags-skipped-refused = test tags not compared: the adapter refused mid-way -- its refusal stands among the findings
 check-scope-compared = scope: branch "{ $branch }" is the wave -- compared against { $base }
 check-scope-base-main = the merge-base with the trunk { $trunk } @ { $sha }
-check-scope-base-first = the first commit of the branch @ { $sha } (no trunk -- main or master -- here)
+check-scope-base-first = the first commit of the branch @ { $sha } (no trunk here: nothing this clone could name stands)
+check-trunk-named = trunk: { $trunk } -- named by keel.toml
+check-trunk-refused = trunk: { $trunk } -- taken without git's answer. git names { $refused }, which is a branch of the WORK -- a plan, a spike, or a branch carrying its own wave file (§8.2, §4.13) -- and a branch of the work is never a trunk. That is the shape a clone taken from a working tree gives. If the trunk above is the wrong branch, name it in keel.toml (trunk = "...", a ROOT key, before [trust] and [generated])
+check-trunk-refused-alone = no trunk could be found. git names { $refused }, which is a branch of the WORK -- a plan, a spike, or a branch carrying its own wave file (§8.2, §4.13) -- and a branch of the work is never a trunk. That is the shape a clone taken from a working tree gives. Name the trunk in keel.toml (trunk = "...", a ROOT key, before [trust] and [generated])
+check-trunk-gone = trunk: { $trunk } -- taken without git's answer. git names { $refused }, and that branch is gone: a symbolic ref outlives the branch it points at, and a name that stands nowhere is no base. Fix it with `git remote set-head { $remote } -a`, or name the trunk in keel.toml
+check-trunk-gone-alone = no trunk could be found. git names { $refused }, and that branch is gone: a symbolic ref outlives the branch it points at. Fix it with `git remote set-head { $remote } -a`, or name the trunk in keel.toml
+check-trunk-git = trunk: { $trunk } -- named by git: refs/remotes/{ $remote }/HEAD; if that is the wrong branch, name it in keel.toml (trunk = "...", a ROOT key, before [trust] and [generated]) -- and where the remote is a server rather than a working tree, git remote set-head { $remote } -a teaches this clone the same thing
+check-trunk-guess = trunk: { $trunk } -- nobody names it, so it was taken by name (main, then master). If that is the wrong branch: git remote set-head { $remote } -a; and where the checkout is born again every run (CI), that cannot help -- name it in keel.toml instead: trunk = "..." -- a ROOT key, standing BEFORE [trust] and [generated], or it is read as part of them
+check-trunk-guess-alone = trunk: { $trunk } -- nobody names it and this clone has no remote to ask, so it was taken by name (main, then master). If that is the wrong branch, name it in keel.toml: trunk = "..." -- a ROOT key, standing BEFORE [trust] and [generated], or it is read as part of them
 limit-shallow-diff = not checked: the history is truncated, so vanished documents (§4.12) and code on a plan branch (§4.9) have nothing to be compared against
 limit-no-base = not checked: this clone gives no fork point -- vanished documents (§4.12) and code on a plan branch (§4.9) were not judged
-limit-no-trunk = not checked: this clone knows no main trunk, so there is no fork point -- vanished documents (§4.12) and code on a plan branch (§4.9) were not judged; name the trunk main or fetch origin/main
+limit-no-trunk = not checked: this clone knows no main trunk, so there is no fork point -- vanished documents (§4.12) and code on a plan branch (§4.9) were not judged; name the trunk in keel.toml (trunk = "...") or fetch the branch it names
 check-red-mutant = not checked: the birth commit of "{ $scenario }" carries a §6.3 mutant line -- { $broke } was broken, and the probe named it: { $named }. Whether this commit took the exception or the test failed anyway was known only to the hook at that moment; the machine checks neither that, nor that the mutant is real -- it is the author's word, and the reviewer reads it
 check-wave-cancelled = not checked: wave { $wave } was called off -- { $why } (§6.3-a) -- not judged
 check-scope-cancelled = scope not compared: the branch "{ $branch }" is named after wave { $wave }, which was called off (§6.3-a)
@@ -489,6 +497,7 @@ limit-shallow = not checked: the history is shallow -- { $skipped ->
     } (revisions, not references -- as the whole clone counts), and how many of them this depth COULD have verified is not counted; instead: git fetch --unshallow
 limit-base-stale = not checked: local { $trunk } is { $behind } behind { $base } as of the last fetch (this clone knows nothing newer) -- scope was judged against a stale base; instead: git fetch
 limit-base-local-only = not checked: this clone knows no remote { $trunk } -- the base of comparison is local and its freshness cannot be checked
+limit-trunk-named-missing = not checked: keel.toml names the trunk "{ $trunk }", and this clone has no branch of that name -- neither its own nor a remote-tracking one; vanished documents (§4.12) and code on a plan branch (§4.9) were not judged. Fix the name, or fetch the branch it names
 limit-hook-absent = not held by machine here: keel.toml says hooks = true, but no commit-msg hook of ours stands in this clone -- git does not clone hooks, so the block in AGENTS.md promises a machine that is not on this one: here both rules (sec. 8.4, sec. 7.12) are held by people; instead: keel hook
 limit-tags-cancelled = not checked: the test "{ $test }" carries the tag of scenario "{ $scenario }" of wave { $wave }, which was called off -- a called-off wave is outside judgement whole (§6.3-a), so this is no orphan; instead: take the test away with the wave's branch, or put the wave back to work
 limit-ruby-border = not checked: ruby does not tell "failed" from "did not build" by its exit code -- both are 1 (§7.12). The adapter reads the text (SyntaxError, LoadError); where the text does not say, a failure is taken as a failure -- the direction that cannot turn red into green; a skipped test (`skip`, the S mark) did not run: neither green nor red
@@ -522,9 +531,9 @@ close-test-flaky = { "  " }flaky test: { $test } ({ $file }) -- it failed in som
 close-battery = battery: { $count } tests × { $runs } runs (§7.13) — green only when green in every run
 close-closed = { $wave }: closed -- every live scenario proven, references converge, and the review report stands in the branch's history (the machine did not read it: what stands in it is the reviewer's word, and a person reads that)
 close-closed-unjudged = { $wave }: closed -- every live scenario proven, the review report stands in history; { $count } references not judged: history cannot testify here (§5.6)
-close-closed-light = { $wave }: closed (light) -- chores only, closed by the fact of merge (§6.5): the wave file stands in main
-close-awaiting-merge = { $wave }: light -- chores only, will close by the fact of merge (§6.5): the wave file is not in main yet, and the merge is the closure
-close-awaiting-merge-unseen = { $wave }: light -- chores only, will close by the fact of merge (§6.5): there is no trunk (main or master) here, and the court cannot see the fact
+close-closed-light = { $wave }: closed (light) -- chores only, closed by the fact of merge (§6.5): the wave file stands in the trunk
+close-awaiting-merge = { $wave }: light -- chores only, will close by the fact of merge (§6.5): the wave file is not in the trunk yet, and the merge is the closure
+close-awaiting-merge-unseen = { $wave }: light -- chores only, will close by the fact of merge (§6.5): the court cannot see the fact -- no trunk can be found here, or the sources name different ones; name the trunk in keel.toml (trunk = "...") and the fact becomes visible
 close-held-by-red = { $wave }: does NOT close -- this tree's battery is red ({ $count }), and closing means "passes" (sec. 7.8); the names are above
 close-plan = { $wave }: approved, not started -- a plan without tests is not red (§6.5)
 close-progress = { $wave }: in progress -- the missing, by name:
@@ -594,9 +603,9 @@ status-branch-none = git named no branch for this root -- the overview rides wit
 status-branch-broken = the branch "{ $branch }" is named as a wave whose document refused — mend it; the refusal rows stand below
 status-wave-closed = { "  " }{ $wave } — closed structurally: tags match, references converge, and the review report stands in the branch's history
 status-wave-closed-unjudged = { "  " }{ $wave } — closed structurally; { $count } references not judged: history cannot testify here (§5.6)
-status-wave-closed-light = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging closed it (§6.5): the wave file stands in main
-status-wave-light-own = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§6.5): the wave file is not in main yet
-status-wave-light-unseen = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§6.5): there is no trunk (main or master) here, and the fact cannot be seen
+status-wave-closed-light = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging closed it (§6.5): the wave file stands in the trunk
+status-wave-light-own = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§6.5): the wave file is not in the trunk yet
+status-wave-light-unseen = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§6.5): the fact cannot be seen -- no trunk can be found here, or the sources name different ones; name the trunk in keel.toml (trunk = "...") and the fact becomes visible
 status-wave-plan = { "  " }{ $wave } — approved, not started (§6.5)
 status-wave-progress = { "  " }{ $wave } — in progress; the lacks, by name:
 status-awaiting = { "  " }awaits its start: the wave { $wave } — the branch "{ $wave }" (§8.2)
