@@ -184,22 +184,6 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
                 .map(|reason| (file.clone(), reason.clone()))
         })
         .collect();
-    if !blocking.is_empty() {
-        let mut report = t("close-title");
-        report.push('\n');
-        report.push_str(&ta(
-            "close-check-red",
-            targs!("count" => blocking.len() as u64),
-        ));
-        report.push('\n');
-        for (file, reason) in &blocking {
-            report.push_str(&format!("  {file} — {reason}\n"));
-        }
-        report.push_str(&t("close-check-red-instead"));
-        report.push('\n');
-        return Ok((report, blocking.len(), Vec::new()));
-    }
-
     // The price, said before it is paid (wave 0031). This court
     // builds the judged project into ITS OWN target directory on
     // purpose -- an inherited shared cache shifts verdicts (§6.7,
@@ -265,10 +249,19 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // The battery runs several times before green is believed
     // (§7.13): the adapter keeps its word -- one battery, one cargo
     // run -- and the court folds the runs.
+    //
+    // ...unless the cheap court above already found something on this
+    // branch. Then the battery does not run at all, and that is the
+    // whole of what the finding costs: the report below is written in
+    // full, courts and wave states and all, because a person asking
+    // "is this closed" is owed the answer, not only the reason the
+    // answer was cheap.
     let mut battery: Battery = BTreeMap::new();
-    for _ in 0..BATTERY_RUNS {
-        for (key, green) in adapter::run_all(root)? {
-            battery.entry(key).or_default().push(green);
+    if blocking.is_empty() {
+        for _ in 0..BATTERY_RUNS {
+            for (key, green) in adapter::run_all(root)? {
+                battery.entry(key).or_default().push(green);
+            }
         }
     }
     let branch = scope::branch_wave(root, &scan.waves);
@@ -285,11 +278,24 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
 
     let mut report = t("close-title");
     report.push('\n');
-    report.push_str(&ta(
-        "close-battery",
-        targs!("count" => battery.len() as u64, "runs" => BATTERY_RUNS as u64),
-    ));
-    report.push('\n');
+    if blocking.is_empty() {
+        report.push_str(&ta(
+            "close-battery",
+            targs!("count" => battery.len() as u64, "runs" => BATTERY_RUNS as u64),
+        ));
+        report.push('\n');
+    } else {
+        report.push_str(&ta(
+            "close-check-red",
+            targs!("count" => blocking.len() as u64),
+        ));
+        report.push('\n');
+        for (file, reason) in &blocking {
+            report.push_str(&format!("  {file} — {reason}\n"));
+        }
+        report.push_str(&t("close-check-red-instead"));
+        report.push('\n');
+    }
     // What the court just watched fail, by name (bug audit B6): it
     // ran the battery three times, saw red, and said only that the
     // wave is not closed -- so a person had to run the whole battery
@@ -740,7 +746,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     let report = capped_report(report);
     Ok((
         report,
-        blockers + verify_blockers + form_blockers + ci_blocker + red_tests,
+        blockers + verify_blockers + form_blockers + ci_blocker + red_tests + blocking.len(),
         red_commands,
     ))
 }
