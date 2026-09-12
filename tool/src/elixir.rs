@@ -170,6 +170,18 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             });
         }
         let fallen = failures(&said);
+        // A name that did not come back as text matches nothing in
+        // the file, and the court would say the battery skipped a
+        // test it ran. The project's own encoding word wins over ours
+        // (see `mix`), so this is where that choice is paid for: said
+        // aloud, with the way out, never guessed at.
+        if let Some(name) = ran(&said).into_iter().find(|name| mangled(name)) {
+            return Err(Refusal {
+                file: file.clone(),
+                reason: ta("adapter-elixir-name-not-text", targs!("name" => name)),
+                instead: t("adapter-elixir-name-not-text-instead"),
+            });
+        }
         for name in ran(&said) {
             let green = !fallen.contains(&name);
             out.insert((stem.clone(), name), green);
@@ -302,6 +314,16 @@ fn strip_timing(named: &str) -> &str {
     }
 }
 
+/// Whether a NAME came back as text. Not the whole output -- review
+/// 0067 measured that reading: a project whose own test legitimately
+/// prints `\x{` or a replacement character stopped being judged at
+/// all, and §9.8 removes a guard that misses more than it catches.
+/// A name is what the courts key on, and a name that is not text
+/// matches nothing in the file.
+pub fn mangled(name: &str) -> bool {
+    name.contains('\u{FFFD}') || name.contains("\\x{")
+}
+
 /// `test <name>` and `doctest <name>` are how ExUnit prints and
 /// selects them; the courts above hold the bare name, which is what a
 /// `proves:` tag carries.
@@ -382,13 +404,23 @@ fn mix(root: &Path, args: &[String]) -> Result<(String, i32), Refusal> {
     // prepending keeps a project's own flags while making sure a
     // name reaches the court as text. Whatever was there stays, after
     // ours.
-    let mut options = String::from("-kernel standard_io_encoding unicode");
-    if let Ok(theirs) = std::env::var("ELIXIR_ERL_OPTIONS")
-        && !theirs.trim().is_empty()
-    {
+    //
+    // OURS GOES LAST, and that is the card's decision, not an
+    // accident: `erl` takes the FIRST `-kernel` occurrence, so a
+    // project that set its own encoding keeps it. Breaking someone
+    // else's project to make our own reading easier is not a trade
+    // this tool makes -- and where their word costs us the name, the
+    // court says so rather than guessing (see `mangled` below).
+    //
+    // Measured: theirs-first + latin1 -> the name is escaped and we
+    // refuse aloud; nothing set -> ours applies and the name arrives.
+    let mut options = std::env::var_os("ELIXIR_ERL_OPTIONS")
+        .map(|theirs| theirs.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if !options.trim().is_empty() {
         options.push(' ');
-        options.push_str(&theirs);
     }
+    options.push_str("-kernel standard_io_encoding unicode");
     command.env("ELIXIR_ERL_OPTIONS", options);
     let out = command.output().map_err(|e| Refusal {
         file: root.to_path_buf(),

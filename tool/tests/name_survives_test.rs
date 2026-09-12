@@ -128,7 +128,12 @@ fn a_non_ascii_name_survives_its_runner() {
     }
     let dir = project("nameelixir");
     let (said, code) = keel_without_a_locale(&dir, &["close"]);
-    let _ = code;
+    assert_eq!(
+        code, 0,
+        "and the court got all the way through: a hand that refuses \
+         everything would satisfy every assertion below and prove \
+         nothing (review 0067, round two, R-5)\n{said}"
+    );
     // The wound, in the court's own words: the battery RAN the test
     // and it passed, and the verdict said it did not run it. Measured
     // before the work, in this very sandbox, with the locale taken
@@ -254,7 +259,13 @@ fn every_hand_carries_a_name() {
         git(&dir, &["add", "-A"]);
         git(&dir, &["commit", "-q", "-m", "base"]);
 
-        let (said, _) = keel_without_a_locale(&dir, &["close"]);
+        let (said, code) = keel_without_a_locale(&dir, &["close"]);
+        assert_eq!(
+            code, 0,
+            "the {tongue} court got all the way through -- a hand that \
+             refuses everything satisfies every negative assertion and \
+             proves nothing:\n{said}"
+        );
         // The wave holds a promise and the test carries its tag, so
         // the court has a key to match. A hand that reads the name
         // wrongly misses that key and the court says the battery did
@@ -273,4 +284,40 @@ fn every_hand_carries_a_name() {
              {tongue} road:\n{said}"
         );
     }
+}
+
+/// The other half of the card's decision, and the one the review
+/// found unguarded: the project's own word wins, and keel pays for
+/// that choice with a refusal rather than a wrong verdict.
+///
+/// proves: a-non-ascii-name-survives-its-runner@724e9e
+#[test]
+fn their_word_wins_and_the_court_says_what_it_cost() {
+    if !common::machine_has("mix").ready() {
+        eprintln!("mix is not on this machine: the elixir road was not walked");
+        return;
+    }
+    let dir = project("nametheirword");
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["close", dir.to_str().unwrap()])
+        // The project said its own encoding, and said it first.
+        .env("ELIXIR_ERL_OPTIONS", "-kernel standard_io_encoding latin1")
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_ne!(
+        out.status.code().unwrap_or(-1),
+        0,
+        "a name that came back as escapes is not a name, and the \
+         court does not pass a verdict over it:\n{said}"
+    );
+    assert!(
+        said.contains("не текстом") || said.contains("not as text"),
+        "and it says exactly that, with the way out -- their word won, \
+         and this is what it cost:\n{said}"
+    );
 }
