@@ -90,7 +90,7 @@ fn frame(dir: &Path, adapter: &str, touched: &str) {
 /// marker no keel line could produce by itself.
 const MARK: &str = "the-assertion-that-fell";
 
-/// proves: a-red-battery-carries-the-words-that-made-it-red@000000
+/// proves: a-red-battery-carries-the-words-that-made-it-red@671975
 #[test]
 fn a_red_battery_carries_the_words_that_made_it_red() {
     // Which roads this run actually measured. A probe gated on the
