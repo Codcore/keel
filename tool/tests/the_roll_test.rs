@@ -111,7 +111,7 @@ class ToyTest < Minitest::Test
 end
 "#;
 
-/// proves: the-roll-matches-what-the-runner-ran@c1026d
+/// proves: the-roll-matches-what-the-runner-ran@86f99e
 #[test]
 fn the_roll_matches_what_the_runner_ran() {
     // --- every test is in the roll, whatever it printed -----------
