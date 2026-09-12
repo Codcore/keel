@@ -556,13 +556,37 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // measured this court making that sentence a lie in its own
     // report.
     let researching = scope::spike_branch(root).is_some();
+    // Whether the branch under this verdict is a branch of the WORK:
+    // a wave's own, or a plan's. Only there does a base equal to the
+    // head mean that nothing was compared.
+    let judging_work =
+        scope::plan_branch(root).is_some() || scope::branch_wave(root, &scan.waves).is_some();
+    // A base that IS this branch's head compares nothing of this
+    // branch's own: `git diff base HEAD` is empty, so §4.6's drift
+    // half goes silent and a file no transform names walks through
+    // unseen. Review 0072 round three measured the way in that no
+    // guard over NAMES can close: `git clone` copies the source's
+    // HEAD into `refs/remotes/<remote>/HEAD`, and a tree parked on
+    // `wip` -- any name at all -- hands the clone a trunk standing
+    // exactly where the branch being judged stands.
+    //
+    // The court still runs, because on a freshly cut wave branch this
+    // is the ordinary state and §4.4 there is the very list a person
+    // wants. What the tool owes is the truth about what the
+    // comparison could reach, and it owes it once, as a limit.
+    if judging_work
+        && let Ok((sha, _)) = scope::compare_base(root)
+        && base_is_head(root, &sha)
+    {
+        extra_limits.push(t("limit-base-is-head"));
+    }
     if !researching {
         // The limit said aloud instead of painted green (§4.10): a
         // truncated history, no history at all, or a trunk this clone
         // cannot name gives no base to compare against -- and review
         // 0036 R-6 and R-8 measured both halves of the silence, one
         // of them inventing findings about a file deleted years ago.
-        match compare_state(root, shallow, has_history) {
+        match compare_state(root, shallow, has_history, judging_work) {
             Compared::Yes => {
                 for (file, reason, instead) in vanished_documents(root, &scan) {
                     rows.push((
@@ -685,7 +709,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             // R-7 measured a shallow clone whose base IS the head
             // printing "judged by §4.9" over a comparison that never
             // happened -- the §4.10 lie word for word.
-            match compare_state(root, shallow, has_history) {
+            match compare_state(root, shallow, has_history, judging_work) {
                 Compared::No(why) => {
                     extra_limits.push(why);
                     scope_court = Court::UnjudgedCounted;
@@ -949,52 +973,74 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // upgrade gives different findings must be able to read the cause
     // in the verdict instead of hunting a keel regression.
     let scope_status = match scope_court {
-        Court::Judged | Court::UnjudgedCounted => match scope::trunk_of(root, Some(config)) {
-            Some(trunk) => {
-                // The name AND the ref it resolved to, in one line: a
-                // verdict that said `origin/main` on one line and
-                // `main` on the next was read as two answers (review
-                // 0072 R2-5).
-                let named = match &trunk.reference {
-                    Some(reference) if *reference != trunk.name => {
-                        format!("{} ({reference})", trunk.name)
-                    }
-                    _ => trunk.name.clone(),
-                };
-                let line = match (&trunk.refused, trunk.source, trunk.remote.as_deref()) {
-                    // git DID name one, and this hand would not take
-                    // it: saying "nobody names it" here would be a
-                    // lie about the cause, and the advice that goes
-                    // with it (`git remote set-head`) leads in a
-                    // circle -- the remote is the working tree whose
-                    // HEAD is on that very branch.
-                    (Some(refused), _, _) => ta(
-                        "check-trunk-refused",
-                        targs!("trunk" => named, "refused" => refused.clone()),
+        Court::Judged | Court::UnjudgedCounted => {
+            let refused = scope::trunk_refused(root, Some(config));
+            match scope::trunk_of(root, Some(config)) {
+                Some(trunk) => {
+                    // The name AND the ref it resolved to, in one
+                    // line: a verdict that said `origin/main` on one
+                    // line and `main` on the next was read as two
+                    // answers (review 0072 R2-5).
+                    let named = match &trunk.reference {
+                        Some(reference) if *reference != trunk.name => {
+                            format!("{} ({reference})", trunk.name)
+                        }
+                        _ => trunk.name.clone(),
+                    };
+                    let line = match (trunk.source, trunk.remote.as_deref(), &refused) {
+                        // The KEY answered, and it wins the line even
+                        // when git's answer was refused beside it:
+                        // round three measured the other order saying
+                        // four untrue things at once, among them
+                        // "taken by name" over a trunk the key named
+                        // (R-3).
+                        (scope::TrunkSource::Named, _, _) => {
+                            ta("check-trunk-named", targs!("trunk" => named))
+                        }
+                        // git DID name one, and this hand would not
+                        // take it: saying "nobody names it" here
+                        // would be a lie about the cause, and the
+                        // advice that goes with it (`git remote
+                        // set-head`) leads in a circle -- the remote
+                        // is the tree whose HEAD is on that branch.
+                        (_, _, Some(refused)) => ta(
+                            "check-trunk-refused",
+                            targs!("trunk" => named, "refused" => refused.clone()),
+                        ),
+                        (scope::TrunkSource::Git, Some(remote), None) => ta(
+                            "check-trunk-git",
+                            targs!("trunk" => named, "remote" => remote.to_string()),
+                        ),
+                        // git cannot have named it without a remote
+                        // to name it in; the arm exists so the match
+                        // is total, and it says the honest thing.
+                        (scope::TrunkSource::Git, None, None)
+                        | (scope::TrunkSource::Guess, None, None) => {
+                            ta("check-trunk-guess-alone", targs!("trunk" => named))
+                        }
+                        (scope::TrunkSource::Guess, Some(remote), None) => ta(
+                            "check-trunk-guess",
+                            targs!("trunk" => named, "remote" => remote.to_string()),
+                        ),
+                    };
+                    format!("{scope_status}\n  {line}")
+                }
+                // Nothing answered at all -- and if git answered
+                // something this hand would not take, that is the
+                // whole explanation of the silence and it must not be
+                // dropped with the answer (round three, R-4).
+                None => match &refused {
+                    Some(refused) => format!(
+                        "{scope_status}\n  {}",
+                        ta(
+                            "check-trunk-refused-alone",
+                            targs!("refused" => refused.clone())
+                        )
                     ),
-                    (None, scope::TrunkSource::Named, _) => {
-                        ta("check-trunk-named", targs!("trunk" => named))
-                    }
-                    (None, scope::TrunkSource::Git, Some(remote)) => ta(
-                        "check-trunk-git",
-                        targs!("trunk" => named, "remote" => remote.to_string()),
-                    ),
-                    // git cannot have named it without a remote to
-                    // name it in; the arm exists so the match is
-                    // total, and it says the honest thing.
-                    (None, scope::TrunkSource::Git, None)
-                    | (None, scope::TrunkSource::Guess, None) => {
-                        ta("check-trunk-guess-alone", targs!("trunk" => named))
-                    }
-                    (None, scope::TrunkSource::Guess, Some(remote)) => ta(
-                        "check-trunk-guess",
-                        targs!("trunk" => named, "remote" => remote.to_string()),
-                    ),
-                };
-                format!("{scope_status}\n  {line}")
+                    None => scope_status,
+                },
             }
-            None => scope_status,
-        },
+        }
         _ => scope_status,
     };
     // The tag floor (§5.5, §7.5): proves tags in the test files the
@@ -1326,7 +1372,7 @@ enum Compared {
     No(String),
 }
 
-fn compare_state(root: &Path, shallow: bool, has_history: bool) -> Compared {
+fn compare_state(root: &Path, shallow: bool, has_history: bool, judging_work: bool) -> Compared {
     // A directory with no git at all is not a clone with problems --
     // it is not a clone, and asking it about fork points would be
     // the noise review 0031 R-8 already took out once.
@@ -1353,13 +1399,20 @@ fn compare_state(root: &Path, shallow: bool, has_history: bool) -> Compared {
             None => t("limit-no-trunk"),
         });
     }
-    // A base that IS the head is the trunk itself, once a truncated
-    // history has been ruled out above: there are no commits of our
-    // own to compare, and saying so on every main-branch run would
-    // be noise, not honesty (the verdict-limits probe of wave 0031
-    // measured exactly that).
-    let _ = base;
+    // A base that IS the head compares nothing -- but it is not a
+    // reason to stand down. On a freshly cut wave branch it is the
+    // ordinary state, and §4.4 there is exactly the court a person
+    // wants: every declared file is still untouched, and that list is
+    // the work left to do. The limit is said aloud beside the verdict
+    // instead, once, where `judging_work` is decided.
+    let _ = (base, judging_work);
     Compared::Yes
+}
+
+/// Whether a comparison base IS this branch's head -- and then it is
+/// no base: nothing of this branch's own can be compared against it.
+fn base_is_head(root: &Path, base: &str) -> bool {
+    git_line(root, &["rev-parse", "HEAD"]).as_deref() == Some(base)
 }
 
 /// What this verdict could NOT judge, in its own words.

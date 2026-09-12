@@ -138,7 +138,7 @@ fn project(name: &str, default_branch: &str, remote: &str) -> Sandbox {
     home
 }
 
-/// proves: the-trunk-is-the-one-git-names@458740
+/// proves: the-trunk-is-the-one-git-names@61c432
 #[test]
 fn the_trunk_is_the_one_git_names() {
     // --- issue #51: the trunk is what git names, not what sorts
@@ -547,4 +547,152 @@ fn the_trunk_is_the_one_git_names() {
         "and the key names another -- one tree, one process, two \
          answers, because the memory is keyed by what was asked"
     );
+
+    // --- a clone parked on ANY name: a base equal to the head is
+    // not a base ---
+    //
+    // Review 0072 round three measured the way in that no guard over
+    // names can close: `git clone` copies the source's HEAD, and a
+    // tree parked on `wip` -- or `feature/x`, or anything at all --
+    // hands the clone a trunk that stands exactly where the branch
+    // being judged stands. The comparison then compares nothing, and
+    // every line reads "compared" over it.
+    let home = project("trunkparked", "development", "origin");
+    let source = home.join("work");
+    git(&source, &["checkout", "-q", "-b", "0001-a-wave"]);
+    write(&source, "src/lib.rs", "pub fn a() {}\npub fn b() {}\n");
+    write(&source, "src/smuggled.rs", "pub fn smuggled() {}\n");
+    git(&source, &["add", "-A"]);
+    git(
+        &source,
+        &["commit", "-q", "-m", "work: and a file nobody named"],
+    );
+    // The tree is parked on a name that says nothing about waves.
+    git(&source, &["checkout", "-q", "-b", "wip"]);
+    let clone = home.join("parked");
+    let out = Command::new("git")
+        .args(["clone", "-q", "--no-local"])
+        .arg(&source)
+        .arg(&clone)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    git(&clone, &["checkout", "-q", "0001-a-wave"]);
+    let (out, _) = keel(&["check", clone.to_str().unwrap()]);
+    assert!(
+        out.contains("base IS this branch"),
+        "the comparison reached nothing of this branch's own, and the \
+         verdict says so among what it did not check instead of \
+         reading silently green:\n{out}"
+    );
+
+    // --- the key answers, and the line says the key ---
+    //
+    // Round three R-3: the refused answer was printed over the key's,
+    // so the line said "taken by name" about a trunk the key had
+    // named, and told the reader to do what they had already done.
+    let home = project("trunkkeywins", "development", "origin");
+    let work = home.join("work");
+    // The refused answer must be a REAL one, or this side proves
+    // nothing: an unpushed branch never gets past `rev-parse
+    // --verify` and the arm under test is never reached.
+    git(&work, &["push", "-q", "origin", "plan/0001-a-wave"]);
+    git(
+        &work,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/plan/0001-a-wave",
+        ],
+    );
+    fs::write(
+        work.join("keel.toml"),
+        "lang = \"en\"\nadapter = \"rust\"\ntrunk = \"development\"\n",
+    )
+    .unwrap();
+    git(&work, &["add", "-A"]);
+    git(&work, &["commit", "-q", "-m", "name the trunk"]);
+    let (out, _) = keel(&["check", work.to_str().unwrap()]);
+    assert!(
+        out.contains("named by keel.toml"),
+        "the key answered, so the key is what the line names:\n{out}"
+    );
+    assert!(
+        !out.contains("taken without git"),
+        "and it does not describe an answer it did not use:\n{out}"
+    );
+
+    // --- where nothing answers, the refusal is still the reason ---
+    //
+    // Round three R-4: the refused name died together with the
+    // missing answer, and the verdict fell back to "nobody named
+    // one" -- which is exactly the lie the round before had paid to
+    // remove.
+    let home = project("trunknothing", "development", "origin");
+    let source = home.join("work");
+    // The bare remote refuses to delete the branch its own HEAD
+    // points at, so move that first.
+    git(
+        &home.join("origin.git"),
+        &["symbolic-ref", "HEAD", "refs/heads/development"],
+    );
+    git(&source, &["branch", "-q", "-D", "main"]);
+    git(&source, &["push", "-q", "origin", "--delete", "main"]);
+    git(&source, &["checkout", "-q", "-b", "0002-b-wave"]);
+    write(
+        &source,
+        "keel/waves/0002-b-wave.md",
+        &format!(
+            "---\ntransforms:\n  work:\n    chore: \"дрібниця\"\n    files:\n      - src/lib.rs\n{}---\n\n## transform: work\nтіло\n",
+            all_decided()
+        ),
+    );
+    write(&source, "src/lib.rs", "pub fn a() {}\npub fn c() {}\n");
+    git(&source, &["add", "-A"]);
+    git(&source, &["commit", "-q", "-m", "work: the wave"]);
+    let clone = home.join("nothing");
+    let out = Command::new("git")
+        .args(["clone", "-q", "--no-local"])
+        .arg(&source)
+        .arg(&clone)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let (out, _) = keel(&["check", clone.to_str().unwrap()]);
+    assert!(
+        out.contains("git names 0002-b-wave"),
+        "the silence has a cause, and the cause is what git named and \
+         this hand would not take:\n{out}"
+    );
+
+    // --- the mark is hex, and the alphabet is part of the measure ---
+    //
+    // Round three MY-A: widening `a..f` to `a..z` left the whole
+    // battery green, so half of the measure was held by nothing.
+    let home = project("trunkalphabet", "development", "origin");
+    let work = home.join("work");
+    fs::write(
+        work.join("keel.toml"),
+        "lang = \"en\"\nadapter = \"rust\"\n\n[trust]\nci = \"zzzzzzzzzzzz\"\n",
+    )
+    .unwrap();
+    git(&work, &["add", "-A"]);
+    git(
+        &work,
+        &["commit", "-q", "-m", "twelve letters are not twelve hex"],
+    );
+    let (out, code) = keel(&["check", work.to_str().unwrap()]);
+    assert!(
+        out.contains("root key"),
+        "twelve characters that are not hex are not keel's mark:\n{out}"
+    );
+    assert_ne!(code, 0, "and it is refused, not swallowed:\n{out}");
 }

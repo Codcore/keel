@@ -412,7 +412,7 @@ pub fn slug_commits(root: &Path) -> Result<BTreeSet<String>, Refusal> {
 }
 
 /// Whether a file stands in main -- the fact of a merge (§6.5):
-/// `Some(true)` where main (or origin/main) carries it, `Some(false)`
+/// `Some(true)` where the trunk carries it, `Some(false)`
 /// where a main exists and does not, `None` where no main can be
 /// asked at all -- and the caller says that aloud rather than
 /// claiming a merge it cannot see (wave 0052, methodology R-5).
@@ -484,12 +484,19 @@ pub struct Trunk {
     /// `{remote}/{name}`; None where neither stands, and then there
     /// is no base and the courts say so.
     pub reference: Option<String>,
-    /// What git named and this hand would not take: a branch of the
-    /// work is never a trunk (see `is_work_branch`). The verdict says
-    /// it aloud, because "nobody names it" would be a lie about the
-    /// cause -- git did name one, and keel refused it (review 0072
-    /// R2-2).
-    pub refused: Option<String>,
+}
+
+/// What one asking of the trunk produced: the answer, when there is
+/// one, and what git said that this hand would not take.
+///
+/// The two are kept together because the second outlives the first:
+/// where nothing else answers there is no `Trunk` at all, and a
+/// verdict that then says "nobody names it" is lying about the cause
+/// -- git did name one (review 0072 round three, R-4).
+#[derive(Clone, Debug, Default)]
+struct Resolved {
+    trunk: Option<Trunk>,
+    refused: Option<String>,
 }
 
 /// A branch of the WORK is never a trunk (§8.2, §4.13): a plan rides
@@ -555,6 +562,16 @@ fn is_work_branch(root: &Path, at: &str, name: &str) -> bool {
 /// the list first, so one verdict named two different trunks. This is
 /// the one hand; `check` calls it too.
 pub fn trunk_of(root: &Path, config: Option<&crate::config::Config>) -> Option<Trunk> {
+    resolved(root, config).trunk
+}
+
+/// What git named and this hand would not take, whether or not
+/// anything answered in its place.
+pub fn trunk_refused(root: &Path, config: Option<&crate::config::Config>) -> Option<String> {
+    resolved(root, config).refused
+}
+
+fn resolved(root: &Path, config: Option<&crate::config::Config>) -> Resolved {
     let asked = config
         .and_then(|config| config.trunk.as_deref())
         .map(str::trim)
@@ -572,14 +589,14 @@ pub fn trunk_of(root: &Path, config: Option<&crate::config::Config>) -> Option<T
     // is remembered here, under its own name, where a reader can see
     // what is kept and why.
     static TRUNK: std::sync::OnceLock<
-        std::sync::Mutex<std::collections::HashMap<(std::path::PathBuf, String), Trunk>>,
+        std::sync::Mutex<std::collections::HashMap<(std::path::PathBuf, String), Resolved>>,
     > = std::sync::OnceLock::new();
     let key = (root.to_path_buf(), asked.unwrap_or_default().to_string());
     let memory = TRUNK.get_or_init(Default::default);
     if let Ok(seen) = memory.lock()
-        && let Some(trunk) = seen.get(&key)
+        && let Some(answer) = seen.get(&key)
     {
-        return Some(trunk.clone());
+        return answer.clone();
     }
 
     let remote = remote_name(root);
@@ -646,7 +663,18 @@ pub fn trunk_of(root: &Path, config: Option<&crate::config::Config>) -> Option<T
         Some((name, _)) => (Some((name, TrunkSource::Git)), None),
         None => (None, None),
     };
-    let (name, source) = named.or(by_git).or_else(by_name)?;
+    let Some((name, source)) = named.or(by_git).or_else(by_name) else {
+        // Nothing answered -- but what was refused is still worth
+        // saying, and it is the only thing that explains the silence.
+        let answer = Resolved {
+            trunk: None,
+            refused,
+        };
+        if let Ok(mut seen) = memory.lock() {
+            seen.insert(key, answer.clone());
+        }
+        return answer;
+    };
 
     // The ref the comparison uses: the LOCAL branch of that name
     // first, and this is not a detail. Before wave 0072 a project on
@@ -657,17 +685,19 @@ pub fn trunk_of(root: &Path, config: Option<&crate::config::Config>) -> Option<T
     let reference = refs_for(&name)
         .into_iter()
         .find(|at| stands(root, at).is_some());
-    let trunk = Trunk {
-        name,
-        source,
-        remote,
-        reference,
+    let answer = Resolved {
+        trunk: Some(Trunk {
+            name,
+            source,
+            remote,
+            reference,
+        }),
         refused,
     };
     if let Ok(mut seen) = memory.lock() {
-        seen.insert(key, trunk.clone());
+        seen.insert(key, answer.clone());
     }
-    Some(trunk)
+    answer
 }
 
 /// Whether a name resolves to a commit in this tree. `symbolic-ref`
