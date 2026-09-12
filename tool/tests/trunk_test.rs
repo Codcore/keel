@@ -138,7 +138,7 @@ fn project(name: &str, default_branch: &str, remote: &str) -> Sandbox {
     home
 }
 
-/// proves: the-trunk-is-the-one-git-names@61c432
+/// proves: the-trunk-is-the-one-git-names@bd3f3a
 #[test]
 fn the_trunk_is_the_one_git_names() {
     // --- issue #51: the trunk is what git names, not what sorts
@@ -583,11 +583,16 @@ fn the_trunk_is_the_one_git_names() {
     );
     git(&clone, &["checkout", "-q", "0001-a-wave"]);
     let (out, _) = keel(&["check", clone.to_str().unwrap()]);
+    // And this is the wave's named border, not a solved case: no
+    // measure over refs tells `wip` from a trunk, so keel compares
+    // against it -- and SAYS so by name. Review round four measured
+    // what the other road costs: a line claiming the courts did not
+    // judge, printed beside their own red findings.
     assert!(
-        out.contains("base IS this branch"),
-        "the comparison reached nothing of this branch's own, and the \
-         verdict says so among what it did not check instead of \
-         reading silently green:\n{out}"
+        out.contains("trunk: wip") && out.contains("named by git"),
+        "the verdict names the branch it compared against and who \
+         named it, so a reader sees at once that the clone's git was \
+         asked and what it answered:\n{out}"
     );
 
     // --- the key answers, and the line says the key ---
@@ -695,4 +700,73 @@ fn the_trunk_is_the_one_git_names() {
         "twelve characters that are not hex are not keel's mark:\n{out}"
     );
     assert_ne!(code, 0, "and it is refused, not swallowed:\n{out}");
+
+    // --- a plan branch is a branch of the work by its PREFIX, and no
+    // wave file is named after it ---
+    //
+    // Review round four, MY-A: removing the `plan/` and `spike/` half
+    // of the guard left the whole battery green, so half the measure
+    // was held by nothing. `keel/waves/plan/0001-a-wave.md` does not
+    // exist and never will -- the prefix is the fact here.
+    let home = project("trunkplanhead", "development", "origin");
+    let work = home.join("work");
+    git(&work, &["push", "-q", "origin", "plan/0001-a-wave"]);
+    git(
+        &work,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/plan/0001-a-wave",
+        ],
+    );
+    let (out, _) = keel(&["check", work.to_str().unwrap()]);
+    assert!(
+        out.contains("git names plan/0001-a-wave"),
+        "a plan branch is never a trunk, and the verdict says what it \
+         would not take:\n{out}"
+    );
+
+    // --- and the question goes to the REF, not to the working tree ---
+    //
+    // Review round four, MY-C: asking `HEAD:keel/waves/…` instead of
+    // `{ref}:keel/waves/…` left the battery green, while the contract
+    // promises the answer does not depend on what is checked out.
+    // Here the ref carries the wave file and the checked-out tree
+    // does not.
+    let home = project("trunkbyref", "development", "origin");
+    let work = home.join("work");
+    git(&work, &["checkout", "-q", "-b", "0001-a-wave"]);
+    git(&work, &["push", "-q", "origin", "0001-a-wave"]);
+    git(
+        &work,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/0001-a-wave",
+        ],
+    );
+    // A plan branch cut from the trunk: its tree carries no
+    // `keel/waves/0001-a-wave.md` at all.
+    git(&work, &["checkout", "-q", "development"]);
+    git(&work, &["checkout", "-q", "-b", "plan/0002-b-wave"]);
+    write(
+        &work,
+        "keel/waves/0002-b-wave.md",
+        &format!(
+            "---\ntransforms:\n  work:\n    chore: \"дрібниця\"\n    files:\n      - src/lib.rs\n{}---\n\n## transform: work\nтіло\n",
+            all_decided()
+        ),
+    );
+    git(&work, &["add", "-A"]);
+    git(&work, &["commit", "-q", "-m", "the plan"]);
+    assert!(
+        !work.join("keel/waves/0001-a-wave.md").exists(),
+        "the fixture must really lack the file in the working tree"
+    );
+    let (out, _) = keel(&["check", work.to_str().unwrap()]);
+    assert!(
+        out.contains("git names 0001-a-wave"),
+        "the branch carries its own wave file AT THE REF, and that is \
+         what decides -- not what happens to be checked out:\n{out}"
+    );
 }

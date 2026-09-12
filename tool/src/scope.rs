@@ -411,9 +411,9 @@ pub fn slug_commits(root: &Path) -> Result<BTreeSet<String>, Refusal> {
         .collect())
 }
 
-/// Whether a file stands in main -- the fact of a merge (§6.5):
+/// Whether a file stands in the trunk -- the fact of a merge (§6.5):
 /// `Some(true)` where the trunk carries it, `Some(false)`
-/// where a main exists and does not, `None` where no main can be
+/// where a trunk exists and does not carry it, `None` where no trunk can be
 /// asked at all -- and the caller says that aloud rather than
 /// claiming a merge it cannot see (wave 0052, methodology R-5).
 pub fn stands_in_main(root: &Path, rel: &str) -> Option<bool> {
@@ -426,8 +426,8 @@ pub fn stands_in_main(root: &Path, rel: &str) -> Option<bool> {
 }
 
 /// Whether the branch's own work is already in the trunk -- HEAD an
-/// ancestor of it (§6.5: "its file AND its work arrive in main by one
-/// PR"; review 0052 R-6 measured a wave file put on main by hand
+/// ancestor of it (§6.5: "its file AND its work arrive in the trunk by one
+/// PR"; review 0052 R-6 measured a wave file put on the trunk by hand
 /// calling the unmerged work closed). None where no trunk can be
 /// asked.
 pub fn work_in_trunk(root: &Path) -> Option<bool> {

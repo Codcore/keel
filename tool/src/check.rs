@@ -556,37 +556,13 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     // measured this court making that sentence a lie in its own
     // report.
     let researching = scope::spike_branch(root).is_some();
-    // Whether the branch under this verdict is a branch of the WORK:
-    // a wave's own, or a plan's. Only there does a base equal to the
-    // head mean that nothing was compared.
-    let judging_work =
-        scope::plan_branch(root).is_some() || scope::branch_wave(root, &scan.waves).is_some();
-    // A base that IS this branch's head compares nothing of this
-    // branch's own: `git diff base HEAD` is empty, so §4.6's drift
-    // half goes silent and a file no transform names walks through
-    // unseen. Review 0072 round three measured the way in that no
-    // guard over NAMES can close: `git clone` copies the source's
-    // HEAD into `refs/remotes/<remote>/HEAD`, and a tree parked on
-    // `wip` -- any name at all -- hands the clone a trunk standing
-    // exactly where the branch being judged stands.
-    //
-    // The court still runs, because on a freshly cut wave branch this
-    // is the ordinary state and §4.4 there is the very list a person
-    // wants. What the tool owes is the truth about what the
-    // comparison could reach, and it owes it once, as a limit.
-    if judging_work
-        && let Ok((sha, _)) = scope::compare_base(root)
-        && base_is_head(root, &sha)
-    {
-        extra_limits.push(t("limit-base-is-head"));
-    }
     if !researching {
         // The limit said aloud instead of painted green (§4.10): a
         // truncated history, no history at all, or a trunk this clone
         // cannot name gives no base to compare against -- and review
         // 0036 R-6 and R-8 measured both halves of the silence, one
         // of them inventing findings about a file deleted years ago.
-        match compare_state(root, shallow, has_history, judging_work) {
+        match compare_state(root, shallow, has_history) {
             Compared::Yes => {
                 for (file, reason, instead) in vanished_documents(root, &scan) {
                     rows.push((
@@ -709,7 +685,7 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
             // R-7 measured a shallow clone whose base IS the head
             // printing "judged by §4.9" over a comparison that never
             // happened -- the §4.10 lie word for word.
-            match compare_state(root, shallow, has_history, judging_work) {
+            match compare_state(root, shallow, has_history) {
                 Compared::No(why) => {
                     extra_limits.push(why);
                     scope_court = Court::UnjudgedCounted;
@@ -1372,7 +1348,7 @@ enum Compared {
     No(String),
 }
 
-fn compare_state(root: &Path, shallow: bool, has_history: bool, judging_work: bool) -> Compared {
+fn compare_state(root: &Path, shallow: bool, has_history: bool) -> Compared {
     // A directory with no git at all is not a clone with problems --
     // it is not a clone, and asking it about fork points would be
     // the noise review 0031 R-8 already took out once.
@@ -1399,20 +1375,22 @@ fn compare_state(root: &Path, shallow: bool, has_history: bool, judging_work: bo
             None => t("limit-no-trunk"),
         });
     }
-    // A base that IS the head compares nothing -- but it is not a
-    // reason to stand down. On a freshly cut wave branch it is the
-    // ordinary state, and §4.4 there is exactly the court a person
-    // wants: every declared file is still untouched, and that list is
-    // the work left to do. The limit is said aloud beside the verdict
-    // instead, once, where `judging_work` is decided.
-    let _ = (base, judging_work);
+    // A base that IS the head is the trunk itself, once a truncated
+    // history has been ruled out above: there are no commits of our
+    // own to compare, and saying so on every trunk-branch run would
+    // be noise, not honesty (the verdict-limits probe of wave 0031
+    // measured exactly that).
+    //
+    // Wave 0072 tried to make this line speak on a branch of the work
+    // as well, and review round four measured what it cost: it said
+    // "§4.4 was not judged" while §4.4 stood red in the same verdict,
+    // and it named a cause -- a clone of a working tree -- in four
+    // states where there was no such clone. A line that explains what
+    // it did not do is worse than no line; what the verdict owes here
+    // it pays in the trunk line, which names the branch used and who
+    // named it.
+    let _ = base;
     Compared::Yes
-}
-
-/// Whether a comparison base IS this branch's head -- and then it is
-/// no base: nothing of this branch's own can be compared against it.
-fn base_is_head(root: &Path, base: &str) -> bool {
-    git_line(root, &["rev-parse", "HEAD"]).as_deref() == Some(base)
 }
 
 /// What this verdict could NOT judge, in its own words.
