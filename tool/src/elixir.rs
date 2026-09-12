@@ -1,7 +1,9 @@
 //! The elixir adapter (contract tool-adapter-elixir): the one place
 //! that knows how a mix project keeps its tests and its modules. It
-//! runs `mix` as a command of the system, exactly as a person would
-//! in a terminal, and writes nothing anywhere.
+//! runs `mix` as a command of the system and writes nothing anywhere
+//! -- with one word of its own about encoding, which the contract
+//! explains (wave 0067): a person in a terminal has a locale, and a
+//! runner keel starts may not.
 //!
 //! ExUnit, and said so aloud: this reads `mix test`, which is what a
 //! mix project has. Other runners are other waves.
