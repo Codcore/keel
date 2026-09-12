@@ -104,7 +104,10 @@ fn the_cheap_court_runs_first_and_locally() {
     // A file no transform of the wave names: §4.6 drift.
     write(&dir, "build.rs", "fn main() {}\n");
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "tidy: the work and a stranger"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "tidy: the work and a stranger"],
+    );
 
     let (checked, check_code) = keel(&["check", dir.to_str().unwrap()]);
     assert_eq!(
@@ -146,7 +149,10 @@ fn the_cheap_court_runs_first_and_locally() {
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "tidy: only what was named"]);
     let (checked, check_code) = keel(&["check", dir.to_str().unwrap()]);
-    assert_eq!(check_code, 0, "the quiet side is quiet for check:\n{checked}");
+    assert_eq!(
+        check_code, 0,
+        "the quiet side is quiet for check:\n{checked}"
+    );
     let (closed, close_code) = keel(&["close", dir.to_str().unwrap()]);
     assert_eq!(
         close_code, 0,

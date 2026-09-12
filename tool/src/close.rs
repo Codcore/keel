@@ -157,21 +157,47 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // stopped the run, because three different reasons under one word
     // "blockers" make a verdict a riddle.
     let checked = crate::check::run(root, &config)?;
-    if checked.findings > 0 {
+    // ...and only what THIS branch answers for (the operator's ruling
+    // of 2026-09-12). The first reading stopped on every finding in
+    // the tree, and the battery measured what that means: forty probe
+    // sandboxes went red at once, each of them a project `check`
+    // calls red on purpose, none of it the branch's doing. A court
+    // that admits THIS branch to a merge is not the place to carry
+    // somebody else's old untidiness -- `keel check` carries it, and
+    // says so in full.
+    //
+    // The branch's own are the files it changed against the base
+    // (§4.6's very list) and its own wave file, which is where the
+    // scope court hangs what it finds.
+    let mut mine: std::collections::BTreeSet<String> =
+        scope::touched(root, &config).unwrap_or_default().into_iter().collect();
+    if let Some(slug) = scope::branch_wave(root, &scan.waves) {
+        mine.insert(format!("keel/waves/{slug}.md"));
+    }
+    let blocking: Vec<(String, String)> = checked
+        .rows
+        .iter()
+        .filter_map(|(file, reason)| {
+            reason
+                .as_ref()
+                .filter(|_| mine.contains(file))
+                .map(|reason| (file.clone(), reason.clone()))
+        })
+        .collect();
+    if !blocking.is_empty() {
         let mut report = t("close-title");
         report.push('\n');
         report.push_str(&ta(
             "close-check-red",
-            targs!("count" => checked.findings as u64),
+            targs!("count" => blocking.len() as u64),
         ));
         report.push('\n');
-        for (file, reason) in checked.rows.iter() {
-            let Some(reason) = reason else { continue };
+        for (file, reason) in &blocking {
             report.push_str(&format!("  {file} — {reason}\n"));
         }
         report.push_str(&t("close-check-red-instead"));
         report.push('\n');
-        return Ok((report, checked.findings, Vec::new()));
+        return Ok((report, blocking.len(), Vec::new()));
     }
 
     // The price, said before it is paid (wave 0031). This court

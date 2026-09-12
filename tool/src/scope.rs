@@ -267,6 +267,34 @@ pub fn spike_branch(root: &Path) -> Option<String> {
 /// files this release generates) is a finding by name.
 ///
 /// The conformance audit (ВАЖКА-4) measured the paragraph held by
+/// The files this branch changed against its comparison base -- what
+/// the branch ANSWERS FOR. Furniture (§4.8) is out, as everywhere
+/// else: the lists that decide a verdict must all draw the same
+/// border.
+///
+/// The closure court reads it to keep to its own business (wave
+/// 0068, the operator's ruling of 2026-09-12): it stops on what
+/// `keel check` found, but only where the finding is this branch's
+/// to answer for. Measured when it stopped on everything: forty
+/// probe sandboxes went red at once, each of them a project `check`
+/// calls red ON PURPOSE, and none of it the branch's doing.
+pub fn touched(root: &Path, config: &Config) -> Result<Vec<String>, Refusal> {
+    let (base, _) = compare_base(root)?;
+    let changed = git_line(
+        root,
+        &["diff", "--name-only", "--no-renames", &base, "HEAD"],
+    )?;
+    let locks = crate::adapter::lockfiles(root);
+    let leavings = crate::adapter::leavings(root);
+    Ok(changed
+        .lines()
+        .map(str::trim)
+        .filter(|file| !file.is_empty())
+        .filter(|file| !furniture(root, config, file, &locks, &leavings))
+        .map(str::to_string)
+        .collect())
+}
+
 /// nothing at all: a branch called `plan/<wave>` is not named after a
 /// wave, so the scope court was skipped entirely -- and code laid
 /// down there is seen by nobody, since the work branch no longer
