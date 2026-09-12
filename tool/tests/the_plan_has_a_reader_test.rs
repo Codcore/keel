@@ -73,7 +73,9 @@ fn plan_sandbox(name: &str) -> common::Sandbox {
     let mut d = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
         if *cut != "functional.correctness" {
-            d.push_str(&format!("  {cut}: \"не про цю пісочницю, вона грає інше\"\n"));
+            d.push_str(&format!(
+                "  {cut}: \"не про цю пісочницю, вона грає інше\"\n"
+            ));
         }
     }
     git(&dir, &["init", "-q", "-b", "main"]);
@@ -92,7 +94,7 @@ fn plan_sandbox(name: &str) -> common::Sandbox {
     dir
 }
 
-/// proves: the-plan-has-its-own-reader-and-its-own-report@PLACEHOLDER
+/// proves: the-plan-has-its-own-reader-and-its-own-report@1cad4d
 #[test]
 fn the_plan_has_its_own_reader_and_its_own_report() {
     // --- a plan with no reader does not merge as a plan -----------
@@ -137,7 +139,10 @@ fn the_plan_has_its_own_reader_and_its_own_report() {
     )
     .unwrap();
     git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "the work's report, too early"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "the work's report, too early"],
+    );
     let (said, code) = keel(&dir, &["close"]);
     assert_ne!(
         code, 0,

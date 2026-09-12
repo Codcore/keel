@@ -290,7 +290,7 @@ fn the_skipped_count_is_true() {
     assert!(
         checked > 0,
         "the whole clone really checks old revisions:\n{}",
-        &whole_said[..whole_said.len().min(600)]
+        whole_said.chars().take(600).collect::<String>()
     );
     let (out, err, _) = keel(&["check", cut_short.to_str().unwrap()]);
     let cut_said = format!("{out}{err}");

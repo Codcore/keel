@@ -559,6 +559,31 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     report.push('\n');
     report.push('\n');
 
+    // The barrier at the PLAN (wave 0075, issue #53). §9.9 says a
+    // fresh eye reads a wave before it is merged, and the machine
+    // holds that over the WORK -- `close` does not close a wave whose
+    // report is not in history. But a plan is approved by merging its
+    // own PR (§6.6), long before any work exists, and over THAT merge
+    // nothing stood: measured on the released 1.4.0, a plan branch
+    // with an empty `keel/reviews/` gave check 0 and close 0.
+    //
+    // The name is `<wave>-plan.md` and not `<wave>.md`, and the issue
+    // that asked for this named the reason: a report filed under the
+    // wave's own name rides onto the work branch from birth and
+    // satisfies the gate that exists to demand a review of the WORK.
+    // So the court asks `report_text` for an exact name -- the same
+    // hand as over the work, with a different argument.
+    let mut plan_lacks: Option<&'static str> = None;
+    if let Some(slug) = scope::plan_branch(root) {
+        let named = scan.waves.iter().any(|wave| wave.slug == slug);
+        if named {
+            plan_lacks = match report_text(root, &format!("{slug}-plan")) {
+                None => Some("close-lack-plan-review"),
+                Some(text) if text.trim().is_empty() => Some("close-lack-plan-review-empty"),
+                Some(_) => None,
+            };
+        }
+    }
     let mut blockers = 0usize;
     let mut own_plan = false;
     let mut own_awaiting = false;
@@ -770,6 +795,13 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         report.push_str(&t("close-ci-blocker"));
         report.push('\n');
     }
+    if let Some(key) = plan_lacks {
+        report.push_str(&ta(
+            key,
+            targs!("wave" => scope::plan_branch(root).unwrap_or_default()),
+        ));
+        report.push('\n');
+    }
     if blockers > 0 {
         // The blockers are named by the wave's own weight (global
         // review 2026-09-06, methodology R-16: "a full wave" was said
@@ -840,7 +872,13 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     let report = capped_report(report);
     Ok((
         report,
-        blockers + verify_blockers + form_blockers + ci_blocker + red_tests + counted,
+        blockers
+            + verify_blockers
+            + form_blockers
+            + ci_blocker
+            + red_tests
+            + counted
+            + usize::from(plan_lacks.is_some()),
         red_commands,
     ))
 }
