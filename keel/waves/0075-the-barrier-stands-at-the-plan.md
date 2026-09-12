@@ -17,11 +17,11 @@ transforms:
     implements: [the-plan-has-its-own-reader-and-its-own-report]
     files:
       - tool/src/close.rs
-      - tool/src/next.rs
       - tool/i18n/uk.ftl
       - tool/i18n/en.ftl
       - keel/contracts/tool-close.md
       - tool/tests/the_plan_has_a_reader_test.rs
+      - tool/tests/verdict_limits_test.rs
 decisions:
   functional.correctness: "зміряно на 1.4.0, на пісочниці з повною хвилею і план-гілкою: `keel/reviews/` порожня, `keel check` exit 0, `keel close` exit 0. Тобто план-PR зелений і зливний без жодного рецензента — рівно те, що описує #53, і рівно в той момент, коли план ще можна відхилити як план"
   functional.appropriateness: "лагодимо ЗАСЛІН, а не пораду. Заявник назвав і те, чим лагодити НЕ можна: вимагати `keel/reviews/<хвиля>.md` на план-гілці. Такий файл переїде з планом на робочу гілку від народження і задовольнить ворота, які існують, щоб вимагати рецензію РОБОТИ. Тому ім'я інше: `keel/reviews/<хвиля>-plan.md`"
