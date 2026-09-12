@@ -138,7 +138,7 @@ fn project(name: &str, default_branch: &str, remote: &str) -> Sandbox {
     home
 }
 
-/// proves: the-trunk-is-the-one-git-names@bd3f3a
+/// proves: the-trunk-is-the-one-git-names@773f14
 #[test]
 fn the_trunk_is_the_one_git_names() {
     // --- issue #51: the trunk is what git names, not what sorts
@@ -410,6 +410,15 @@ fn the_trunk_is_the_one_git_names() {
          one, and \"nobody names it\" would be a lie about the \
          cause:\n{out}"
     );
+    // One line, both facts: the NAME the courts speak of and the REF
+    // it resolved to. This clone has no local `main`, only
+    // `origin/main` -- and a verdict that said one on one line and the
+    // other on the next was read as two answers (R2-5).
+    assert!(
+        out.contains("main (origin/main)"),
+        "the trunk line carries the name and the ref it resolved \
+         to:\n{out}"
+    );
 
     // --- a key naming a branch that is not here says so, and does
     // not advise what has already been done ---
@@ -491,11 +500,28 @@ fn the_trunk_is_the_one_git_names() {
         &work,
         &["commit", "-q", "-m", "tidy: the chore lands in the trunk"],
     );
+    // Without the key, git says `development` and the list of names
+    // says `main`: two answers, and §6.5 is not a place to pick one
+    // by guesswork (round five, R-1). The court says it cannot see
+    // the fact -- never that it saw one.
+    let (guessing, _) = keel(&["status", work.to_str().unwrap()]);
+    assert!(
+        !guessing.contains("merging closed it"),
+        "where the sources disagree the merge fact is not claimed:\n{guessing}"
+    );
+    // With the key, the project has answered, and the fact is read.
+    fs::write(
+        work.join("keel.toml"),
+        "lang = \"en\"\nadapter = \"rust\"\ntrunk = \"development\"\n",
+    )
+    .unwrap();
+    git(&work, &["add", "-A"]);
+    git(&work, &["commit", "-q", "-m", "name the trunk"]);
     let (standing, _) = keel(&["status", work.to_str().unwrap()]);
     assert!(
         standing.contains("0003-a-chore") && standing.contains("merging closed it"),
         "the merge fact is seen from the trunk itself, whatever the \
-         trunk is called:\n{standing}"
+         trunk is called, once the project has named it:\n{standing}"
     );
     // And the same tree, read from a branch beside it, says the same.
     git(&work, &["checkout", "-q", "-b", "elsewhere"]);
@@ -768,5 +794,62 @@ fn the_trunk_is_the_one_git_names() {
         out.contains("git names 0001-a-wave"),
         "the branch carries its own wave file AT THE REF, and that is \
          what decides -- not what happens to be checked out:\n{out}"
+    );
+
+    // --- the merge fact needs a witness, and a parked clone is not
+    // one ---
+    //
+    // Review 0072 round five measured the worst of the border: a tree
+    // parked on `wip` hands a clone that branch as its trunk, HEAD is
+    // an ancestor of it, and `keel close` called an UNMERGED wave
+    // closed. Before this wave the list of names was asked first and
+    // `origin/main` stood right there, so it could not happen.
+    let home = project("trunkmergefact", "development", "origin");
+    let source = home.join("work");
+    git(&source, &["checkout", "-q", "development"]);
+    write(
+        &source,
+        "keel/waves/0004-a-chore.md",
+        &format!(
+            "---\ntransforms:\n  tidy:\n    chore: \"дрібниця\"\n    files:\n      - src/lib.rs\n{}---\n\n## transform: tidy\nтіло\n",
+            all_decided()
+        ),
+    );
+    write(
+        &source,
+        "keel/reviews/0004-a-chore.md",
+        "рецензія: знахідок нема\n",
+    );
+    git(&source, &["checkout", "-q", "-b", "0004-a-chore"]);
+    git(&source, &["add", "-A"]);
+    git(
+        &source,
+        &["commit", "-q", "-m", "tidy: the chore, not merged anywhere"],
+    );
+    // The tree is parked on a working name standing exactly here.
+    git(&source, &["checkout", "-q", "-b", "wip"]);
+    let clone = home.join("parkedfact");
+    let out = Command::new("git")
+        .args(["clone", "-q", "--no-local"])
+        .arg(&source)
+        .arg(&clone)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let (said, _) = keel(&["status", clone.to_str().unwrap()]);
+    assert!(
+        !said.contains("merging closed it"),
+        "no merge happened, and a trunk this clone only guessed at is \
+         no witness that one did:\n{said}"
+    );
+    // And the source, where git and the names agree, still sees it.
+    let (source_says, _) = keel(&["status", source.to_str().unwrap()]);
+    assert!(
+        source_says.contains("0004-a-chore"),
+        "the source still speaks of the wave:\n{source_says}"
     );
 }

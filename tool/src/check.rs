@@ -1443,19 +1443,15 @@ fn verdict_limits(root: &Path, refs_unjudged: u64) -> Vec<String> {
             // question. Review 0072 R-7 measured the two voices in
             // one verdict: this line said the base was local, and the
             // next said there was no fork point.
-            None => {
-                // When the project's own key named it, say THAT:
-                // otherwise the only advice a person gets is to name
-                // the trunk in keel.toml, which is exactly what they
-                // did (R-8). The other sources have their own line
-                // among the limits already.
-                if trunk.source == scope::TrunkSource::Named {
-                    limits.push(ta(
-                        "limit-trunk-named-missing",
-                        targs!("trunk" => trunk.name.clone()),
-                    ));
-                }
-            }
+            // A name that stands nowhere is no base at all, and the
+            // freshness of a base that does not exist is not a
+            // question (R-7). The line that names the key and what it
+            // could not find belongs to `compare_state`, which alone
+            // knows whether this branch is judged against anything --
+            // pushing it here as well leaked it onto `spike/`
+            // branches, where §4.9 and §4.12 are not judged at all
+            // (round five, R-2).
+            None => {}
             Some(reference) => {
                 let far = remote
                     .as_ref()

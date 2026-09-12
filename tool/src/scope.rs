@@ -417,7 +417,7 @@ pub fn slug_commits(root: &Path) -> Result<BTreeSet<String>, Refusal> {
 /// asked at all -- and the caller says that aloud rather than
 /// claiming a merge it cannot see (wave 0052, methodology R-5).
 pub fn stands_in_main(root: &Path, rel: &str) -> Option<bool> {
-    let trunk = trunk(root)?;
+    let trunk = trunk_for_the_merge_fact(root)?;
     let there = git_at(root)
         .args(["cat-file", "-e", &format!("{trunk}:{rel}")])
         .output()
@@ -431,7 +431,7 @@ pub fn stands_in_main(root: &Path, rel: &str) -> Option<bool> {
 /// calling the unmerged work closed). None where no trunk can be
 /// asked.
 pub fn work_in_trunk(root: &Path) -> Option<bool> {
-    let trunk = trunk(root)?;
+    let trunk = trunk_for_the_merge_fact(root)?;
     let out = git_at(root)
         .args(["merge-base", "--is-ancestor", "HEAD", &trunk])
         .output()
@@ -497,6 +497,11 @@ pub struct Trunk {
 struct Resolved {
     trunk: Option<Trunk>,
     refused: Option<String>,
+    /// What the LIST of names alone would have answered -- `main`,
+    /// then `master`. Kept beside the answer because the merge fact
+    /// is read only where it agrees with what git said (see
+    /// `trunk_for_the_merge_fact`).
+    by_name: Option<String>,
 }
 
 /// A branch of the WORK is never a trunk (§8.2, §4.13): a plan rides
@@ -625,7 +630,13 @@ fn resolved(root: &Path, config: Option<&crate::config::Config>) -> Resolved {
         // exist and both §4.9 and §4.12 died in silence; and where a
         // branch `stable` did happen to exist, the comparison ran
         // against a stranger.
-        let name = head.strip_prefix(&format!("{remote}/"))?;
+        // The prefix comes off when it is there. It is not always:
+        // `refs/remotes/origin/HEAD` may be pointed at a local ref by
+        // hand, and then `--short` gives a bare name. Review 0072
+        // round five measured that shape read as NOTHING -- the
+        // answer died in silence and the verdict said "nobody names
+        // it" while git had just named one.
+        let name = head.strip_prefix(&format!("{remote}/")).unwrap_or(head);
         Some((name.to_string(), head.to_string()))
     };
     // The refs a name may live under, in the order they are asked.
@@ -663,12 +674,18 @@ fn resolved(root: &Path, config: Option<&crate::config::Config>) -> Resolved {
         Some((name, _)) => (Some((name, TrunkSource::Git)), None),
         None => (None, None),
     };
+    // Asked always, not only when git is silent: the merge fact is
+    // read only where this answer and git's agree (review 0072 round
+    // five, R-1). It costs one `rev-parse --verify` per name, and the
+    // whole resolution is remembered once per tree.
+    let plainly = by_name().map(|(name, _)| name);
     let Some((name, source)) = named.or(by_git).or_else(by_name) else {
         // Nothing answered -- but what was refused is still worth
         // saying, and it is the only thing that explains the silence.
         let answer = Resolved {
             trunk: None,
             refused,
+            by_name: plainly,
         };
         if let Ok(mut seen) = memory.lock() {
             seen.insert(key, answer.clone());
@@ -693,6 +710,7 @@ fn resolved(root: &Path, config: Option<&crate::config::Config>) -> Resolved {
             reference,
         }),
         refused,
+        by_name: plainly,
     };
     if let Ok(mut seen) = memory.lock() {
         seen.insert(key, answer.clone());
@@ -722,6 +740,49 @@ fn stands(root: &Path, name: &str) -> Option<String> {
 pub fn trunk(root: &Path) -> Option<String> {
     let config = crate::config::read(root).ok();
     trunk_of(root, config.as_ref())?.reference
+}
+
+/// The trunk a MERGE FACT may be read from, which is not always the
+/// trunk a comparison is taken against.
+///
+/// Two questions, and review 0072 round five measured why they part.
+/// `git clone` copies the source's HEAD into
+/// `refs/remotes/<remote>/HEAD`, so a tree parked on `wip` hands the
+/// clone `wip` as its trunk. The comparison against it merely misses
+/// things and says which branch it used. §6.5 is worse: `HEAD` is an
+/// ancestor of `wip`, so the work "is in the trunk", and `keel close`
+/// called an unmerged wave CLOSED. Before this wave that could not
+/// happen -- the list of names was asked first, and `origin/main`
+/// stood right there.
+///
+/// So the merge fact is read only where the sources AGREE, or where
+/// the project itself named the trunk:
+///
+/// - the key named it: believed, always. A project that says which
+///   branch its work lands in has answered the question.
+/// - git and the name list say the same branch: believed.
+/// - they disagree, and no key: the fact is NOT SEEN (`None`), and
+///   the courts say so -- "will close by the fact of merge", never
+///   "closed". §4.10's rule, applied to §6.5: a fact taken without a
+///   witness is worse than no fact.
+///
+/// The comparison keeps asking `trunk`, because there a wrong base
+/// is visible in the verdict (it names the branch it used) and a
+/// missing base costs the whole court.
+fn trunk_for_the_merge_fact(root: &Path) -> Option<String> {
+    let config = crate::config::read(root).ok();
+    let asked = resolved(root, config.as_ref());
+    let trunk = asked.trunk?;
+    if trunk.source == TrunkSource::Named {
+        return trunk.reference;
+    }
+    match (trunk.source, asked.by_name) {
+        // The list itself answered: there is nothing to disagree with.
+        (TrunkSource::Guess, _) => trunk.reference,
+        // git answered, and the names say the same branch.
+        (TrunkSource::Git, Some(plain)) if plain == trunk.name => trunk.reference,
+        _ => None,
+    }
 }
 
 /// The comparison base: the merge-base with the trunk -- whichever
