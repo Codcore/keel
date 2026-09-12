@@ -496,7 +496,7 @@ pub struct Trunk {
 #[derive(Clone, Debug, Default)]
 struct Resolved {
     trunk: Option<Trunk>,
-    refused: Option<String>,
+    refused: Option<(String, RefusedBecause)>,
     /// What the LIST of names alone would have answered -- `main`,
     /// then `master`. Kept beside the answer because the merge fact
     /// is read only where it agrees with what git said (see
@@ -571,9 +571,22 @@ pub fn trunk_of(root: &Path, config: Option<&crate::config::Config>) -> Option<T
 }
 
 /// What git named and this hand would not take, whether or not
-/// anything answered in its place.
-pub fn trunk_refused(root: &Path, config: Option<&crate::config::Config>) -> Option<String> {
+/// anything answered in its place -- and WHY, because the two reasons
+/// are different things to tell a person.
+pub fn trunk_refused(
+    root: &Path,
+    config: Option<&crate::config::Config>,
+) -> Option<(String, RefusedBecause)> {
     resolved(root, config).refused
+}
+
+/// Why git's answer was not taken.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RefusedBecause {
+    /// It names a branch of the work (§8.2, §4.13).
+    ItIsWork,
+    /// The ref it points at is gone: a symref outlives its branch.
+    ItIsGone,
 }
 
 fn resolved(root: &Path, config: Option<&crate::config::Config>) -> Resolved {
@@ -622,7 +635,14 @@ fn resolved(root: &Path, config: Option<&crate::config::Config>) -> Resolved {
         // answers `origin/development` happily when that ref has been
         // deleted, and `merge-base` then dies on a name that is not
         // an object. So the answer is verified before it is believed.
-        stands(root, head)?;
+        // A symref that outlived its ref is still an ANSWER, and the
+        // verdict owes the cause: review 0072 round six measured this
+        // `?` dropping it and the line saying "nobody names it" while
+        // git had just named one.
+        if stands(root, head).is_none() {
+            let (_, gone) = head.rsplit_once('/')?;
+            return Some((gone.to_string(), String::new()));
+        }
         // The PREFIX comes off, not the last slash: a default branch
         // may carry one. Review 0072 R-2 measured `origin/HEAD ->
         // origin/release/stable` read as the branch `stable`, which
@@ -670,7 +690,12 @@ fn resolved(root: &Path, config: Option<&crate::config::Config>) -> Resolved {
     // person whose clone came from a working tree must read the cause
     // instead of "nobody names it" (review 0072 R2-2).
     let (by_git, refused) = match by_git() {
-        Some((name, at)) if is_work_branch(root, &at, &name) => (None, Some(name)),
+        // The ref is gone: `at` is empty, and the name is kept only
+        // to say what git pointed at.
+        Some((name, at)) if at.is_empty() => (None, Some((name, RefusedBecause::ItIsGone))),
+        Some((name, at)) if is_work_branch(root, &at, &name) => {
+            (None, Some((name, RefusedBecause::ItIsWork)))
+        }
         Some((name, _)) => (Some((name, TrunkSource::Git)), None),
         None => (None, None),
     };
@@ -781,6 +806,14 @@ fn trunk_for_the_merge_fact(root: &Path) -> Option<String> {
         (TrunkSource::Guess, _) => trunk.reference,
         // git answered, and the names say the same branch.
         (TrunkSource::Git, Some(plain)) if plain == trunk.name => trunk.reference,
+        // git answered and the names said NOTHING. Silence is not
+        // disagreement: review 0072 round six measured a project
+        // whose trunk is `development` and which has no `main` and no
+        // `master` anywhere losing the merge fact entirely -- and
+        // with it `keel next`, which stopped saying the loop was
+        // done. There is only one answer in that tree, and it is
+        // git's.
+        (TrunkSource::Git, None) => trunk.reference,
         _ => None,
     }
 }

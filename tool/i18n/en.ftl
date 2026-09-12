@@ -420,6 +420,8 @@ check-scope-base-first = the first commit of the branch @ { $sha } (no trunk her
 check-trunk-named = trunk: { $trunk } -- named by keel.toml
 check-trunk-refused = trunk: { $trunk } -- taken without git's answer. git names { $refused }, which is a branch of the WORK -- a plan, a spike, or a branch carrying its own wave file (§8.2, §4.13) -- and a branch of the work is never a trunk. That is the shape a clone taken from a working tree gives. If the trunk above is the wrong branch, name it in keel.toml (trunk = "...", a ROOT key, before [trust] and [generated])
 check-trunk-refused-alone = no trunk could be found. git names { $refused }, which is a branch of the WORK -- a plan, a spike, or a branch carrying its own wave file (§8.2, §4.13) -- and a branch of the work is never a trunk. That is the shape a clone taken from a working tree gives. Name the trunk in keel.toml (trunk = "...", a ROOT key, before [trust] and [generated])
+check-trunk-gone = trunk: { $trunk } -- taken without git's answer. git names { $refused }, and that branch is gone: a symbolic ref outlives the branch it points at, and a name that stands nowhere is no base. Fix it with `git remote set-head <remote> -a`, or name the trunk in keel.toml
+check-trunk-gone-alone = no trunk could be found. git names { $refused }, and that branch is gone: a symbolic ref outlives the branch it points at. Fix it with `git remote set-head <remote> -a`, or name the trunk in keel.toml
 check-trunk-git = trunk: { $trunk } -- named by git: refs/remotes/{ $remote }/HEAD; if that is the wrong branch, name it in keel.toml (trunk = "...", a ROOT key, before [trust] and [generated]) -- and where the remote is a server rather than a working tree, git remote set-head { $remote } -a teaches this clone the same thing
 check-trunk-guess = trunk: { $trunk } -- nobody names it, so it was taken by name (main, then master). If that is the wrong branch: git remote set-head { $remote } -a; and where the checkout is born again every run (CI), that cannot help -- name it in keel.toml instead: trunk = "..." -- a ROOT key, standing BEFORE [trust] and [generated], or it is read as part of them
 check-trunk-guess-alone = trunk: { $trunk } -- nobody names it and this clone has no remote to ask, so it was taken by name (main, then master). If that is the wrong branch, name it in keel.toml: trunk = "..." -- a ROOT key, standing BEFORE [trust] and [generated], or it is read as part of them
@@ -529,7 +531,7 @@ close-closed = { $wave }: closed -- every live scenario proven, references conve
 close-closed-unjudged = { $wave }: closed -- every live scenario proven, the review report stands in history; { $count } references not judged: history cannot testify here (§5.6)
 close-closed-light = { $wave }: closed (light) -- chores only, closed by the fact of merge (§6.5): the wave file stands in the trunk
 close-awaiting-merge = { $wave }: light -- chores only, will close by the fact of merge (§6.5): the wave file is not in the trunk yet, and the merge is the closure
-close-awaiting-merge-unseen = { $wave }: light -- chores only, will close by the fact of merge (§6.5): no trunk can be found here, and the court cannot see the fact
+close-awaiting-merge-unseen = { $wave }: light -- chores only, will close by the fact of merge (§6.5): the court cannot see the fact -- no trunk can be found here, or the sources name different ones
 close-held-by-red = { $wave }: does NOT close -- this tree's battery is red ({ $count }), and closing means "passes" (sec. 7.8); the names are above
 close-plan = { $wave }: approved, not started -- a plan without tests is not red (§6.5)
 close-progress = { $wave }: in progress -- the missing, by name:
@@ -601,7 +603,7 @@ status-wave-closed = { "  " }{ $wave } — closed structurally: tags match, refe
 status-wave-closed-unjudged = { "  " }{ $wave } — closed structurally; { $count } references not judged: history cannot testify here (§5.6)
 status-wave-closed-light = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging closed it (§6.5): the wave file stands in the trunk
 status-wave-light-own = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§6.5): the wave file is not in the trunk yet
-status-wave-light-unseen = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§6.5): no trunk can be found here, and the fact cannot be seen
+status-wave-light-unseen = { "  " }{ $wave } -- nothing to prove: it carries no promise, so merging will close it (§6.5): the fact cannot be seen -- no trunk can be found here, or the sources name different ones
 status-wave-plan = { "  " }{ $wave } — approved, not started (§6.5)
 status-wave-progress = { "  " }{ $wave } — in progress; the lacks, by name:
 status-awaiting = { "  " }awaits its start: the wave { $wave } — the branch "{ $wave }" (§8.2)

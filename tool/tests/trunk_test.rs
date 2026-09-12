@@ -138,7 +138,7 @@ fn project(name: &str, default_branch: &str, remote: &str) -> Sandbox {
     home
 }
 
-/// proves: the-trunk-is-the-one-git-names@773f14
+/// proves: the-trunk-is-the-one-git-names@3dcdca
 #[test]
 fn the_trunk_is_the_one_git_names() {
     // --- issue #51: the trunk is what git names, not what sorts
@@ -851,5 +851,49 @@ fn the_trunk_is_the_one_git_names() {
     assert!(
         source_says.contains("0004-a-chore"),
         "the source still speaks of the wave:\n{source_says}"
+    );
+
+    // --- a bare name in refs/…/HEAD is still an answer ---
+    //
+    // Review 0072 round six: `refs/remotes/origin/HEAD` pointed at a
+    // local ref gives a bare `development` from `symbolic-ref
+    // --short`, and cutting the remote's prefix with `?` dropped the
+    // answer in silence.
+    let home = project("trunkbarehead", "development", "origin");
+    let work = home.join("work");
+    git(
+        &work,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/heads/development",
+        ],
+    );
+    let (out, _) = keel(&["check", work.to_str().unwrap()]);
+    assert!(
+        out.contains("trunk: development"),
+        "a bare name is the name, not nothing:\n{out}"
+    );
+
+    // --- and a limit about the trunk does not leak onto spike/ ---
+    //
+    // Review 0072 round six: the line was pushed from two places, and
+    // the second had no guard, so research branches were told §4.9
+    // and §4.12 went unjudged -- where §4.13 says they never are.
+    let home = project("trunkspike", "development", "origin");
+    let work = home.join("work");
+    fs::write(
+        work.join("keel.toml"),
+        "lang = \"en\"\nadapter = \"rust\"\ntrunk = \"nosuchbranch\"\n",
+    )
+    .unwrap();
+    git(&work, &["checkout", "-q", "-b", "spike/0010-a-look"]);
+    git(&work, &["add", "-A"]);
+    git(&work, &["commit", "-q", "-m", "a look"]);
+    let (out, _) = keel(&["check", work.to_str().unwrap()]);
+    assert!(
+        !out.contains("no branch of that name"),
+        "research is outside the methodology (§4.13): a limit about \
+         the trunk has nothing to say here:\n{out}"
     );
 }

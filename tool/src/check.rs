@@ -979,9 +979,12 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                         // advice that goes with it (`git remote
                         // set-head`) leads in a circle -- the remote
                         // is the tree whose HEAD is on that branch.
-                        (_, _, Some(refused)) => ta(
-                            "check-trunk-refused",
-                            targs!("trunk" => named, "refused" => refused.clone()),
+                        (_, _, Some((gone, why))) => ta(
+                            match why {
+                                scope::RefusedBecause::ItIsWork => "check-trunk-refused",
+                                scope::RefusedBecause::ItIsGone => "check-trunk-gone",
+                            },
+                            targs!("trunk" => named, "refused" => gone.clone()),
                         ),
                         (scope::TrunkSource::Git, Some(remote), None) => ta(
                             "check-trunk-git",
@@ -1006,11 +1009,14 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
                 // whole explanation of the silence and it must not be
                 // dropped with the answer (round three, R-4).
                 None => match &refused {
-                    Some(refused) => format!(
+                    Some((gone, why)) => format!(
                         "{scope_status}\n  {}",
                         ta(
-                            "check-trunk-refused-alone",
-                            targs!("refused" => refused.clone())
+                            match why {
+                                scope::RefusedBecause::ItIsWork => "check-trunk-refused-alone",
+                                scope::RefusedBecause::ItIsGone => "check-trunk-gone-alone",
+                            },
+                            targs!("refused" => gone.clone())
                         )
                     ),
                     None => scope_status,
