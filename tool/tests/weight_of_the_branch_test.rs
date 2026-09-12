@@ -87,6 +87,12 @@ fn settle(dir: &Path) {
     git(dir, &["add", "-A"]);
     git(dir, &["commit", "-q", "-m", "base"]);
     git(dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(dir);
 }
 
 fn chore_wave(transforms: &[(&str, &str)]) -> String {
@@ -280,6 +286,10 @@ fn the_weight_is_read_from_the_branch_too() {
     .unwrap();
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "--no-verify", "-m", "tidy: work"]);
+    // And the work itself: here the wave file is born ON the
+    // branch, so the hand can only run now -- before this commit
+    // there was no wave for it to read (§4.4, wave 0068).
+    common::did_the_work(&dir);
     let (said, _) = keel(&dir, &["status"]);
     assert!(
         said.contains("закриється фактом merge") && said.contains("§6.5"),
