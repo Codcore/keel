@@ -951,24 +951,44 @@ pub fn run(root: &Path, config: &Config) -> Result<Outcome, Refusal> {
     let scope_status = match scope_court {
         Court::Judged | Court::UnjudgedCounted => match scope::trunk_of(root, Some(config)) {
             Some(trunk) => {
-                let line = match (trunk.source, trunk.remote.as_deref()) {
-                    (scope::TrunkSource::Named, _) => {
-                        ta("check-trunk-named", targs!("trunk" => trunk.name.clone()))
+                // The name AND the ref it resolved to, in one line: a
+                // verdict that said `origin/main` on one line and
+                // `main` on the next was read as two answers (review
+                // 0072 R2-5).
+                let named = match &trunk.reference {
+                    Some(reference) if *reference != trunk.name => {
+                        format!("{} ({reference})", trunk.name)
                     }
-                    (scope::TrunkSource::Git, Some(remote)) => ta(
+                    _ => trunk.name.clone(),
+                };
+                let line = match (&trunk.refused, trunk.source, trunk.remote.as_deref()) {
+                    // git DID name one, and this hand would not take
+                    // it: saying "nobody names it" here would be a
+                    // lie about the cause, and the advice that goes
+                    // with it (`git remote set-head`) leads in a
+                    // circle -- the remote is the working tree whose
+                    // HEAD is on that very branch.
+                    (Some(refused), _, _) => ta(
+                        "check-trunk-refused",
+                        targs!("trunk" => named, "refused" => refused.clone()),
+                    ),
+                    (None, scope::TrunkSource::Named, _) => {
+                        ta("check-trunk-named", targs!("trunk" => named))
+                    }
+                    (None, scope::TrunkSource::Git, Some(remote)) => ta(
                         "check-trunk-git",
-                        targs!("trunk" => trunk.name.clone(), "remote" => remote.to_string()),
+                        targs!("trunk" => named, "remote" => remote.to_string()),
                     ),
                     // git cannot have named it without a remote to
                     // name it in; the arm exists so the match is
                     // total, and it says the honest thing.
-                    (scope::TrunkSource::Git, None) | (scope::TrunkSource::Guess, None) => ta(
-                        "check-trunk-guess-alone",
-                        targs!("trunk" => trunk.name.clone()),
-                    ),
-                    (scope::TrunkSource::Guess, Some(remote)) => ta(
+                    (None, scope::TrunkSource::Git, None)
+                    | (None, scope::TrunkSource::Guess, None) => {
+                        ta("check-trunk-guess-alone", targs!("trunk" => named))
+                    }
+                    (None, scope::TrunkSource::Guess, Some(remote)) => ta(
                         "check-trunk-guess",
-                        targs!("trunk" => trunk.name.clone(), "remote" => remote.to_string()),
+                        targs!("trunk" => named, "remote" => remote.to_string()),
                     ),
                 };
                 format!("{scope_status}\n  {line}")

@@ -138,7 +138,7 @@ fn project(name: &str, default_branch: &str, remote: &str) -> Sandbox {
     home
 }
 
-/// proves: the-trunk-is-the-one-git-names@392277
+/// proves: the-trunk-is-the-one-git-names@8231ad
 #[test]
 fn the_trunk_is_the_one_git_names() {
     // --- issue #51: the trunk is what git names, not what sorts
@@ -380,6 +380,12 @@ fn the_trunk_is_the_one_git_names() {
          walks straight through §4.4:\n{out}"
     );
     assert_ne!(code, 0, "and the verdict is red for it:\n{out}");
+    assert!(
+        out.contains("git names 0001-a-wave"),
+        "and the line says WHY it took another trunk: git did name \
+         one, and \"nobody names it\" would be a lie about the \
+         cause:\n{out}"
+    );
 
     // --- a key naming a branch that is not here says so, and does
     // not advise what has already been done ---
@@ -429,5 +435,92 @@ fn the_trunk_is_the_one_git_names() {
         !out.contains("root key"),
         "an entry carrying keel's own mark is an entry, not a root \
          key put in the wrong place:\n{out}"
+    );
+
+    // --- and standing ON a trunk that is not called main changes
+    // nothing ---
+    //
+    // Review 0072 round two measured the first guard breaking exactly
+    // this: it refused git's answer whenever the trunk was the branch
+    // HEAD stood on, so a project on its own `development` lost its
+    // trunk and §6.5's merge fact flipped depending on where HEAD
+    // happened to be. The name is a fact of the methodology; where
+    // HEAD stands is not.
+    let home = project("trunkstanding", "development", "origin");
+    let work = home.join("work");
+    git(&work, &["checkout", "-q", "development"]);
+    write(
+        &work,
+        "keel/waves/0003-a-chore.md",
+        &format!(
+            "---\ntransforms:\n  tidy:\n    chore: \"дрібниця\"\n    files:\n      - src/lib.rs\n{}---\n\n## transform: tidy\nтіло\n",
+            all_decided()
+        ),
+    );
+    write(
+        &work,
+        "keel/reviews/0003-a-chore.md",
+        "рецензія: свіже око дивилось, знахідок нема\n",
+    );
+    git(&work, &["add", "-A"]);
+    git(
+        &work,
+        &["commit", "-q", "-m", "tidy: the chore lands in the trunk"],
+    );
+    let (standing, _) = keel(&["status", work.to_str().unwrap()]);
+    assert!(
+        standing.contains("0003-a-chore") && standing.contains("merging closed it"),
+        "the merge fact is seen from the trunk itself, whatever the \
+         trunk is called:\n{standing}"
+    );
+    // And the same tree, read from a branch beside it, says the same.
+    git(&work, &["checkout", "-q", "-b", "elsewhere"]);
+    let (beside, _) = keel(&["status", work.to_str().unwrap()]);
+    assert!(
+        beside.contains("0003-a-chore") && beside.contains("merging closed it"),
+        "and the answer does not depend on where HEAD stands:\n{beside}"
+    );
+
+    // --- the mark is twelve characters, and the length is part of
+    // the measure ---
+    //
+    // Review 0072 R2-3: removing `value.len() == 12` left the whole
+    // battery green, so the very condition that decides between
+    // refusing and swallowing was held by nothing.
+    let home = project("trunklongmark", "development", "origin");
+    let work = home.join("work");
+    fs::write(
+        work.join("keel.toml"),
+        "lang = \"en\"\nadapter = \"rust\"\n\n[trust]\nci = \"abcdef0123456\"\n",
+    )
+    .unwrap();
+    git(&work, &["add", "-A"]);
+    git(&work, &["commit", "-q", "-m", "thirteen is not twelve"]);
+    let (out, code) = keel(&["check", work.to_str().unwrap()]);
+    assert!(
+        out.contains("root key"),
+        "thirteen hex characters are not keel's mark, so this is a \
+         root key that slid under a table:\n{out}"
+    );
+    assert_ne!(code, 0, "and it is refused, not swallowed:\n{out}");
+
+    // --- the memory answers the question it was asked ---
+    //
+    // Review 0072 R2-6: the key carries the asked name, and nothing
+    // held it -- a key of the tree alone passed the whole battery.
+    // One process, one tree, two questions: the answers must differ.
+    let home = project("trunkmemory", "development", "origin");
+    let work = home.join("work");
+    let asked = keel::config::Config {
+        trunk: Some("main".to_string()),
+        ..Default::default()
+    };
+    let by_git = keel::scope::trunk_of(&work, None).expect("git names one");
+    let by_key = keel::scope::trunk_of(&work, Some(&asked)).expect("the key names one");
+    assert_eq!(by_git.name, "development", "git names the default branch");
+    assert_eq!(
+        by_key.name, "main",
+        "and the key names another -- one tree, one process, two \
+         answers, because the memory is keyed by what was asked"
     );
 }
