@@ -344,6 +344,31 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         );
         let roll = roll_of(&said);
         let mut ran = 0usize;
+        for (name, mark) in roll.verdicts {
+            ran += 1;
+            // A skipped test did not run: it is in the battery neither
+            // as green nor as red, exactly as python's and node's
+            // skips are not (waves 0045, 0046) -- and the closing
+            // court then says "did not run" of the promise it was to
+            // prove (wave 0055).
+            let green = match mark {
+                Mark::Green => true,
+                Mark::Fallen => false,
+                Mark::Skipped => continue,
+            };
+            // Two classes in one file may name a method alike. The
+            // safe direction joins them: green only if both were.
+            let key = (stem.clone(), name);
+            let held = out.get(&key).copied().unwrap_or(true);
+            out.insert(key, held && green);
+        }
+        // ...and only where the file ran at all. A file that did
+        // not load, or that never required `minitest/autorun`, has
+        // its own refusal below with ruby's own words, and it is the
+        // truer one: the roll courts would otherwise shout "a test
+        // was named and never judged" over a LoadError (review 0074
+        // R-4). The order is the whole of that fix.
+        let roll = roll_of(&said);
         // A name opened and never closed: the reader cannot say what
         // that test came to, and neither can anybody else. Refusing
         // is the only honest answer -- and it is the ONLY guard
@@ -382,24 +407,6 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
                 ),
                 instead: t("adapter-ruby-roll-instead"),
             });
-        }
-        for (name, mark) in roll.verdicts {
-            ran += 1;
-            // A skipped test did not run: it is in the battery neither
-            // as green nor as red, exactly as python's and node's
-            // skips are not (waves 0045, 0046) -- and the closing
-            // court then says "did not run" of the promise it was to
-            // prove (wave 0055).
-            let green = match mark {
-                Mark::Green => true,
-                Mark::Fallen => false,
-                Mark::Skipped => continue,
-            };
-            // Two classes in one file may name a method alike. The
-            // safe direction joins them: green only if both were.
-            let key = (stem.clone(), name);
-            let held = out.get(&key).copied().unwrap_or(true);
-            out.insert(key, held && green);
         }
         if ran == 0 {
             // Nothing ran. Either the file declares no test at all --
@@ -541,40 +548,56 @@ struct Roll {
 fn roll_of(said: &str) -> Roll {
     let mut out: Vec<(String, Mark)> = Vec::new();
     let mut waiting: Option<String> = None;
-    let mut abandoned = 0usize;
+    let mut broken = 0usize;
     for line in said.split(['\n', '\r']) {
-        if let Some((name, mark)) = verdict_in(line) {
-            if waiting.take().is_some() {
-                abandoned += 1;
-            }
-            out.push((name, mark));
-            continue;
-        }
-        if let Some(mark) = tail_mark(line) {
-            if let Some(name) = waiting.take() {
+        // While a name is open, ONLY its timing closes it. Everything
+        // else on the way is the running test's own output, whatever
+        // it looks like -- and it can look like anything.
+        //
+        // That rule is the answer to two measured faults at once
+        // (review 0074 R-2, R-3). A test printing an ordinary line
+        // with a `#` and a ` = ` in it -- `User#full_name = Jane` --
+        // is not a second test starting, and the reading that took it
+        // for one failed the whole battery and blamed the project.
+        // And a test printing a whole verdict of its own is not a
+        // test either; minitest is serial, so between two real names
+        // there is always a timing.
+        if waiting.is_some() {
+            if let Some(mark) = tail_mark(line) {
+                let name = waiting.take().expect("open");
                 out.push((name, mark));
             }
             continue;
         }
-
-        // The RAW line, trimmed at the front only: minitest writes
-        // `Class#method = ` and the test's own output follows, so
-        // when the test prints a newline first the line ends in a
-        // trailing space -- and trimming it away destroys the very
-        // ` = ` that says a name was opened. Measured: the forged
-        // line went unnoticed for exactly that reason.
-        if let Some(name) = head_name(line)
-            && waiting.replace(name).is_some()
-        {
-            abandoned += 1;
+        if let Some((name, mark)) = verdict_in(line) {
+            out.push((name, mark));
+            continue;
+        }
+        // A timing with no name open. Minitest never writes one: it
+        // is a test's own output, and it means a test's real timing
+        // has already been eaten by that same output -- the verdict
+        // above belongs to nobody, or to the wrong body.
+        //
+        // This is the guard that catches the forge, and it took the
+        // reviewer to find it: the first reading dropped an orphan
+        // tail in silence, so a test printing `0.00 s = .` closed
+        // ITSELF green and its real `0.00 s = F` went out with the
+        // rubbish. Every count agreed. A false green is the one
+        // answer §4.10 calls worse than a red.
+        if tail_mark(line).is_some() {
+            broken += 1;
+            continue;
+        }
+        if let Some(name) = head_name(line) {
+            waiting = Some(name);
         }
     }
     if waiting.is_some() {
-        abandoned += 1;
+        broken += 1;
     }
     Roll {
         verdicts: out,
-        abandoned,
+        abandoned: broken,
     }
 }
 

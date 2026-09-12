@@ -158,15 +158,180 @@ end
 "#;
     let dir = project("rollforged", forged);
     let (said, code) = keel(&dir, &["close"]);
-    assert_ne!(
+    // Measured after review R-2 changed the rule, and the answer got
+    // BETTER than the one that was asked for: while a name is open
+    // only its timing closes it, so a whole verdict printed by a
+    // running test is its output and never enters the roll at all.
+    // No ghost, no refusal, both real tests where they belong.
+    assert_eq!(
         code, 0,
-        "a name opened and never judged is a refusal: the reader \
-         cannot say what that test came to, and a count against the \
-         runner's own total cannot see a one-for-one swap:\n{said}"
+        "a forged verdict printed by a running test is that test's \
+         own output, not a test:\n{said}"
     );
     assert!(
-        said.contains("test") && said.contains("toy_test.rb"),
-        "and it names the file, so a person can go and look:\n{said}"
+        said.contains("батарея: 2 тестів"),
+        "the roll holds the two tests that ran, and not the one that \
+         named itself:\n{said}"
+    );
+    assert!(
+        !said.contains("test_that_never_was"),
+        "and the ghost is nowhere in the verdict:\n{said}"
+    );
+
+    // --- a test that forges the TAIL of a verdict -----------------
+    //
+    // The sharpest shape, and the one the first cut of this wave made
+    // WORSE than it found it (review R-2). A test printing `0.00 s =
+    // .` on a line of its own closed ITSELF green, and its real
+    // `0.00 s = F` was dropped without a word: every count agreed and
+    // the wave closed. A false green is the one answer §4.10 calls
+    // worse than a red.
+    let forged_tail = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_it_forges_its_own_green
+    puts ""
+    puts "0.00 s = ."
+    flunk "this test really fell"
+  end
+
+  def test_a_quiet_neighbour
+    assert true
+  end
+end
+"#;
+    let dir = project("rolltail", forged_tail);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "a test cannot close itself green by printing a timing: the \
+         reader that let it was worse than the one that lost \
+         tests:\n{said}"
+    );
+    assert!(
+        !said.contains("закрита"),
+        "and the wave is certainly not closed over it:\n{said}"
+    );
+
+    // --- an ordinary print that merely LOOKS like a name ----------
+    //
+    // The other side of the same rule, and the reading that got it
+    // wrong failed the whole battery and blamed the project (review
+    // R-3). `User#full_name = Jane` is a line a test may print; it is
+    // not a second test starting. Minitest is serial, so between two
+    // real names there is always a timing.
+    let record = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_prints_a_record
+    puts ""
+    puts "User#full_name = Jane"
+    assert true
+  end
+
+  def test_quiet
+    assert true
+  end
+end
+"#;
+    let dir = project("rollrecord", record);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(
+        code, 0,
+        "a test may print whatever it likes; the roll survives \
+         it:\n{said}"
+    );
+    assert!(
+        said.contains("батарея: 2 тестів"),
+        "and both tests are in it:\n{said}"
+    );
+
+    // --- a file that does not load keeps its own words ------------
+    //
+    // The roll's courts must not shout over a truer refusal (review
+    // R-4): "a test was named and never judged" over a LoadError
+    // sends a person hunting a keel defect instead of a missing
+    // require.
+    let broken = r#"require "nothing_that_exists"
+require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_quiet
+    assert true
+  end
+end
+"#;
+    let dir = project("rollbroken", broken);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "a file that does not load is a refusal:\n{said}");
+    assert!(
+        said.contains("LoadError"),
+        "and it carries ruby's own words, not the roll's:\n{said}"
+    );
+
+    // --- the roll against the runner's count ----------------------
+    //
+    // Measured as a mutant by the reviewer and held by nothing: with
+    // the comparison removed the battery stayed green (review R-5).
+    // A skip is the shape that tells them apart, because minitest
+    // counts a skip among its runs and the battery does not hold it
+    // -- so the comparison must count what was READ, skips included,
+    // and a probe must stand on that.
+    let skipping = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_skips
+    skip "not today"
+  end
+
+  def test_runs
+    assert true
+  end
+end
+"#;
+    let dir = project("rollskip", skipping);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(
+        code, 0,
+        "a skip is neither green nor red (§7.12) and must not make \
+         the roll disagree with the runner: minitest counts it among \
+         its runs, the battery does not hold it, and the comparison \
+         is between what was READ and what ran:\n{said}"
+    );
+    assert!(
+        said.contains("батарея: 1 тестів"),
+        "one test in the battery, the skip outside it:\n{said}"
+    );
+
+    // --- a mark nobody knows ---------------------------------------
+    //
+    // The mark is strict: `.`, `S`, `F`, `E`. The card says an
+    // unknown one makes the roll short and the court says THAT. The
+    // reviewer measured a loose mark turning a green test red and
+    // held by nothing (review R-6, R-7). The shape that produces one
+    // is a test printing a timing with a mark of its own -- which is
+    // the orphan tail above, and this is its second face.
+    let strange = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_prints_a_strange_mark
+    puts ""
+    puts "0.00 s = ?"
+    assert true
+  end
+end
+"#;
+    let dir = project("rollmark", strange);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(
+        code, 0,
+        "a mark the reader does not know is not a verdict at all, so \
+         the line is the test's own output and the roll still holds \
+         one test:\n{said}"
+    );
+    assert!(
+        said.contains("батарея: 1 тестів"),
+        "and that test is in it:\n{said}"
     );
 
     // --- a quiet tree stays quiet ---------------------------------
