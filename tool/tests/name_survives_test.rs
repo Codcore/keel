@@ -321,3 +321,87 @@ fn their_word_wins_and_the_court_says_what_it_cost() {
          and this is what it cost:\n{said}"
     );
 }
+
+/// A healthy tree is judged, whatever its tests are CALLED.
+///
+/// Review 0067 round three measured the first refusal red on three
+/// trees that closed green before this wave -- a test named
+/// `екран \x{456} у назві`, one named with a literal replacement
+/// character, and worst, a neighbouring test keel does not even tag.
+/// The rule now stands on a fact that can be measured (did the
+/// project's own word take the encoding), not on a pattern.
+///
+/// proves: a-non-ascii-name-survives-its-runner@724e9e
+#[test]
+fn a_name_that_looks_like_an_escape_is_still_a_name() {
+    if !common::machine_has("mix").ready() {
+        eprintln!("mix is not on this machine: the elixir road was not walked");
+        return;
+    }
+    let dir = keel_sandbox("nameescaped");
+    std::fs::write(
+        dir.join("keel.toml"),
+        "lang = \"uk\"\nadapter = \"elixir\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.join("lib")).unwrap();
+    std::fs::create_dir_all(dir.join("test")).unwrap();
+    std::fs::write(
+        dir.join("mix.exs"),
+        "defmodule Toy.MixProject do\n  use Mix.Project\n  def project do\n    [app: :toy, version: \"0.1.0\", elixir: \"~> 1.14\"]\n  end\n  def application, do: []\nend\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("lib/toy.ex"),
+        "defmodule Toy do\n  def works, do: true\nend\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("test/test_helper.exs"), "ExUnit.start()\n").unwrap();
+    let mut d = String::from("decisions:\n");
+    for cut in keel::graph::cuts() {
+        if *cut != "functional.correctness" {
+            d.push_str(&format!("  {cut}: \"не про цю пісочницю\"\n"));
+        }
+    }
+    std::fs::write(
+        dir.join("keel/waves/0001-a-wave.md"),
+        format!(
+            "---\nscenarios:\n  it-works:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-works\n    files:\n      - lib/toy.ex\n{d}---\n\n## scenario: it-works\n{BODY}## transform: work\nтіло роботи\n"
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("keel/reviews/0001-a-wave.md"),
+        "# Рецензія\n\nok\n",
+    )
+    .unwrap();
+    let rev = keel::rev::text_rev(BODY);
+    // The tagged test is ordinary. Its NEIGHBOUR is named with an
+    // escape sequence, on purpose, and keel does not tag it at all.
+    std::fs::write(
+        dir.join("test/toy_test.exs"),
+        format!(
+            "defmodule ToyTest do\n  use ExUnit.Case\n\n  # proves: it-works@{rev}\n  test \"works\" do\n    assert Toy.works()\n  end\n\n  test \"екран \\\\x{{456}} у назві\" do\n    assert true\n  end\nend\n"
+        ),
+    )
+    .unwrap();
+    git(&dir, &["init", "-q", "-b", "main"]);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["close", dir.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        out.status.code().unwrap_or(-1),
+        0,
+        "a test may be NAMED like an escape, and a tree where nobody \
+         took the encoding away is judged as it always was:\n{said}"
+    );
+}

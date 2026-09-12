@@ -175,7 +175,9 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // test it ran. The project's own encoding word wins over ours
         // (see `mix`), so this is where that choice is paid for: said
         // aloud, with the way out, never guessed at.
-        if let Some(name) = ran(&said).into_iter().find(|name| mangled(name)) {
+        if theirs_overrode()
+            && let Some(name) = ran(&said).into_iter().find(|name| escaped(name))
+        {
             return Err(Refusal {
                 file: file.clone(),
                 reason: ta("adapter-elixir-name-not-text", targs!("name" => name)),
@@ -314,13 +316,28 @@ fn strip_timing(named: &str) -> &str {
     }
 }
 
-/// Whether a NAME came back as text. Not the whole output -- review
-/// 0067 measured that reading: a project whose own test legitimately
-/// prints `\x{` or a replacement character stopped being judged at
-/// all, and §9.8 removes a guard that misses more than it catches.
-/// A name is what the courts key on, and a name that is not text
-/// matches nothing in the file.
-pub fn mangled(name: &str) -> bool {
+/// Whether the project's own word took the encoding away from us.
+///
+/// This is a FACT, not a guess by pattern, and the difference is the
+/// whole of review 0067 round three: a rule that called a name
+/// "mangled" because it carried `\x{` refused healthy trees -- a test
+/// may be NAMED that, and one such name in a neighbouring untagged
+/// test stopped the court over the whole project. §9.8: a guard that
+/// misses more than it catches is removed, not weakened.
+///
+/// What can be measured is this: `erl` takes the first `-kernel`
+/// occurrence, ours goes last, so if their own `ELIXIR_ERL_OPTIONS`
+/// carries `standard_io_encoding` at all, theirs won -- and only then
+/// is an escaped name evidence of anything.
+fn theirs_overrode() -> bool {
+    std::env::var_os("ELIXIR_ERL_OPTIONS")
+        .map(|theirs| theirs.to_string_lossy().into_owned())
+        .is_some_and(|theirs| theirs.contains("standard_io_encoding"))
+}
+
+/// Whether a name came back as escapes rather than text. Asked only
+/// where `theirs_overrode` is true.
+fn escaped(name: &str) -> bool {
     name.contains('\u{FFFD}') || name.contains("\\x{")
 }
 
@@ -400,27 +417,25 @@ fn mix(root: &Path, args: &[String]) -> Result<(String, i32), Refusal> {
     // measured the first attempt at this hand doing exactly that --
     // sending `+pc unicode` and changing nothing at all.
     //
-    // OURS GOES FIRST: erl takes the first `-kernel` occurrence, so
-    // prepending keeps a project's own flags while making sure a
-    // name reaches the court as text. Whatever was there stays, after
-    // ours.
-    //
     // OURS GOES LAST, and that is the card's decision, not an
     // accident: `erl` takes the FIRST `-kernel` occurrence, so a
     // project that set its own encoding keeps it. Breaking someone
     // else's project to make our own reading easier is not a trade
     // this tool makes -- and where their word costs us the name, the
-    // court says so rather than guessing (see `mangled` below).
+    // court says so rather than guessing (see `theirs_overrode` below).
     //
     // Measured: theirs-first + latin1 -> the name is escaped and we
     // refuse aloud; nothing set -> ours applies and the name arrives.
-    let mut options = std::env::var_os("ELIXIR_ERL_OPTIONS")
-        .map(|theirs| theirs.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    if !options.trim().is_empty() {
-        options.push(' ');
+    // Carried as bytes, not as text: review 0067 round three measured
+    // `-pa /café` with a raw `e9` reaching the child as
+    // `/caf\357\277\275` once it had been through a lossy decode.
+    // What a person put there is theirs, and it arrives as they wrote
+    // it.
+    let mut options = std::env::var_os("ELIXIR_ERL_OPTIONS").unwrap_or_default();
+    if !options.is_empty() {
+        options.push(" ");
     }
-    options.push_str("-kernel standard_io_encoding unicode");
+    options.push("-kernel standard_io_encoding unicode");
     command.env("ELIXIR_ERL_OPTIONS", options);
     let out = command.output().map_err(|e| Refusal {
         file: root.to_path_buf(),
