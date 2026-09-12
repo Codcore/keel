@@ -138,7 +138,7 @@ fn project(name: &str, default_branch: &str, remote: &str) -> Sandbox {
     home
 }
 
-/// proves: the-trunk-is-the-one-git-names@3dcdca
+/// proves: the-trunk-is-the-one-git-names@343fa6
 #[test]
 fn the_trunk_is_the_one_git_names() {
     // --- issue #51: the trunk is what git names, not what sorts
@@ -409,6 +409,15 @@ fn the_trunk_is_the_one_git_names() {
         "and the line says WHY it took another trunk: git did name \
          one, and \"nobody names it\" would be a lie about the \
          cause:\n{out}"
+    );
+    // The reason must be the RIGHT one of the two: this branch stands
+    // (the ref is right there), it is simply work. Calling it gone
+    // would advise `git remote set-head`, which is the advice in a
+    // circle round two paid to remove (round eight, R-3).
+    assert!(
+        out.contains("branch of the WORK") && !out.contains("is gone"),
+        "a branch that stands is not a branch that vanished, and the \
+         two get different words:\n{out}"
     );
     // One line, both facts: the NAME the courts speak of and the REF
     // it resolved to. This clone has no local `main`, only
@@ -875,6 +884,25 @@ fn the_trunk_is_the_one_git_names() {
         "a bare name is the name, not nothing:\n{out}"
     );
 
+    // --- a branch that vanished keeps its whole name ---
+    //
+    // Round eight, R-4: the gone-branch path cut at the last slash,
+    // so `origin/release/stable` was reported as `stable`, which
+    // never existed. The living path had a probe; this one did not.
+    let home = project("trunkgoneslash", "release/stable", "origin");
+    let work = home.join("work");
+    git(
+        &work,
+        &["update-ref", "-d", "refs/remotes/origin/release/stable"],
+    );
+    git(&work, &["branch", "-q", "-D", "release/stable"]);
+    let (out, _) = keel(&["check", work.to_str().unwrap()]);
+    assert!(
+        out.contains("release/stable"),
+        "the name of a branch that is gone is still its whole \
+         name:\n{out}"
+    );
+
     // --- and a limit about the trunk does not leak onto spike/ ---
     //
     // Review 0072 round six: the line was pushed from two places, and
@@ -905,7 +933,7 @@ fn the_trunk_is_the_one_git_names() {
 /// whole battery stayed green. Each side below falls to exactly one
 /// of those mutants.
 ///
-/// proves: the-trunk-is-the-one-git-names@3dcdca
+/// proves: the-trunk-is-the-one-git-names@343fa6
 #[test]
 fn the_merge_fact_is_read_only_with_a_witness() {
     // --- the key is believed on its own ---
@@ -949,7 +977,18 @@ fn the_merge_fact_is_read_only_with_a_witness() {
         "lang = \"en\"\nadapter = \"rust\"\n",
     )
     .unwrap();
+    // The list must be SILENT, not merely different: deleting the
+    // local `main` leaves `origin/main` standing, and then the list
+    // still answers `main` -- which is disagreement, a different arm
+    // of the rule. Review 0072 round eight measured this fixture
+    // proving the wrong thing.
     git(&work, &["branch", "-q", "-D", "main"]);
+    git(
+        &home.join("origin.git"),
+        &["symbolic-ref", "HEAD", "refs/heads/development"],
+    );
+    git(&work, &["push", "-q", "origin", "--delete", "main"]);
+    git(&work, &["update-ref", "-d", "refs/remotes/origin/main"]);
     git(&work, &["add", "-A"]);
     git(
         &work,
