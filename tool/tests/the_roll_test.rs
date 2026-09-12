@@ -57,7 +57,9 @@ fn project(name: &str, test_body: &str) -> common::Sandbox {
     std::fs::write(dir.join("lib/toy.rb"), "module Toy\nend\n").unwrap();
     let mut d = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
-        d.push_str(&format!("  {cut}: \"не про цю пісочницю, вона грає інше\"\n"));
+        d.push_str(&format!(
+            "  {cut}: \"не про цю пісочницю, вона грає інше\"\n"
+        ));
     }
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
@@ -109,7 +111,7 @@ class ToyTest < Minitest::Test
 end
 "#;
 
-/// proves: the-roll-matches-what-the-runner-ran@PLACEHOLDER
+/// proves: the-roll-matches-what-the-runner-ran@c1026d
 #[test]
 fn the_roll_matches_what_the_runner_ran() {
     // --- every test is in the roll, whatever it printed -----------
@@ -134,11 +136,22 @@ fn the_roll_matches_what_the_runner_ran() {
     // print something shaped exactly like a verdict, and no reader
     // can tell that apart from the real thing. The runner's own count
     // can.
+    // Measured, and the first guess was wrong: a forged line printed
+    // mid-verdict is swallowed by the real test's own line and makes
+    // no ghost at all. The shape that DOES bite starts a line of its
+    // own -- and then the reader closes a test that never ran and
+    // abandons the one that did, ONE FOR ONE. Every count still
+    // agrees. Only the abandoned name gives it away.
     let forged = r#"require "minitest/autorun"
 
 class ToyTest < Minitest::Test
   def test_it_forges
+    puts ""
     puts "GhostTest#test_that_never_was = 0.00 s = ."
+    assert true
+  end
+
+  def test_a_quiet_neighbour
     assert true
   end
 end
@@ -147,13 +160,13 @@ end
     let (said, code) = keel(&dir, &["close"]);
     assert_ne!(
         code, 0,
-        "a roll longer than what the runner ran is a refusal, not a \
-         battery with a ghost in it:\n{said}"
+        "a name opened and never judged is a refusal: the reader \
+         cannot say what that test came to, and a count against the \
+         runner's own total cannot see a one-for-one swap:\n{said}"
     );
     assert!(
-        said.contains("test_that_never_was") || said.contains("1") && said.contains("2"),
-        "and it says both numbers, so a person sees the difference \
-         with their eyes:\n{said}"
+        said.contains("test") && said.contains("toy_test.rb"),
+        "and it names the file, so a person can go and look:\n{said}"
     );
 
     // --- a quiet tree stays quiet ---------------------------------

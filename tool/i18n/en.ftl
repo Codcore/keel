@@ -305,6 +305,10 @@ adapter-rails-reading = the third reading of ruby: the project has bin/rails and
 adapter-ruby-failed-instead = put ruby on PATH -- the adapter calls it exactly as a person would in a terminal
 adapter-ruby-broken = the test file { $error }
 adapter-ruby-broken-instead = ruby builds nothing ahead: a file that did not load gives no verdict for any test in it -- mend it and run again
+adapter-ruby-roll = the roll does not match the run: minitest says it ran { $said } in "{ $file }", and this reader named { $read }. A verdict line carries the test's own output in its middle, and a reader that loses one loses it silently -- so the count is compared, and a difference is said instead of guessed
+adapter-ruby-roll-instead = instead: run the file with -v by hand and look at the lines around the difference; a test that prints while it runs is lawful, and the reader must survive it -- if it does not, that is keel's defect and belongs in an issue
+adapter-ruby-roll-lost = a test was named and never judged: in "{ $file }" this reader opened { $count } name(s) whose timing never came. That happens when the output of a test looks like a verdict line of its own -- and then a real test is swapped for one that never ran, one for one, with every count still agreeing
+adapter-ruby-roll-lost-instead = instead: run the file with -v by hand and find the test whose line is broken; printing a line shaped like `Class#test_x = 0.00 s = .` from inside a test is what does it
 adapter-ruby-silent = ruby said not a word about running { $file }: no minitest summary "N runs, …", and it left with 0
 adapter-ruby-silent-instead = require "minitest/autorun" in the test file -- without it minitest never runs, and silence is not read as green
 adapter-rspec-failed = rspec did not start: { $error }

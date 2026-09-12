@@ -342,11 +342,48 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             String::from_utf8_lossy(&run.stdout),
             String::from_utf8_lossy(&run.stderr)
         );
+        let roll = roll_of(&said);
         let mut ran = 0usize;
-        for line in said.lines() {
-            let Some((name, mark)) = verdict_in(line) else {
-                continue;
-            };
+        // A name opened and never closed: the reader cannot say what
+        // that test came to, and neither can anybody else. Refusing
+        // is the only honest answer -- and it is the ONLY guard
+        // against a forged verdict line, which swaps a real test for
+        // a ghost one for one and leaves every count agreeing.
+        if roll.abandoned > 0 {
+            return Err(Refusal {
+                file: file.clone(),
+                reason: ta(
+                    "adapter-ruby-roll-lost",
+                    targs!(
+                        "file" => relative.display().to_string(),
+                        "count" => roll.abandoned as u64
+                    ),
+                ),
+                instead: t("adapter-ruby-roll-lost-instead"),
+            });
+        }
+        // The roll against the runner's own count (wave 0074, issue
+        // #55). Minitest says `N runs,` and keel never compared: a
+        // roll that had lost two tests looked exactly like a roll of
+        // the right length, and the battery reported a number that
+        // was simply untrue. Both directions are a refusal -- short
+        // means the reader could not name something that ran, long
+        // means something named itself that did not.
+        if let Some(runs) = runs_said(&said).filter(|runs| *runs != roll.verdicts.len() as u64) {
+            return Err(Refusal {
+                file: file.clone(),
+                reason: ta(
+                    "adapter-ruby-roll",
+                    targs!(
+                        "file" => relative.display().to_string(),
+                        "said" => runs,
+                        "read" => roll.verdicts.len() as u64
+                    ),
+                ),
+                instead: t("adapter-ruby-roll-instead"),
+            });
+        }
+        for (name, mark) in roll.verdicts {
             ran += 1;
             // A skipped test did not run: it is in the battery neither
             // as green nor as red, exactly as python's and node's
@@ -407,28 +444,153 @@ enum Mark {
     Skipped,
 }
 
-/// One line of minitest's verbose voice: `ToyTest#test_it_works =
-/// 0.00 s = .`, and green is the bare dot -- `F` failed, `E` errored,
-/// `S` was skipped, and none of the three proves a promise. Anything
-/// that is not that shape is not a verdict: the failure reports below
-/// carry `Class#method` too, and were read as verdicts once.
-fn verdict_in(line: &str) -> Option<(String, Mark)> {
-    let trimmed = line.trim();
-    let (head, mark) = trimmed.rsplit_once(" = ")?;
-    let (name, timing) = head.rsplit_once(" = ")?;
-    if !timing.ends_with(" s") || name.split_whitespace().count() != 1 {
+/// The mark minitest ends a verdict line with, and only those four:
+/// the bare dot is green, `F` failed, `E` errored, `S` was skipped,
+/// and none of the last three proves a promise.
+///
+/// Strict on purpose (wave 0074). The reading before this took
+/// ANYTHING that was not `.` or `S` for a failure, which is fine
+/// while the line is whole -- and the line is not always whole. Once
+/// a reader starts piecing a verdict together out of two lines, a
+/// loose mark turns every stray `x = y` into a fallen test. What the
+/// strictness costs is named and paid elsewhere: a mark we do not
+/// know makes the roll shorter than the runner's own count, and the
+/// court says THAT aloud instead of guessing.
+fn mark_of(mark: &str) -> Option<Mark> {
+    match mark.trim() {
+        "." => Some(Mark::Green),
+        "S" => Some(Mark::Skipped),
+        "F" | "E" => Some(Mark::Fallen),
+        _ => None,
+    }
+}
+
+/// The name a verdict line opens with: `ToyTest#test_it_works`, taken
+/// from the START of the line and not from what is left after the
+/// marks are cut off the end.
+///
+/// That direction is the whole fix of issue #55. A test that prints
+/// while it runs lands INSIDE its own verdict line -- minitest writes
+/// `Class#method = `, the test's own output goes next, then the
+/// timing and the mark -- and a reader working backwards from the end
+/// walked into whatever the test had printed. Measured: a print
+/// containing ` = ` moved the second split and the test vanished from
+/// the battery.
+fn head_name(line: &str) -> Option<String> {
+    let (name, _) = line.trim_start().split_once(" = ")?;
+    if name.split_whitespace().count() != 1 {
         return None;
     }
     let method = name.rsplit_once('#')?.1;
     if method.is_empty() {
         return None;
     }
-    let mark = match mark.trim() {
-        "." => Mark::Green,
-        "S" => Mark::Skipped,
-        _ => Mark::Fallen,
-    };
-    Some((method.to_string(), mark))
+    Some(method.to_string())
+}
+
+/// A whole verdict on one line: a name at the front, a timing and a
+/// mark at the back, and anything at all in between.
+fn verdict_in(line: &str) -> Option<(String, Mark)> {
+    let trimmed = line.trim();
+    let name = head_name(trimmed)?;
+    let (middle, mark) = trimmed.rsplit_once(" = ")?;
+    if !middle.trim_end().ends_with(" s") {
+        return None;
+    }
+    Some((name, mark_of(mark)?))
+}
+
+/// The BACK of a verdict whose front is on an earlier line: a timing
+/// and a mark, and no name of its own.
+///
+/// This is the other half of the same wound. A test that prints a
+/// line -- `puts`, which is what a system test's driver does -- cuts
+/// minitest's verdict in two: the name stays on the first line, the
+/// timing and mark begin the next. Neither half is a verdict, and the
+/// test disappeared.
+fn tail_mark(line: &str) -> Option<Mark> {
+    let trimmed = line.trim();
+    let (timing, mark) = trimmed.rsplit_once(" = ")?;
+    if !timing.trim_end().ends_with(" s") || timing.contains('#') {
+        return None;
+    }
+    mark_of(mark)
+}
+
+/// Everything minitest's `-v` voice says it ran, in order -- and how
+/// many names it opened and never closed.
+///
+/// A name with no verdict yet is held until its timing arrives:
+/// whatever the test printed in between belongs to the test, not to
+/// the roll. A name that never gets its timing is ABANDONED, and that
+/// is counted rather than shrugged off.
+///
+/// Abandonment is the one thing the count against `N runs` cannot
+/// see, and it took a probe to find out. A test that prints a whole
+/// verdict line of its own -- `puts` of `Ghost#test_x = 0.00 s = .`
+/// -- makes the reader close a test that never ran and lose the one
+/// that did, ONE FOR ONE: the roll stays exactly as long as the
+/// runner's count, and every number agrees while the names are wrong.
+/// So the reader says when it abandoned a name, and the court refuses
+/// on that alone.
+struct Roll {
+    verdicts: Vec<(String, Mark)>,
+    abandoned: usize,
+}
+
+fn roll_of(said: &str) -> Roll {
+    let mut out: Vec<(String, Mark)> = Vec::new();
+    let mut waiting: Option<String> = None;
+    let mut abandoned = 0usize;
+    for line in said.split(['\n', '\r']) {
+        if let Some((name, mark)) = verdict_in(line) {
+            if waiting.take().is_some() {
+                abandoned += 1;
+            }
+            out.push((name, mark));
+            continue;
+        }
+        if let Some(mark) = tail_mark(line) {
+            if let Some(name) = waiting.take() {
+                out.push((name, mark));
+            }
+            continue;
+        }
+
+        // The RAW line, trimmed at the front only: minitest writes
+        // `Class#method = ` and the test's own output follows, so
+        // when the test prints a newline first the line ends in a
+        // trailing space -- and trimming it away destroys the very
+        // ` = ` that says a name was opened. Measured: the forged
+        // line went unnoticed for exactly that reason.
+        if let Some(name) = head_name(line)
+            && waiting.replace(name).is_some()
+        {
+            abandoned += 1;
+        }
+    }
+    if waiting.is_some() {
+        abandoned += 1;
+    }
+    Roll {
+        verdicts: out,
+        abandoned,
+    }
+}
+
+/// How many tests minitest itself says it ran: the `N runs,` of its
+/// summary line.
+///
+/// The number keel's own roll is measured against (wave 0074). Before
+/// this the summary was read for one thing only -- whether it said
+/// zero -- so a roll that had silently lost two tests looked exactly
+/// like a roll of the right length.
+fn runs_said(said: &str) -> Option<u64> {
+    said.lines().find_map(|line| {
+        let trimmed = line.trim_start();
+        let (count, _) = trimmed.split_once(" runs,")?;
+        count.parse().ok()
+    })
 }
 
 /// What a run came to, read from what ruby said.
