@@ -439,46 +439,238 @@ pub fn work_in_trunk(root: &Path) -> Option<bool> {
     Some(out.status.success())
 }
 
-/// What this repository calls its trunk -- ONE hand for the base of
-/// every comparison and for the fact of a merge (review 0052 R-2: the
-/// courts of scope knew `main` and `origin/main` alone while `check`
-/// had its own reading with `master`, and a repository on `master`
-/// never saw a light wave closed): `main`, else `master`, locally;
-/// else `origin/main`, `origin/master`; else what `origin/HEAD`
-/// points at. None where none exists -- and the caller says so.
-pub fn trunk(root: &Path) -> Option<String> {
-    for name in ["main", "master", "origin/main", "origin/master"] {
-        let known = git_at(root)
-            .args([
-                "rev-parse",
-                "--verify",
-                "--quiet",
-                &format!("{name}^{{commit}}"),
-            ])
-            .output()
-            .ok()?;
-        if known.status.success() {
-            return Some(name.to_string());
-        }
+/// The remote this clone actually has: `origin` when it is there,
+/// otherwise the only one, and nothing at all when there are none or
+/// several (review 0031 R-8: `origin` was assumed and a project
+/// pushed to `upstream` was told its work did not exist).
+pub fn remote_name(root: &Path) -> Option<String> {
+    let all = git_line(root, &["remote"]).ok()?;
+    let mut names = all.lines().map(str::trim).filter(|name| !name.is_empty());
+    let first = names.next()?;
+    if all.lines().any(|name| name.trim() == "origin") {
+        return Some("origin".to_string());
     }
-    let head = git_at(root)
-        .args(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
-        .output()
-        .ok()?;
-    if head.status.success() {
-        let name = String::from_utf8_lossy(&head.stdout).trim().to_string();
-        if !name.is_empty() {
-            return Some(name);
-        }
-    }
-    None
+    names.next().is_none().then(|| first.to_string())
 }
 
-/// The comparison base: the merge-base with main -- the local one,
-/// or origin/main on a fresh clone that has no local main -- or,
-/// where main never existed at all, the first commit of the branch.
-/// Returns the sha and whether main gave it, so the report can say
-/// what it took (the wave's own caveat).
+/// Who named the trunk. The verdict says it aloud, because the first
+/// run after wave 0072 gives different findings in a project whose
+/// `refs/…/HEAD` is missing or stale, and a person must be able to
+/// read the cause in the line itself instead of hunting a keel
+/// regression.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TrunkSource {
+    /// `keel.toml` named it.
+    Named,
+    /// git named it: `refs/remotes/<remote>/HEAD`.
+    Git,
+    /// Nobody named it: taken by name, `main` then `master`.
+    Guess,
+}
+
+/// The trunk, whole: what it is called, who called it that, and the
+/// ref a comparison can actually use.
+#[derive(Clone, Debug)]
+pub struct Trunk {
+    /// The branch's NAME, with no remote in front of it. `check`
+    /// composes `{remote}/{name}` for the freshness line itself; a
+    /// hand that handed back a ref would make it build
+    /// `origin/origin/main`, and that line would vanish.
+    pub name: String,
+    pub source: TrunkSource,
+    /// The remote this clone has, when it has one.
+    pub remote: Option<String>,
+    /// The LOCAL branch of that name when it exists, else
+    /// `{remote}/{name}`; None where neither stands, and then there
+    /// is no base and the courts say so.
+    pub reference: Option<String>,
+}
+
+/// What this repository calls its trunk, asked in this order -- and
+/// the order is the wave's whole point (wave 0072, issue #51):
+///
+/// 1. what the project named in `keel.toml`. First, because the two
+///    states where git answers WRONGLY are the ones only a project
+///    can correct: a `refs/…/HEAD` left over from before a rename
+///    (plain fetch never updates it), and a CI checkout built by
+///    `init` + `remote add` + `fetch`, where it does not exist at all
+///    and `git remote set-head` cannot help -- that directory is born
+///    again every run.
+/// 2. what git names: `refs/remotes/<remote>/HEAD`. The remote comes
+///    from `remote_name`, never the literal `origin` -- review 0031
+///    R-8 paid for that once already.
+/// 3. `main`, else `master`, as they always were.
+///
+/// Before wave 0072 the list came first and `refs/…/HEAD` last, so in
+/// any repository where `main` resolved git was never asked at all. A
+/// project whose default branch is `development` had every plan
+/// branch reddened on §4.9, named for files it had never touched.
+///
+/// And there were TWO hands: `check` asked git first, `scope` asked
+/// the list first, so one verdict named two different trunks. This is
+/// the one hand; `check` calls it too.
+pub fn trunk_of(root: &Path, config: Option<&crate::config::Config>) -> Option<Trunk> {
+    let asked = config
+        .and_then(|config| config.trunk.as_deref())
+        .map(str::trim)
+        .filter(|named| !named.is_empty());
+    // Remembered per tree AND per asked name: keel reads no branch
+    // it has not just been shown, and it creates none, so the answer
+    // cannot change while one command runs. Measured before the
+    // memory: `trunk()` was called 12 times in one `keel check`, at
+    // up to three git processes a call.
+    //
+    // This is NOT the memory of `may_be_remembered`, and it must not
+    // become it: review 0061 R-3 drew that border at "what cannot
+    // change while one command runs", and named the working state as
+    // the outside. A decision composed of a config key and two refs
+    // is remembered here, under its own name, where a reader can see
+    // what is kept and why.
+    static TRUNK: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<(std::path::PathBuf, String), Trunk>>,
+    > = std::sync::OnceLock::new();
+    let key = (root.to_path_buf(), asked.unwrap_or_default().to_string());
+    let memory = TRUNK.get_or_init(Default::default);
+    if let Ok(seen) = memory.lock()
+        && let Some(trunk) = seen.get(&key)
+    {
+        return Some(trunk.clone());
+    }
+
+    let remote = remote_name(root);
+    let named = asked.map(|named| (named.to_string(), TrunkSource::Named));
+    let by_git = || {
+        let remote = remote.as_deref()?;
+        let head = git_line(
+            root,
+            &[
+                "symbolic-ref",
+                "--short",
+                &format!("refs/remotes/{remote}/HEAD"),
+            ],
+        )
+        .ok()?;
+        let head = head.trim();
+        // A symref survives the ref it points at: `symbolic-ref`
+        // answers `origin/development` happily when that ref has been
+        // deleted, and `merge-base` then dies on a name that is not
+        // an object. So the answer is verified before it is believed.
+        stands(root, head)?;
+        // The PREFIX comes off, not the last slash: a default branch
+        // may carry one. Review 0072 R-2 measured `origin/HEAD ->
+        // origin/release/stable` read as the branch `stable`, which
+        // stands nowhere -- the verdict named a branch that does not
+        // exist and both §4.9 and §4.12 died in silence; and where a
+        // branch `stable` did happen to exist, the comparison ran
+        // against a stranger.
+        let name = head.strip_prefix(&format!("{remote}/"))?;
+        // And it must not name the branch we are standing on. A
+        // `git clone --no-local <tree>` -- the clone keel's own
+        // briefing tells a reviewer to make -- copies the SOURCE's
+        // HEAD into `refs/remotes/origin/HEAD`, so a clone taken
+        // while the tree stood on a wave branch says the trunk IS
+        // that wave branch. Measured on this very branch: the base
+        // became HEAD, `git diff base HEAD` was empty for ever, and
+        // a file no transform names was committed and drew no
+        // finding at all. That is §4.10 word for word -- green got
+        // without a comparison -- so this answer is refused and the
+        // next source is asked.
+        //
+        // Standing ON the trunk is not this case and must not be
+        // caught by it: there the name below (`main`, `master`)
+        // answers the same thing, exactly as it did before this
+        // wave.
+        if current_branch(root).as_deref() == Some(name) {
+            return None;
+        }
+        Some((name.to_string(), TrunkSource::Git))
+    };
+    // The refs a name may live under, in the order they are asked.
+    // A fresh clone that has never checked out its trunk has only
+    // `origin/main`, so the local ref alone would leave it with no
+    // trunk at all -- the battery measured exactly that when this
+    // hand was first written the short way (`scope_test`,
+    // `weight_of_the_branch_test`).
+    //
+    // The literal `origin` stands LAST and only where no remote is
+    // configured at all. Review 0031 R-8 forbade ASSUMING origin --
+    // a named remote is asked first, always -- but a tree that
+    // carries `refs/remotes/origin/main` with no remote behind it
+    // still has its trunk written there, and before this wave
+    // `scope::trunk` read it.
+    let refs_for = |name: &str| {
+        let mut list = vec![name.to_string()];
+        match remote.as_deref() {
+            Some(remote) => list.push(format!("{remote}/{name}")),
+            None => list.push(format!("origin/{name}")),
+        }
+        list
+    };
+    let by_name = || {
+        ["main", "master"]
+            .into_iter()
+            .find(|name| refs_for(name).iter().any(|at| stands(root, at).is_some()))
+            .map(|name| (name.to_string(), TrunkSource::Guess))
+    };
+    let (name, source) = named.or_else(by_git).or_else(by_name)?;
+
+    // The ref the comparison uses: the LOCAL branch of that name
+    // first, and this is not a detail. Before wave 0072 a project on
+    // `main` compared against the local `main`, and handing back
+    // `origin/main` instead would make one unpushed commit look like
+    // the branch's own work -- the very shape issue #51 reported,
+    // handed to the population the wave must leave alone.
+    let reference = refs_for(&name)
+        .into_iter()
+        .find(|at| stands(root, at).is_some());
+    let trunk = Trunk {
+        name,
+        source,
+        remote,
+        reference,
+    };
+    if let Ok(mut seen) = memory.lock() {
+        seen.insert(key, trunk.clone());
+    }
+    Some(trunk)
+}
+
+/// Whether a name resolves to a commit in this tree. `symbolic-ref`
+/// does not ask this and `merge-base` dies when the answer is no.
+fn stands(root: &Path, name: &str) -> Option<String> {
+    git_line(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("{name}^{{commit}}"),
+        ],
+    )
+    .ok()
+    .map(|_| name.to_string())
+}
+
+/// The NAME of the branch this repository calls its trunk, for the
+/// courts that compose a remote in front of it themselves.
+pub fn trunk_branch(root: &Path, config: Option<&crate::config::Config>) -> Option<String> {
+    trunk_of(root, config).map(|trunk| trunk.name)
+}
+
+/// The trunk as a ref the comparison can use, or None where the name
+/// stands nowhere -- and then the courts say "not judged" rather than
+/// fall to the root commit in silence.
+pub fn trunk(root: &Path) -> Option<String> {
+    let config = crate::config::read(root).ok();
+    trunk_of(root, config.as_ref())?.reference
+}
+
+/// The comparison base: the merge-base with the trunk -- whichever
+/// branch `trunk_of` above names, resolved to the local ref when it
+/// stands and the remote-tracking one when it does not -- or, where
+/// no trunk can be found at all, the first commit of the branch.
+/// Returns the sha and whether the trunk gave it, so the report can
+/// say what it took (the wave's own caveat).
 pub fn compare_base(root: &Path) -> Result<(String, bool), Refusal> {
     if let Some(trunk) = trunk(root)
         && let Ok(sha) = git_line(root, &["merge-base", &trunk, "HEAD"])
