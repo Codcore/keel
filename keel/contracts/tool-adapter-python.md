@@ -5,7 +5,7 @@ exports:
   - "pub fn unread_files(root: &Path) -> Vec<PathBuf>"
   - "pub fn module_paths(root: &Path, module: &str) -> Vec<PathBuf>"
   - "pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal>"
-  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>"
+  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter::Told>, Refusal>"
   - "pub fn ran(said: &str) -> Vec<(String, String, String)>"
   - "pub fn classify(said: &str, code: i32) -> crate::adapter::Outcome"
 ---
@@ -103,6 +103,14 @@ ruby й elixir: та сама рука (`strip_ruby(source, fenced = true)`), я
 
 ## Що поправила рецензія 0045 — і що з того правило
 
+- **Червона батарея несе слова** (хвиля 0071, issues #49/#52): у
+  мапі, яку вертає `run_all`, кожен вирок — це `adapter::Told`:
+  зелений він чи ні, і ТЕКСТ, який бігун сказав про нього, коли той
+  упав. Текст — дослівний голос бігуна, а не розібране з нього поле:
+  шість доріг друкують падіння шістьма формами, і спільна СХЕМА
+  означала б шість розборів, кожен ламкий окремо. Для зеленого тексту
+  нема, і це не те саме, що «слів не знайшли»: другого суд каже
+  вголос.
 - **Ключ батареї — шлях від `tests/` донизу без розширення**, не стем:
   `a/test_x`, не `test_x`. `tests/a/test_x.py` і `tests/b/test_x.py`
   склеювались в один запис, другий затирав перший, і червоний тест

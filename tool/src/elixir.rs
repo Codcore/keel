@@ -152,8 +152,55 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
 /// new` generates itself (a `doctest`, which no source reader of
 /// ours was ever going to see). It is the same lesson wave 0038 R-1
 /// paid for in ruby, walked back in a new tongue.
-pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
-    let mut out: BTreeMap<(String, String), bool> = BTreeMap::new();
+/// What mix said about one fallen test, as ExUnit says it.
+///
+/// A failure opens with a numbered line carrying the test's own name
+/// -- `  1) test it falls (ToyTest)` -- and runs to the next such
+/// line or to the summary. The block is the runner's own voice,
+/// whole: no field is parsed out of it, because six roads print six
+/// shapes and a parser per road is six things to break (wave 0071).
+fn block_of(said: &str, name: &str) -> String {
+    let opens = |line: &str| {
+        let trimmed = line.trim_start();
+        trimmed.split_once(") ").is_some_and(|(number, rest)| {
+            !number.is_empty()
+                && number.chars().all(|c| c.is_ascii_digit())
+                && (rest.starts_with("test ") || rest.starts_with("doctest "))
+        })
+    };
+    let mut out: Vec<&str> = Vec::new();
+    let mut inside = false;
+    for line in said.split(['\n', '\r']) {
+        if opens(line) {
+            if inside {
+                break;
+            }
+            // ExUnit writes `1) test <name> (<Module>)`, and `name`
+            // here is what `ran()` read off the trace line -- the
+            // same words, so the opener is found by them.
+            if line.contains(name) {
+                inside = true;
+                out.push(line);
+            }
+            continue;
+        }
+        if inside {
+            if line.trim_start().starts_with("Finished in ")
+                || line.trim_start().starts_with("Randomized with seed")
+            {
+                break;
+            }
+            out.push(line);
+        }
+    }
+    while out.last().is_some_and(|line| line.trim().is_empty()) {
+        out.pop();
+    }
+    out.join("\n")
+}
+
+pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter::Told>, Refusal> {
+    let mut out: BTreeMap<(String, String), crate::adapter::Told> = BTreeMap::new();
     for file in test_files(root)? {
         let relative = file.strip_prefix(root).unwrap_or(&file);
         let stem = crate::adapter::battery_key(root, &file);
@@ -188,7 +235,12 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         }
         for name in ran(&said) {
             let green = !fallen.contains(&name);
-            out.insert((stem.clone(), name), green);
+            let words = if green {
+                String::new()
+            } else {
+                block_of(&said, &name)
+            };
+            out.insert((stem.clone(), name), crate::adapter::Told { green, words });
         }
     }
     Ok(out)

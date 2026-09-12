@@ -10,7 +10,7 @@ exports:
   - "pub fn module_paths(root: &Path, module: &str) -> Vec<PathBuf>"
   - "pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal>"
   - "pub fn run_spec(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal>"
-  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>"
+  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter::Told>, Refusal>"
   - "pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome"
   - "pub fn classify_spec(said: &str, test: &str) -> crate::adapter::Outcome"
 ---
@@ -121,6 +121,14 @@ Rails — не мова, а розкладка; тому `adapter = "ruby"` ли
   повним описом — обидва ідентифікатори біжать, і червоне серед них —
   червоне (правило рецензії 0046 R-2, одне на обидва суди). Це тримає
   проба з шимом `rspec`, що записує argv.
+- **Червона батарея несе слова** (хвиля 0071, issues #49/#52): у
+  мапі, яку вертає `run_all`, кожен вирок — це `adapter::Told`:
+  зелений він чи ні, і ТЕКСТ, який бігун сказав про нього, коли той
+  упав. Текст — дослівний голос бігуна, а не розібране з нього поле:
+  шість доріг друкують падіння шістьма формами, і спільна СХЕМА
+  означала б шість розборів, кожен ламкий окремо. Для зеленого тексту
+  нема, і це не те саме, що «слів не знайшли»: другого суд каже
+  вголос.
 - **stdout — не наш.** `.rspec` проєкту мусить читатись (стандартний
   проєкт тримає там `--require spec_helper`), а він може нести і свій
   `--format`; тож JSON іде у файл у тимчасовій теці системи (`--out`),

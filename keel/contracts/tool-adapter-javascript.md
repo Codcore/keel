@@ -6,7 +6,7 @@ exports:
   - "pub fn module_paths(root: &Path, module: &str) -> Vec<PathBuf>"
   - "pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal>"
   - "pub fn escape_regex(name: &str) -> String"
-  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>"
+  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter::Told>, Refusal>"
   - "pub fn tap(said: &str) -> Vec<Entry>"
   - "pub fn unescape_tap(name: &str) -> String"
   - "pub fn classify(said: &str, test: &str) -> crate::adapter::Outcome"

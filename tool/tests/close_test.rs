@@ -412,17 +412,28 @@ fn battery_read_once() {
     write(&dir, "keel/reviews/0014-two.md", "# Рецензія\n\nok\n");
     commit_all(&dir);
 
-    // The library call itself: the whole battery, one map of verdicts.
+    // The library call itself: the whole battery, one map of
+    // verdicts -- and since wave 0071 each verdict carries what the
+    // runner said where it fell.
     let verdicts = keel::adapter::run_all(&dir).unwrap();
-    assert_eq!(
-        verdicts.get(&("two_test".to_string(), "holds_green".to_string())),
-        Some(&true),
-        "the green test is green in the one run"
+    let green = verdicts
+        .get(&("two_test".to_string(), "holds_green".to_string()))
+        .expect("the green test is in the map");
+    assert!(green.green, "the green test is green in the one run");
+    assert!(
+        green.words.is_empty(),
+        "and carries no words: the quotation belongs to a red verdict, \
+         not to every verdict"
     );
-    assert_eq!(
-        verdicts.get(&("two_test".to_string(), "holds_red".to_string())),
-        Some(&false),
-        "the red test is red in the one run"
+    let red = verdicts
+        .get(&("two_test".to_string(), "holds_red".to_string()))
+        .expect("the red test is in the map");
+    assert!(!red.green, "the red test is red in the one run");
+    assert!(
+        red.words.contains("holds_red"),
+        "and carries libtest's own block about it (§6.5, wave 0071): \
+         {}",
+        red.words
     );
 
     // Through the court: both verdicts land, each named.

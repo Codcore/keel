@@ -206,8 +206,8 @@ pub fn escape_regex(name: &str) -> String {
 ///
 /// One run per test file, so the file a verdict belongs to is known:
 /// node's TAP names the test and not its file.
-pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
-    let mut out: BTreeMap<(String, String), bool> = BTreeMap::new();
+pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter::Told>, Refusal> {
+    let mut out: BTreeMap<(String, String), crate::adapter::Told> = BTreeMap::new();
     for file in test_files(root)? {
         let relative = file.strip_prefix(root).unwrap_or(&file);
         let said = node(root, &[relative.display().to_string()])?;
@@ -243,9 +243,20 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             {
                 continue;
             }
+            let words = if entry.ok {
+                String::new()
+            } else {
+                entry.words.clone()
+            };
+            let ok = entry.ok;
             out.entry((key.clone(), entry.name))
-                .and_modify(|was| *was = *was && entry.ok)
-                .or_insert(entry.ok);
+                .and_modify(|was| {
+                    was.green = was.green && ok;
+                    if !ok && was.words.is_empty() {
+                        was.words = words.clone();
+                    }
+                })
+                .or_insert(crate::adapter::Told { green: ok, words });
         }
     }
     Ok(out)
@@ -261,6 +272,11 @@ pub struct Entry {
     /// test that failed. The FILE's own line (a file with no test in
     /// it, or a name pattern that matched nothing) never has one.
     pub located: bool,
+    /// The YAML block node wrote under a `not ok`, verbatim (wave
+    /// 0071): what the assertion said, what was expected, what came
+    /// instead. TAP has no other place for it, and it is the runner's
+    /// own voice rather than a field parsed out of it.
+    pub words: String,
 }
 
 /// node's TAP, read as node writes it: `ok N - <name>` or `not ok N -
@@ -305,6 +321,7 @@ pub fn tap(said: &str) -> Vec<Entry> {
         // The YAML block below it, if node wrote one.
         let mut suite = false;
         let mut located = false;
+        let mut words: Vec<&str> = Vec::new();
         let mut look = at + 1;
         if lines.get(look).is_some_and(|l| l.trim() == "---") {
             look += 1;
@@ -319,15 +336,18 @@ pub fn tap(said: &str) -> Vec<Entry> {
                 if body.starts_with("location:") {
                     located = true;
                 }
+                words.push(line);
                 look += 1;
             }
         }
+        let words = words.join("\n");
         out.push(Entry {
             name,
             ok,
             suite,
             skipped,
             located,
+            words,
         });
         at += 1;
     }

@@ -23,7 +23,9 @@ pub(crate) const BATTERY_RUNS: usize = 3;
 
 /// The verdicts of the closure battery, one per run, keyed like the
 /// adapter's map: (test file stem, function name).
-pub(crate) type Battery = BTreeMap<(String, String), Vec<bool>>;
+/// Every run's verdict for one test, and what the runner said on the
+/// runs where it fell (wave 0071).
+pub(crate) type Battery = BTreeMap<(String, String), Vec<adapter::Told>>;
 
 /// The structural stages of a wave -- close's own verdicts, opened
 /// pub(crate) so the stage eye (rung 11) asks instead of duplicating.
@@ -300,8 +302,8 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // SECOND sentence of the card, not the first.
     let mut battery: Battery = BTreeMap::new();
     for _ in 0..BATTERY_RUNS {
-        for (key, green) in adapter::run_all(root)? {
-            battery.entry(key).or_default().push(green);
+        for (key, told) in adapter::run_all(root)? {
+            battery.entry(key).or_default().push(told);
         }
     }
     let branch = scope::branch_wave(root, &scan.waves);
@@ -327,19 +329,58 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // ran the battery three times, saw red, and said only that the
     // wave is not closed -- so a person had to run the whole battery
     // again to learn what this court had already seen.
+    // ...and what it said while failing (wave 0071, issues #49/#52).
+    // The author of #52 re-ran a flaky test about twenty times by
+    // hand and never saw the failure this court had seen: the name
+    // alone leaves a red that cannot be investigated once it is gone.
+    //
+    // A red test carries the words of its LAST failing run; a flaky
+    // one carries every failing run it had, because three different
+    // assertions on one test is the most valuable thing anyone can
+    // say about flakiness. The window is the one wave 0070 already
+    // built for a red gate -- there is no second window in this tree.
     let mut fell: Vec<String> = battery
         .iter()
-        .filter(|(_, runs)| runs.iter().any(|green| !green))
+        .filter(|(_, runs)| runs.iter().any(|told| !told.green))
         .map(|((file, test), runs)| {
-            let every = runs.iter().all(|green| !green);
-            ta(
+            let every = runs.iter().all(|told| !told.green);
+            let mut said = ta(
                 if every {
                     "close-test-red"
                 } else {
                     "close-test-flaky"
                 },
                 targs!("file" => file.clone(), "test" => test.clone()),
-            )
+            );
+            let words: Vec<&str> = if every {
+                runs.iter()
+                    .rev()
+                    .find(|told| !told.green)
+                    .map(|told| told.words.as_str())
+                    .into_iter()
+                    .collect()
+            } else {
+                runs.iter()
+                    .filter(|told| !told.green)
+                    .map(|told| told.words.as_str())
+                    .collect()
+            };
+            for (nth, block) in words.iter().filter(|w| !w.trim().is_empty()).enumerate() {
+                said.push('\n');
+                said.push(FRAME_MARK);
+                said.push_str("    ");
+                said.push_str(&ta(
+                    if every {
+                        "close-test-said"
+                    } else {
+                        "close-test-said-run"
+                    },
+                    targs!("run" => (nth + 1) as u64),
+                ));
+                said.push('\n');
+                said.push_str(window_of(block).trim_end_matches('\n'));
+            }
+            said
         })
         .collect();
     fell.sort();
@@ -397,7 +438,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     }
     let red_tests = battery
         .iter()
-        .filter(|(key, runs)| runs.iter().any(|green| !green) && !claimed.contains(*key))
+        .filter(|(key, runs)| runs.iter().any(|told| !told.green) && !claimed.contains(*key))
         .count();
     for line in &fell {
         report.push_str(line);
@@ -1424,10 +1465,11 @@ pub(crate) fn wave_state(
                 // in some runs is a lack with its count, never a
                 // blessing by the one green run; red in all stays red.
                 match battery.get(&(stem, tag.test.clone())) {
-                    Some(runs) if runs.len() == BATTERY_RUNS && runs.iter().all(|g| *g) => {}
-                    Some(runs) if runs.iter().any(|g| *g) => lacks.push(ta(
+                    Some(runs)
+                        if runs.len() == BATTERY_RUNS && runs.iter().all(|told| told.green) => {}
+                    Some(runs) if runs.iter().any(|told| told.green) => lacks.push(ta(
                         "close-lack-flaky",
-                        targs!("scenario" => (*name).clone(), "test" => tag.test.clone(), "green" => runs.iter().filter(|g| **g).count() as u64, "runs" => BATTERY_RUNS as u64),
+                        targs!("scenario" => (*name).clone(), "test" => tag.test.clone(), "green" => runs.iter().filter(|told| told.green).count() as u64, "runs" => BATTERY_RUNS as u64),
                     )),
                     Some(_) => lacks.push(ta(
                         "close-lack-red",

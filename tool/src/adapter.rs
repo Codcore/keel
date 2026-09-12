@@ -541,7 +541,108 @@ fn test_target(crate_dir: &Path, file: &Path) -> Result<String, Refusal> {
 /// One run instead of one per tag -- the closure court reads it
 /// once. A build that does not build is a refusal aloud with the
 /// compiler's words: without a build there is no verdict for anyone.
-pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
+/// What one test of the battery came to: the verdict, and the words
+/// the runner said about it when it fell (wave 0071, issues #49/#52).
+///
+/// The words are the runner's own voice, verbatim -- not a field
+/// parsed out of it. Six roads print a failure six ways (libtest's
+/// `---- name stdout ----` block, mix's `N) test …`, minitest's
+/// `Failure:`/`Error:`, rspec's `exception.message`, pytest's ` - `
+/// line, node's TAP `error:` yaml), and a shared SHAPE would make
+/// every hand carry its own parser for a structure nobody agreed on.
+/// A shared TEXT costs one field and lies to nobody.
+///
+/// Empty for a green test, and that is not the same as "no words":
+/// a red test whose words could not be found says so in its own
+/// voice, because a court that quotes nothing where it promised to
+/// quote is back where this wave started.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Told {
+    pub green: bool,
+    pub words: String,
+}
+
+impl Told {
+    /// A verdict with nothing said about it -- every green one, and a
+    /// red one on a road that has not learned to quote yet.
+    pub fn bare(green: bool) -> Self {
+        Self {
+            green,
+            words: String::new(),
+        }
+    }
+}
+
+/// Every failure block libtest printed, keyed by the target it
+/// belongs to and the test it names (wave 0071).
+///
+/// libtest gathers them after the run, one per fallen test:
+///
+/// ```text
+/// ---- it_falls stdout ----
+/// thread 'it_falls' panicked at tests/toy_test.rs:3:5:
+/// the words of the assertion
+/// ```
+///
+/// Read in the SAME pass shape as the verdicts -- `running N tests`
+/// opens a target -- so two targets naming a test alike keep their
+/// own words. Taking the first block by name alone would hand one
+/// target's failure to the other's test, and that is the class of
+/// defect the bug audit found at this exact seam (R-1).
+fn failure_blocks(stdout: &str) -> BTreeMap<(usize, String), String> {
+    let mut out: BTreeMap<(usize, String), String> = BTreeMap::new();
+    let mut block: usize = 0;
+    let mut open: Option<(usize, String)> = None;
+    let mut body: Vec<&str> = Vec::new();
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("running ") && trimmed.ends_with("tests")
+            || trimmed == "running 1 test"
+        {
+            if let Some(key) = open.take() {
+                out.insert(key, body.join("\n"));
+                body.clear();
+            }
+            block += 1;
+            continue;
+        }
+        // `---- <name> stdout ----` opens a block and closes the one
+        // before it; so does the summary line that follows them all.
+        if let Some(rest) = trimmed.strip_prefix("---- ")
+            && let Some(name) = rest.strip_suffix(" stdout ----")
+        {
+            if let Some(key) = open.take() {
+                out.insert(key, body.join("\n"));
+            }
+            body.clear();
+            open = Some((block.saturating_sub(1), name.trim().to_string()));
+            continue;
+        }
+        if open.is_some()
+            && (trimmed.starts_with("failures:") || trimmed.starts_with("test result: "))
+        {
+            if let Some(key) = open.take() {
+                out.insert(key, body.join("\n"));
+                body.clear();
+            }
+            continue;
+        }
+        if open.is_some() {
+            body.push(line);
+        }
+    }
+    if let Some(key) = open.take() {
+        out.insert(key, body.join("\n"));
+    }
+    for words in out.values_mut() {
+        while words.ends_with('\n') || words.ends_with(' ') {
+            words.pop();
+        }
+    }
+    out
+}
+
+pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), Told>, Refusal> {
     match language_of(root) {
         Some(Language::Ruby) => return crate::ruby::run_all(root),
         Some(Language::Elixir) => return crate::elixir::run_all(root),
@@ -623,7 +724,8 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         }
     }
     let stdout = String::from_utf8_lossy(&out.stdout);
-    let mut verdicts: BTreeMap<(String, String), bool> = BTreeMap::new();
+    let blocks = failure_blocks(&stdout);
+    let mut verdicts: BTreeMap<(String, String), Told> = BTreeMap::new();
     let mut block: usize = 0;
     let mut closed: usize = 0;
     // What the reader counted in the current block, checked against
@@ -696,7 +798,15 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
                 .unwrap_or_default();
             // One key, one verdict: cargo names a test once per
             // target, and the numbers above are what hold the text.
-            verdicts.insert((target, name.to_string()), green);
+            let words = if green {
+                String::new()
+            } else {
+                blocks
+                    .get(&(block.saturating_sub(1), name.to_string()))
+                    .cloned()
+                    .unwrap_or_default()
+            };
+            verdicts.insert((target, name.to_string()), Told { green, words });
         }
     }
     // The stitch holds only when every announced target printed its
@@ -718,7 +828,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     // cargo left red and the reader saw none: whatever it was -- a
     // binary that crashed before its closing line, a shape this
     // reader does not know -- it is not a green battery.
-    if !out.status.success() && !verdicts.values().any(|green| !green) {
+    if !out.status.success() && !verdicts.values().any(|told| !told.green) {
         return Err(Refusal {
             file: crate_dir,
             reason: ta(

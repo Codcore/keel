@@ -6,7 +6,7 @@ exports:
   - "pub fn is_test_path(root: &Path, rel: &str) -> bool"
   - "pub enum Outcome { Failed, Green, BuildBroken(String), NotRun }"
   - "pub fn run_test(root: &Path, tag: &TestTag) -> Result<Outcome, Refusal>"
-  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>"
+  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), Told>, Refusal>"
   - "pub enum BuildDir { At(PathBuf), Nothing, Unknown }"
   - "pub fn build_dir(root: &Path) -> BuildDir"
   - "pub fn lockfiles(root: &Path) -> Vec<String>"
@@ -18,6 +18,14 @@ exports:
 Диспетчер адаптерів і рука cargo (NEW-CONCEPT, «Адаптери»; хвиля
 0038). Модуль двоскладовий, і це сказано вголос:
 
+- **Червона батарея несе слова** (хвиля 0071, issues #49/#52): у
+  мапі, яку вертає `run_all`, кожен вирок — це `adapter::Told`:
+  зелений він чи ні, і ТЕКСТ, який бігун сказав про нього, коли той
+  упав. Текст — дослівний голос бігуна, а не розібране з нього поле:
+  шість доріг друкують падіння шістьма формами, і спільна СХЕМА
+  означала б шість розборів, кожен ламкий окремо. Для зеленого тексту
+  нема, і це не те саме, що «слів не знайшли»: другого суд каже
+  вголос.
 - **диспетчер** — суди вище кличуть `test_files`, `run_test`,
   `run_all`, `tests_dir`, `run_line` і `build_dir`, не знаючи мови
   проєкту; кожна з цих рук питає `keel.toml`, яку мову названо, і

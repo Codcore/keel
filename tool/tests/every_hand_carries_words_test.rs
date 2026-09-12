@@ -63,7 +63,9 @@ fn frame(dir: &Path, adapter: &str, touched: &str) {
     .unwrap();
     let mut d = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
-        d.push_str(&format!("  {cut}: \"не про цю пісочницю, вона грає інше\"\n"));
+        d.push_str(&format!(
+            "  {cut}: \"не про цю пісочницю, вона грає інше\"\n"
+        ));
     }
     fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
@@ -88,9 +90,16 @@ fn frame(dir: &Path, adapter: &str, touched: &str) {
 /// marker no keel line could produce by itself.
 const MARK: &str = "the-assertion-that-fell";
 
-/// proves: a-red-battery-carries-the-words-that-made-it-red@PLACEHOLDER
+/// proves: a-red-battery-carries-the-words-that-made-it-red@000000
 #[test]
 fn a_red_battery_carries_the_words_that_made_it_red() {
+    // Which roads this run actually measured. A probe gated on the
+    // machine having a runner is silent about what it skipped, and
+    // this session paid for that twice: four rspec sandboxes were
+    // green here and red on a runner, for two different reasons, and
+    // nobody could see they had not run. So the roads walked are
+    // printed, and the count is asserted at the end.
+    let mut walked: Vec<&str> = vec!["cargo"];
     // --- cargo ----------------------------------------------------
     let dir = keel_sandbox("wordscargo");
     fs::create_dir_all(dir.join("src")).unwrap();
@@ -146,6 +155,7 @@ fn a_red_battery_carries_the_words_that_made_it_red() {
 
     // --- minitest -------------------------------------------------
     if machine_has("ruby").ready() {
+        walked.push("minitest");
         let dir = keel_sandbox("wordsminitest");
         fs::create_dir_all(dir.join("lib")).unwrap();
         fs::create_dir_all(dir.join("test")).unwrap();
@@ -169,6 +179,7 @@ fn a_red_battery_carries_the_words_that_made_it_red() {
 
     // --- rspec ----------------------------------------------------
     if machine_has("rspec").ready() {
+        walked.push("rspec");
         let dir = keel_sandbox("wordsrspec");
         fs::create_dir_all(dir.join("lib")).unwrap();
         fs::create_dir_all(dir.join("spec")).unwrap();
@@ -192,6 +203,7 @@ fn a_red_battery_carries_the_words_that_made_it_red() {
 
     // --- elixir ---------------------------------------------------
     if machine_has("mix").ready() {
+        walked.push("elixir");
         let dir = keel_sandbox("wordselixir");
         fs::create_dir_all(dir.join("lib")).unwrap();
         fs::create_dir_all(dir.join("test")).unwrap();
@@ -220,6 +232,7 @@ fn a_red_battery_carries_the_words_that_made_it_red() {
 
     // --- javascript -----------------------------------------------
     if machine_has("node").ready() {
+        walked.push("node");
         let dir = keel_sandbox("wordsnode");
         fs::create_dir_all(dir.join("src")).unwrap();
         fs::create_dir_all(dir.join("test")).unwrap();
@@ -240,6 +253,7 @@ fn a_red_battery_carries_the_words_that_made_it_red() {
 
     // --- python ---------------------------------------------------
     if machine_has("pytest").ready() {
+        walked.push("pytest");
         let dir = keel_sandbox("wordspytest");
         fs::create_dir_all(dir.join("src")).unwrap();
         fs::create_dir_all(dir.join("tests")).unwrap();
@@ -257,4 +271,13 @@ fn a_red_battery_carries_the_words_that_made_it_red() {
             "pytest: and carries the words:\n{said}"
         );
     }
+
+    println!("roads measured: {}", walked.join(", "));
+    assert!(
+        walked.contains(&"cargo"),
+        "at least the road this repository itself runs on must have \
+         been measured -- a probe that skipped every road would pass \
+         in silence, which is how four rspec sandboxes stayed green \
+         here and red on a runner"
+    );
 }
