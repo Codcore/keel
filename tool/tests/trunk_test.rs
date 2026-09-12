@@ -138,7 +138,7 @@ fn project(name: &str, default_branch: &str, remote: &str) -> Sandbox {
     home
 }
 
-/// proves: the-trunk-is-the-one-git-names@8231ad
+/// proves: the-trunk-is-the-one-git-names@458740
 #[test]
 fn the_trunk_is_the_one_git_names() {
     // --- issue #51: the trunk is what git names, not what sorts
@@ -228,6 +228,30 @@ fn the_trunk_is_the_one_git_names() {
     assert!(
         !out.contains("DESIGN.md"),
         "and it is a real branch, so the comparison runs:\n{out}"
+    );
+    assert_eq!(code, 0, "nothing reddens:\n{out}");
+
+    // --- a default branch may be named like a wave and still be the
+    // trunk ---
+    //
+    // The guard that keeps a clone of a working tree from judging a
+    // branch against itself must read a FACT, not the shape of a
+    // name: `2024-rewrite` looks exactly like a wave slug, and a
+    // project may well call its default branch that. Measured before
+    // this side existed: such a project lost its trunk entirely and
+    // `keel check` said "this clone knows no main trunk".
+    let home = project("trunkyear", "2024-rewrite", "origin");
+    let work = home.join("work");
+    let (out, code) = keel(&["check", work.to_str().unwrap()]);
+    assert!(
+        out.contains("trunk: 2024-rewrite"),
+        "a branch is a branch of the work when it CARRIES the wave \
+         file it is named after, not when its name is shaped like a \
+         slug:\n{out}"
+    );
+    assert!(
+        !out.contains("DESIGN.md"),
+        "and the comparison runs against it:\n{out}"
     );
     assert_eq!(code, 0, "nothing reddens:\n{out}");
 

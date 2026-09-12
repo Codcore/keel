@@ -492,33 +492,43 @@ pub struct Trunk {
     pub refused: Option<String>,
 }
 
-/// A branch named like the WORK is never a trunk (§8.2, §4.13): a
-/// wave's branch carries the wave's slug (`0072-the-trunk-…`), a
-/// plan's carries `plan/…`, a spike's `spike/…`.
+/// A branch of the WORK is never a trunk (§8.2, §4.13): a plan rides
+/// `plan/…`, research rides `spike/…`, and a wave rides a branch
+/// named after itself -- one that carries its own wave file.
 ///
-/// Measured twice. `git clone --no-local <tree>` -- the clone keel's
-/// own briefing tells a reviewer to make -- copies the SOURCE's HEAD
-/// into `refs/remotes/origin/HEAD`, so a clone taken while the tree
-/// stood on a wave branch says the trunk IS that branch. The base
-/// then equals HEAD, `git diff base HEAD` is empty for ever, and
-/// every court reads "compared" over a comparison that never
-/// happened -- §4.10 word for word. A file no transform names was
-/// committed on such a clone and drew no finding at all.
+/// Measured twice over. `git clone <tree>` copies the SOURCE's HEAD
+/// into `refs/remotes/<remote>/HEAD`, so a clone taken while the tree
+/// stood on a wave branch -- the clone keel's own briefing tells a
+/// reviewer to make -- says the trunk IS that branch. The base then
+/// equals HEAD, `git diff base HEAD` is empty for ever, and every
+/// court reads "compared" over a comparison that never happened
+/// (§4.10). A file no transform names was committed on such a clone
+/// and drew no finding at all.
 ///
-/// The test is the NAME, and the first attempt tested something else:
-/// "the branch we are standing on". Review 0072 round two measured
-/// what that cost -- a project standing on its own trunk, where the
-/// trunk is not called `main`, lost its trunk entirely, and §6.5's
-/// merge fact flipped depending on which branch HEAD happened to be
-/// on. The name is a fact of the methodology; where HEAD stands is
-/// not.
-fn is_work_branch(name: &str) -> bool {
+/// Two earlier measures were wrong, and each was measured wrong:
+///
+/// - "the branch we are standing on" (review 0072 round two): a
+///   project standing on its own trunk, where the trunk is not called
+///   `main`, lost its trunk entirely, and §6.5's merge fact flipped
+///   with wherever HEAD happened to be. Where HEAD stands is not a
+///   fact about the branch.
+/// - "a name shaped like a wave slug" -- digits, a dash, a word: a
+///   project whose default branch is `2024-rewrite` lost its trunk
+///   the same way. The shape of a name is not a fact about it either.
+///
+/// What IS a fact: the branch carries `keel/waves/<its own name>.md`.
+/// That is §8.2's rule read the only way a machine can read it, and
+/// it is asked of the REF, not of the working tree, so the answer
+/// does not depend on which branch happens to be checked out.
+fn is_work_branch(root: &Path, at: &str, name: &str) -> bool {
     if name.starts_with("plan/") || name.starts_with("spike/") {
         return true;
     }
-    name.split_once('-').is_some_and(|(number, rest)| {
-        !number.is_empty() && number.chars().all(|c| c.is_ascii_digit()) && !rest.is_empty()
-    })
+    git_line(
+        root,
+        &["cat-file", "-e", &format!("{at}:keel/waves/{name}.md")],
+    )
+    .is_ok()
 }
 
 /// What this repository calls its trunk, asked in this order -- and
@@ -599,7 +609,7 @@ pub fn trunk_of(root: &Path, config: Option<&crate::config::Config>) -> Option<T
         // branch `stable` did happen to exist, the comparison ran
         // against a stranger.
         let name = head.strip_prefix(&format!("{remote}/"))?;
-        Some((name.to_string(), TrunkSource::Git))
+        Some((name.to_string(), head.to_string()))
     };
     // The refs a name may live under, in the order they are asked.
     // A fresh clone that has never checked out its trunk has only
@@ -628,13 +638,13 @@ pub fn trunk_of(root: &Path, config: Option<&crate::config::Config>) -> Option<T
             .find(|name| refs_for(name).iter().any(|at| stands(root, at).is_some()))
             .map(|name| (name.to_string(), TrunkSource::Guess))
     };
-    let by_git = by_git();
     // A branch of the work is not a trunk, and saying WHY matters: a
     // person whose clone came from a working tree must read the cause
     // instead of "nobody names it" (review 0072 R2-2).
-    let (by_git, refused) = match by_git {
-        Some((name, _)) if is_work_branch(&name) => (None, Some(name)),
-        other => (other, None),
+    let (by_git, refused) = match by_git() {
+        Some((name, at)) if is_work_branch(root, &at, &name) => (None, Some(name)),
+        Some((name, _)) => (Some((name, TrunkSource::Git)), None),
+        None => (None, None),
     };
     let (name, source) = named.or(by_git).or_else(by_name)?;
 
