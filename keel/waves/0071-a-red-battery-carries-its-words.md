@@ -36,7 +36,6 @@ transforms:
       - tool/tests/ruby_tests_test.rs
       - tool/tests/javascript_tests_test.rs
       - tool/tests/rails_tests_test.rs
-      - tool/tests/verdict_limits_test.rs
       - BACKLOG.md
       - tool/tests/every_hand_carries_words_test.rs
 decisions:
