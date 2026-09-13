@@ -528,6 +528,7 @@ check-next-rung = next step: all green -- plan the next wave (sec. 6.6), or work
 close-title = keel close -- the closure court (§6.5)
 close-test-red = { "  " }red test: { $test } ({ $file }) -- it failed in every run
 close-test-flaky = { "  " }flaky test: { $test } ({ $file }) -- it failed in some runs and not others, which is why the battery runs three times (§7.13)
+close-said-of-file = — what the runner said while "{ $file }" ran, verbatim and unmasked:
 close-test-said-run = — what the runner said while this file ran, verbatim and unmasked (run { $run } of { $runs }):
 close-test-said-nothing = — and the runner said nothing this court could keep: it printed no failure where keel could see it. That is not a quiet red; it is a red whose words are elsewhere -- a runner told to hide them (pytest's `--tb=no`), or a reporter writing them to a file of its own
 close-battery = battery: { $count } tests × { $runs } runs (§7.13) — green only when green in every run

@@ -763,20 +763,51 @@ pub fn run_all(root: &Path) -> Result<Ran, Refusal> {
             instead: t("adapter-cargo-failed-instead"),
         });
     }
-    // One text for the whole run on this road, so the voice of every
-    // target that had a red is that text: cargo does not give a
-    // per-target stream, and cutting one out of it by name is the
-    // search this wave refuses to do.
+    // The voice, split by the boundary cargo itself prints -- the
+    // `running N tests` line that opens each target's block, which
+    // this reader already walks to key the verdicts above.
+    //
+    // Splitting it is NOT the search this wave refuses to do: no test
+    // is looked for by name, and a test cannot forge a boundary that
+    // the verdict counts do not also have to agree with. What a
+    // per-RUN voice costs was measured by review 0071 R2-1 and it is
+    // fatal: on keel's own tree the whole run speaks 1065 lines, the
+    // one red block stands at line 659, and a window of forty and
+    // forty keeps neither -- the report quotes 42 lines of green test
+    // names and nothing of what fell.
     let mut voices: BTreeMap<String, String> = BTreeMap::new();
     if verdicts.values().any(|green| !green) {
-        let whole = format!("{stderr}{stdout}");
-        let reds: Vec<String> = verdicts
-            .iter()
-            .filter(|(_, green)| !**green)
-            .map(|((target, _), _)| target.clone())
-            .collect();
-        for target in reds {
-            voices.insert(target, whole.clone());
+        let mut blocks: Vec<String> = Vec::new();
+        let mut current = String::new();
+        let mut started = false;
+        for line in stdout.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("running ") && trimmed.ends_with("tests")
+                || trimmed == "running 1 test"
+            {
+                if started {
+                    blocks.push(std::mem::take(&mut current));
+                }
+                started = true;
+            }
+            if started {
+                current.push_str(line);
+                current.push('\n');
+            }
+        }
+        if started {
+            blocks.push(current);
+        }
+        for (at, target) in targets.iter().enumerate() {
+            let red_here = verdicts
+                .iter()
+                .any(|((name, _), green)| name == target && !green);
+            if !red_here {
+                continue;
+            }
+            if let Some(block) = blocks.get(at) {
+                voices.insert(target.clone(), block.clone());
+            }
         }
     }
     Ok(Ran { verdicts, voices })
