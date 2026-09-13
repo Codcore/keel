@@ -285,3 +285,74 @@ fn the_plan_has_its_own_reader_and_its_own_report() {
         );
     }
 }
+
+/// proves: the-plan-has-its-own-reader-and-its-own-report@1cad4d --
+/// the WORDS of the plan's package, which nothing held.
+///
+/// Rounds two and three both stopped on one sentence: the package for
+/// a plan told its reader that the fresh eye "arrives at closing".
+/// That is the very thing this wave exists to deny, and it stood in
+/// both tongues. Round three rewrote it -- and round four found the
+/// rewrite held by nothing: a mutant restoring the old sentence word
+/// for word left the battery untouched, and so did one taking the
+/// report's own name out of the package (review 0075 R4-1).
+///
+/// A wave whose thesis is "a chain you have to remember is not a
+/// court" cannot close its own blocker with memory. So the package is
+/// read here, in both tongues, and asked two things: WHEN it says the
+/// reading happens, and WHICH file it names.
+#[test]
+fn the_plans_package_names_its_own_report_and_says_when() {
+    let dir = plan_sandbox("planwords");
+
+    for (lang, now, report) in [
+        ("uk", "ЗАРАЗ", "keel/reviews/0019-a-full-wave-plan.md"),
+        (
+            "en",
+            "reads them NOW",
+            "keel/reviews/0019-a-full-wave-plan.md",
+        ),
+    ] {
+        fs::write(
+            dir.join("keel.toml"),
+            format!("lang = \"{lang}\"\nadapter = \"rust\"\n"),
+        )
+        .unwrap();
+        let (said, code) = keel(&dir, &["review"]);
+        assert_eq!(code, 0, "the plan branch gets a package in {lang}:\n{said}");
+        assert!(
+            said.contains(now),
+            "in {lang} the package says the reading happens NOW, while \
+             the plan can still be refused as a plan -- not that a \
+             fresh eye comes later:\n{said}"
+        );
+        // Twice: once where the reader is told why they are reading,
+        // once in the footer where they are told where to put it. A
+        // package that names it in only one of the two leaves half a
+        // reader unaddressed.
+        let named = said.matches(report).count();
+        assert!(
+            named >= 2,
+            "in {lang} the package names its own report, {report}, in \
+             the header AND in the footer -- it stood {named} time(s):\n{said}"
+        );
+    }
+
+    // And on the WORK branch the package names the OTHER file. The
+    // two names are the whole of this wave's answer: one report for
+    // the plan, one for the work, and neither satisfies the other's
+    // gate.
+    fs::write(dir.join("keel.toml"), "lang = \"uk\"\nadapter = \"rust\"\n").unwrap();
+    git(&dir, &["checkout", "-q", "-b", "0019-a-full-wave"]);
+    let (said, code) = keel(&dir, &["review"]);
+    assert_eq!(code, 0, "the work branch gets its package:\n{said}");
+    assert!(
+        said.contains("keel/reviews/0019-a-full-wave.md"),
+        "and it names the report of the WORK:\n{said}"
+    );
+    assert!(
+        !said.contains("keel/reviews/0019-a-full-wave-plan.md"),
+        "and never the plan's, which would send the reader to write \
+         the one file this wave keeps apart:\n{said}"
+    );
+}
