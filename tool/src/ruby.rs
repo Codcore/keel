@@ -242,10 +242,22 @@ fn minitest_listing(root: &Path, file: &str) -> Command {
         .arg("-Itest")
         .arg("-e")
         .arg(concat!(
-            "require \"minitest\"\n",
+            // `$0` first: a test file may ask whether it is the file
+            // being run, and under `-e` it is not, unless we say so.
+            "$0 = ARGV.first\n",
             "load ARGV.shift\n",
-            "Minitest::Runnable.runnables.each do |r|\n",
-            "  r.runnable_methods.each { |m| puts \"KEEL-ROLL #{r}##{m}\" }\n",
+            // minitest is NOT required here, and that is the point:
+            // requiring it before the project's own file activates
+            // the system gem, and a project holding its own version
+            // through bundler then meets `Gem::LoadError` in keel's
+            // preamble rather than in its own code (review 0074
+            // R5-11). Every minitest file requires minitest itself --
+            // that is what makes it one -- so by this line it is
+            // either loaded or there are no tests to name.
+            "if defined?(Minitest::Runnable)\n",
+            "  Minitest::Runnable.runnables.each do |r|\n",
+            "    r.runnable_methods.each { |m| puts \"KEEL-ROLL #{r}##{m}\" }\n",
+            "  end\n",
             "end\n",
         ))
         .arg(file)
@@ -394,7 +406,21 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // place in the sequence that was never its own (review 0074
         // R2-5).
         let said = format!("{voice}{}", String::from_utf8_lossy(&run.stderr));
-        let roll = roll_of(&voice);
+        // The road picks the reader, and it is asked in the open:
+        // the plain road has a roll, the Rails road does not (see
+        // `minitest_listing`), and no reading falls back to another
+        // one without saying so.
+        let read = if rails_root(root) {
+            Some(shapes_of(&voice))
+        } else {
+            roll_of(&voice)
+        };
+        let no_roll = read.is_none();
+        let roll = read.unwrap_or(Roll {
+            verdicts: Vec::new(),
+            silent: Vec::new(),
+            tally: None,
+        });
         let mut ran = 0usize;
         for (name, mark) in roll.verdicts.iter().cloned() {
             ran += 1;
@@ -453,18 +479,35 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // whole of the guard: a test cannot take its own name off the
         // list, so a name with no verdict means its verdict was lost
         // -- swallowed by the test's own output, or never printed.
+        // minitest ran tests and keel has no roll of them. The file
+        // swallowed the roll -- a `$stdout` replaced while it loads,
+        // put back before the run -- and the older reader is not
+        // quietly put in its place (review 0074 R5-2).
+        if no_roll && let Some(runs) = runs_said(&voice).filter(|runs| *runs > 0) {
+            return Err(Refusal {
+                file: file.clone(),
+                reason: ta(
+                    "adapter-ruby-roll-none",
+                    targs!(
+                        "file" => relative.display().to_string(),
+                        "said" => runs
+                    ),
+                ),
+                instead: t("adapter-ruby-roll-none-instead"),
+            });
+        }
+        // A verdict cut in two, on the road that has nothing else to
+        // go on. Only `shapes_of` -- the Rails road -- can say this:
+        // where there is a roll, a name with no block of its own is
+        // simply green, and the two courts below hold the counts.
         if !roll.silent.is_empty() {
             return Err(Refusal {
                 file: file.clone(),
                 reason: ta(
-                    "adapter-ruby-roll-lost",
-                    targs!(
-                        "file" => relative.display().to_string(),
-                        "count" => roll.silent.len() as u64,
-                        "tests" => roll.silent.join(", ")
-                    ),
+                    "adapter-rails-shape",
+                    targs!("file" => relative.display().to_string()),
                 ),
-                instead: t("adapter-ruby-roll-lost-instead"),
+                instead: t("adapter-rails-shape-instead"),
             });
         }
         // The roll against the runner's own count (wave 0074, issue
@@ -474,7 +517,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // was simply untrue. Both directions are a refusal -- short
         // means the reader could not name something that ran, long
         // means something named itself that did not.
-        if let Some(runs) = runs_said(&said).filter(|runs| *runs != roll.verdicts.len() as u64) {
+        if let Some(runs) = runs_said(&voice).filter(|runs| *runs != roll.verdicts.len() as u64) {
             return Err(Refusal {
                 file: file.clone(),
                 reason: ta(
@@ -486,6 +529,31 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
                     ),
                 ),
                 instead: t("adapter-ruby-roll-instead"),
+            });
+        }
+        // The report against minitest's own totals. The verdicts are
+        // read from the numbered blocks written AFTER the run; the
+        // counts are written after them again. A test that forges a
+        // block has to make the totals agree as well, and it cannot:
+        // by the time it prints, the line that counts it has not
+        // been written yet.
+        if let (Some((fallen, skipped)), Some((_, failures, errors, skips))) =
+            (roll.tally, totals(&voice))
+            && (fallen != failures + errors || skipped != skips)
+        {
+            return Err(Refusal {
+                file: file.clone(),
+                reason: ta(
+                    "adapter-ruby-report",
+                    targs!(
+                        "file" => relative.display().to_string(),
+                        "counted" => failures + errors,
+                        "blocks" => fallen,
+                        "skips" => skips,
+                        "blockskips" => skipped
+                    ),
+                ),
+                instead: t("adapter-ruby-report-instead"),
             });
         }
     }
@@ -583,75 +651,189 @@ fn tail_mark(line: &str) -> Option<Mark> {
     mark_of(mark)
 }
 
-/// The verdicts of the tests the file DECLARED, read against a roll
-/// written before any of them ran.
+/// The verdicts of the tests the file DECLARED -- from the report
+/// minitest writes AFTER the run, not from the stream it writes
+/// during it.
 ///
-/// With the roll in hand the reader no longer has to tell a real
-/// verdict line from one a test printed: it walks the names in the
-/// order minitest announces them, and inside each name's span takes
-/// the LAST timing. Minitest prints its own line after the test ends,
-/// so whatever the test printed stands before it -- and the last one
-/// is the runner's. A forged name is not in the roll and is ignored;
-/// a roll name with no timing at all is a refusal by name.
+/// Four rounds of review taught this wave its lesson twice over.
+/// First: the shape of a `-v` line cannot be trusted, because a test
+/// can print one (R-2, three times). Then: under `parallelize_me!`
+/// -- which Rails turns on by default, and which is the environment
+/// issue #55 came from -- the `-v` stream is not merely forgeable,
+/// it is PHYSICALLY interleaved:
+///
+/// ```text
+/// ToyTest#test_one = ToyTest#test_three = 0.00 s = .
+/// ToyTest#test_two = 0.00 s = .
+/// 0.00 s = F
+/// ```
+///
+/// No line-ordered reader survives that, and no cleverness will.
+///
+/// What minitest writes after the run does survive it: a numbered
+/// block per test that did not simply pass, naming it, and a summary
+/// line counting them. So the reading is three independent sources
+/// that must agree:
+///
+///   the ROLL      -- the names, taken when the file was loaded,
+///                    before any test body could add or remove one;
+///   the BLOCKS    -- which of those names failed, errored, skipped;
+///   the COUNTS    -- minitest's own totals.
+///
+/// Everything not named in a block passed. A test forging a block
+/// has to make the counts agree as well, and the counts are written
+/// after it has finished.
 struct Roll {
     verdicts: Vec<(String, Mark)>,
-    /// Names the file declared and the run never judged.
+    /// Names the reading could not account for. Only the Rails road
+    /// fills this: it has no roll to compare against, so a verdict
+    /// cut in two is all it has to go on.
     silent: Vec<String>,
+    /// What minitest's own report came to: how many blocks said
+    /// fallen, how many said skipped. `None` where there is no roll
+    /// to read blocks against.
+    tally: Option<(u64, u64)>,
 }
 
-fn roll_of(said: &str) -> Roll {
-    let names = listed(said);
-    if names.is_empty() {
-        // No listing: the Rails road, which boots the application and
-        // owns the run. The reader falls back to the shape of the
-        // line, and the courts above still hold the count.
-        return shapes_of(said);
-    }
-    // Where each name's span opens, in the order minitest ran them.
+/// The numbered blocks minitest writes after a run: `  1) Failure:`
+/// and the `Class#method` on the line below it.
+///
+/// The name is taken FROM THE ROLL rather than parsed out of that
+/// line. minitest's own spec style declares names with spaces in
+/// them -- `a user of the shop#test_0001_greets by name` -- so there
+/// is no rule about where a name ends that is both true and not
+/// forgeable (review 0074 R5-5). The roll already holds the exact
+/// strings; the block only has to say which of them it is, and a
+/// block naming something not in the roll says nothing at all.
+fn report_blocks(said: &str, names: &[String]) -> Vec<(Mark, String)> {
     let lines: Vec<&str> = said.split(['\n', '\r']).collect();
-    let mut opens: Vec<(usize, String)> = Vec::new();
+    let mut out: Vec<(Mark, String)> = Vec::new();
     for (at, line) in lines.iter().enumerate() {
-        if line.trim().starts_with("KEEL-ROLL ") {
+        let trimmed = line.trim_start();
+        let Some((number, kind)) = trimmed.split_once(") ") else {
+            continue;
+        };
+        if number.is_empty() || !number.chars().all(|c| c.is_ascii_digit()) {
             continue;
         }
-        if let Some(name) = head_name(line)
-            && names.contains(&name)
-        {
-            opens.push((at, name));
+        let mark = match kind.trim() {
+            "Failure:" | "Error:" => Mark::Fallen,
+            "Skipped:" => Mark::Skipped,
+            _ => continue,
+        };
+        let Some(named) = lines.get(at + 1) else {
+            continue;
+        };
+        // `ToyTest#test_two [test/toy_test.rb:11]:` or, for an error,
+        // `ToyTest#test_four:` -- and the name inside may hold spaces.
+        // The longest roll name that stands there wins, so a name
+        // that is the tail of a longer one cannot steal the block.
+        let named = named.trim();
+        let hit = names
+            .iter()
+            .filter(|name| {
+                let Some(at) = named.find(&format!("#{name}")) else {
+                    return false;
+                };
+                let rest = &named[at + 1 + name.len()..];
+                rest.is_empty() || rest.starts_with(':') || rest.starts_with(" [")
+            })
+            .max_by_key(|name| name.len());
+        if let Some(name) = hit {
+            out.push((mark, name.clone()));
         }
     }
-    let mut verdicts: Vec<(String, Mark)> = Vec::new();
-    for (nth, (at, name)) in opens.iter().enumerate() {
-        let until = opens
-            .get(nth + 1)
-            .map(|(next, _)| *next)
-            .unwrap_or(lines.len());
-        // The LAST timing of the span belongs to the runner: nothing
-        // of the test prints after the test has ended.
-        let mark = lines[*at..until].iter().rev().find_map(|line| {
-            verdict_in(line)
-                .map(|(_, mark)| mark)
-                .or_else(|| tail_mark(line))
-        });
-        if let Some(mark) = mark {
-            verdicts.push((name.clone(), mark));
-        }
-    }
-    let judged: Vec<&String> = verdicts.iter().map(|(name, _)| name).collect();
-    let silent = names
-        .iter()
-        .filter(|name| !judged.contains(name))
-        .cloned()
-        .collect();
-    Roll { verdicts, silent }
+    out
 }
 
-/// The older reading, by the shape of the line alone -- kept for the
-/// one road that cannot give a roll: Rails boots the application and
-/// runs the tests itself.
+/// minitest's own totals: runs, failures, errors, skips.
+fn totals(said: &str) -> Option<(u64, u64, u64, u64)> {
+    said.lines()
+        .filter(|line| line.contains(" assertions,") && line.contains(" failures,"))
+        .filter_map(|line| {
+            let mut runs = None;
+            let mut failures = None;
+            let mut errors = None;
+            let mut skips = None;
+            for part in line.split(',') {
+                let part = part.trim();
+                let (count, what) = part.split_once(' ')?;
+                let count: u64 = count.parse().ok()?;
+                match what {
+                    "runs" => runs = Some(count),
+                    "failures" => failures = Some(count),
+                    "errors" => errors = Some(count),
+                    "skips" => skips = Some(count),
+                    _ => {}
+                }
+            }
+            Some((runs?, failures?, errors?, skips?))
+        })
+        .next_back()
+}
+
+/// The reading of the plain road. `None` means the roll itself is
+/// missing -- and that is never quietly answered with the other
+/// reader: a file can swallow keel's own lines (`$stdout` replaced
+/// while it loads is an ordinary way to quieten a noisy boot), and a
+/// silent fall-back to the reader three rounds of review defeated
+/// put the forgery back in business on the road it was fixed on
+/// (review 0074 R5-2). The caller refuses instead.
+fn roll_of(said: &str) -> Option<Roll> {
+    let names = listed(said);
+    if names.is_empty() {
+        return None;
+    }
+    // A roll is not a run. `require "minitest"` without
+    // `minitest/autorun` declares the class and never runs anything
+    // -- and then every name in the roll has no block of its own,
+    // which would read as green (measured: `verdict_keys_test` caught
+    // exactly that, a test that raises reported as one green test).
+    // No summary line, no verdicts: the courts above then say
+    // "nothing ran" in the words they have for it.
+    if totals(said).is_none() {
+        return Some(Roll {
+            verdicts: Vec::new(),
+            silent: Vec::new(),
+            tally: None,
+        });
+    }
+    let blocks = report_blocks(said, &names);
+    let mut verdicts: Vec<(String, Mark)> = Vec::new();
+    for name in &names {
+        let mark = blocks
+            .iter()
+            .find(|(_, named)| named == name)
+            .map(|(mark, _)| *mark)
+            .unwrap_or(Mark::Green);
+        verdicts.push((name.clone(), mark));
+    }
+    // What the blocks came to, for the court that compares it with
+    // minitest's own totals. The comparison is the caller's, and it
+    // is said in its own words: a roll shorter than the run and a
+    // report that does not add up are two different faults, and
+    // answering both with one sentence about a "lost verdict" sent
+    // the reader looking for the wrong thing (review 0074 R5-8).
+    let fallen = blocks.iter().filter(|(m, _)| *m == Mark::Fallen).count() as u64;
+    let skipped = blocks.iter().filter(|(m, _)| *m == Mark::Skipped).count() as u64;
+    Some(Roll {
+        verdicts,
+        silent: Vec::new(),
+        tally: Some((fallen, skipped)),
+    })
+}
+
+/// The older reading, by the shape of the line -- kept for the one
+/// road that cannot give a roll: Rails boots the application and runs
+/// the tests itself.
+///
+/// It keeps its own guard, and must (review 0074 R4-2): a timing with
+/// no name open means a real verdict has already been eaten, and
+/// dropping that guard here let a wave close over a failing test.
 fn shapes_of(said: &str) -> Roll {
     let mut out: Vec<(String, Mark)> = Vec::new();
     let mut waiting: Option<String> = None;
+    let mut broken = false;
     for line in said.split(['\n', '\r']) {
         if waiting.is_some() {
             if let Some(mark) = tail_mark(line) {
@@ -664,13 +846,25 @@ fn shapes_of(said: &str) -> Roll {
             out.push((name, mark));
             continue;
         }
+        if tail_mark(line).is_some() {
+            broken = true;
+            continue;
+        }
         if let Some(name) = head_name(line) {
             waiting = Some(name);
         }
     }
+    if waiting.is_some() {
+        broken = true;
+    }
     Roll {
-        verdicts: out,
-        silent: Vec::new(),
+        verdicts: if broken { Vec::new() } else { out },
+        silent: if broken {
+            vec![String::from("?")]
+        } else {
+            Vec::new()
+        },
+        tally: None,
     }
 }
 
@@ -681,6 +875,13 @@ fn shapes_of(said: &str) -> Roll {
 /// this the summary was read for one thing only -- whether it said
 /// zero -- so a roll that had silently lost two tests looked exactly
 /// like a roll of the right length.
+///
+/// Asked of minitest's OWN stream, stdout, and never of the two
+/// spliced together: stderr is appended after all of stdout, so the
+/// last summary line of the splice is always the one a test wrote
+/// there. Measured (review 0074 R5-3): one `warn "99 runs, …"` from
+/// inside a test and the count court compared the roll against 99 --
+/// enough to turn the verdict over and name an innocent test red.
 fn runs_said(said: &str) -> Option<u64> {
     // The LAST such line, and only one carrying minitest's own
     // neighbours (review 0074 R2-4): a test printing `5 runs, …` of
@@ -709,7 +910,7 @@ pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
     // message and was read as a broken build (global review
     // 2026-09-06, bugs R-22; wave 0051).
     if let Some(line) = said.lines().find(|line| broken_line(line)) {
-        return crate::adapter::Outcome::BuildBroken(line.trim().to_string());
+        return crate::adapter::Outcome::BuildBroken(without_our_frame(line).to_string());
     }
     // Minitest ran and named nothing: the method does not exist. The
     // SUMMARY line says it -- `0 runs, 0 assertions, …` -- and only
@@ -752,6 +953,23 @@ pub fn classify(said: &str, success: bool) -> crate::adapter::Outcome {
 /// `cannot load such file --`. A failure message that merely contains
 /// the word is a failure. The border is text: a test that prints
 /// ruby's very shape reads as a broken build, and is named.
+/// ruby's own line, with keel's preamble cut off the front of it.
+///
+/// The roll is taken by `ruby -e "… load ARGV.shift …"`, so ruby
+/// blames the frame it was in: `-e:2:in 'load': test/toy_test.rb:5:
+/// syntax error…`. The person reading the refusal wants their file,
+/// not ours (review 0074 R5-11).
+fn without_our_frame(line: &str) -> &str {
+    let trimmed = line.trim();
+    let Some(rest) = trimmed.strip_prefix("-e:") else {
+        return trimmed;
+    };
+    match rest.find("': ") {
+        Some(at) => rest[at + "': ".len()..].trim_start(),
+        None => trimmed,
+    }
+}
+
 fn broken_line(line: &str) -> bool {
     let trimmed = line.trim_end();
     trimmed.ends_with("(LoadError)")
@@ -761,9 +979,6 @@ fn broken_line(line: &str) -> bool {
         || trimmed.contains("cannot load such file --")
 }
 
-/// Whether minitest spoke its summary line at all -- `3 runs, 3
-/// assertions, 0 failures, …` -- the one line every run prints, a run
-/// of zero tests included.
 /// Whether minitest's summary line says every run was a skip:
 /// `N runs, …, N skips` with N above zero. Only that line: the speed
 /// line says `runs/s` and never `runs, `.
@@ -784,6 +999,9 @@ fn all_skipped(said: &str) -> bool {
     })
 }
 
+/// Whether minitest spoke its summary line at all -- `3 runs, 3
+/// assertions, 0 failures, …` -- the one line every run prints, a run
+/// of zero tests included.
 fn summarised(said: &str) -> bool {
     said.lines().any(|line| {
         let trimmed = line.trim_start();
