@@ -754,9 +754,14 @@ fn the_rails_road_keeps_its_own_guard() {
             && said.contains("червоний тест: test_two_falls"),
         "and both are named by their own names:\n{said}"
     );
+    // The VERDICT must not carry it. The line itself stands in the
+    // report all the same, and lawfully: since wave 0071 the block
+    // quotes what the runner said while that file ran, and the file
+    // said exactly this. What must never happen is a phantom holding
+    // a verdict that belonged to a test.
     assert!(
-        !said.contains("bar baz"),
-        "and no phantom stands among them, holding a verdict that \
+        !said.contains("червоний тест: bar baz"),
+        "and no phantom stands among the verdicts, holding one that \
          belonged to a test:\n{said}"
     );
 

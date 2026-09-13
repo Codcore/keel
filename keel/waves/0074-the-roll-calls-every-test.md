@@ -20,7 +20,6 @@ transforms:
       - tool/i18n/en.ftl
       - keel/contracts/tool-adapter-ruby.md
       - tool/tests/the_roll_test.rs
-      - tool/tests/verdict_limits_test.rs
       - BACKLOG.md
 decisions:
   functional.completeness: "повна тим, що бере ОБИДВА симптоми issue #55 однією причиною, і причина зміряна, а не виведена: перелік тестів keel будує з рядків `-v`, і тест, що друкує щось під час бігу, з того переліку зникає. Звідси і «на один тест менше, завжди той самий», і «green in 2 of 3 щоразу інший набір» — друге лише тому, що minitest міша́є порядок за seed. Половина, що полагодила б читання і не додала звірки з підсумком бігуна, лишила б наступну форму шуму такою ж німою"
