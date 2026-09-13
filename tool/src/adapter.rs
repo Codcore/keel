@@ -859,11 +859,18 @@ pub fn run_all(root: &Path) -> Result<Ran, Refusal> {
 /// Whether this line of stderr is cargo's own banner rather than
 /// something a test or its child wrote there.
 ///
-/// cargo right-aligns its verbs in a gutter, so its own lines are
-/// indented and begin with one of a closed set of words; the failure
-/// roll-up at the end is not indented but says exactly what it says.
-/// Anything else is left alone -- the direction that cannot hide a
-/// word somebody meant to say.
+/// cargo right-aligns its verbs in a gutter twelve columns wide, so
+/// its own lines are indented to exactly that and begin with one of a
+/// closed set of words; the failure roll-up at the end is not
+/// indented but says exactly what it says. Anything else is left
+/// alone.
+///
+/// The direction is NOT one-sided, and the body below is where that
+/// is paid for: a test's child writing cargo's exact shape is dropped
+/// with it. `safety.risk-identification` of wave 0071 carries the
+/// price both ways and the cure that removes the choice altogether
+/// (`--message-format json`, where cargo's own lines arrive in a
+/// field of their own).
 fn cargo_said_it(line: &str) -> bool {
     let trimmed = line.trim_start();
     let indent = line.len() - trimmed.len();
