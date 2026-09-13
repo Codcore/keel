@@ -81,6 +81,23 @@ fn test_file(rev: &str) -> String {
 /// four starting adapters, the operator's own decision, and none was
 /// built: the two language-shaped courts ran for Rust alone. Ruby is
 /// the second tongue, chosen by the operator on 2026-09-05.
+/// The court's OWN lines -- everything it said itself, with the
+/// runner's quoted voice left out.
+///
+/// Since wave 0071 a red verdict is followed by what the runner said
+/// while that FILE ran, verbatim and unsearched, and that block
+/// carries the names of every test in the file, green ones included.
+/// A probe asking "is this name absent from the report" was really
+/// asking "does the court NAME it", and after the quotation arrived
+/// the two questions came apart. The quoted lines are indented; the
+/// court's are not.
+fn court_only(said: &str) -> String {
+    said.lines()
+        .filter(|line| !line.starts_with("    ") || line.trim_start().starts_with("натомість"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn ruby_tests_are_read_and_run() {
     let rev = keel::rev::text_rev(BODY);
@@ -134,8 +151,10 @@ fn ruby_tests_are_read_and_run() {
          get, since nothing above the adapter knows the language:\n{said}"
     );
     assert!(
-        !said.contains("test_it_works"),
-        "and the green one is not dragged in with it:\n{said}"
+        !court_only(&said).contains("test_it_works"),
+        "and the green one is not dragged in with it -- by the COURT. \
+         The runner's quoted voice names every test of the file, and \
+         that is the runner speaking (wave 0071):\n{said}"
     );
 }
 
@@ -198,7 +217,7 @@ fn the_ruby_battery_believes_only_what_ran() {
         "the failing test is named:\n{said}"
     );
     assert!(
-        !said
+        !court_only(&said)
             .lines()
             .any(|line| line.contains("test_it_works") && !line.contains("test_it_works_more")),
         "and the green one whose name it merely begins with is not \

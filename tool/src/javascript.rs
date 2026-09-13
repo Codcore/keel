@@ -18,7 +18,6 @@ use crate::docs::Refusal;
 use crate::i18n::{t, ta};
 use crate::tags::TestTag;
 use crate::targs;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -206,8 +205,8 @@ pub fn escape_regex(name: &str) -> String {
 ///
 /// One run per test file, so the file a verdict belongs to is known:
 /// node's TAP names the test and not its file.
-pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
-    let mut out: BTreeMap<(String, String), bool> = BTreeMap::new();
+pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal> {
+    let mut out = crate::adapter::Ran::default();
     for file in test_files(root)? {
         let relative = file.strip_prefix(root).unwrap_or(&file);
         let said = node(root, &[relative.display().to_string()])?;
@@ -243,9 +242,18 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             {
                 continue;
             }
-            out.entry((key.clone(), entry.name))
-                .and_modify(|was| *was = *was && entry.ok)
-                .or_insert(entry.ok);
+            let ok = entry.ok;
+            out.verdicts
+                .entry((key.clone(), entry.name))
+                .and_modify(|was| *was = *was && ok)
+                .or_insert(ok);
+            if !ok {
+                // node runs one process per file: its whole TAP is
+                // this file's voice.
+                out.voices
+                    .entry(key.clone())
+                    .or_insert_with(|| said.clone());
+            }
         }
     }
     Ok(out)

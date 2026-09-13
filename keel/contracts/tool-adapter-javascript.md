@@ -6,7 +6,7 @@ exports:
   - "pub fn module_paths(root: &Path, module: &str) -> Vec<PathBuf>"
   - "pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal>"
   - "pub fn escape_regex(name: &str) -> String"
-  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>"
+  - "pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal>"
   - "pub fn tap(said: &str) -> Vec<Entry>"
   - "pub fn unescape_tap(name: &str) -> String"
   - "pub fn classify(said: &str, test: &str) -> crate::adapter::Outcome"
@@ -159,3 +159,12 @@ node жене його лише крізь батьківський `test` (зм
 - згенерований CI ставить `actions/setup-node` лише там, де проєкт
   тримає `.nvmrc` чи `.node-version`; інакше файл каже вголос, що
   судить node раннера (R-11).
+
+## Червона батарея несе слова (хвиля 0071, issues #49/#52)
+
+`run_all` вертає `adapter::Ran` — вироки і **голос бігуна** для кожного
+ключа, де було червоне. На цій дорозі на файл іде свій процес `node
+--test`, тож голос файлу — увесь його TAP, цілий; ріже його лише вікно
+хвилі 0070. Усередині нічого не шукається (рецензії 0050 R-1, 0071
+R-2). `Ran::outside` тут порожній — поза файлом цей процес не говорить
+нічого.

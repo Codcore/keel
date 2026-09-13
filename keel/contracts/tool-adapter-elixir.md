@@ -5,7 +5,7 @@ exports:
   - "pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal>"
   - "pub fn module_paths(root: &Path, module: &str) -> Vec<PathBuf>"
   - "pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal>"
-  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>"
+  - "pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal>"
   - "pub fn ran(said: &str) -> Vec<String>"
   - "pub fn classify(said: &str, code: i32) -> crate::adapter::Outcome"
 ---
@@ -159,3 +159,13 @@ ruby-ву: межа, яка не про цей проєкт, — така сам
 `tool-holding`). Рецензія 0042 R-16 назвала цю межу і записала в
 чергу; хвиля 0043 її зняла, і `'''`-огорожа charlist-а зникає так
 само, як `"""`.
+
+## Червона батарея несе слова (хвиля 0071, issues #49/#52)
+
+`run_all` вертає `adapter::Ran` — вироки і **голос бігуна** для кожного
+ключа, де було червоне. На цій дорозі на файл іде свій процес `mix
+test`, тож голос файлу — увесь вивід того процесу, цілий; ріже його
+лише вікно хвилі 0070. Усередині нічого не шукається: читач, який
+вишукує блок тесту у виводі, може дістати підроблений — від самого
+тесту (рецензії 0050 R-1, 0071 R-2). `Ran::outside` тут порожній —
+поза файлом цей процес не говорить нічого.

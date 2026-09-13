@@ -153,6 +153,23 @@ fn reviewed(dir: &Path) {
 }
 
 /// proves: javascript-tests-are-read-and-run@fbbe41
+/// The court's OWN lines -- everything it said itself, with the
+/// runner's quoted voice left out.
+///
+/// Since wave 0071 a red verdict is followed by what the runner said
+/// while that FILE ran, verbatim and unsearched, and that block
+/// carries the names of every test in the file, green ones included.
+/// A probe asking "is this name absent from the report" was really
+/// asking "does the court NAME it", and after the quotation arrived
+/// the two questions came apart. The quoted lines are indented; the
+/// court's are not.
+fn court_only(said: &str) -> String {
+    said.lines()
+        .filter(|line| !line.starts_with("    ") || line.trim_start().starts_with("натомість"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn javascript_tests_are_read_and_run() {
     if !common::machine_has("node").ready() {
@@ -372,8 +389,10 @@ fn javascript_tests_are_read_and_run() {
         "one red among the two named `same` is a red `same`:\n{said}"
     );
     assert!(
-        !said.contains("not now"),
-        "a skipped test is neither green nor red, so it is not named:\n{said}"
+        !court_only(&said).contains("not now"),
+        "a skipped test is neither green nor red, so the court does \
+         not name it. node's own TAP, quoted since wave 0071, does -- \
+         and that is node speaking:\n{said}"
     );
     assert!(
         said.contains("червоний тест") && said.contains("nobody claims me"),

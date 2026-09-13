@@ -13,7 +13,6 @@ use crate::docs::Refusal;
 use crate::i18n::{t, ta};
 use crate::tags::TestTag;
 use crate::targs;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -292,8 +291,8 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
 /// A file that ran nothing at all is not a green file -- it is the
 /// adapter's refusal aloud, the same answer cargo's hand gives over
 /// "could not compile".
-pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
-    let mut out: BTreeMap<(String, String), bool> = BTreeMap::new();
+pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal> {
+    let mut out = crate::adapter::Ran::default();
     // The second reading's roll: one rspec run per spec file, the
     // list and the verdicts alike from rspec's JSON. Pending is
     // neither green nor red and not in the map (§7.12); a file that
@@ -309,6 +308,15 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             });
         }
         let key = crate::adapter::battery_key(root, &file);
+        // What the PROCESS said, kept apart and kept raw. The voice
+        // built from the JSON is this road's named exception, and it
+        // is not the whole truth about a red file: a test that prints
+        // -- or whose child process does -- says it here and nowhere
+        // in the document (review 0071 round five, measured: nought
+        // occurrences of either). `--format json --out <file>` sends
+        // the report to a file, so this stream carries nothing but
+        // what the project itself wrote.
+        let printed = said.voice.clone();
         for example in examples(&said.json) {
             let green = match example.status.as_str() {
                 "passed" => true,
@@ -318,9 +326,40 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             // Two examples of one full description are one key, red
             // if either is (the rule review 0046 R-2 asked to be one
             // in both courts).
-            out.entry((key.clone(), example.description))
+            // rspec is the one named exception of this wave: its
+            // JSON goes to a FILE, and what that file holds is every
+            // example, green ones too. There is no raw voice to keep
+            // whole, and keeping the document would put the data of
+            // examples that did not fail into the log. So the voice
+            // is built from the field keel already parses --
+            // `exception.message` of the RED examples, and nothing
+            // else.
+            if !green {
+                let said = example.message.clone().unwrap_or_default();
+                let voice = out.voices.entry(key.clone()).or_default();
+                if !said.is_empty() {
+                    if !voice.is_empty() {
+                        voice.push_str("\n\n");
+                    }
+                    voice.push_str(&format!("{}: {said}", example.description));
+                }
+            }
+            out.verdicts
+                .entry((key.clone(), example.description))
                 .and_modify(|was| *was = *was && green)
                 .or_insert(green);
+        }
+        // ...and the process's own words under the built ones, where
+        // the file had a red and the process said anything at all.
+        if !printed.trim().is_empty()
+            && let Some(voice) = out.voices.get_mut(&key)
+        {
+            if !voice.is_empty() {
+                voice.push_str("\n\n");
+            }
+            voice.push_str(&t("adapter-rspec-printed"));
+            voice.push('\n');
+            voice.push_str(&printed);
         }
     }
     for file in minitest_files(root)? {
@@ -361,8 +400,15 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             // Two classes in one file may name a method alike. The
             // safe direction joins them: green only if both were.
             let key = (stem.clone(), name);
-            let held = out.get(&key).copied().unwrap_or(true);
-            out.insert(key, held && green);
+            let held = out.verdicts.get(&key).copied().unwrap_or(true);
+            out.verdicts.insert(key, held && green);
+            if !green {
+                // One process per file on this road: what minitest
+                // said while that file ran IS the file's voice.
+                out.voices
+                    .entry(stem.clone())
+                    .or_insert_with(|| said.clone());
+            }
         }
         if ran == 0 {
             // Nothing ran. Either the file declares no test at all --
@@ -535,6 +581,12 @@ struct Example {
     id: String,
     description: String,
     status: String,
+    /// What rspec said about a failed example, from its own JSON
+    /// (wave 0071). This road has no raw voice to window: the JSON
+    /// goes to a file and holds every example, green ones too, so a
+    /// window over it would put into the log exactly what did not
+    /// fail.
+    message: Option<String>,
 }
 
 /// Runs exactly the tagged example -- by the ID rspec itself gives
@@ -605,6 +657,24 @@ fn examples(said: &str) -> Vec<Example> {
                         id: example["id"].as_str()?.to_string(),
                         description: example["full_description"].as_str()?.to_string(),
                         status: example["status"].as_str()?.to_string(),
+                        // The class and the message are asked
+                        // INDEPENDENTLY. Mapping over the message
+                        // alone threw away a class that was standing
+                        // right beside it: an exception whose
+                        // `message` method returns nil gives
+                        // `message: null, class: "Silent"`, and the
+                        // one word that made the battery red went out
+                        // with the null (review 0071 round five).
+                        message: {
+                            let class = example["exception"]["class"].as_str().unwrap_or("");
+                            let words = example["exception"]["message"].as_str().unwrap_or("");
+                            match (class.is_empty(), words.is_empty()) {
+                                (true, true) => None,
+                                (true, false) => Some(words.to_string()),
+                                (false, true) => Some(class.to_string()),
+                                (false, false) => Some(format!("{class}: {words}")),
+                            }
+                        },
                     })
                 })
                 .collect()

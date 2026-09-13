@@ -12,7 +12,6 @@ use crate::docs::Refusal;
 use crate::i18n::{t, ta};
 use crate::tags::TestTag;
 use crate::targs;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -152,8 +151,8 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
 /// new` generates itself (a `doctest`, which no source reader of
 /// ours was ever going to see). It is the same lesson wave 0038 R-1
 /// paid for in ruby, walked back in a new tongue.
-pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
-    let mut out: BTreeMap<(String, String), bool> = BTreeMap::new();
+pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal> {
+    let mut out = crate::adapter::Ran::default();
     for file in test_files(root)? {
         let relative = file.strip_prefix(root).unwrap_or(&file);
         let stem = crate::adapter::battery_key(root, &file);
@@ -186,9 +185,16 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
                 instead: t("adapter-elixir-name-not-text-instead"),
             });
         }
+        let mut any_red = false;
         for name in ran(&said) {
             let green = !fallen.contains(&name);
-            out.insert((stem.clone(), name), green);
+            any_red |= !green;
+            out.verdicts.insert((stem.clone(), name), green);
+        }
+        // One process per file on this road, so what mix said while
+        // that file ran IS the file's voice -- whole, unsearched.
+        if any_red {
+            out.voices.insert(stem.clone(), said.clone());
         }
     }
     Ok(out)

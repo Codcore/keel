@@ -11,7 +11,6 @@ use crate::docs::Refusal;
 use crate::i18n::{t, ta};
 use crate::tags::TestTag;
 use crate::targs;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -152,7 +151,7 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
 ///
 /// A collection that broke (code 2) is a refusal with python's own
 /// words: without a collection there is no verdict for anyone.
-pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
+pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal> {
     let (said, code) = pytest(root, &["-vv".to_string()])?;
     if code == 2 || (code == 4 && usage_error(&said)) {
         return Err(Refusal {
@@ -164,7 +163,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             instead: t("adapter-python-broken-instead"),
         });
     }
-    let mut out: BTreeMap<(String, String), bool> = BTreeMap::new();
+    let mut out = crate::adapter::Ran::default();
     for (file, name, verdict) in ran(&said) {
         let green = match verdict.as_str() {
             "PASSED" => true,
@@ -173,9 +172,16 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         };
         let key = crate::adapter::battery_key(root, &root.join(&file));
         let name = bare_name(&name);
-        out.entry((key, name))
+        out.verdicts
+            .entry((key.clone(), name))
             .and_modify(|was| *was = *was && green)
             .or_insert(green);
+        if !green {
+            // pytest gives ONE text for the whole run, so that text
+            // is the voice of every file that had a red in it. The
+            // window lies on all of it, which is what the card chose.
+            out.voices.entry(key).or_insert_with(|| said.clone());
+        }
     }
     // pytest left red and the reader saw none: the same belt cargo's
     // hand has (wave 0055). A session hook of the project's own --
@@ -186,7 +192,10 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
     // 2026-09-06, tests R-2). Where nothing was read at all the
     // courts above say "did not run" in their own words, and this
     // belt stays out of it.
-    if code != 0 && !out.values().any(|green| !green) && out.values().any(|green| *green) {
+    if code != 0
+        && !out.verdicts.values().any(|green| !green)
+        && out.verdicts.values().any(|green| *green)
+    {
         return Err(Refusal {
             file: root.to_path_buf(),
             reason: ta("adapter-python-red-unseen", targs!("code" => code as i64)),
