@@ -663,6 +663,32 @@ fn the_rails_road_keeps_its_own_guard() {
          the released 1.4.0 counted three:\n{said}"
     );
 
+    // --- a name must be ONE word, and only this road pays for it --
+    //
+    // Without a roll, a line that merely looks like the OPENING of a
+    // verdict opens one. A file printing `Foo#bar baz = 1` while it
+    // loads -- before any verdict line -- puts a phantom name in the
+    // queue, and the next timing closes THAT instead of the test it
+    // belonged to: measured, `bar baz` stands in the battery as a red
+    // and one real test is gone from it. The name has to be one word,
+    // as minitest writes them.
+    let dir = rails_project(
+        "rollrailswordy",
+        "require \"minitest/autorun\"\n\nputs \"Foo#bar baz = 1\"\n\nclass ToyTest < Minitest::Test\n  def test_one_falls\n    flunk \"THE-FIRST-FELL\"\n  end\n\n  def test_two_falls\n    flunk \"THE-SECOND-FELL\"\n  end\nend\n",
+    );
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "both tests fell:\n{said}");
+    assert!(
+        said.contains("червоний тест: test_one_falls")
+            && said.contains("червоний тест: test_two_falls"),
+        "and both are named by their own names:\n{said}"
+    );
+    assert!(
+        !said.contains("bar baz"),
+        "and no phantom stands among them, holding a verdict that \
+         belonged to a test:\n{said}"
+    );
+
     // --- the strict mark, which only this road still pays for -----
     //
     // On the plain road the mark decides nothing any more: verdicts
@@ -884,6 +910,208 @@ end
          minitest's own:\n{said}"
     );
 
+    // --- two names, and one of them wears a bracket ---------------
+    //
+    // The error form `Class#method:` is an equality, but the failure
+    // form carries a location -- `Class#method [file:11]:` -- and it
+    // has to be a prefix. A file declaring `test_x` and
+    // `test_x [foo]` puts both roll names at that prefix lawfully,
+    // and the SHORTER one used to win: the innocent test was named
+    // red and the one that fell went into the battery green, with
+    // every count agreeing (review 0074 round seven).
+    let bracket = "require \"minitest/autorun\"\n\nclass ToyTest < Minitest::Test\n  define_method(\"test_x [foo]\") { flunk \"THE-BRACKET-ONE-FELL\" }\n\n  def test_x\n    assert true\n  end\nend\n";
+    let dir = project("rolldecoy2", bracket);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "the test that fell holds the wave open:\n{said}");
+    assert!(
+        said.contains("червоний тест: test_x [foo]") && said.contains("батарея: 2 тестів"),
+        "and the LONGER name is the one the block is about; naming \
+         the innocent is as wrong as a false green:\n{said}"
+    );
+
+    // --- the hook a TEST BODY registers ---------------------------
+    //
+    // Round six put keel's mark in an `after_run` hook, and round
+    // seven broke it: `@@after_run` is a list called in reverse, and
+    // a hook registered from inside a test body is appended AFTER
+    // keel's, so it is called BEFORE it -- its forged summary landed
+    // inside the region and closed a failing tree green. A test body
+    // runs later than any registration keel can make, so no place in
+    // that queue is safe. The mark is printed from inside
+    // `Minitest.run` now, which is already running by then.
+    let hook_in_body = r##"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_red
+    Minitest.after_run { puts "2 runs, 2 assertions, 1 failures, 0 errors, 1 skips" }
+    puts ""
+    puts "  1) Skipped:"
+    puts "ToyTest#test_red [x:1]:"
+    puts "skipped for reasons"
+    puts ""
+    flunk "this promise is NOT kept"
+  end
+
+  def test_green
+    assert true
+  end
+end
+"##;
+    let dir = project("rollafterrunbody", hook_in_body);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "the failing test holds the wave open:\n{said}");
+    assert!(
+        said.contains("червоний тест: test_red"),
+        "and it is named: keel's mark is printed by the method that \
+         writes the report, not by a hook a test can get in front \
+         of:\n{said}"
+    );
+
+    // ...and the same body calling the registered hooks itself, to
+    // make the mark arrive early. It cannot: the mark is not in that
+    // list any more.
+    let call_hooks = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_red
+    Minitest.class_variable_get(:@@after_run).each(&:call)
+    flunk "this promise is NOT kept"
+  end
+
+  def test_green
+    assert true
+  end
+end
+"#;
+    let dir = project("rollcallhooks", call_hooks);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "the failing test holds the wave open:\n{said}");
+    assert!(
+        said.contains("червоний тест: test_red"),
+        "and calling minitest's own hooks from a test body does not \
+         bring keel's mark forward:\n{said}"
+    );
+
+    // --- a roll without minitest's totals is not a run ------------
+    //
+    // A file that puts a delegate on STDOUT and drops the summary
+    // line leaves the roll and the verdicts standing and the numbers
+    // gone. Reading the roll on its own would then call every name
+    // green -- over a test that fell.
+    let eater = r#"require "minitest/autorun"
+
+class Eater
+  def initialize(io) @io = io end
+  def write(*args)
+    kept = args.reject { |s| s.to_s.include?(" runs, ") }
+    return 0 if kept.empty?
+    @io.write(*kept)
+  end
+  def puts(*args)
+    @io.puts(*args.reject { |s| s.to_s.include?(" runs, ") })
+  end
+  def print(*args)
+    @io.print(*args.reject { |s| s.to_s.include?(" runs, ") })
+  end
+  def method_missing(m, *a, &b) @io.send(m, *a, &b) end
+  def respond_to_missing?(*) true end
+end
+
+$stdout = Eater.new(STDOUT)
+
+class ToyTest < Minitest::Test
+  def test_red
+    flunk "this promise is NOT kept"
+  end
+end
+"#;
+    let dir = project("rolleatsummary", eater);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "a roll with no totals beside it is not a run, and calling \
+         its names green would be a false green over a test that \
+         fell:\n{said}"
+    );
+    assert!(
+        said.contains("не стоїть між мітками"),
+        "and the refusal says which region it could not read, rather \
+         than reading what is left of it: without the totals neither \
+         count can be checked, and the blocks alone are what a test \
+         can write:\n{said}"
+    );
+
+    // --- minitest's number is the LAST it writes -------------------
+    //
+    // A test printing a summary of its own does it WHILE it runs, so
+    // minitest's own stands after it. Reading the first would compare
+    // the roll against a number the test chose.
+    let early = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_aaa_falls
+    puts ""
+    puts "2 runs, 2 assertions, 0 failures, 0 errors, 1 skips"
+    flunk "THE-REAL-ONE-FELL"
+  end
+
+  def test_bbb
+    assert true
+  end
+end
+"#;
+    let dir = project("rollearlysummary", early);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "the test that fell holds the wave open:\n{said}");
+    assert!(
+        said.contains("червоний тест: test_aaa_falls"),
+        "and it is named: the numbers are minitest's own, which it \
+         writes AFTER every body has finished -- the summary a test \
+         printed while it ran stands earlier, and says a skip where \
+         there was a failure:\n{said}"
+    );
+
+    // --- a method name carrying a hash ----------------------------
+    //
+    // The class is on the left of the FIRST `#` and the method on its
+    // right, and a method name may hold hashes of its own: minitest's
+    // spec style makes them out of `it "#add works"`. Splitting from
+    // the right put that test in the battery under `add works`, which
+    // is not a name anything selects by.
+    let hashed = r##"require "minitest/autorun"
+
+describe "Calc" do
+  it "#add works" do
+    _(1).must_equal 1
+  end
+
+  it "#sub fails" do
+    flunk "this promise is NOT kept"
+  end
+end
+"##;
+    let dir = project("rollhashname", hashed);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "the failing example holds the wave open:\n{said}");
+    assert!(
+        said.contains("червоний тест: test_0002_#sub fails"),
+        "and its name is whole, hash and all:\n{said}"
+    );
+
+    // --- a file that declares no test at all ----------------------
+    //
+    // Not a fault, and not a missing roll either: minitest says `0
+    // runs` and means it. The court that refuses a run with no roll
+    // has to ask whether anything ran at all.
+    let empty = "require \"minitest/autorun\"\n\nclass ToyTest < Minitest::Test\nend\n";
+    let dir = project("rollnotests", empty);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(code, 0, "a file with no tests is not a fault:\n{said}");
+    assert!(
+        said.contains("батарея: 0 тестів"),
+        "and it holds no tests:\n{said}"
+    );
+
     // --- the mark that says where minitest's report ends ----------
     //
     // Without it there is no telling minitest's words from what a
@@ -896,9 +1124,9 @@ end
     let (said, code) = keel(&dir, &["close"]);
     assert_ne!(code, 0, "a report with no end is refused:\n{said}");
     assert!(
-        said.contains("не має кінця"),
-        "and the refusal says which mark did not arrive, rather than \
-         reading the stream harder:\n{said}"
+        said.contains("не стоїть між мітками"),
+        "and the refusal says the report is not inside keel's own \
+         marks, rather than reading the stream harder:\n{said}"
     );
 
     // --- a red exit keel could read nothing out of -----------------

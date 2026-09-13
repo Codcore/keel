@@ -261,17 +261,30 @@ fn minitest_listing(root: &Path, file: &str, mark: &str) -> Command {
                 "  Minitest::Runnable.runnables.each do |r|\n",
                 "    r.runnable_methods.each {{ |m| puts \"KEEL-ROLL #{{r}}##{{m}}\" }}\n",
                 "  end\n",
-                // ...and keel's own end of the report.
-                // `Minitest.autorun` calls the `after_run` blocks in
-                // REVERSE order of registration, and this one is
-                // registered last -- after the project's file has
-                // been loaded -- so it runs FIRST among them, the
-                // instant minitest has printed its report. Everything
-                // past it was written by somebody else (review 0074
-                // round six: a test registering its own `after_run`
-                // printed a second, agreeing summary and closed a
-                // failing tree green).
-                "  Minitest.after_run {{ puts \"{mark}\" }} if Minitest.respond_to?(:after_run)\n",
+                // ...and keel's own end of the report, printed from
+                // INSIDE `Minitest.run`, which prints the report
+                // itself.
+                //
+                // Round six put it in an `after_run` hook and round
+                // seven broke that: `@@after_run` is a list called in
+                // reverse, and a hook a TEST BODY registers is
+                // appended after keel's -- so it is called BEFORE it,
+                // and its forged summary landed inside the region.
+                // A test body runs later than any registration keel
+                // can make, so no place in that queue is safe.
+                //
+                // `Minitest.run` is called once, by `autorun`'s
+                // at_exit, after every file is loaded and before any
+                // hook -- and this prepend is in its chain before
+                // that call begins. A test body cannot get ahead of a
+                // method that is already running.
+                "  Minitest.singleton_class.prepend(Module.new do\n",
+                "    def run(args = [])\n",
+                "      out = super\n",
+                "      puts \"{mark}\"\n",
+                "      out\n",
+                "    end\n",
+                "  end)\n",
                 "end\n",
             ),
             mark = mark
@@ -557,10 +570,18 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // swallowed the roll -- a `$stdout` replaced while it loads,
         // put back before the run -- and the older reader is not
         // quietly put in its place (review 0074 R5-2).
-        // keel's own end mark did not arrive, and minitest plainly
-        // ran: something between the two rewrote the stream. That is
-        // never answered by reading the stream harder.
-        if !rails && reported.is_none() && summarised(&voice) {
+        // minitest plainly ran, and its report is not inside keel's
+        // own bookends. Two shapes, one answer: the mark never
+        // arrived (a reporter or an `at_exit` of the project rewrote
+        // the stream), or the mark arrived BEFORE the summary -- a
+        // test body can call `Minitest.run` itself, and then the
+        // region closes in the middle of the run (review 0074 round
+        // seven, measured: nought tests and exit 0 over a `flunk`).
+        // Neither is answered by reading the stream harder.
+        if !rails
+            && ((reported.is_none() && summarised(&voice))
+                || reported.is_some_and(|region| totals(region).is_none()))
+        {
             return Err(Refusal {
                 file: file.clone(),
                 reason: ta(
@@ -841,9 +862,18 @@ fn report_blocks(said: &str, names: &[String]) -> Vec<(Mark, String)> {
         // stood there lawfully, and chose the innocent one (review
         // 0074 round six, `atk_decoy`).
         let named = named.trim();
+        // `ToyTest#test_two [test/toy_test.rb:11]:` for a failure, or
+        // `ToyTest#test_four:` for an error. The error form is an
+        // equality; the location form is a prefix, and where two roll
+        // names both stand at that prefix the LONGER is the one the
+        // block is about -- a file declaring `test_x` and
+        // `test_x [foo]` made the shorter win, and the innocent test
+        // was named red while the one that fell went green (review
+        // 0074 round seven).
         let hit = names
             .iter()
-            .find(|name| named == format!("{name}:") || named.starts_with(&format!("{name} [")));
+            .filter(|name| named == format!("{name}:") || named.starts_with(&format!("{name} [")))
+            .max_by_key(|name| name.len());
         if let Some(name) = hit {
             out.push((mark, name.clone()));
         }
@@ -889,20 +919,15 @@ fn roll_of(said: &str) -> Option<Roll> {
     if names.is_empty() {
         return None;
     }
-    // A roll is not a run. `require "minitest"` without
-    // `minitest/autorun` declares the class and never runs anything
-    // -- and then every name in the roll has no block of its own,
-    // which would read as green (measured: `verdict_keys_test` caught
-    // exactly that, a test that raises reported as one green test).
-    // No summary line, no verdicts: the courts above then say
-    // "nothing ran" in the words they have for it.
-    if totals(said).is_none() {
-        return Some(Roll {
-            verdicts: Vec::new(),
-            silent: Vec::new(),
-            tally: None,
-        });
-    }
+    // This reader is never handed a region without minitest's own
+    // totals: the court above refuses that outright, in both shapes
+    // -- the mark that never came, and a region that holds no summary
+    // at all. A belt used to stand here returning no verdicts
+    // instead, and review 0074 round seven measured it dead: on every
+    // tree that reaches this line the blocks carry the verdicts
+    // anyway, so the belt changed nothing and had no red of its own
+    // (§7.6, §9.8). Refusing once, aloud, is worth more than
+    // answering twice in silence.
     let blocks = report_blocks(said, &names);
     let mut verdicts: Vec<(String, Mark)> = Vec::new();
     for name in &names {
