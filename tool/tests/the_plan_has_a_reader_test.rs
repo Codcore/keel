@@ -111,6 +111,19 @@ fn the_plan_has_its_own_reader_and_its_own_report() {
         "and it names the file it wants, which is NOT the work's \
          report:\n{said}"
     );
+    // And the footer agrees with the exit code. This is the fourth
+    // wave to be told the same thing (reviews 0052 R-13, 0055 R-6,
+    // 0068 R-1, 0075 R-1): a report that counts a blocker and signs
+    // off "no blockers" two lines later is the riddle these courts
+    // exist to end. The footer is derived from ONE sum now, so a
+    // fifth source cannot be forgotten -- and this assert is what
+    // says so.
+    assert!(
+        !said
+            .lines()
+            .any(|line| line.starts_with("блокерів нема") || line.starts_with("no blockers")),
+        "and the footer does not deny what the exit code carries:\n{said}"
+    );
 
     // --- with the plan's own report it merges ---------------------
     let dir = plan_sandbox("planread");
@@ -161,6 +174,76 @@ fn the_plan_has_its_own_reader_and_its_own_report() {
         code, 0,
         "an empty file is not a review, here as over the work \
          (§9.9):\n{said}"
+    );
+
+    // --- and the plan's report does NOT satisfy the work's gate ---
+    //
+    // The card calls this side the knot the whole wave hangs on, and
+    // the first cut left it unmeasured (review R-2). If `<wave>-plan.md`
+    // were accepted over the work, the barrier would have moved
+    // rather than been added: a plan reviewed once would count as a
+    // work reviewed never.
+    let dir = plan_sandbox("planonwork");
+    fs::write(
+        dir.join("keel/reviews/0019-a-full-wave-plan.md"),
+        "# Рецензія плану\n\nчитав\n",
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "the plan met a reader"]);
+    git(&dir, &["checkout", "-q", "-b", "0019-a-full-wave"]);
+    // The work itself, so the wave is finished but for its review.
+    fs::write(dir.join("src/lib.rs"), "pub fn a() {}\npub fn b() {}\n").unwrap();
+    fs::create_dir_all(dir.join("tests")).unwrap();
+    let rev = keel::rev::text_rev(BODY);
+    fs::write(
+        dir.join("tests/toy_test.rs"),
+        format!("/// proves: it-holds@{rev}\n#[test]\nfn holds_it() {{}}\n"),
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "--allow-empty", "-m", "red: it-holds"],
+    );
+    fs::write(
+        dir.join("src/lib.rs"),
+        "pub fn a() {}\npub fn b() {}\npub fn c() {}\n",
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "work: the declared file"]);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "the plan's report is not the work's: a wave whose work \
+         nobody read does not close because its PLAN was read \
+         (§9.9):\n{said}"
+    );
+    assert!(
+        said.contains("0019-a-full-wave.md"),
+        "and the court still asks for the work's own report by \
+         name:\n{said}"
+    );
+
+    // --- a plan branch named after no wave at all -----------------
+    //
+    // The barrier vanished in silence there: check 0, close 0, not a
+    // word (review R-5). `keel check` says it aloud and `keel review`
+    // refuses with the reason; only this court was mute, and a mute
+    // green over a branch nobody can name is what §4.10 calls worse
+    // than a red.
+    let dir = plan_sandbox("plannowave");
+    git(&dir, &["checkout", "-q", "-b", "plan/0099-nothing-here"]);
+    git(
+        &dir,
+        &["commit", "-q", "--allow-empty", "-m", "a plan of nothing"],
+    );
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "a plan branch with no plan is not a plan:\n{said}");
+    assert!(
+        said.contains("0099-nothing-here"),
+        "and the court names what it looked for:\n{said}"
     );
 
     // --- and `keel next` leads to the reader BEFORE the merge -----

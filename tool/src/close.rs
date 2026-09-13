@@ -574,15 +574,25 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // So the court asks `report_text` for an exact name -- the same
     // hand as over the work, with a different argument.
     let mut plan_lacks: Option<&'static str> = None;
-    if let Some(slug) = scope::plan_branch(root) {
-        let named = scan.waves.iter().any(|wave| wave.slug == slug);
-        if named {
-            plan_lacks = match report_text(root, &format!("{slug}-plan")) {
+    let planned = scope::plan_branch(root);
+    if let Some(slug) = &planned {
+        plan_lacks = if scan.waves.iter().any(|wave| &wave.slug == slug) {
+            match report_text(root, &format!("{slug}-plan")) {
                 None => Some("close-lack-plan-review"),
                 Some(text) if text.trim().is_empty() => Some("close-lack-plan-review-empty"),
                 Some(_) => None,
-            };
-        }
+            }
+        } else {
+            // A plan branch named after no wave of this tree (review
+            // R-5). The first cut let the barrier vanish in silence
+            // there -- check 0, close 0, not a word -- which is the
+            // shape §4.10 calls worse than a red: a person reads a
+            // green court over a branch nobody can name.
+            //
+            // `keel check` already says this aloud, and `keel review`
+            // refuses with the reason; only this court was mute.
+            Some("close-plan-no-wave")
+        };
     }
     let mut blockers = 0usize;
     let mut own_plan = false;
@@ -798,10 +808,28 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     if let Some(key) = plan_lacks {
         report.push_str(&ta(
             key,
-            targs!("wave" => scope::plan_branch(root).unwrap_or_default()),
+            targs!("wave" => planned.clone().unwrap_or_default()),
         ));
         report.push('\n');
     }
+    // Everything that holds this branch out of a merge, counted ONCE
+    // and used twice: by the footer below and by the exit code at the
+    // end of this function.
+    //
+    // The footer used to enumerate the sources in a chain of `&&`,
+    // and every wave that added a source had to remember to extend
+    // it. Three waves did not (reviews 0052 R-13, 0055 R-6, 0068
+    // R-1), and this wave made it four (review 0075 R-1): the report
+    // counted a blocker and signed off "no blockers" two lines later,
+    // under an exit of 1. A chain a person must remember is not a
+    // court; a sum is.
+    let held = blockers
+        + verify_blockers
+        + form_blockers
+        + ci_blocker
+        + red_tests
+        + counted
+        + usize::from(plan_lacks.is_some());
     if blockers > 0 {
         // The blockers are named by the wave's own weight (global
         // review 2026-09-06, methodology R-16: "a full wave" was said
@@ -830,14 +858,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
             targs!("wave" => branch.unwrap_or_default()),
         ));
         report.push('\n');
-    } else if verify_blockers == 0
-        && verify_unrun == 0
-        && !ci_unrun
-        && form_blockers == 0
-        && ci_blocker == 0
-        && red_tests == 0
-        && counted == 0
-    {
+    } else if held == 0 && verify_unrun == 0 && !ci_unrun {
         // The branch's own wave may be named and unblocked at once:
         // a light wave waiting for its merge (review 0052 R-13 -- the
         // old word called such a branch "not named as an unclosed
@@ -870,17 +891,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // contracts -- review 0070 R-3 measured 1691 lines from twenty --
     // and `--json` puts this whole report into ONE field.
     let report = capped_report(report);
-    Ok((
-        report,
-        blockers
-            + verify_blockers
-            + form_blockers
-            + ci_blocker
-            + red_tests
-            + counted
-            + usize::from(plan_lacks.is_some()),
-        red_commands,
-    ))
+    Ok((report, held, red_commands))
 }
 
 /// One command of the repository's files that ran and failed, with

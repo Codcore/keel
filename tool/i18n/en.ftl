@@ -548,6 +548,7 @@ close-lack-red = scenario "{ $scenario }": the test "{ $test }" is red -- not pr
 close-lack-notrun = scenario "{ $scenario }": the battery ran no test named "{ $test }"
 close-lack-flaky = scenario "{ $scenario }": the test "{ $test }" is green in { $green } of { $runs } runs — not green (§7.13)
 close-lack-ref = the reference { $contract }@{ $recorded } does not converge (§6.4)
+close-plan-no-wave = this branch is named `plan/{ $wave }`, and no wave of that name stands in the tree (§8.2). A plan branch is approved by merging it, and there is nothing here to approve: the plan itself is missing. `keel check` says the same, and code laid down on such a branch is judged by §4.9 all the same
 close-lack-plan-review = the plan of wave { $wave } has met no reader: keel/reviews/{ $wave }-plan.md is not in this branch's history. §9.9 asks a fresh eye before a wave is merged, and a plan is approved by merging its own PR (§6.6) -- so this is where that eye reads. The name carries `-plan` on purpose: a report filed under the wave's own name would ride onto the work branch and satisfy the gate that exists to demand a review of the WORK
 close-lack-plan-review-empty = the plan of wave { $wave } has a report file and it is empty: keel/reviews/{ $wave }-plan.md carries nothing, and an empty file is no review (§9.9)
 close-lack-review-empty = the review file keel/reviews/<wave>.md is in history and empty -- an empty file is not a review (§9.9); instead: put a fresh agent's report into it and commit
