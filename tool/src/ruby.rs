@@ -229,7 +229,7 @@ fn minitest_command(root: &Path, args: &[String]) -> Command {
 /// second run, no second cost. A test can print anything it likes
 /// afterwards; it cannot add a name to a list written before it
 /// existed, nor take its own off.
-fn minitest_listing(root: &Path, file: &str) -> Command {
+fn minitest_listing(root: &Path, file: &str, mark: &str) -> Command {
     if rails_root(root) {
         // Rails boots the application and owns the run; the listing
         // is not available on that road, and the courts below say so
@@ -241,24 +241,40 @@ fn minitest_listing(root: &Path, file: &str) -> Command {
         .args(["-E", "UTF-8"])
         .arg("-Itest")
         .arg("-e")
-        .arg(concat!(
-            // `$0` first: a test file may ask whether it is the file
-            // being run, and under `-e` it is not, unless we say so.
-            "$0 = ARGV.first\n",
-            "load ARGV.shift\n",
-            // minitest is NOT required here, and that is the point:
-            // requiring it before the project's own file activates
-            // the system gem, and a project holding its own version
-            // through bundler then meets `Gem::LoadError` in keel's
-            // preamble rather than in its own code (review 0074
-            // R5-11). Every minitest file requires minitest itself --
-            // that is what makes it one -- so by this line it is
-            // either loaded or there are no tests to name.
-            "if defined?(Minitest::Runnable)\n",
-            "  Minitest::Runnable.runnables.each do |r|\n",
-            "    r.runnable_methods.each { |m| puts \"KEEL-ROLL #{r}##{m}\" }\n",
-            "  end\n",
-            "end\n",
+        .arg(format!(
+            concat!(
+                // `$0` first: a test file may ask whether it is the
+                // file being run, and under `-e` it is not, unless we
+                // say so.
+                "$0 = ARGV.first\n",
+                "load ARGV.shift\n",
+                // minitest is NOT required here, and that is the
+                // point: requiring it before the project's own file
+                // activates the system gem, and a project holding its
+                // own version through bundler then meets
+                // `Gem::LoadError` in keel's preamble rather than in
+                // its own code (review 0074 R5-11). Every minitest
+                // file requires minitest itself -- that is what makes
+                // it one -- so by this line it is either loaded or
+                // there are no tests to name.
+                "if defined?(Minitest::Runnable)\n",
+                "  Minitest::Runnable.runnables.each do |r|\n",
+                "    r.runnable_methods.each {{ |m| puts \"KEEL-ROLL #{{r}}##{{m}}\" }}\n",
+                "  end\n",
+                // ...and keel's own end of the report.
+                // `Minitest.autorun` calls the `after_run` blocks in
+                // REVERSE order of registration, and this one is
+                // registered last -- after the project's file has
+                // been loaded -- so it runs FIRST among them, the
+                // instant minitest has printed its report. Everything
+                // past it was written by somebody else (review 0074
+                // round six: a test registering its own `after_run`
+                // printed a second, agreeing summary and closed a
+                // failing tree green).
+                "  Minitest.after_run {{ puts \"{mark}\" }} if Minitest.respond_to?(:after_run)\n",
+                "end\n",
+            ),
+            mark = mark
         ))
         .arg(file)
         .arg("-v")
@@ -266,13 +282,56 @@ fn minitest_listing(root: &Path, file: &str) -> Command {
     command
 }
 
-/// The names the file declared, read before any of them ran.
+/// Where minitest's own report ends, said by keel and not by the
+/// project.
+///
+/// The mark carries a number of this run, so a file cannot print it
+/// from memory of a previous one. It is not a secret and does not
+/// pretend to be: a test determined to read keel's own command line
+/// can find it. What it stops is the ordinary shape -- a project's
+/// reporter, plugin, or `after_run` block writing after the report
+/// and being read as part of it.
+fn end_mark() -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("KEEL-DONE-{}-{now}", std::process::id())
+}
+
+/// What minitest said up to the end of its own report, and nothing
+/// after it.
+fn before_the_mark<'a>(said: &'a str, mark: &str) -> Option<&'a str> {
+    said.find(mark).map(|at| &said[..at])
+}
+
+/// The names the file declared, read before any of them ran -- and
+/// kept WHOLE, `Class#method`.
+///
+/// Dropping the class was the root of a wrong accusation (review 0074
+/// round six): with only the method left, a block's line could not be
+/// matched exactly and had to be guessed at by substring, and a file
+/// declaring both `test_boom` and `test_boom:` made the guess pick
+/// the innocent one -- the test that threw went into the battery
+/// green. Whole, the match is an equality.
 fn listed(said: &str) -> Vec<String> {
     said.lines()
         .filter_map(|line| line.trim().strip_prefix("KEEL-ROLL "))
-        .filter_map(|full| full.rsplit_once('#').map(|(_, m)| m.to_string()))
-        .filter(|method| !method.is_empty())
+        .map(|full| full.trim_end_matches('\r').to_string())
+        .filter(|full| full.split_once('#').is_some_and(|(_, m)| !m.is_empty()))
         .collect()
+}
+
+/// The method's own name out of `Class#method` -- the name a tag
+/// writes, `-n` selects by, and the battery is keyed on.
+///
+/// Split at the FIRST `#`, not the last: a class name cannot hold
+/// one, and a METHOD name can. minitest's spec style makes them --
+/// `it "#add works"` declares `test_0001_#add works` -- and splitting
+/// from the right put that test in the battery under `add works`,
+/// which is not a name anything selects by.
+fn method_of(full: &str) -> String {
+    full.split_once('#').map_or(full, |(_, m)| m).to_string()
 }
 
 /// Whose failure it was, said by name (review 0059 R-4): on the
@@ -391,7 +450,8 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // One process per file on both roads, so the key of the
         // battery stays the file it came from (§7.13's verdicts are
         // per test, and the courts above ask by file stem).
-        let mut command = minitest_listing(root, &relative.display().to_string());
+        let mark = end_mark();
+        let mut command = minitest_listing(root, &relative.display().to_string(), &mark);
         crate::scope::forget_the_hook(&mut command);
         let run = command.output().map_err(|e| Refusal {
             file: root.to_path_buf(),
@@ -410,10 +470,24 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // the plain road has a roll, the Rails road does not (see
         // `minitest_listing`), and no reading falls back to another
         // one without saying so.
-        let read = if rails_root(root) {
-            Some(shapes_of(&voice))
+        // ...and on the plain road, only what stands BEFORE keel's
+        // own end mark. minitest hands the file the pen again after
+        // it has printed its report -- `Minitest.after_run` is its
+        // own documented hook -- and a second, agreeing summary
+        // written there closed a failing tree green (review 0074
+        // round six). keel's mark is registered last and therefore
+        // called first, so everything past it belongs to somebody
+        // else.
+        let rails = rails_root(root);
+        let reported = if rails {
+            Some(voice.as_str())
         } else {
-            roll_of(&voice)
+            before_the_mark(&voice, &mark)
+        };
+        let read = match (rails, reported) {
+            (true, _) => Some(shapes_of(&voice)),
+            (false, Some(region)) => roll_of(region),
+            (false, None) => None,
         };
         let no_roll = read.is_none();
         let roll = read.unwrap_or(Roll {
@@ -483,7 +557,40 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // swallowed the roll -- a `$stdout` replaced while it loads,
         // put back before the run -- and the older reader is not
         // quietly put in its place (review 0074 R5-2).
-        if no_roll && let Some(runs) = runs_said(&voice).filter(|runs| *runs > 0) {
+        // keel's own end mark did not arrive, and minitest plainly
+        // ran: something between the two rewrote the stream. That is
+        // never answered by reading the stream harder.
+        if !rails && reported.is_none() && summarised(&voice) {
+            return Err(Refusal {
+                file: file.clone(),
+                reason: ta(
+                    "adapter-ruby-unmarked",
+                    targs!("file" => relative.display().to_string()),
+                ),
+                instead: t("adapter-ruby-unmarked-instead"),
+            });
+        }
+        // ruby left with a failure and keel read no verdict from it.
+        // Before this the battery simply said "0 tests" and the wave
+        // closed -- measured on a file that muffles STDOUT and never
+        // puts it back, and on one that raises at the end of its own
+        // load (review 0074 R5-13 and round six). A red exit is a red
+        // exit: what cannot be read is refused, not counted as
+        // nothing.
+        // Asked of minitest's OWN stream. A file that muffles stdout
+        // and writes a summary-shaped line to stderr would otherwise
+        // buy itself a quiet nought (measured).
+        if ran == 0 && !run.status.success() && !summarised(&voice) {
+            return Err(Refusal {
+                file: file.clone(),
+                reason: ta(
+                    "adapter-ruby-mute",
+                    targs!("file" => relative.display().to_string()),
+                ),
+                instead: t("adapter-ruby-mute-instead"),
+            });
+        }
+        if no_roll && let Some(runs) = reported.and_then(runs_said).filter(|runs| *runs > 0) {
             return Err(Refusal {
                 file: file.clone(),
                 reason: ta(
@@ -517,7 +624,10 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // was simply untrue. Both directions are a refusal -- short
         // means the reader could not name something that ran, long
         // means something named itself that did not.
-        if let Some(runs) = runs_said(&voice).filter(|runs| *runs != roll.verdicts.len() as u64) {
+        if let Some(runs) = reported
+            .and_then(runs_said)
+            .filter(|runs| *runs != roll.verdicts.len() as u64)
+        {
             return Err(Refusal {
                 file: file.clone(),
                 reason: ta(
@@ -538,7 +648,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // by the time it prints, the line that counts it has not
         // been written yet.
         if let (Some((fallen, skipped)), Some((_, failures, errors, skips))) =
-            (roll.tally, totals(&voice))
+            (roll.tally, reported.and_then(totals))
             && (fallen != failures + errors || skipped != skips)
         {
             return Err(Refusal {
@@ -724,21 +834,16 @@ fn report_blocks(said: &str, names: &[String]) -> Vec<(Mark, String)> {
         let Some(named) = lines.get(at + 1) else {
             continue;
         };
-        // `ToyTest#test_two [test/toy_test.rb:11]:` or, for an error,
-        // `ToyTest#test_four:` -- and the name inside may hold spaces.
-        // The longest roll name that stands there wins, so a name
-        // that is the tail of a longer one cannot steal the block.
+        // `ToyTest#test_two [test/toy_test.rb:11]:` for a failure, or
+        // `ToyTest#test_four:` for an error. The roll holds the whole
+        // `Class#method`, so this is an EQUALITY and not a guess: a
+        // substring match had to choose between two names that both
+        // stood there lawfully, and chose the innocent one (review
+        // 0074 round six, `atk_decoy`).
         let named = named.trim();
         let hit = names
             .iter()
-            .filter(|name| {
-                let Some(at) = named.find(&format!("#{name}")) else {
-                    return false;
-                };
-                let rest = &named[at + 1 + name.len()..];
-                rest.is_empty() || rest.starts_with(':') || rest.starts_with(" [")
-            })
-            .max_by_key(|name| name.len());
+            .find(|name| named == format!("{name}:") || named.starts_with(&format!("{name} [")));
         if let Some(name) = hit {
             out.push((mark, name.clone()));
         }
@@ -801,12 +906,19 @@ fn roll_of(said: &str) -> Option<Roll> {
     let blocks = report_blocks(said, &names);
     let mut verdicts: Vec<(String, Mark)> = Vec::new();
     for name in &names {
+        // The LAST block that names it. A test can print a block of
+        // its own while it runs, and minitest writes its report after
+        // every body has finished -- so where two blocks carry one
+        // name, the real one is the later (review 0074 round six:
+        // a forged `1) Skipped:` printed from a test body took a
+        // failing test out of the battery altogether).
         let mark = blocks
             .iter()
+            .rev()
             .find(|(_, named)| named == name)
             .map(|(mark, _)| *mark)
             .unwrap_or(Mark::Green);
-        verdicts.push((name.clone(), mark));
+        verdicts.push((method_of(name), mark));
     }
     // What the blocks came to, for the court that compares it with
     // minitest's own totals. The comparison is the caller's, and it
@@ -814,8 +926,15 @@ fn roll_of(said: &str) -> Option<Roll> {
     // report that does not add up are two different faults, and
     // answering both with one sentence about a "lost verdict" sent
     // the reader looking for the wrong thing (review 0074 R5-8).
-    let fallen = blocks.iter().filter(|(m, _)| *m == Mark::Fallen).count() as u64;
-    let skipped = blocks.iter().filter(|(m, _)| *m == Mark::Skipped).count() as u64;
+    // Counted over the verdicts, one per NAME -- not over the raw
+    // blocks. Where a test printed a block about itself and minitest
+    // then wrote the real one, the later wins above, and counting
+    // both here would turn a nameable red into a refusal. A forged
+    // block about a test that has no real one still shows: it is the
+    // only block for that name, so it becomes that name's verdict and
+    // the totals disagree.
+    let fallen = verdicts.iter().filter(|(_, m)| *m == Mark::Fallen).count() as u64;
+    let skipped = verdicts.iter().filter(|(_, m)| *m == Mark::Skipped).count() as u64;
     Some(Roll {
         verdicts,
         silent: Vec::new(),

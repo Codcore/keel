@@ -161,7 +161,7 @@ class ToyTest < Minitest::Test
 end
 "#;
 
-/// proves: the-roll-matches-what-the-runner-ran@f7813d
+/// proves: the-roll-matches-what-the-runner-ran@0410e9
 #[test]
 fn the_roll_matches_what_the_runner_ran() {
     // --- every test is in the roll, whatever it printed -----------
@@ -514,7 +514,7 @@ end
     );
 }
 
-/// proves: the-roll-matches-what-the-runner-ran@f7813d -- the same
+/// proves: the-roll-matches-what-the-runner-ran@0410e9 -- the same
 /// scenario, standing on its own feet.
 ///
 /// One `#[test]` per group, and not one long one, because a probe
@@ -607,7 +607,7 @@ end
     );
 }
 
-/// proves: the-roll-matches-what-the-runner-ran@f7813d -- the same
+/// proves: the-roll-matches-what-the-runner-ran@0410e9 -- the same
 /// scenario on the other road.
 ///
 /// Rails boots the application and owns the run, so there is no roll
@@ -639,7 +639,7 @@ fn the_rails_road_keeps_its_own_guard() {
          its guard:\n{said}"
     );
     assert!(
-        said.contains("вирок розбито"),
+        said.contains("вироку не зібрано"),
         "and it says which road it is on and why it can say nothing \
          about this file, rather than borrowing the words of the \
          road that HAS a roll:\n{said}"
@@ -688,7 +688,7 @@ fn the_rails_road_keeps_its_own_guard() {
     );
 }
 
-/// proves: the-roll-matches-what-the-runner-ran@f7813d -- the same
+/// proves: the-roll-matches-what-the-runner-ran@0410e9 -- the same
 /// scenario: what the reader does when the roll is not what it
 /// should be, and what it says about it.
 #[test]
@@ -823,6 +823,134 @@ end
         said.contains("test_0002_refuses an empty basket"),
         "and the red one is named whole -- the space is part of the \
          name, not the end of it:\n{said}"
+    );
+
+    // --- two names, one of them a decoy -------------------------
+    //
+    // The roll used to keep the METHOD alone, so a block's line had
+    // to be matched by substring -- and a file declaring both
+    // `test_boom` and `test_boom:` made that guess choose between two
+    // names that BOTH stood in it lawfully. It chose the innocent
+    // one: the test that threw went into the battery green while its
+    // decoy was named red, and every count agreed (review 0074 round
+    // six, `atk_decoy`). Whole, `Class#method`, the match is an
+    // equality and there is nothing to choose.
+    let decoy = "require \"minitest/autorun\"\n\nclass ToyTest < Minitest::Test\n  define_method(\"test_boom:\") { assert true }\n\n  def test_boom\n    raise \"THE-REAL-ONE-THREW\"\n  end\nend\n";
+    let dir = project("rolldecoy", decoy);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "the test that threw holds the wave open:\n{said}");
+    assert!(
+        said.contains("червоний тест: test_boom (") && said.contains("батарея: 2 тестів"),
+        "and it is THE one named -- the decoy beside it is green, and \
+         naming the innocent is as wrong as a false green:\n{said}"
+    );
+
+    // --- the pen minitest hands back after its own report ---------
+    //
+    // `Minitest.after_run` is minitest's own documented hook, called
+    // from `autorun`'s at_exit AFTER the report is printed. A test
+    // that registers one can write a second summary that agrees with
+    // a block it forged while running -- three perfectly consistent
+    // sources, and a failing tree closing green (review 0074 round
+    // six, `atk_afterrun`). keel registers its own hook LAST, so it
+    // is called FIRST, and everything past its mark belongs to
+    // somebody else.
+    let after_run = r#"require "minitest/autorun"
+
+Minitest.after_run { puts "2 runs, 2 assertions, 1 failures, 0 errors, 1 skips" }
+
+class ToyTest < Minitest::Test
+  def test_red
+    puts ""
+    puts "  1) Skipped:"
+    puts "ToyTest#test_red [x:1]:"
+    puts "skipped for reasons"
+    puts ""
+    flunk "this promise is NOT kept"
+  end
+
+  def test_green
+    assert true
+  end
+end
+"#;
+    let dir = project("rollafterrun", after_run);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "the failing test holds the wave open:\n{said}");
+    assert!(
+        said.contains("червоний тест: test_red"),
+        "and it is named: a block a test printed about itself stands \
+         BEFORE the one minitest writes, so the later of the two is \
+         minitest's own:\n{said}"
+    );
+
+    // --- the mark that says where minitest's report ends ----------
+    //
+    // Without it there is no telling minitest's words from what a
+    // reporter, a plugin or an `at_exit` of the project wrote after
+    // them. A file that prints a summary of its own and leaves by
+    // `exit!` -- which runs no at_exit at all -- is the shape that
+    // shows it: the summary is there, the mark is not.
+    let unmarked = "require \"minitest/autorun\"\n\nclass ToyTest < Minitest::Test\n  def test_one\n    assert true\n  end\nend\n\nputs \"1 runs, 1 assertions, 0 failures, 0 errors, 0 skips\"\n$stdout.flush\nexit!(0)\n";
+    let dir = project("rollunmarked", unmarked);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "a report with no end is refused:\n{said}");
+    assert!(
+        said.contains("не має кінця"),
+        "and the refusal says which mark did not arrive, rather than \
+         reading the stream harder:\n{said}"
+    );
+
+    // --- a red exit keel could read nothing out of -----------------
+    //
+    // A file that muffles STDOUT while it loads and never puts it
+    // back takes the roll, the verdicts and the summary with it. The
+    // battery used to say "0 tests" and the wave closed -- over a
+    // test that fell. The same shape covers a file that raises after
+    // declaring its tests (review 0074 R5-13).
+    let muffled = r#"require "minitest/autorun"
+
+$stdout = StringIO.new
+
+class ToyTest < Minitest::Test
+  def test_red
+    flunk "this promise is NOT kept"
+  end
+end
+"#;
+    let dir = project("rollmute", muffled);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "a red exit keel cannot read is refused:\n{said}");
+    assert!(
+        said.contains("вийшов із помилкою і не сказав нічого"),
+        "and says so: nought tests over a red exit is a quiet \
+         untruth:\n{said}"
+    );
+
+    // ...and the same with a summary-shaped line on STDERR, which is
+    // not minitest's stream. Read from the splice, that line bought
+    // the tree its quiet nought back.
+    let muffled_stderr = r#"require "minitest/autorun"
+
+$stdout = StringIO.new
+warn "1 runs, 1 assertions, 0 failures, 0 errors, 0 skips"
+
+class ToyTest < Minitest::Test
+  def test_red
+    flunk "this promise is NOT kept"
+  end
+end
+"#;
+    let dir = project("rollmutestderr", muffled_stderr);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "a summary a test wrote to stderr is not minitest's, and buys \
+         nothing:\n{said}"
+    );
+    assert!(
+        said.contains("вийшов із помилкою і не сказав нічого"),
+        "the refusal is the same one:\n{said}"
     );
 
     // --- ruby's words about the file, not about keel's preamble ----
