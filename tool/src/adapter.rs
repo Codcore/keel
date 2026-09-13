@@ -833,13 +833,69 @@ pub fn run_all(root: &Path) -> Result<Ran, Refusal> {
         // -- and it cannot be thrown away either: a test's child
         // process explains itself there, and `cargo test` puts its
         // own refusals there too. It travels apart and is said once.
-        outside = stderr.to_string();
+        // ...without cargo's own bookkeeping. `Compiling`,
+        // `Finished`, `Running <binary>` and the list of failed
+        // targets are its banner, not words of a failure -- measured
+        // on keel's own tree, 82 of the report's 205 lines were a
+        // list of test binaries standing under a heading that
+        // promises what made the battery red (review 0071 round
+        // five). This is not the search this wave refuses: nothing
+        // is hunted for by test name, and what is dropped is the
+        // RUNNER's own line, the same cut pytest's banner already
+        // gets.
+        outside = stderr
+            .lines()
+            .filter(|line| !cargo_said_it(line))
+            .collect::<Vec<&str>>()
+            .join("\n");
     }
     Ok(Ran {
         verdicts,
         voices,
         outside,
     })
+}
+
+/// Whether this line of stderr is cargo's own banner rather than
+/// something a test or its child wrote there.
+///
+/// cargo right-aligns its verbs in a gutter, so its own lines are
+/// indented and begin with one of a closed set of words; the failure
+/// roll-up at the end is not indented but says exactly what it says.
+/// Anything else is left alone -- the direction that cannot hide a
+/// word somebody meant to say.
+fn cargo_said_it(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let indented = line.len() > trimmed.len();
+    if !indented {
+        return trimmed.starts_with("error: test failed, to rerun pass")
+            || (trimmed.starts_with("error: ") && trimmed.contains(" targets failed"));
+    }
+    const VERBS: [&str; 17] = [
+        "Compiling",
+        "Checking",
+        "Documenting",
+        "Doc-tests",
+        "Finished",
+        "Running",
+        "Fresh",
+        "Building",
+        "Updating",
+        "Downloading",
+        "Downloaded",
+        "Locking",
+        "Adding",
+        "Removing",
+        "Blocking",
+        "Installing",
+        "Ignoring",
+    ];
+    // The continuation lines of `error: N targets failed:` are a
+    // backquoted argument and nothing else.
+    if trimmed.starts_with('`') && trimmed.ends_with('`') && trimmed.contains("--test ") {
+        return true;
+    }
+    VERBS.iter().any(|verb| trimmed.starts_with(verb))
 }
 
 /// The number standing right before the given marker in cargo's

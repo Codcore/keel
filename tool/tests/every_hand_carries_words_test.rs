@@ -340,10 +340,11 @@ fn the_report_says_each_voice_once_and_from_the_right_run() {
         said.matches("доки біг \"toy_test\"").count(),
         1,
         "the runner's voice belongs to the FILE and is said ONCE, \
-         however many of that file's tests fell -- printing it under \
-         each red divided the report's own ceiling against itself, \
-         and eighty reds gave 816 lines with not one assertion among \
-         them:\n{said}"
+         however many of that file's tests fell. What that buys is \
+         this heading: the de-duplication below folds identical \
+         blocks anyway, so without the guard one file of ten reds is \
+         announced as \"these 10 files\" and named ten times over \
+         (measured, round five):\n{said}"
     );
     assert!(
         said.contains("THE-FIRST-ASSERTION") && said.contains("THE-SECOND-ASSERTION"),
@@ -500,29 +501,105 @@ fn the_report_says_each_voice_once_and_from_the_right_run() {
          -- and throwing it away took words out of the report that \
          were in it before this wave:\n{said}"
     );
+    // ...and APART is half of that promise, and the half nothing held
+    // (review 0071 round five: a mutant pouring stderr into each red
+    // target's voice passed the full battery). The words must stand
+    // under the run's own heading, not under a file's: a file's block
+    // says "this is what the runner said while THIS file ran", and
+    // that would be a false attribution.
+    let outside_at = said
+        .find("поза будь-якою ціллю")
+        .unwrap_or_else(|| panic!("the run-wide block has its own heading:\n{said}"));
+    let child_at = said.find("WORDS-FROM-A-CHILD").expect("measured above");
+    assert!(
+        child_at > outside_at,
+        "and the child's words stand under THAT heading, not under \
+         the file's -- cargo's targets write into one stderr in turn, \
+         so handing it to any one of them would be a false \
+         attribution:\n{said}"
+    );
 
     // --- a red whose runner said nothing keel could keep ----------
     //
-    // There is a line for that, and this round went looking for a
-    // tree that reaches it. It did not find one, and says so rather
-    // than leaving a reader to assume it was tested.
+    // Round four looked for a tree that reaches this line, found
+    // none on six roads, and wrote that down -- in the card, in the
+    // contract, in this comment, and in the line keel prints to a
+    // person. Round five built two, both on rspec, which is the one
+    // road whose voice is assembled from fields rather than kept
+    // raw. So the claim was false in four places, and the line had
+    // no red of its own.
     //
-    // The example the line itself named -- pytest's `--tb=no` -- was
-    // measured WRONG: under road Б the voice is the whole of pytest's
-    // output and `-rA` prints the reason anyway (review 0071 R4-8).
-    // rspec looked like the shape that reaches it, since it is the
-    // one road whose voice is built from a field rather than kept
-    // raw; measured, `raise RuntimeError, ""` gives
-    // `exception.message` of "" and keel still builds
-    // `RuntimeError: ` from the class beside it. On the other five
-    // roads the voice is the runner's own output, which is never
-    // empty under a red.
-    //
-    // So the branch stands as a FALLBACK, not as a court: it decides
-    // nothing, and it exists so that a header is never printed over
-    // nothing if a future hand hands back a red with no words. A
-    // mutant removing it changes no measured tree, and this comment
-    // is the honest answer to why it has no red of its own.
+    // This is the honest one: an ANONYMOUS exception class with an
+    // empty message gives `class: null, message: ""`, and there is
+    // no word anywhere in the document to carry.
+    if machine_has("rspec").ready() {
+        let dir = keel_sandbox("wordsmute");
+        fs::create_dir_all(dir.join("lib")).unwrap();
+        fs::create_dir_all(dir.join("spec")).unwrap();
+        fs::write(dir.join("lib/toy.rb"), "module Toy\nend\n").unwrap();
+        fs::write(
+            dir.join("spec/toy_spec.rb"),
+            "RSpec.describe \"Toy\" do\n  it \"falls without a word\" do\n    klass = Class.new(StandardError)\n    raise klass, \"\"\n  end\nend\n",
+        )
+        .unwrap();
+        frame(&dir, "ruby", "lib/toy.rb");
+        let (said, code) = closing(&dir);
+        assert_ne!(code, 0, "the red holds the wave open:\n{said}");
+        assert!(
+            said.contains("не сказав нічого"),
+            "and a red whose runner left no words says SO, in its own \
+             line -- silence under a red verdict reads as a court \
+             that did not look:\n{said}"
+        );
+
+        // ...and the other tree round five built, which is NOT that
+        // case: `message` is null and the class stands beside it.
+        // Mapping over the message alone threw the class away, and
+        // the one word that made the battery red went out with the
+        // null.
+        let dir = keel_sandbox("wordssilent");
+        fs::create_dir_all(dir.join("lib")).unwrap();
+        fs::create_dir_all(dir.join("spec")).unwrap();
+        fs::write(dir.join("lib/toy.rb"), "module Toy\nend\n").unwrap();
+        fs::write(
+            dir.join("spec/toy_spec.rb"),
+            "class SilentError < StandardError\n  def message; nil; end\nend\n\nRSpec.describe \"Toy\" do\n  it \"falls silently\" do\n    raise SilentError\n  end\nend\n",
+        )
+        .unwrap();
+        frame(&dir, "ruby", "lib/toy.rb");
+        let (said, code) = closing(&dir);
+        assert_ne!(code, 0, "the red holds the wave open:\n{said}");
+        assert!(
+            said.contains("SilentError"),
+            "and the class is carried when the message is null: it is \
+             a word that made the battery red, and this wave is about \
+             carrying those:\n{said}"
+        );
+
+        // ...and what the PROCESS wrote is carried too. The voice
+        // built from the JSON is this road's named exception, not the
+        // whole truth: a test that prints, or whose child does, says
+        // it here and nowhere in the document (review 0071 round
+        // five, measured: nought occurrences of either).
+        let dir = keel_sandbox("wordsrspecchild");
+        fs::create_dir_all(dir.join("lib")).unwrap();
+        fs::create_dir_all(dir.join("spec")).unwrap();
+        fs::write(dir.join("lib/toy.rb"), "module Toy\nend\n").unwrap();
+        fs::write(
+            dir.join("spec/toy_spec.rb"),
+            "RSpec.describe \"Toy\" do\n  it \"falls\" do\n    system(\"echo WORDS-FROM-A-CHILD-RSPEC 1>&2\")\n    puts \"WORDS-ON-STDOUT-RSPEC\"\n    raise \"SHORT\"\n  end\nend\n",
+        )
+        .unwrap();
+        frame(&dir, "ruby", "lib/toy.rb");
+        let (said, code) = closing(&dir);
+        assert_ne!(code, 0, "the red holds the wave open:\n{said}");
+        assert!(
+            said.contains("WORDS-ON-STDOUT-RSPEC") && said.contains("WORDS-FROM-A-CHILD-RSPEC"),
+            "both of them: the document holds neither, and the \
+             heading over this block promises what the runner said, \
+             verbatim:\n{said}"
+        );
+    }
 
     // --- files whose voice is the same text share one block -------
     //

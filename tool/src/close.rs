@@ -396,8 +396,15 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // The runner's own voice, ONE block per file (wave 0071, review
     // R3-2). It belonged to the file from the start, and printing it
     // under each of that file's red tests divided the report's own
-    // ceiling against itself: measured on eighty reds, 816 lines of
-    // report and not one assertion among them.
+    // ceiling against itself.
+    //
+    // What the guard buys is now the HEADER, not the ceiling: the
+    // de-duplication below already folds the identical blocks, so
+    // dropping the guard changes neither the report's length nor the
+    // assertions in it (measured, round five: 523 lines and 32
+    // assertions with it and without). What it changes is what the
+    // fold then SAYS -- without it, one file of ten reds is announced
+    // as "these 10 files" and named ten times over.
     //
     // A steady red is quoted from the LAST run that saw the file
     // fail; a file whose tests were flaky is quoted from every run
@@ -1334,9 +1341,16 @@ fn window_of(text: &str) -> String {
     if total == 0 || text.lines().all(|l| quoted(l).trim().is_empty()) {
         return String::new();
     }
+    // Quoted lines wear a gutter of their own, and the court's frames
+    // do not. Before this both were four spaces, and a test printing
+    // `(run 1 of 3)` or `… 999 shown …` rendered byte for byte as a
+    // line of the court -- so a reader could not tell how much was
+    // really cut, or which run a block came from (review 0071 round
+    // five). The marks themselves were never forgeable; what was
+    // forgeable is what a person SEES.
     fn put(out: &mut String, line: &str) {
         out.push(QUOTE_MARK);
-        out.push_str("    ");
+        out.push_str("    │ ");
         out.push_str(&quoted(line));
         out.push('\n');
     }

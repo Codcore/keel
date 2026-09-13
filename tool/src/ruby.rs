@@ -308,6 +308,15 @@ pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal> {
             });
         }
         let key = crate::adapter::battery_key(root, &file);
+        // What the PROCESS said, kept apart and kept raw. The voice
+        // built from the JSON is this road's named exception, and it
+        // is not the whole truth about a red file: a test that prints
+        // -- or whose child process does -- says it here and nowhere
+        // in the document (review 0071 round five, measured: nought
+        // occurrences of either). `--format json --out <file>` sends
+        // the report to a file, so this stream carries nothing but
+        // what the project itself wrote.
+        let printed = said.voice.clone();
         for example in examples(&said.json) {
             let green = match example.status.as_str() {
                 "passed" => true,
@@ -339,6 +348,18 @@ pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal> {
                 .entry((key.clone(), example.description))
                 .and_modify(|was| *was = *was && green)
                 .or_insert(green);
+        }
+        // ...and the process's own words under the built ones, where
+        // the file had a red and the process said anything at all.
+        if !printed.trim().is_empty()
+            && let Some(voice) = out.voices.get_mut(&key)
+        {
+            if !voice.is_empty() {
+                voice.push_str("\n\n");
+            }
+            voice.push_str(&t("adapter-rspec-printed"));
+            voice.push('\n');
+            voice.push_str(&printed);
         }
     }
     for file in minitest_files(root)? {
@@ -636,14 +657,24 @@ fn examples(said: &str) -> Vec<Example> {
                         id: example["id"].as_str()?.to_string(),
                         description: example["full_description"].as_str()?.to_string(),
                         status: example["status"].as_str()?.to_string(),
-                        message: example["exception"]["message"].as_str().map(|m| {
+                        // The class and the message are asked
+                        // INDEPENDENTLY. Mapping over the message
+                        // alone threw away a class that was standing
+                        // right beside it: an exception whose
+                        // `message` method returns nil gives
+                        // `message: null, class: "Silent"`, and the
+                        // one word that made the battery red went out
+                        // with the null (review 0071 round five).
+                        message: {
                             let class = example["exception"]["class"].as_str().unwrap_or("");
-                            if class.is_empty() {
-                                m.to_string()
-                            } else {
-                                format!("{class}: {m}")
+                            let words = example["exception"]["message"].as_str().unwrap_or("");
+                            match (class.is_empty(), words.is_empty()) {
+                                (true, true) => None,
+                                (true, false) => Some(words.to_string()),
+                                (false, true) => Some(class.to_string()),
+                                (false, false) => Some(format!("{class}: {words}")),
                             }
-                        }),
+                        },
                     })
                 })
                 .collect()
