@@ -1513,6 +1513,55 @@ end
          earned is not paid out:\n{said}"
     );
 
+    // --- a reporter-replacer through minitest's own door -----------
+    //
+    // The plugin mechanism is minitest's own documented door: a
+    // `plugin_*_init` holds `Minitest.reporter`, and ONE assignment --
+    // `reporters = [Forger]` -- silences both the summary AND the
+    // `-v` stream, because it is `ProgressReporter` that writes the
+    // verdict lines. A SILENT replacer leaves a voice with no
+    // summary, no blocks and no verdicts: the run happened (the exit
+    // is not clean), and the voice says nothing about it. The widened
+    // border says exactly this much: the one who owns the whole voice
+    // owns the verdict -- and the honest refusal for the silent form
+    // holds it.
+    let silent_replacer = r#"require "minitest/autorun"
+
+class Forger < Minitest::AbstractReporter
+  def initialize(*); end
+  def record(result); end
+  def report; end
+  def prereport; end
+  def postreport; end
+end
+module Minitest
+  def self.plugin_forge_init(options)
+    self.reporter.reporters = [Forger.new]
+  end
+end
+Minitest.extensions << "forge"
+
+class ToyTest < Minitest::Test
+  def test_red
+    flunk "this promise is NOT kept"
+  end
+end
+"#;
+    let dir = project("rollsilentreplacer", silent_replacer);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "a replacer that silences both the report and the stream \
+         leaves a voice with nothing readable in it:\n{said}"
+    );
+    assert!(
+        said.contains("не сказав ні слова"),
+        "and the refusal says the runner spoke nothing readable -- \
+         no summary, no blocks, no verdicts -- rather than paying a \
+         green to nobody; the widened border holds its silent \
+         form:\n{said}"
+    );
+
     // --- the price, named: a printed fallen verdict can name an
     //     innocent test red ----------------------------------------
     //
