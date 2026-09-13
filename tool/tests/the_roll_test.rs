@@ -334,6 +334,130 @@ end
         "and that test is in it:\n{said}"
     );
 
+    // --- the forged tail, hidden behind one character -------------
+    //
+    // The guard against a self-closing green was worth exactly one
+    // `#` (review R2-2): `tail_mark` refused any tail carrying a
+    // hash, so a test printing `issue #55` before its real timing
+    // walked straight past it. A hash is a thing tests print. What
+    // tells a tail from a whole verdict is minitest's own shape --
+    // a second ` = ` -- and nothing else.
+    let hidden = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_it_hides_behind_a_hash
+    puts ""
+    puts "0.00 s = ."
+    print "issue #55"
+    flunk "this test really fell"
+  end
+
+  def test_quiet
+    assert true
+  end
+end
+"#;
+    let dir = project("rollhash", hidden);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "one character must not buy a test a green it did not \
+         earn:\n{said}"
+    );
+    assert!(
+        !said.contains("закрита"),
+        "and the wave certainly does not close over it:\n{said}"
+    );
+
+    // --- a verdict-shaped line on STDERR --------------------------
+    //
+    // The reader used to be handed stdout and stderr spliced
+    // together, so a line printed to stderr took a place in the
+    // sequence that was never its own (review R2-5). minitest writes
+    // its verdicts to stdout; the roll is read from there alone.
+    let on_stderr = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_prints_to_stderr
+    $stderr.puts "GhostTest#test_that_never_was = 0.00 s = ."
+    assert true
+  end
+
+  def test_quiet
+    assert true
+  end
+end
+"#;
+    let dir = project("rollstderr", on_stderr);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(
+        code, 0,
+        "a line on stderr is not a verdict, and must not disturb the \
+         roll:\n{said}"
+    );
+    assert!(
+        said.contains("батарея: 2 тестів"),
+        "both tests, and no ghost:\n{said}"
+    );
+
+    // --- a test printing minitest's own summary line --------------
+    //
+    // `runs_said` took the FIRST line carrying ` runs,`, so a test
+    // could choose the number the court compared its roll against
+    // (review R2-4). minitest's summary is the LAST such line, and it
+    // carries its own neighbours.
+    let summary = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_prints_a_summary
+    puts ""
+    puts "5 runs, 5 assertions, 0 failures, 0 errors, 0 skips"
+    assert true
+  end
+end
+"#;
+    let dir = project("rollsummary", summary);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(
+        code, 0,
+        "a test does not get to choose the number its roll is \
+         measured against:\n{said}"
+    );
+    assert!(
+        said.contains("батарея: 1 тестів"),
+        "and the roll is what really ran:\n{said}"
+    );
+
+    // --- a line lost WHOLE, which only the count can see ----------
+    //
+    // Two reviews argued about whether the comparison with minitest's
+    // own `N runs,` is a dead court. Round two disproved the first
+    // "unreachable" by building two shapes; those two are now caught
+    // earlier and more precisely, by the stdout split and by reading
+    // the LAST summary line -- which put the question back.
+    //
+    // This is the shape that answers it. A test name carrying a
+    // newline makes minitest print a verdict line in two halves, and
+    // NEITHER half is anything the reader can use: the first has no
+    // ` = `, the second has no `#`. No name is opened, so the
+    // abandoned-name guard sees nothing; the line simply is not
+    // there. Only the runner's own count knows a test went missing --
+    // which is issue #55's symptom exactly, and the belt is for it.
+    let split_name = "require \"minitest/autorun\"\n\nclass ToyTest < Minitest::Test\n  define_method(\"test_a_name_with_a\\nnewline_in_it\") { assert true }\n\n  def test_quiet\n    assert true\n  end\nend\n";
+    let dir = project("rolllost", split_name);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "a verdict line lost whole leaves no trace but the count, and \
+         a battery that quietly reports one test fewer is the defect \
+         this wave exists to end:\n{said}"
+    );
+    assert!(
+        said.contains("2") && said.contains("1"),
+        "and the refusal carries both numbers, so a person sees the \
+         difference with their eyes:\n{said}"
+    );
+
     // --- a quiet tree stays quiet ---------------------------------
     let quiet = r#"require "minitest/autorun"
 

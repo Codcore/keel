@@ -337,14 +337,17 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             reason: runner_failed(root, &e),
             instead: runner_failed_instead(root),
         })?;
-        let said = format!(
-            "{}{}",
-            String::from_utf8_lossy(&run.stdout),
-            String::from_utf8_lossy(&run.stderr)
-        );
-        let roll = roll_of(&said);
+        let voice = String::from_utf8_lossy(&run.stdout).into_owned();
+        // Both streams for the courts that ask what ruby SAID -- a
+        // LoadError arrives on stderr -- and stdout alone for the
+        // roll. minitest writes its verdicts to stdout, and splicing
+        // the streams let a verdict-shaped line on stderr take a
+        // place in the sequence that was never its own (review 0074
+        // R2-5).
+        let said = format!("{voice}{}", String::from_utf8_lossy(&run.stderr));
+        let roll = roll_of(&voice);
         let mut ran = 0usize;
-        for (name, mark) in roll.verdicts {
+        for (name, mark) in roll.verdicts.iter().cloned() {
             ran += 1;
             // A skipped test did not run: it is in the battery neither
             // as green nor as red, exactly as python's and node's
@@ -362,13 +365,40 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             let held = out.get(&key).copied().unwrap_or(true);
             out.insert(key, held && green);
         }
+        if ran == 0 {
+            // Nothing ran. Either the file declares no test at all --
+            // which is not a fault, and minitest still says `0 runs`
+            // -- or it did not load, or minitest never ran because
+            // nothing required `minitest/autorun` (bugs cut R-7): in
+            // the last two there is no verdict for anyone, and the
+            // refusal says which.
+            match classify(&said, run.status.success()) {
+                crate::adapter::Outcome::BuildBroken(words) => {
+                    return Err(Refusal {
+                        file: file.clone(),
+                        reason: ta("adapter-ruby-broken", targs!("error" => words)),
+                        instead: t("adapter-ruby-broken-instead"),
+                    });
+                }
+                crate::adapter::Outcome::NotRun if !summarised(&said) => {
+                    return Err(Refusal {
+                        file: file.clone(),
+                        reason: ta(
+                            "adapter-ruby-silent",
+                            targs!("file" => relative.display().to_string()),
+                        ),
+                        instead: t("adapter-ruby-silent-instead"),
+                    });
+                }
+                _ => {}
+            }
+        }
         // ...and only where the file ran at all. A file that did
         // not load, or that never required `minitest/autorun`, has
         // its own refusal below with ruby's own words, and it is the
         // truer one: the roll courts would otherwise shout "a test
         // was named and never judged" over a LoadError (review 0074
         // R-4). The order is the whole of that fix.
-        let roll = roll_of(&said);
         // A name opened and never closed: the reader cannot say what
         // that test came to, and neither can anybody else. Refusing
         // is the only honest answer -- and it is the ONLY guard
@@ -408,34 +438,6 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
                 instead: t("adapter-ruby-roll-instead"),
             });
         }
-        if ran == 0 {
-            // Nothing ran. Either the file declares no test at all --
-            // which is not a fault, and minitest still says `0 runs`
-            // -- or it did not load, or minitest never ran because
-            // nothing required `minitest/autorun` (bugs cut R-7): in
-            // the last two there is no verdict for anyone, and the
-            // refusal says which.
-            match classify(&said, run.status.success()) {
-                crate::adapter::Outcome::BuildBroken(words) => {
-                    return Err(Refusal {
-                        file: file.clone(),
-                        reason: ta("adapter-ruby-broken", targs!("error" => words)),
-                        instead: t("adapter-ruby-broken-instead"),
-                    });
-                }
-                crate::adapter::Outcome::NotRun if !summarised(&said) => {
-                    return Err(Refusal {
-                        file: file.clone(),
-                        reason: ta(
-                            "adapter-ruby-silent",
-                            targs!("file" => relative.display().to_string()),
-                        ),
-                        instead: t("adapter-ruby-silent-instead"),
-                    });
-                }
-                _ => {}
-            }
-        }
     }
     Ok(out)
 }
@@ -445,6 +447,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
 /// "not the dot" and so as red, and `keel close` called a skipped
 /// test one that "fell in every run" (final review 2026-09-06, bugs
 /// R-2, R-25; wave 0055).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Mark {
     Green,
     Fallen,
@@ -518,7 +521,14 @@ fn verdict_in(line: &str) -> Option<(String, Mark)> {
 fn tail_mark(line: &str) -> Option<Mark> {
     let trimmed = line.trim();
     let (timing, mark) = trimmed.rsplit_once(" = ")?;
-    if !timing.trim_end().ends_with(" s") || timing.contains('#') {
+    // What tells a tail from a WHOLE verdict is a second ` = `, not a
+    // `#` (review 0074 R2-2). The first cut refused any tail carrying
+    // a hash, so `print "issue #55"` before the timing hid the real
+    // verdict from the guard -- and a test could close itself green
+    // behind that one character. A hash is a thing a test may print;
+    // a second ` = ` is minitest's own shape for "name = timing =
+    // mark", and that is the line that is not a tail.
+    if !timing.trim_end().ends_with(" s") || timing.contains(" = ") {
         return None;
     }
     mark_of(mark)
@@ -609,11 +619,17 @@ fn roll_of(said: &str) -> Roll {
 /// zero -- so a roll that had silently lost two tests looked exactly
 /// like a roll of the right length.
 fn runs_said(said: &str) -> Option<u64> {
-    said.lines().find_map(|line| {
-        let trimmed = line.trim_start();
-        let (count, _) = trimmed.split_once(" runs,")?;
-        count.parse().ok()
-    })
+    // The LAST such line, and only one carrying minitest's own
+    // neighbours (review 0074 R2-4): a test printing `5 runs, …` of
+    // its own hijacked the first match, and the court then compared
+    // the roll against a number the test had chosen.
+    said.lines()
+        .filter(|line| line.contains(" assertions,") && line.contains(" failures,"))
+        .filter_map(|line| {
+            let (count, _) = line.trim_start().split_once(" runs,")?;
+            count.parse().ok()
+        })
+        .next_back()
 }
 
 /// What a run came to, read from what ruby said.
