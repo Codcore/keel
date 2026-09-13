@@ -209,8 +209,10 @@ end
          tests:\n{said}"
     );
     assert!(
-        !said.contains("закрита"),
-        "and the wave is certainly not closed over it:\n{said}"
+        said.contains("червоний тест: test_it_forges_its_own_green"),
+        "and the court names it RED, which is what it is -- the roll \
+         is taken when the file is loaded, so a test cannot take its \
+         own name off it nor add another:\n{said}"
     );
 
     // --- an ordinary print that merely LOOKS like a name ----------
@@ -365,8 +367,11 @@ end
          earn:\n{said}"
     );
     assert!(
-        !said.contains("закрита"),
-        "and the wave certainly does not close over it:\n{said}"
+        said.contains("червоний тест: test_it_hides_behind_a_hash"),
+        "and the court names it RED. Three rounds of review each \
+         defeated the character chosen to tell a real verdict from a \
+         printed one -- a `#`, then a second ` = `. The roll ended \
+         the game: a name written before any test body ran:\n{said}"
     );
 
     // --- a verdict-shaped line on STDERR --------------------------

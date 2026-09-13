@@ -213,6 +213,56 @@ fn minitest_command(root: &Path, args: &[String]) -> Command {
     command
 }
 
+/// The ruby that prints the roll BEFORE running anything, then runs.
+///
+/// Three rounds of review taught this wave one thing: minitest's `-v`
+/// line cannot bear the weight put on it. Whatever character was
+/// chosen to tell a real verdict from one a test printed -- a `#`, a
+/// second ` = ` -- a test could print exactly that and close itself
+/// green (reviews 0074 R-2, R2-1, R3-1). The format is not the place
+/// to look.
+///
+/// So the roll is taken where no test body has run yet: the file is
+/// LOADED, `Minitest::Runnable.runnables` is asked what it holds, and
+/// the names are printed under a mark of ours. `minitest/autorun`'s
+/// `at_exit` then runs the tests as usual, in the same process -- no
+/// second run, no second cost. A test can print anything it likes
+/// afterwards; it cannot add a name to a list written before it
+/// existed, nor take its own off.
+fn minitest_listing(root: &Path, file: &str) -> Command {
+    if rails_root(root) {
+        // Rails boots the application and owns the run; the listing
+        // is not available on that road, and the courts below say so
+        // rather than pretending otherwise.
+        return minitest_command(root, &[file.to_string(), "-v".to_string()]);
+    }
+    let mut command = Command::new("ruby");
+    command
+        .args(["-E", "UTF-8"])
+        .arg("-Itest")
+        .arg("-e")
+        .arg(concat!(
+            "require \"minitest\"\n",
+            "load ARGV.shift\n",
+            "Minitest::Runnable.runnables.each do |r|\n",
+            "  r.runnable_methods.each { |m| puts \"KEEL-ROLL #{r}##{m}\" }\n",
+            "end\n",
+        ))
+        .arg(file)
+        .arg("-v")
+        .current_dir(root);
+    command
+}
+
+/// The names the file declared, read before any of them ran.
+fn listed(said: &str) -> Vec<String> {
+    said.lines()
+        .filter_map(|line| line.trim().strip_prefix("KEEL-ROLL "))
+        .filter_map(|full| full.rsplit_once('#').map(|(_, m)| m.to_string()))
+        .filter(|method| !method.is_empty())
+        .collect()
+}
+
 /// Whose failure it was, said by name (review 0059 R-4): on the
 /// Rails road the thing that did not start is `bin/rails` -- a script
 /// of the project, which may simply be non-executable -- and telling
@@ -329,8 +379,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // One process per file on both roads, so the key of the
         // battery stays the file it came from (§7.13's verdicts are
         // per test, and the courts above ask by file stem).
-        let mut command =
-            minitest_command(root, &[relative.display().to_string(), "-v".to_string()]);
+        let mut command = minitest_listing(root, &relative.display().to_string());
         crate::scope::forget_the_hook(&mut command);
         let run = command.output().map_err(|e| Refusal {
             file: root.to_path_buf(),
@@ -399,19 +448,20 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // truer one: the roll courts would otherwise shout "a test
         // was named and never judged" over a LoadError (review 0074
         // R-4). The order is the whole of that fix.
-        // A name opened and never closed: the reader cannot say what
-        // that test came to, and neither can anybody else. Refusing
-        // is the only honest answer -- and it is the ONLY guard
-        // against a forged verdict line, which swaps a real test for
-        // a ghost one for one and leaves every count agreeing.
-        if roll.abandoned > 0 {
+        // A name the file declared and the run never judged. With
+        // the roll written before any test body ran, this is the
+        // whole of the guard: a test cannot take its own name off the
+        // list, so a name with no verdict means its verdict was lost
+        // -- swallowed by the test's own output, or never printed.
+        if !roll.silent.is_empty() {
             return Err(Refusal {
                 file: file.clone(),
                 reason: ta(
                     "adapter-ruby-roll-lost",
                     targs!(
                         "file" => relative.display().to_string(),
-                        "count" => roll.abandoned as u64
+                        "count" => roll.silent.len() as u64,
+                        "tests" => roll.silent.join(", ")
                     ),
                 ),
                 instead: t("adapter-ruby-roll-lost-instead"),
@@ -521,57 +571,88 @@ fn verdict_in(line: &str) -> Option<(String, Mark)> {
 fn tail_mark(line: &str) -> Option<Mark> {
     let trimmed = line.trim();
     let (timing, mark) = trimmed.rsplit_once(" = ")?;
-    // What tells a tail from a WHOLE verdict is a second ` = `, not a
-    // `#` (review 0074 R2-2). The first cut refused any tail carrying
-    // a hash, so `print "issue #55"` before the timing hid the real
-    // verdict from the guard -- and a test could close itself green
-    // behind that one character. A hash is a thing a test may print;
-    // a second ` = ` is minitest's own shape for "name = timing =
-    // mark", and that is the line that is not a tail.
-    if !timing.trim_end().ends_with(" s") || timing.contains(" = ") {
+    // No guard on what stands before the timing any more, and that is
+    // the point of the roll: three rounds of review each defeated the
+    // character chosen here -- a `#`, then a second ` = ` -- because a
+    // test can print whatever the guard forbids. The span decides
+    // whose timing this is, and the LAST one in a span is the
+    // runner's.
+    if !timing.trim_end().ends_with(" s") {
         return None;
     }
     mark_of(mark)
 }
 
-/// Everything minitest's `-v` voice says it ran, in order -- and how
-/// many names it opened and never closed.
+/// The verdicts of the tests the file DECLARED, read against a roll
+/// written before any of them ran.
 ///
-/// A name with no verdict yet is held until its timing arrives:
-/// whatever the test printed in between belongs to the test, not to
-/// the roll. A name that never gets its timing is ABANDONED, and that
-/// is counted rather than shrugged off.
-///
-/// Abandonment is the one thing the count against `N runs` cannot
-/// see, and it took a probe to find out. A test that prints a whole
-/// verdict line of its own -- `puts` of `Ghost#test_x = 0.00 s = .`
-/// -- makes the reader close a test that never ran and lose the one
-/// that did, ONE FOR ONE: the roll stays exactly as long as the
-/// runner's count, and every number agrees while the names are wrong.
-/// So the reader says when it abandoned a name, and the court refuses
-/// on that alone.
+/// With the roll in hand the reader no longer has to tell a real
+/// verdict line from one a test printed: it walks the names in the
+/// order minitest announces them, and inside each name's span takes
+/// the LAST timing. Minitest prints its own line after the test ends,
+/// so whatever the test printed stands before it -- and the last one
+/// is the runner's. A forged name is not in the roll and is ignored;
+/// a roll name with no timing at all is a refusal by name.
 struct Roll {
     verdicts: Vec<(String, Mark)>,
-    abandoned: usize,
+    /// Names the file declared and the run never judged.
+    silent: Vec<String>,
 }
 
 fn roll_of(said: &str) -> Roll {
+    let names = listed(said);
+    if names.is_empty() {
+        // No listing: the Rails road, which boots the application and
+        // owns the run. The reader falls back to the shape of the
+        // line, and the courts above still hold the count.
+        return shapes_of(said);
+    }
+    // Where each name's span opens, in the order minitest ran them.
+    let lines: Vec<&str> = said.split(['\n', '\r']).collect();
+    let mut opens: Vec<(usize, String)> = Vec::new();
+    for (at, line) in lines.iter().enumerate() {
+        if line.trim().starts_with("KEEL-ROLL ") {
+            continue;
+        }
+        if let Some(name) = head_name(line)
+            && names.contains(&name)
+        {
+            opens.push((at, name));
+        }
+    }
+    let mut verdicts: Vec<(String, Mark)> = Vec::new();
+    for (nth, (at, name)) in opens.iter().enumerate() {
+        let until = opens
+            .get(nth + 1)
+            .map(|(next, _)| *next)
+            .unwrap_or(lines.len());
+        // The LAST timing of the span belongs to the runner: nothing
+        // of the test prints after the test has ended.
+        let mark = lines[*at..until].iter().rev().find_map(|line| {
+            verdict_in(line)
+                .map(|(_, mark)| mark)
+                .or_else(|| tail_mark(line))
+        });
+        if let Some(mark) = mark {
+            verdicts.push((name.clone(), mark));
+        }
+    }
+    let judged: Vec<&String> = verdicts.iter().map(|(name, _)| name).collect();
+    let silent = names
+        .iter()
+        .filter(|name| !judged.contains(name))
+        .cloned()
+        .collect();
+    Roll { verdicts, silent }
+}
+
+/// The older reading, by the shape of the line alone -- kept for the
+/// one road that cannot give a roll: Rails boots the application and
+/// runs the tests itself.
+fn shapes_of(said: &str) -> Roll {
     let mut out: Vec<(String, Mark)> = Vec::new();
     let mut waiting: Option<String> = None;
-    let mut broken = 0usize;
     for line in said.split(['\n', '\r']) {
-        // While a name is open, ONLY its timing closes it. Everything
-        // else on the way is the running test's own output, whatever
-        // it looks like -- and it can look like anything.
-        //
-        // That rule is the answer to two measured faults at once
-        // (review 0074 R-2, R-3). A test printing an ordinary line
-        // with a `#` and a ` = ` in it -- `User#full_name = Jane` --
-        // is not a second test starting, and the reading that took it
-        // for one failed the whole battery and blamed the project.
-        // And a test printing a whole verdict of its own is not a
-        // test either; minitest is serial, so between two real names
-        // there is always a timing.
         if waiting.is_some() {
             if let Some(mark) = tail_mark(line) {
                 let name = waiting.take().expect("open");
@@ -583,31 +664,13 @@ fn roll_of(said: &str) -> Roll {
             out.push((name, mark));
             continue;
         }
-        // A timing with no name open. Minitest never writes one: it
-        // is a test's own output, and it means a test's real timing
-        // has already been eaten by that same output -- the verdict
-        // above belongs to nobody, or to the wrong body.
-        //
-        // This is the guard that catches the forge, and it took the
-        // reviewer to find it: the first reading dropped an orphan
-        // tail in silence, so a test printing `0.00 s = .` closed
-        // ITSELF green and its real `0.00 s = F` went out with the
-        // rubbish. Every count agreed. A false green is the one
-        // answer §4.10 calls worse than a red.
-        if tail_mark(line).is_some() {
-            broken += 1;
-            continue;
-        }
         if let Some(name) = head_name(line) {
             waiting = Some(name);
         }
     }
-    if waiting.is_some() {
-        broken += 1;
-    }
     Roll {
         verdicts: out,
-        abandoned: broken,
+        silent: Vec::new(),
     }
 }
 
