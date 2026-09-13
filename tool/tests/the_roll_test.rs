@@ -161,7 +161,7 @@ class ToyTest < Minitest::Test
 end
 "#;
 
-/// proves: the-roll-matches-what-the-runner-ran@0410e9
+/// proves: the-roll-matches-what-the-runner-ran@cafb06
 #[test]
 fn the_roll_matches_what_the_runner_ran() {
     // --- every test is in the roll, whatever it printed -----------
@@ -512,9 +512,38 @@ end
         said.contains("батарея: 2 тестів"),
         "and both tests are in the battery:\n{said}"
     );
+
+    // --- a print that ends a line with somebody's timing and an F --
+    //
+    // The strict timing is what keeps a test's own print from
+    // becoming its own verdict. `waited long s` is not minitest's
+    // shape -- a number and ` s` -- so the line is output, and the
+    // test keeps its green. A reader that took any `<words> s = F`
+    // for a verdict would let a test name itself fallen, and worse,
+    // name its neighbours.
+    let tailnoise = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_one
+    puts "ToyTest#test_one = waited long s = F"
+    assert true
+  end
+end
+"#;
+    let dir = project("rolltailnoise", tailnoise);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(
+        code, 0,
+        "a timing that is not minitest's own shape is not a \
+         verdict:\n{said}"
+    );
+    assert!(
+        said.contains("батарея: 1 тестів"),
+        "and the one real test keeps its green:\n{said}"
+    );
 }
 
-/// proves: the-roll-matches-what-the-runner-ran@0410e9 -- the same
+/// proves: the-roll-matches-what-the-runner-ran@cafb06 -- the same
 /// scenario, standing on its own feet.
 ///
 /// One `#[test]` per group, and not one long one, because a probe
@@ -600,14 +629,56 @@ end
         said.contains("червоний тест: test_two") && said.contains("червоний тест: test_four"),
         "a failure and an error are both red, and both named:\n{said}"
     );
+    // The COUNT of the battery is not stable on this road, and that is
+    // said here rather than asserted away: under `parallelize_me!` the
+    // interleaved stream can put another test's `F` tail on a
+    // neighbour's name -- a false red, the one direction §7.12 calls
+    // affordable, and the join takes red from ANY reading. A skipped
+    // test named red by a stolen tail stands in the battery of a seed
+    // that merged the lines badly. The skip semantics themselves are
+    // held by the serial probe above (`rollskip`); here the stable
+    // facts are the two real reds and an open wave.
+
+    // --- two names on ONE line, and the tail belongs to the NEARER
+    //     one ---------------------------------------------------------
+    //
+    // Under `parallelize_me!` two tests' verdicts land on one line --
+    // `ToyTest#test_three = ToyTest#test_two = 0.00 s = F` -- and the
+    // timing and mark belong to the NEARER name, not the first. This
+    // is the same shape printed by hand: reading the FIRST name would
+    // put the fallen tail on the innocent test that merely ran
+    // alongside.
+    let nearest = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_ran_alongside
+    puts ""
+    puts "ToyTest#test_ran_alongside = ToyTest#test_the_liar = 0.00 s = F"
+    assert true
+  end
+
+  def test_the_liar
+    flunk "this promise is NOT kept"
+  end
+end
+"#;
+    let dir = project("rollnearest", nearest);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "the test that fell holds the wave open:\n{said}");
     assert!(
-        said.contains("батарея: 3 тестів"),
-        "the skip is neither green nor red (§7.12), so three tests \
-         stand in the battery of four declared:\n{said}"
+        said.contains("червоний тест: test_the_liar"),
+        "and the fallen tail is attributed to the name nearest the \
+         timing, which is the test that really fell:\n{said}"
+    );
+    assert!(
+        !said.contains("червоний тест: test_ran_alongside"),
+        "and the innocent neighbour keeps its green -- the mark \
+         belongs to the NEARER name, never to the first on the \
+         line:\n{said}"
     );
 }
 
-/// proves: the-roll-matches-what-the-runner-ran@0410e9 -- the same
+/// proves: the-roll-matches-what-the-runner-ran@cafb06 -- the same
 /// scenario on the other road.
 ///
 /// Rails boots the application and owns the run, so there is no roll
@@ -714,7 +785,7 @@ fn the_rails_road_keeps_its_own_guard() {
     );
 }
 
-/// proves: the-roll-matches-what-the-runner-ran@0410e9 -- the same
+/// proves: the-roll-matches-what-the-runner-ran@cafb06 -- the same
 /// scenario: what the reader does when the roll is not what it
 /// should be, and what it says about it.
 #[test]
@@ -929,6 +1000,31 @@ end
          the innocent is as wrong as a false green:\n{said}"
     );
 
+    // --- the longest carrier, where only the blocks can decide ----
+    //
+    // The `-v` stream names the guilty test on its own line whenever
+    // the line survived -- so here the line does not survive: the
+    // falling test prints without a newline, its own print sits
+    // between its name and minitest's timing, and the stream says
+    // nothing about anybody. The blocks are all that is left, and the
+    // block line carries BOTH roll names lawfully: the LONGEST is the
+    // one it is about. A reader that took the shorter one would send
+    // the innocent test red and let the one that fell go green.
+    let mangled = "require \"minitest/autorun\"\n\nclass ToyTest < Minitest::Test\n  define_method(\"test_y [foo]\") { print \"cameraman: rolling \"; flunk \"THE-BRACKET-ONE-FELL\" }\n\n  def test_y\n    assert true\n  end\nend\n";
+    let dir = project("rollmangled", mangled);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(code, 0, "the test that fell holds the wave open:\n{said}");
+    assert!(
+        said.contains("червоний тест: test_y [foo]"),
+        "and the LONGEST name in the block line is the one named red \
+         -- the stream said nothing, so the blocks decide, and the \
+         block named the test with the bracket:\n{said}"
+    );
+    assert!(
+        !said.contains("червоний тест: test_y ("),
+        "and the innocent `test_y` keeps its green:\n{said}"
+    );
+
     // --- the hook a TEST BODY registers ---------------------------
     //
     // Round six put keel's mark in an `after_run` hook, and round
@@ -1034,11 +1130,10 @@ end
          fell:\n{said}"
     );
     assert!(
-        said.contains("не стоїть між мітками"),
-        "and the refusal says which region it could not read, rather \
-         than reading what is left of it: without the totals neither \
-         count can be checked, and the blocks alone are what a test \
-         can write:\n{said}"
+        said.contains("не має жодного підсумку"),
+        "and the refusal says minitest's own summary is nowhere in \
+         the voice: without it the blocks have no count to answer \
+         to, and the blocks are what a test can write:\n{said}"
     );
 
     // --- minitest's number is the LAST it writes -------------------
@@ -1112,21 +1207,27 @@ end
         "and it holds no tests:\n{said}"
     );
 
-    // --- the mark that says where minitest's report ends ----------
+    // --- a summary of its own, and out by `exit!` ------------------
     //
-    // Without it there is no telling minitest's words from what a
-    // reporter, a plugin or an `at_exit` of the project wrote after
-    // them. A file that prints a summary of its own and leaves by
-    // `exit!` -- which runs no at_exit at all -- is the shape that
-    // shows it: the summary is there, the mark is not.
+    // `exit!` runs no `at_exit` at all -- and it is called at LOAD
+    // time, so it does not even let keel's own listing reach the
+    // stream: the process dies in the middle of the load, the roll is
+    // never printed, and the file's own summary is all there is. A
+    // summary keel can read with no roll beside it is the oldest
+    // refusal of this wave, and it still says the truest thing: there
+    // is no roll, and minitest says it ran one.
     let unmarked = "require \"minitest/autorun\"\n\nclass ToyTest < Minitest::Test\n  def test_one\n    assert true\n  end\nend\n\nputs \"1 runs, 1 assertions, 0 failures, 0 errors, 0 skips\"\n$stdout.flush\nexit!(0)\n";
     let dir = project("rollunmarked", unmarked);
     let (said, code) = keel(&dir, &["close"]);
-    assert_ne!(code, 0, "a report with no end is refused:\n{said}");
+    assert_ne!(
+        code, 0,
+        "a summary with no run beside it is refused:\n{said}"
+    );
     assert!(
-        said.contains("не стоїть між мітками"),
-        "and the refusal says the report is not inside keel's own \
-         marks, rather than reading the stream harder:\n{said}"
+        said.contains("переліку нема"),
+        "and the refusal says there is no roll: the process died \
+         before keel's own listing was printed, and a forged summary \
+         buys nobody a green:\n{said}"
     );
 
     // --- a red exit keel could read nothing out of -----------------
@@ -1216,5 +1317,240 @@ end
     assert!(
         said.contains("батарея: 2 тестів"),
         "and its roll is its own length:\n{said}"
+    );
+}
+
+/// proves: the-roll-matches-what-the-runner-ran@cafb06 -- the two
+/// readings of one voice, joined in the safe direction.
+///
+/// Round eight found three roads to a clean green over a `flunk`,
+/// and all three went through the same wall: keel read only what
+/// stood before its own end mark, and the mark did not own the
+/// region it closed. A file can register inside `Minitest.run` (a
+/// `prepend` made at LOAD time stands inside keel's own and writes
+/// between the real report and the mark); a reporter APPENDED to
+/// minitest's prints from inside `Minitest.run` too; and the mark
+/// itself could be read back out of the process. So there is no
+/// region any more, and no ordering rule can hold -- a test writes
+/// both before and after the real report.
+///
+/// What holds is the direction of the join: the roll gives the
+/// names; the report blocks give verdicts; the `-v` stream gives a
+/// second verdict on the same names; a name is RED if any reading
+/// says so, and green only where no reading says otherwise. A forged
+/// skip is beaten by the stream's own `F` on the same name. The
+/// price runs the other way -- a printed fallen verdict can name an
+/// innocent neighbour red -- and that is the one direction §7.12
+/// calls affordable; the probe below records it.
+#[test]
+fn two_readings_of_one_voice_joined_in_the_safe_direction() {
+    // --- a file that prepends `Minitest.run` at LOAD time ---------
+    //
+    // The register happens while the file loads, before keel's own
+    // machinery could stand in front of it: in ruby the LAST prepend
+    // is the outermost, so the file's module sits between keel's and
+    // the real `Minitest.run`, and its forged skip and forged summary
+    // land after the real report -- inside any region a mark used to
+    // close. Eight lines of ruby, no stream replaced, measured by
+    // review round eight as exit 0 over a `flunk`.
+    let prepend = r#"require "minitest/autorun"
+
+Minitest.singleton_class.prepend(Module.new do
+  def run(args = [])
+    out = super
+    puts "  9) Skipped:"
+    puts "ToyTest#test_red:"
+    puts ""
+    puts "1 runs, 1 assertions, 0 failures, 0 errors, 1 skips"
+    out
+  end
+end)
+
+class ToyTest < Minitest::Test
+  def test_red
+    flunk "this promise is NOT kept"
+  end
+end
+"#;
+    let dir = project("rollsafeprepend", prepend);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "a file that stands inside the report's own method cannot \
+         launder its failure into a skip:\n{said}"
+    );
+    assert!(
+        said.contains("червоний тест: test_red"),
+        "and the failure is named red, which is what it is: the \
+         stream's own `F` on the same name says fallen no matter \
+         what the forged block and the forged summary around it \
+         say:\n{said}"
+    );
+
+    // --- a reporter APPENDED to minitest's own --------------------
+    //
+    // The same wall from the other side: a plugin's `report` is
+    // called from inside `Minitest.run`, AFTER the real report, and
+    // its forged skip and forged summary stand later than everything
+    // minitest wrote. Measured by review round eight as exit 0 over
+    // a `flunk` -- the shape the card of that round still called
+    // safe.
+    let launderer = r#"require "minitest/autorun"
+
+class Launderer < Minitest::AbstractReporter
+  def initialize(io) @io = io end
+  def record(result); end
+  def report
+    @io.puts ""
+    @io.puts "  9) Skipped:"
+    @io.puts "ToyTest#test_red [test/toy_test.rb:1]:"
+    @io.puts "nothing to see"
+    @io.puts ""
+    @io.puts "2 runs, 2 assertions, 0 failures, 0 errors, 1 skips"
+  end
+end
+module Minitest
+  def self.plugin_launder_init(options)
+    self.reporter << Launderer.new($stdout)
+  end
+end
+Minitest.extensions << "launder"
+
+class ToyTest < Minitest::Test
+  def test_red
+    flunk "this promise is NOT kept"
+  end
+
+  def test_green
+    assert true
+  end
+end
+"#;
+    let dir = project("rollsafereporter", launderer);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "a reporter appended after minitest's own cannot launder a \
+         failure into a skip either:\n{said}"
+    );
+    assert!(
+        said.contains("червоний тест: test_red"),
+        "and the failure is named red: the stream's `F` beats the \
+         forged skip no matter how late the forgery stands:\n{said}"
+    );
+
+    // --- a fallen verdict printed about a name that never ran -----
+    //
+    // The stream is joined to the roll by EQUALITY: a ghost with a
+    // fallen mark of its own is nobody's verdict, and does not enter
+    // the battery. The ghost's name is built to CONTAIN a real one --
+    // `GhostToyTest#test_one` holds `ToyTest#test_one` -- because a
+    // join by substring would put the ghost's `F` on the innocent
+    // test it encloses.
+    let ghost_f = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_one
+    puts ""
+    puts "GhostToyTest#test_one = 0.00 s = F"
+    assert true
+  end
+
+  def test_two
+    assert true
+  end
+end
+"#;
+    let dir = project("rollghostfallen", ghost_f);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(
+        code, 0,
+        "a fallen verdict about a name the file never declared is \
+         not a verdict:\n{said}"
+    );
+    assert!(
+        said.contains("батарея: 2 тестів"),
+        "and both real tests stand, no ghost among them:\n{said}"
+    );
+
+    // --- the runner that never said the names out loud ------------
+    //
+    // The last question, and the plainest: minitest under `-v` writes
+    // the name of every test it runs. A run whose voice never
+    // mentions a name the roll holds has no verdict for anybody --
+    // and a forged summary standing in its place must not buy the
+    // missing tests a green. Measured shape, the one review round
+    // eight called the border of the road: a file stands inside
+    // `Minitest.run` and does NOT call `super`, printing only its own
+    // summary. The tests never run, and on the trunk this closed
+    // quietly as a nought; here the roll asks the runner to speak.
+    let silent_run = r#"require "minitest/autorun"
+
+Minitest.singleton_class.prepend(Module.new do
+  def run(args = [])
+    puts "1 runs, 1 assertions, 0 failures, 0 errors, 0 skips"
+    nil
+  end
+end)
+
+class ToyTest < Minitest::Test
+  def test_red
+    flunk "this promise is NOT kept"
+  end
+end
+"#;
+    let dir = project("rollunsaid", silent_run);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "a run whose voice never mentions the names the roll holds \
+         is refused, not read as green:\n{said}"
+    );
+    assert!(
+        said.contains("не сказав ні слова"),
+        "and the refusal says so: the roll names test_red, the \
+         runner's voice never mentions it, and a green nobody \
+         earned is not paid out:\n{said}"
+    );
+
+    // --- the price, named: a printed fallen verdict can name an
+    //     innocent test red ----------------------------------------
+    //
+    // The join is one-directional on purpose: red wins, and a test
+    // that prints a whole fallen verdict ABOUT ITS NEIGHBOUR makes
+    // that neighbour red unless the counts refuse the file. Here the
+    // forger also prints the summary that agrees with its own lie --
+    // two lines, and the innocent test is named red. That is the
+    // direction §7.12 calls affordable: a red said aloud over a run
+    // the person can re-run by hand and see for themselves, never a
+    // green nobody earned. The wave card says this in the open.
+    let false_red = r#"require "minitest/autorun"
+
+class ToyTest < Minitest::Test
+  def test_quiet
+    assert true
+  end
+
+  def test_a_liar
+    puts ""
+    puts "ToyTest#test_quiet = 0.00 s = F"
+    puts "2 runs, 2 assertions, 1 failures, 0 errors, 0 skips"
+    assert true
+  end
+end
+"#;
+    let dir = project("rollfalsered", false_red);
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "the tree does not close -- a forged fallen verdict makes \
+         the counts disagree, or names somebody red:\n{said}"
+    );
+    assert!(
+        said.contains("червоний тест: test_quiet"),
+        "and here the innocent test is named red: the forger printed \
+         the summary that agrees with its own lie, and this false \
+         red is the price of a join that can never again buy a \
+         failure a green:\n{said}"
     );
 }

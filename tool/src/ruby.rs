@@ -224,12 +224,21 @@ fn minitest_command(root: &Path, args: &[String]) -> Command {
 ///
 /// So the roll is taken where no test body has run yet: the file is
 /// LOADED, `Minitest::Runnable.runnables` is asked what it holds, and
-/// the names are printed under a mark of ours. `minitest/autorun`'s
-/// `at_exit` then runs the tests as usual, in the same process -- no
-/// second run, no second cost. A test can print anything it likes
-/// afterwards; it cannot add a name to a list written before it
-/// existed, nor take its own off.
-fn minitest_listing(root: &Path, file: &str, mark: &str) -> Command {
+/// the names are printed. `minitest/autorun`'s `at_exit` then runs the
+/// tests as usual, in the same process -- no second run, no second
+/// cost. A test can print anything it likes afterwards; it cannot add
+/// a name to a list written before it existed, nor take its own off.
+///
+/// No mark of ours closes the report any more. Three rounds held one
+/// and three more found a way round it -- a hook of the test body, a
+/// `prepend` the FILE makes at load time (last in the chain, inside
+/// our own), a reporter appended to minitest's, the mark read back out
+/// of the process (reviews 0074 rounds six, seven and eight). The
+/// region between marks was never minitest's alone, so the verdicts
+/// are no longer read from a region at all: the whole voice is read,
+/// and the two readings of it are joined in the safe direction (see
+/// `roll_of`).
+fn minitest_listing(root: &Path, file: &str) -> Command {
     if rails_root(root) {
         // Rails boots the application and owns the run; the listing
         // is not available on that road, and the courts below say so
@@ -241,81 +250,31 @@ fn minitest_listing(root: &Path, file: &str, mark: &str) -> Command {
         .args(["-E", "UTF-8"])
         .arg("-Itest")
         .arg("-e")
-        .arg(format!(
-            concat!(
-                // `$0` first: a test file may ask whether it is the
-                // file being run, and under `-e` it is not, unless we
-                // say so.
-                "$0 = ARGV.first\n",
-                "load ARGV.shift\n",
-                // minitest is NOT required here, and that is the
-                // point: requiring it before the project's own file
-                // activates the system gem, and a project holding its
-                // own version through bundler then meets
-                // `Gem::LoadError` in keel's preamble rather than in
-                // its own code (review 0074 R5-11). Every minitest
-                // file requires minitest itself -- that is what makes
-                // it one -- so by this line it is either loaded or
-                // there are no tests to name.
-                "if defined?(Minitest::Runnable)\n",
-                "  Minitest::Runnable.runnables.each do |r|\n",
-                "    r.runnable_methods.each {{ |m| puts \"KEEL-ROLL #{{r}}##{{m}}\" }}\n",
-                "  end\n",
-                // ...and keel's own end of the report, printed from
-                // INSIDE `Minitest.run`, which prints the report
-                // itself.
-                //
-                // Round six put it in an `after_run` hook and round
-                // seven broke that: `@@after_run` is a list called in
-                // reverse, and a hook a TEST BODY registers is
-                // appended after keel's -- so it is called BEFORE it,
-                // and its forged summary landed inside the region.
-                // A test body runs later than any registration keel
-                // can make, so no place in that queue is safe.
-                //
-                // `Minitest.run` is called once, by `autorun`'s
-                // at_exit, after every file is loaded and before any
-                // hook -- and this prepend is in its chain before
-                // that call begins. A test body cannot get ahead of a
-                // method that is already running.
-                "  Minitest.singleton_class.prepend(Module.new do\n",
-                "    def run(args = [])\n",
-                "      out = super\n",
-                "      puts \"{mark}\"\n",
-                "      out\n",
-                "    end\n",
-                "  end)\n",
-                "end\n",
-            ),
-            mark = mark
+        .arg(concat!(
+            // `$0` first: a test file may ask whether it is the
+            // file being run, and under `-e` it is not, unless we
+            // say so.
+            "$0 = ARGV.first\n",
+            "load ARGV.shift\n",
+            // minitest is NOT required here, and that is the
+            // point: requiring it before the project's own file
+            // activates the system gem, and a project holding its
+            // own version through bundler then meets
+            // `Gem::LoadError` in keel's preamble rather than in
+            // its own code (review 0074 R5-11). Every minitest
+            // file requires minitest itself -- that is what makes
+            // it one -- so by this line it is either loaded or
+            // there are no tests to name.
+            "if defined?(Minitest::Runnable)\n",
+            "  Minitest::Runnable.runnables.each do |r|\n",
+            "    r.runnable_methods.each { |m| puts \"KEEL-ROLL #{r}##{m}\" }\n",
+            "  end\n",
+            "end\n",
         ))
         .arg(file)
         .arg("-v")
         .current_dir(root);
     command
-}
-
-/// Where minitest's own report ends, said by keel and not by the
-/// project.
-///
-/// The mark carries a number of this run, so a file cannot print it
-/// from memory of a previous one. It is not a secret and does not
-/// pretend to be: a test determined to read keel's own command line
-/// can find it. What it stops is the ordinary shape -- a project's
-/// reporter, plugin, or `after_run` block writing after the report
-/// and being read as part of it.
-fn end_mark() -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    format!("KEEL-DONE-{}-{now}", std::process::id())
-}
-
-/// What minitest said up to the end of its own report, and nothing
-/// after it.
-fn before_the_mark<'a>(said: &'a str, mark: &str) -> Option<&'a str> {
-    said.find(mark).map(|at| &said[..at])
 }
 
 /// The names the file declared, read before any of them ran -- and
@@ -463,8 +422,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // One process per file on both roads, so the key of the
         // battery stays the file it came from (§7.13's verdicts are
         // per test, and the courts above ask by file stem).
-        let mark = end_mark();
-        let mut command = minitest_listing(root, &relative.display().to_string(), &mark);
+        let mut command = minitest_listing(root, &relative.display().to_string());
         crate::scope::forget_the_hook(&mut command);
         let run = command.output().map_err(|e| Refusal {
             file: root.to_path_buf(),
@@ -473,41 +431,29 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         })?;
         let voice = String::from_utf8_lossy(&run.stdout).into_owned();
         // Both streams for the courts that ask what ruby SAID -- a
-        // LoadError arrives on stderr -- and stdout alone for the
-        // roll. minitest writes its verdicts to stdout, and splicing
-        // the streams let a verdict-shaped line on stderr take a
-        // place in the sequence that was never its own (review 0074
-        // R2-5).
+        // LoadError arrives on stderr -- and stdout alone for the roll
+        // and the verdicts. minitest writes its verdicts to stdout,
+        // and splicing the streams let a verdict-shaped line on stderr
+        // take a place in the sequence that was never its own (review
+        // 0074 R2-5).
         let said = format!("{voice}{}", String::from_utf8_lossy(&run.stderr));
         // The road picks the reader, and it is asked in the open:
         // the plain road has a roll, the Rails road does not (see
         // `minitest_listing`), and no reading falls back to another
         // one without saying so.
-        // ...and on the plain road, only what stands BEFORE keel's
-        // own end mark. minitest hands the file the pen again after
-        // it has printed its report -- `Minitest.after_run` is its
-        // own documented hook -- and a second, agreeing summary
-        // written there closed a failing tree green (review 0074
-        // round six). keel's mark is registered last and therefore
-        // called first, so everything past it belongs to somebody
-        // else.
+        //
+        // The plain road reads the WHOLE voice -- no mark closes the
+        // report (see `minitest_listing` for why a mark had to go) --
+        // and joins two readings of it in the safe direction. The
+        // courts below ask their own questions of the same voice.
         let rails = rails_root(root);
-        let reported = if rails {
-            Some(voice.as_str())
+        let names = if rails { Vec::new() } else { listed(&voice) };
+        let no_roll = !rails && names.is_empty();
+        let roll = if rails {
+            shapes_of(&voice)
         } else {
-            before_the_mark(&voice, &mark)
+            roll_of(&voice, &names)
         };
-        let read = match (rails, reported) {
-            (true, _) => Some(shapes_of(&voice)),
-            (false, Some(region)) => roll_of(region),
-            (false, None) => None,
-        };
-        let no_roll = read.is_none();
-        let roll = read.unwrap_or(Roll {
-            verdicts: Vec::new(),
-            silent: Vec::new(),
-            tally: None,
-        });
         let mut ran = 0usize;
         for (name, mark) in roll.verdicts.iter().cloned() {
             ran += 1;
@@ -570,27 +516,6 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // swallowed the roll -- a `$stdout` replaced while it loads,
         // put back before the run -- and the older reader is not
         // quietly put in its place (review 0074 R5-2).
-        // minitest plainly ran, and its report is not inside keel's
-        // own bookends. Two shapes, one answer: the mark never
-        // arrived (a reporter or an `at_exit` of the project rewrote
-        // the stream), or the mark arrived BEFORE the summary -- a
-        // test body can call `Minitest.run` itself, and then the
-        // region closes in the middle of the run (review 0074 round
-        // seven, measured: nought tests and exit 0 over a `flunk`).
-        // Neither is answered by reading the stream harder.
-        if !rails
-            && ((reported.is_none() && summarised(&voice))
-                || reported.is_some_and(|region| totals(region).is_none()))
-        {
-            return Err(Refusal {
-                file: file.clone(),
-                reason: ta(
-                    "adapter-ruby-unmarked",
-                    targs!("file" => relative.display().to_string()),
-                ),
-                instead: t("adapter-ruby-unmarked-instead"),
-            });
-        }
         // ruby left with a failure and keel read no verdict from it.
         // Before this the battery simply said "0 tests" and the wave
         // closed -- measured on a file that muffles STDOUT and never
@@ -611,7 +536,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
                 instead: t("adapter-ruby-mute-instead"),
             });
         }
-        if no_roll && let Some(runs) = reported.and_then(runs_said).filter(|runs| *runs > 0) {
+        if no_roll && let Some(runs) = runs_said(&voice).filter(|runs| *runs > 0) {
             return Err(Refusal {
                 file: file.clone(),
                 reason: ta(
@@ -645,10 +570,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // was simply untrue. Both directions are a refusal -- short
         // means the reader could not name something that ran, long
         // means something named itself that did not.
-        if let Some(runs) = reported
-            .and_then(runs_said)
-            .filter(|runs| *runs != roll.verdicts.len() as u64)
-        {
+        if let Some(runs) = runs_said(&voice).filter(|runs| *runs != roll.verdicts.len() as u64) {
             return Err(Refusal {
                 file: file.clone(),
                 reason: ta(
@@ -668,24 +590,88 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
         // block has to make the totals agree as well, and it cannot:
         // by the time it prints, the line that counts it has not
         // been written yet.
-        if let (Some((fallen, skipped)), Some((_, failures, errors, skips))) =
-            (roll.tally, reported.and_then(totals))
-            && (fallen != failures + errors || skipped != skips)
+        //
+        // No mark closes the report, so "the totals" is not one line
+        // any more: the file may print its own summary-shaped line
+        // -- during the run, or after minitest's own report, from a
+        // hook or a reporter of its own -- and the LAST summary in
+        // the voice is then the forger's, not minitest's. What cannot
+        // be forged away is minitest's own summary itself: minitest
+        // prints it after every run, and whatever is printed later
+        // stands BESIDE it, not in its place. So the court asks
+        // whether ANY summary line in the voice agrees with the
+        // blocks -- one honest line is enough, and a forger who
+        // prints an agreeing one has not yet won anything: the
+        // verdicts themselves are joined in the safe direction, and
+        // a fallen test the stream itself marked `F` stays red no
+        // matter what the blocks and the numbers around it say.
+        if !rails
+            && !no_roll
+            && let Some((fallen, skipped)) = roll.tally
         {
-            return Err(Refusal {
-                file: file.clone(),
-                reason: ta(
-                    "adapter-ruby-report",
-                    targs!(
-                        "file" => relative.display().to_string(),
-                        "counted" => failures + errors,
-                        "blocks" => fallen,
-                        "skips" => skips,
-                        "blockskips" => skipped
-                    ),
-                ),
-                instead: t("adapter-ruby-report-instead"),
+            let counted = summaries(&voice);
+            let agreed = counted.iter().any(|(_, failures, errors, skips)| {
+                fallen == failures + errors && skipped == *skips
             });
+            if !agreed {
+                // Every summary in the voice disagrees with the
+                // blocks -- or there is no summary at all, which is
+                // its own refusal: without minitest's own line the
+                // blocks have no count to answer to, and blocks are
+                // exactly what a test can write.
+                if counted.is_empty() {
+                    return Err(Refusal {
+                        file: file.clone(),
+                        reason: ta(
+                            "adapter-ruby-report-none",
+                            targs!("file" => relative.display().to_string()),
+                        ),
+                        instead: t("adapter-ruby-report-none-instead"),
+                    });
+                }
+                let (_, failures, errors, skips) = *counted.last().expect("not empty");
+                return Err(Refusal {
+                    file: file.clone(),
+                    reason: ta(
+                        "adapter-ruby-report",
+                        targs!(
+                            "file" => relative.display().to_string(),
+                            "counted" => failures + errors,
+                            "blocks" => fallen,
+                            "skips" => skips,
+                            "blockskips" => skipped
+                        ),
+                    ),
+                    instead: t("adapter-ruby-report-instead"),
+                });
+            }
+        }
+        // The last question, and the plainest: the runner's own voice
+        // must have mentioned every name the roll holds. Under `-v`
+        // minitest writes the name of every test it runs; keel's own
+        // roll lines are cut out of the voice before the question, so
+        // what must answer is the RUNNER. A name the runner never
+        // said has no verdict from anybody -- the run and the roll are
+        // not about the same tests, and reading the blocks as green
+        // over it would be a green nobody earned. Measured shape: a
+        // file prints its own summary and leaves by `exit!`, which
+        // runs no `at_exit` at all -- minitest never ran, and without
+        // this question the forged summary closed the file green.
+        if !rails && !no_roll {
+            let runner = runner_voice(&voice);
+            if let Some(name) = names.iter().find(|name| !runner.contains(name.as_str())) {
+                return Err(Refusal {
+                    file: file.clone(),
+                    reason: ta(
+                        "adapter-ruby-unsaid",
+                        targs!(
+                            "file" => relative.display().to_string(),
+                            "name" => name
+                        ),
+                    ),
+                    instead: t("adapter-ruby-unsaid-instead"),
+                });
+            }
         }
     }
     Ok(out)
@@ -782,9 +768,9 @@ fn tail_mark(line: &str) -> Option<Mark> {
     mark_of(mark)
 }
 
-/// The verdicts of the tests the file DECLARED -- from the report
-/// minitest writes AFTER the run, not from the stream it writes
-/// during it.
+/// The verdicts of the tests the file DECLARED -- joined from the
+/// report minitest writes AFTER the run and from the `-v` stream it
+/// writes during it, in the safe direction (`roll_of`).
 ///
 /// Four rounds of review taught this wave its lesson twice over.
 /// First: the shape of a `-v` line cannot be trusted, because a test
@@ -803,17 +789,20 @@ fn tail_mark(line: &str) -> Option<Mark> {
 ///
 /// What minitest writes after the run does survive it: a numbered
 /// block per test that did not simply pass, naming it, and a summary
-/// line counting them. So the reading is three independent sources
-/// that must agree:
+/// line counting them. So the verdicts come from two readings that
+/// are JOINED, not from sources that must agree:
 ///
 ///   the ROLL      -- the names, taken when the file was loaded,
 ///                    before any test body could add or remove one;
 ///   the BLOCKS    -- which of those names failed, errored, skipped;
-///   the COUNTS    -- minitest's own totals.
+///   the STREAM    -- a second verdict on the same names, and only
+///                    its red word is heard.
 ///
-/// Everything not named in a block passed. A test forging a block
-/// has to make the counts agree as well, and the counts are written
-/// after it has finished.
+/// Everything not named in a block and not marked by the stream
+/// passed. A test forging a skip over its own failure is beaten by
+/// the stream's `F`; the counts the caller checks against are
+/// minitest's own, and the direction that cannot happen is green
+/// where a reading said red.
 struct Roll {
     verdicts: Vec<(String, Mark)>,
     /// Names the reading could not account for. Only the Rails road
@@ -857,22 +846,21 @@ fn report_blocks(said: &str, names: &[String]) -> Vec<(Mark, String)> {
         };
         // `ToyTest#test_two [test/toy_test.rb:11]:` for a failure, or
         // `ToyTest#test_four:` for an error. The roll holds the whole
-        // `Class#method`, so this is an EQUALITY and not a guess: a
-        // substring match had to choose between two names that both
-        // stood there lawfully, and chose the innocent one (review
-        // 0074 round six, `atk_decoy`).
+        // `Class#method`, so the block line must CARRY a roll name --
+        // and where several do, the LONGEST is the one the block is
+        // about: a block names its test as a PREFIX (`Class#method
+        // [file:line]:`), so a file declaring `test_x` and
+        // `test_x [foo]` puts both names in that line lawfully, and
+        // the shorter winning sent the innocent test red while the one
+        // that fell went green (review 0074 round seven). Where the
+        // two readings differ from a plain containment match, the
+        // stream has already named the guilty test on its own line --
+        // measured, no shape tells them apart -- so the longest
+        // carrier is the whole of the rule.
         let named = named.trim();
-        // `ToyTest#test_two [test/toy_test.rb:11]:` for a failure, or
-        // `ToyTest#test_four:` for an error. The error form is an
-        // equality; the location form is a prefix, and where two roll
-        // names both stand at that prefix the LONGER is the one the
-        // block is about -- a file declaring `test_x` and
-        // `test_x [foo]` made the shorter win, and the innocent test
-        // was named red while the one that fell went green (review
-        // 0074 round seven).
         let hit = names
             .iter()
-            .filter(|name| named == format!("{name}:") || named.starts_with(&format!("{name} [")))
+            .filter(|name| named.contains(name.as_str()))
             .max_by_key(|name| name.len());
         if let Some(name) = hit {
             out.push((mark, name.clone()));
@@ -881,8 +869,17 @@ fn report_blocks(said: &str, names: &[String]) -> Vec<(Mark, String)> {
     out
 }
 
-/// minitest's own totals: runs, failures, errors, skips.
-fn totals(said: &str) -> Option<(u64, u64, u64, u64)> {
+/// minitest's own totals, as many summary lines as the voice holds:
+/// runs, failures, errors, skips.
+///
+/// There is no mark closing the report, so there is no "THE summary
+/// line" any more: a file may print a summary-shaped line of its own
+/// while it runs, and again after minitest's own report. minitest's
+/// own line is always among them -- it is written after every run,
+/// and nothing printed later takes its place, only stands beside it
+/// -- so the court asks whether ANY of these agrees with the blocks,
+/// and takes the LAST for the numbers it quotes when none does.
+fn summaries(said: &str) -> Vec<(u64, u64, u64, u64)> {
     said.lines()
         .filter(|line| line.contains(" assertions,") && line.contains(" failures,"))
         .filter_map(|line| {
@@ -904,67 +901,180 @@ fn totals(said: &str) -> Option<(u64, u64, u64, u64)> {
             }
             Some((runs?, failures?, errors?, skips?))
         })
-        .next_back()
+        .collect()
 }
 
-/// The reading of the plain road. `None` means the roll itself is
-/// missing -- and that is never quietly answered with the other
-/// reader: a file can swallow keel's own lines (`$stdout` replaced
-/// while it loads is an ordinary way to quieten a noisy boot), and a
-/// silent fall-back to the reader three rounds of review defeated
-/// put the forgery back in business on the road it was fixed on
-/// (review 0074 R5-2). The caller refuses instead.
-fn roll_of(said: &str) -> Option<Roll> {
-    let names = listed(said);
+/// The reading of the plain road: the names come from the roll, the
+/// verdicts from TWO readings of the same voice, joined in the safe
+/// direction.
+///
+/// The two readings are the report minitest writes after the run --
+/// numbered blocks, one per test that did not simply pass -- and the
+/// `-v` stream itself, which marks every test it ran. Neither can be
+/// fenced off from the other: the file may print its own report-shaped
+/// prose while it runs AND after the real report (from a hook, a
+/// reporter or a `prepend` it hung on `Minitest.run` at load time --
+/// reviews 0074 rounds six, seven and eight), so no ordering of "who
+/// wrote last" holds. What holds is the DIRECTION of the join:
+///
+///   a name is FALLEN if either reading says so;
+///   green only where NO reading says anything else.
+///
+/// A forgery that launders a failure into a skip (a forged
+/// `1) Skipped:` block, later than the real one) is beaten by the
+/// stream's own `F` on the same name. The price runs the other way
+/// -- a test that prints a fallen verdict naming an innocent
+/// neighbour can turn that neighbour red -- and that is the one
+/// direction §7.12 calls affordable: red, said aloud and named, where
+/// the trunk of the same tree would also have said red. It is named
+/// in the wave card.
+///
+/// `None` means the roll itself is missing -- and that is never
+/// quietly answered with the other reader: a file can swallow keel's
+/// own lines (`$stdout` replaced while it loads is an ordinary way to
+/// quieten a noisy boot), and a silent fall-back to the reader three
+/// rounds of review defeated put the forgery back in business on the
+/// road it was fixed on (review 0074 R5-2). The caller refuses
+/// instead. An empty roll with no names -- a file that declares no
+/// test -- is not missing: minitest says `0 runs` and means it.
+fn roll_of(said: &str, names: &[String]) -> Roll {
     if names.is_empty() {
-        return None;
+        return Roll {
+            verdicts: Vec::new(),
+            silent: Vec::new(),
+            tally: None,
+        };
     }
-    // This reader is never handed a region without minitest's own
-    // totals: the court above refuses that outright, in both shapes
-    // -- the mark that never came, and a region that holds no summary
-    // at all. A belt used to stand here returning no verdicts
-    // instead, and review 0074 round seven measured it dead: on every
-    // tree that reaches this line the blocks carry the verdicts
-    // anyway, so the belt changed nothing and had no red of its own
-    // (§7.6, §9.8). Refusing once, aloud, is worth more than
-    // answering twice in silence.
-    let blocks = report_blocks(said, &names);
+    let blocks = report_blocks(said, names);
+    let stream = stream_fallen(said);
+    // Green by absence is a verdict only where a run happened.
+    // minitest prints a summary after EVERY run, a numbered block
+    // after every test that did not simply pass, and a `-v` verdict
+    // line for every test it ran. A voice holding none of these never
+    // ran -- `require "minitest"` without `minitest/autorun` defines
+    // the classes, prints nothing and leaves with 0 -- so the names
+    // are a promise, not a result, and the empty roll sends the
+    // caller down the "nothing ran" road where the honest refusal
+    // lives (bugs cut R-7).
+    if blocks.is_empty() && stream.is_empty() && summaries(said).is_empty() {
+        return Roll {
+            verdicts: Vec::new(),
+            silent: Vec::new(),
+            tally: None,
+        };
+    }
     let mut verdicts: Vec<(String, Mark)> = Vec::new();
-    for name in &names {
+    let mut block_marks: Vec<Mark> = Vec::new();
+    for name in names {
         // The LAST block that names it. A test can print a block of
         // its own while it runs, and minitest writes its report after
         // every body has finished -- so where two blocks carry one
-        // name, the real one is the later (review 0074 round six:
-        // a forged `1) Skipped:` printed from a test body took a
-        // failing test out of the battery altogether).
-        let mark = blocks
+        // name, the real one is the later (review 0074 round six: a
+        // forged `1) Skipped:` printed from a test body took a
+        // failing test out of the battery altogether). The stream
+        // stands beside this: wherever the last block was written by
+        // somebody else, the stream's own `F` on the same name says
+        // fallen all the same.
+        let block = blocks
             .iter()
             .rev()
             .find(|(_, named)| named == name)
             .map(|(mark, _)| *mark)
             .unwrap_or(Mark::Green);
+        block_marks.push(block);
+        let mark = if block == Mark::Fallen || stream.iter().any(|named| named == name) {
+            Mark::Fallen
+        } else if block == Mark::Skipped {
+            Mark::Skipped
+        } else {
+            Mark::Green
+        };
         verdicts.push((method_of(name), mark));
     }
-    // What the blocks came to, for the court that compares it with
-    // minitest's own totals. The comparison is the caller's, and it
-    // is said in its own words: a roll shorter than the run and a
-    // report that does not add up are two different faults, and
-    // answering both with one sentence about a "lost verdict" sent
-    // the reader looking for the wrong thing (review 0074 R5-8).
-    // Counted over the verdicts, one per NAME -- not over the raw
-    // blocks. Where a test printed a block about itself and minitest
-    // then wrote the real one, the later wins above, and counting
-    // both here would turn a nameable red into a refusal. A forged
-    // block about a test that has no real one still shows: it is the
-    // only block for that name, so it becomes that name's verdict and
-    // the totals disagree.
-    let fallen = verdicts.iter().filter(|(_, m)| *m == Mark::Fallen).count() as u64;
-    let skipped = verdicts.iter().filter(|(_, m)| *m == Mark::Skipped).count() as u64;
-    Some(Roll {
+    // What the BLOCKS alone came to, for the court that compares the
+    // report with minitest's own totals. The comparison is the
+    // caller's, and it is said in its own words: a roll shorter than
+    // the run and a report that does not add up are two different
+    // faults, and answering both with one sentence about a "lost
+    // verdict" sent the reader looking for the wrong thing (review
+    // 0074 R5-8). Counted over the blocks' verdicts, one per NAME --
+    // not over the raw blocks, and not over the JOINED verdicts: the
+    // court asks about the report minitest wrote, and a false red the
+    // stream added (an interleaved `-v` line under `parallelize_me!`
+    // pairs one test's name with another's tail) must stay a red said
+    // aloud, not turn a whole run into a refusal.
+    let fallen = block_marks.iter().filter(|m| **m == Mark::Fallen).count() as u64;
+    let skipped = block_marks.iter().filter(|m| **m == Mark::Skipped).count() as u64;
+    Roll {
         verdicts,
         silent: Vec::new(),
         tally: Some((fallen, skipped)),
-    })
+    }
+}
+
+/// The names the `-v` stream itself marked fallen: every whole
+/// verdict line whose mark is `F` or `E`. Green and skipped lines say
+/// nothing here -- a reading that could call a test green would be a
+/// second mouth for the same stream three rounds of review defeated;
+/// only the RED word of this stream is trusted, because red is the
+/// direction a forgery cannot profit from (§7.12: the affordable
+/// error is the false red, and it is named).
+///
+/// The name is the WHOLE `Class#method`. Who it names is the JOIN's
+/// business, not this reader's: the caller matches against the roll
+/// by equality (one home for the rule), so a ghost a test printed --
+/// `GhostToyTest#test_one = 0.00 s = F` -- names nobody, and a mark
+/// on a name that never ran says nothing about any test that did.
+fn stream_fallen(said: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for line in said.split(['\n', '\r']) {
+        let Some((name, mark)) = stream_verdict(line) else {
+            continue;
+        };
+        if mark != Mark::Fallen {
+            continue;
+        }
+        if !out.contains(&name) {
+            out.push(name);
+        }
+    }
+    out
+}
+
+/// A whole verdict on one line of the `-v` stream, with the name kept
+/// WHOLE, `Class#method`.
+///
+/// The name is the segment NEAREST the timing, and the timing must be
+/// minitest's own shape -- a number and ` s`. Both details are the
+/// parallel road's. Under `parallelize_me!` two tests' verdicts land
+/// on ONE line -- `ToyTest#test_three = ToyTest#test_two = 0.00 s =
+/// F` -- and the tail belongs to the NEARER name; reading the first
+/// would mark the innocent one. A print that lands between the name
+/// and the timing (`selenium: waiting0.00 s`) breaks the pairing
+/// outright, and then the line says nothing to this reader at all --
+/// the blocks carry the verdict.
+fn stream_verdict(line: &str) -> Option<(String, Mark)> {
+    let trimmed = line.trim();
+    let (middle, mark) = trimmed.rsplit_once(" = ")?;
+    let (front, timing) = middle.trim_end().rsplit_once(" = ")?;
+    let body = timing.strip_suffix(" s")?;
+    if body.is_empty() || !body.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return None;
+    }
+    let name = front.rsplit_once(" = ").map_or(front, |(_, last)| last);
+    Some((name.trim().to_string(), mark_of(mark)?))
+}
+
+/// The runner's own voice: everything on stdout except keel's own
+/// roll lines. The court that asks whether the runner ever mentioned
+/// a name must ask the RUNNER -- keel's `KEEL-ROLL` lines carry the
+/// names too, and a roll the runner never echoed is exactly what the
+/// court exists to catch.
+fn runner_voice(said: &str) -> String {
+    said.lines()
+        .filter(|line| !line.trim_start().starts_with("KEEL-ROLL "))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// The older reading, by the shape of the line -- kept for the one
