@@ -39,7 +39,16 @@ fn plan_package(root: &Path, wave: &docs::Wave, silent: &[String]) -> Result<Str
     let text = wave_text(root, &wave.slug)?;
     let mut out = t("review-plan-title");
     out.push('\n');
-    writeln!(out, "{}", t("review-plan-why")).unwrap();
+    // The plan's package names the file its reading goes to, and
+    // says the reading happens NOW (wave 0075). Two reviews in a row
+    // found this line still telling a person the fresh eye "comes
+    // only at the closing" -- the very thing this wave made untrue.
+    writeln!(
+        out,
+        "{}",
+        ta("review-plan-why", targs!("wave" => wave.slug.clone()))
+    )
+    .unwrap();
 
     // Cuts with no answer at all: the machine already reddens over
     // them (`graph-silence`), and a package that does not repeat it
@@ -188,7 +197,12 @@ fn plan_package(root: &Path, wave: &docs::Wave, silent: &[String]) -> Result<Str
         writeln!(out, "\n  {}", t("review-plan-nothing")).unwrap();
         return Ok(out);
     }
-    writeln!(out, "\n{}", t("review-plan-footer")).unwrap();
+    writeln!(
+        out,
+        "\n{}",
+        ta("review-plan-footer", targs!("wave" => wave.slug.clone()))
+    )
+    .unwrap();
     Ok(out)
 }
 
