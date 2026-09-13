@@ -193,6 +193,40 @@ fn the_plan_has_its_own_reader_and_its_own_report() {
          its reader to do next:\n{said}"
     );
 
+    // --- a CANCELLED wave's plan is not waiting for a reader -----
+    //
+    // Measured as a trap with no way out (review 0075 round six): the
+    // court demanded the plan's report and pointed at `keel review`,
+    // which refuses over a cancelled wave -- "there is nothing to
+    // judge" -- so the branch could neither be closed nor be made
+    // closeable. §6.3-a withdraws the promises; a withdrawn plan is
+    // not a plan waiting to be read, and the barrier stands down.
+    let dir = plan_sandbox("plancancelled");
+    let text = fs::read_to_string(dir.join("keel/waves/0019-a-full-wave.md")).unwrap();
+    fs::write(
+        dir.join("keel/waves/0019-a-full-wave.md"),
+        text.replacen("---\n", "---\ncancelled: \"передумали\"\n", 1),
+    )
+    .unwrap();
+    git(&dir, &["add", "-A"]);
+    git(
+        &dir,
+        &["commit", "-q", "-m", "chore: the plan is withdrawn"],
+    );
+    let (said, code) = keel(&dir, &["close"]);
+    assert_eq!(
+        code, 0,
+        "a cancelled wave's plan branch closes: there is nothing left \
+         to prove, and a court that demands a reading no command can \
+         produce is a court with no way out of it:\n{said}"
+    );
+    assert!(
+        !said.contains("не зустрів читача"),
+        "and the barrier says nothing here -- the advice it carries \
+         points at `keel review`, which refuses over a cancelled \
+         wave:\n{said}"
+    );
+
     // --- and the plan's report does NOT satisfy the work's gate ---
     //
     // The card calls this side the knot the whole wave hangs on, and

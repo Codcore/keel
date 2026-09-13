@@ -751,7 +751,8 @@ approved by merging its own PR (§6.6), long before any work, and a
 report filed under the wave's own name would ride onto the work branch
 from birth and satisfy the gate that exists to demand a review of the
 WORK (measured on 1.4.0, wave 0075). Weight (§6.8) decides the number
-of pull requests and nothing else: the operator's decision of 2026-09-04 is a reviewer for
+of pull requests and nothing else: the operator's decision of
+2026-09-04 is a reviewer for
 every wave, since "one transform" does not make work safe, only
 small. The honest limit: machinery does not prove the
 reviewer's context was clean; the visible trace of that cleanliness is

@@ -576,12 +576,27 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     let mut plan_lacks: Option<&'static str> = None;
     let planned = scope::plan_branch(root);
     if let Some(slug) = &planned {
-        plan_lacks = if scan.waves.iter().any(|wave| &wave.slug == slug) {
+        // A CANCELLED wave's plan needs no reader, and asking for one
+        // is a trap with no way out (review 0075 round six, measured):
+        // `close` demanded the plan's report and pointed at `keel
+        // review`, which refuses over a cancelled wave -- "there is
+        // nothing to judge" -- so the branch could not be closed and
+        // could not be made closeable either. §6.3-a withdraws the
+        // promises; a withdrawn plan is not a plan waiting to be read.
+        let live = scan
+            .waves
+            .iter()
+            .any(|wave| &wave.slug == slug && wave.cancelled.is_none());
+        plan_lacks = if live {
             match report_text(root, &format!("{slug}-plan")) {
                 None => Some("close-lack-plan-review"),
                 Some(text) if text.trim().is_empty() => Some("close-lack-plan-review-empty"),
                 Some(_) => None,
             }
+        } else if scan.waves.iter().any(|wave| &wave.slug == slug) {
+            // Named after a wave this tree HAS, and that wave is
+            // cancelled: nothing to read, nothing to demand.
+            None
         } else {
             // A plan branch named after no wave of this tree (review
             // R-5). The first cut let the barrier vanish in silence
