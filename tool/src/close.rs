@@ -559,6 +559,56 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     report.push('\n');
     report.push('\n');
 
+    // The barrier at the PLAN (wave 0075, issue #53). §9.9 says a
+    // fresh eye reads a wave before it is merged, and the machine
+    // holds that over the WORK -- `close` does not close a wave whose
+    // report is not in history. But a plan is approved by merging its
+    // own PR (§6.6), long before any work exists, and over THAT merge
+    // nothing stood: measured on the released 1.4.0, a plan branch
+    // with an empty `keel/reviews/` gave check 0 and close 0.
+    //
+    // The name is `<wave>-plan.md` and not `<wave>.md`, and the issue
+    // that asked for this named the reason: a report filed under the
+    // wave's own name rides onto the work branch from birth and
+    // satisfies the gate that exists to demand a review of the WORK.
+    // So the court asks `report_text` for an exact name -- the same
+    // hand as over the work, with a different argument.
+    let mut plan_lacks: Option<&'static str> = None;
+    let planned = scope::plan_branch(root);
+    if let Some(slug) = &planned {
+        // A CANCELLED wave's plan needs no reader, and asking for one
+        // is a trap with no way out (review 0075 round six, measured):
+        // `close` demanded the plan's report and pointed at `keel
+        // review`, which refuses over a cancelled wave -- "there is
+        // nothing to judge" -- so the branch could not be closed and
+        // could not be made closeable either. §6.3-a withdraws the
+        // promises; a withdrawn plan is not a plan waiting to be read.
+        let live = scan
+            .waves
+            .iter()
+            .any(|wave| &wave.slug == slug && wave.cancelled.is_none());
+        plan_lacks = if live {
+            match report_text(root, &format!("{slug}-plan")) {
+                None => Some("close-lack-plan-review"),
+                Some(text) if text.trim().is_empty() => Some("close-lack-plan-review-empty"),
+                Some(_) => None,
+            }
+        } else if scan.waves.iter().any(|wave| &wave.slug == slug) {
+            // Named after a wave this tree HAS, and that wave is
+            // cancelled: nothing to read, nothing to demand.
+            None
+        } else {
+            // A plan branch named after no wave of this tree (review
+            // R-5). The first cut let the barrier vanish in silence
+            // there -- check 0, close 0, not a word -- which is the
+            // shape §4.10 calls worse than a red: a person reads a
+            // green court over a branch nobody can name.
+            //
+            // `keel check` already says this aloud, and `keel review`
+            // refuses with the reason; only this court was mute.
+            Some("close-plan-no-wave")
+        };
+    }
     let mut blockers = 0usize;
     let mut own_plan = false;
     let mut own_awaiting = false;
@@ -770,6 +820,31 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         report.push_str(&t("close-ci-blocker"));
         report.push('\n');
     }
+    if let Some(key) = plan_lacks {
+        report.push_str(&ta(
+            key,
+            targs!("wave" => planned.clone().unwrap_or_default()),
+        ));
+        report.push('\n');
+    }
+    // Everything that holds this branch out of a merge, counted ONCE
+    // and used twice: by the footer below and by the exit code at the
+    // end of this function.
+    //
+    // The footer used to enumerate the sources in a chain of `&&`,
+    // and every wave that added a source had to remember to extend
+    // it. Three waves did not (reviews 0052 R-13, 0055 R-6, 0068
+    // R-1), and this wave made it four (review 0075 R-1): the report
+    // counted a blocker and signed off "no blockers" two lines later,
+    // under an exit of 1. A chain a person must remember is not a
+    // court; a sum is.
+    let held = blockers
+        + verify_blockers
+        + form_blockers
+        + ci_blocker
+        + red_tests
+        + counted
+        + usize::from(plan_lacks.is_some());
     if blockers > 0 {
         // The blockers are named by the wave's own weight (global
         // review 2026-09-06, methodology R-16: "a full wave" was said
@@ -798,14 +873,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
             targs!("wave" => branch.unwrap_or_default()),
         ));
         report.push('\n');
-    } else if verify_blockers == 0
-        && verify_unrun == 0
-        && !ci_unrun
-        && form_blockers == 0
-        && ci_blocker == 0
-        && red_tests == 0
-        && counted == 0
-    {
+    } else if held == 0 && verify_unrun == 0 && !ci_unrun {
         // The branch's own wave may be named and unblocked at once:
         // a light wave waiting for its merge (review 0052 R-13 -- the
         // old word called such a branch "not named as an unclosed
@@ -838,11 +906,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // contracts -- review 0070 R-3 measured 1691 lines from twenty --
     // and `--json` puts this whole report into ONE field.
     let report = capped_report(report);
-    Ok((
-        report,
-        blockers + verify_blockers + form_blockers + ci_blocker + red_tests + counted,
-        red_commands,
-    ))
+    Ok((report, held, red_commands))
 }
 
 /// One command of the repository's files that ran and failed, with
