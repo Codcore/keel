@@ -85,7 +85,7 @@ fn plan_sandbox(name: &str) -> common::Sandbox {
     fs::write(
         dir.join("keel/waves/0019-a-full-wave.md"),
         format!(
-            "---\nscenarios:\n  it-holds:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-holds\n    files:\n      - src/lib.rs\n{d}---\n\n## scenario: it-holds\n{BODY}## transform: work\nтіло роботи\n"
+            "---\nscenarios:\n  it-holds:\n    covers: [functional.correctness]\ntransforms:\n  work:\n    implements:\n      - it-holds\n    files:\n      - src/lib.rs\n      - tests/toy_test.rs\n{d}---\n\n## scenario: it-holds\n{BODY}## transform: work\nтіло роботи\n"
         ),
     )
     .unwrap();
@@ -220,10 +220,15 @@ fn the_plan_has_its_own_reader_and_its_own_report() {
          nobody read does not close because its PLAN was read \
          (§9.9):\n{said}"
     );
+    // The court's own line about a missing WORK report, and not a
+    // scope finding that happens to carry the wave's file name
+    // (review 0075 R-2 measured the first cut matching the wrong
+    // thing, and the mutant that unties the whole knot survived it).
+    // The fixture is red for this reason and no other: the wave
+    // declares every file the branch touched.
     assert!(
-        said.contains("0019-a-full-wave.md"),
-        "and the court still asks for the work's own report by \
-         name:\n{said}"
+        said.contains("звіту рецензії keel/reviews/<хвиля>.md нема в історії гілки"),
+        "and the court still asks for the WORK's own report:\n{said}"
     );
 
     // --- a plan branch named after no wave at all -----------------
