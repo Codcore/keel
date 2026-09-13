@@ -866,10 +866,15 @@ pub fn run_all(root: &Path) -> Result<Ran, Refusal> {
 /// word somebody meant to say.
 fn cargo_said_it(line: &str) -> bool {
     let trimmed = line.trim_start();
-    let indented = line.len() > trimmed.len();
-    if !indented {
+    let indent = line.len() - trimmed.len();
+    if indent == 0 {
+        // `error: 1 target failed:` in the singular as well -- the
+        // shape of the commonest red tree of all, and the first cut
+        // read only the plural, so the block said "the banner is cut"
+        // and showed the banner (review 0071 round six).
         return trimmed.starts_with("error: test failed, to rerun pass")
-            || (trimmed.starts_with("error: ") && trimmed.contains(" targets failed"));
+            || (trimmed.starts_with("error: ")
+                && (trimmed.contains(" target failed") || trimmed.contains(" targets failed")));
     }
     const VERBS: [&str; 17] = [
         "Compiling",
@@ -895,7 +900,15 @@ fn cargo_said_it(line: &str) -> bool {
     if trimmed.starts_with('`') && trimmed.ends_with('`') && trimmed.contains("--test ") {
         return true;
     }
-    VERBS.iter().any(|verb| trimmed.starts_with(verb))
+    // cargo right-aligns its verb in a gutter twelve columns wide, and
+    // the whole gutter has to match: the first cut asked only that the
+    // line be indented and begin with one of the words, and a test's
+    // child writing `Compiling my thing` lost its words (review 0071
+    // round six). The direction is NOT one-sided and the card says so:
+    // a child that writes cargo's exact shape is still dropped.
+    VERBS
+        .iter()
+        .any(|verb| trimmed.starts_with(verb) && indent + verb.len() == 12)
 }
 
 /// The number standing right before the given marker in cargo's

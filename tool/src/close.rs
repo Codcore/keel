@@ -495,18 +495,19 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // failure there -- and keeping it under a file's name would be a
     // false attribution. The last run that had any is the one quoted,
     // for the same reason a steady red is quoted from its last fall.
-    if let Some(outside) = outsides
+    if let Some((at, outside)) = outsides
         .iter()
-        .rev()
-        .find(|said| !said.trim().is_empty())
+        .enumerate()
+        .rfind(|(_, said)| !said.trim().is_empty())
         .filter(|_| !spoken.is_empty())
     {
         fell.push(format!(
             "{}\n{}",
-            t("close-said-outside"),
-            format_args!("{FRAME_MARK}{}", window_of(outside))
-                .to_string()
-                .trim_end_matches('\n')
+            ta(
+                "close-said-outside",
+                targs!("run" => (at + 1) as u64, "runs" => BATTERY_RUNS as u64),
+            ),
+            window_of(outside).trim_end_matches('\n')
         ));
     }
     // Counted ONCE (review 0043 R-5). A red test that a scenario of

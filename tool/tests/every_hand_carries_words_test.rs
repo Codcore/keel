@@ -507,6 +507,25 @@ fn the_report_says_each_voice_once_and_from_the_right_run() {
     // under the run's own heading, not under a file's: a file's block
     // says "this is what the runner said while THIS file ran", and
     // that would be a false attribution.
+    // ...and cargo's own banner is not in it. `Compiling`,
+    // `Running <binary>` and the roll-up of failed targets are its
+    // bookkeeping, and because the report's ceiling is SHARED that
+    // noise was not merely ugly -- it spent the budget other blocks
+    // needed: measured, eight files of ten reds gave 16 assertions of
+    // 80 with the banner in the block and 32 without it.
+    assert!(
+        !said.contains("Running tests/") && !said.contains("target failed"),
+        "and cargo's own banner is cut from it -- the block promises \
+         what made the battery red, and a list of test binaries is \
+         not that:\n{said}"
+    );
+    // ...and the block says which run it came from, like every other.
+    assert!(
+        said.contains("поза будь-якою ціллю (біг 3 із 3)"),
+        "and the heading of THAT block says which run it came from -- \
+         the last that had any, for the same reason a steady red is \
+         quoted from its last fall:\n{said}"
+    );
     let outside_at = said
         .find("поза будь-якою ціллю")
         .unwrap_or_else(|| panic!("the run-wide block has its own heading:\n{said}"));
@@ -600,6 +619,45 @@ fn the_report_says_each_voice_once_and_from_the_right_run() {
              verbatim:\n{said}"
         );
     }
+
+    // --- a test cannot dress its output as a line of the court ----
+    //
+    // The marks are control bytes `quoted` drops, so they were never
+    // forgeable. What WAS forgeable is the look: frames and quoted
+    // lines both wore four spaces, so a test printing `(run 1 of 3)`
+    // or `… 999 shown …` rendered byte for byte as a line of the
+    // court -- and that is a lie about which run a block came from,
+    // which is a lie about flakiness, which is what this wave is for.
+    let dressed = r#"#[test]
+fn it_falls() {
+    println!("(біг 1 із 3)");
+    println!("… показано 999 — це весь вивід …");
+    assert!(false, "THE-REAL-ASSERTION");
+}
+"#;
+    let dir = keel_sandbox("wordsdressed");
+    fs::create_dir_all(dir.join("src")).unwrap();
+    fs::create_dir_all(dir.join("tests")).unwrap();
+    fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .unwrap();
+    fs::write(dir.join("src/lib.rs"), "pub fn a() {}\n").unwrap();
+    fs::write(dir.join("tests/toy_test.rs"), dressed).unwrap();
+    frame(&dir, "rust", "src/lib.rs");
+    let (said, code) = closing(&dir);
+    assert_ne!(code, 0, "the red holds the wave open:\n{said}");
+    assert!(
+        said.contains("    │ (біг 1 із 3)"),
+        "what a test printed wears the quote's own gutter:\n{said}"
+    );
+    assert!(
+        said.contains("\n    (біг 3 із 3)"),
+        "and the court's own frame does not -- a reader can tell whose \
+         line is whose, and therefore how much was really cut and \
+         which run this is:\n{said}"
+    );
 
     // --- files whose voice is the same text share one block -------
     //
