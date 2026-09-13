@@ -5,7 +5,7 @@ exports:
   - "pub fn unread_files(root: &Path) -> Vec<PathBuf>"
   - "pub fn module_paths(root: &Path, module: &str) -> Vec<PathBuf>"
   - "pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal>"
-  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>"
+  - "pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal>"
   - "pub fn ran(said: &str) -> Vec<(String, String, String)>"
   - "pub fn classify(said: &str, code: i32) -> crate::adapter::Outcome"
 ---
@@ -166,3 +166,15 @@ teardown, плагін. До цього батарея звала такий б�
 деревом, дві відповіді (фінальна рецензія 2026-09-06, тести R-2). Де
 не прочитано **нічого**, пояс мовчить: там суди вище кажуть «не бігло»
 своїми словами.
+
+## Червона батарея несе слова (хвиля 0071, issues #49/#52)
+
+`run_all` вертає `adapter::Ran` — вироки і **голос бігуна** для кожного
+ключа, де було червоне. Голос СИРИЙ, і ріже його лише вікно хвилі
+0070; усередині нічого не шукається (рецензії 0050 R-1, 0071 R-2).
+**Межа цієї дороги названа:** pytest біжить ОДИН раз на все дерево, тож
+голос у кожного червоного файлу той самий — увесь вивід прогону. Суд
+закриття це знає і каже однаковий текст один раз, називаючи всі файли,
+яким він належить; інакше стеля звіту ділилася б сама із собою по
+файлах (рецензія 0071 R4-3: дванадцять червоних файлів давали 466
+рядків і вісім асертів із дванадцяти). `Ran::outside` тут порожній.

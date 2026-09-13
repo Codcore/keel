@@ -412,17 +412,32 @@ fn battery_read_once() {
     write(&dir, "keel/reviews/0014-two.md", "# Рецензія\n\nok\n");
     commit_all(&dir);
 
-    // The library call itself: the whole battery, one map of verdicts.
-    let verdicts = keel::adapter::run_all(&dir).unwrap();
+    // The library call itself: the whole battery, one map of
+    // verdicts -- and since wave 0071 each verdict carries what the
+    // runner said where it fell.
+    let ran = keel::adapter::run_all(&dir).unwrap();
     assert_eq!(
-        verdicts.get(&("two_test".to_string(), "holds_green".to_string())),
+        ran.verdicts
+            .get(&("two_test".to_string(), "holds_green".to_string())),
         Some(&true),
         "the green test is green in the one run"
     );
     assert_eq!(
-        verdicts.get(&("two_test".to_string(), "holds_red".to_string())),
+        ran.verdicts
+            .get(&("two_test".to_string(), "holds_red".to_string())),
         Some(&false),
         "the red test is red in the one run"
+    );
+    // Since wave 0071 the run also carries the runner's own voice for
+    // every FILE that had a red -- whole and unsearched, never cut to
+    // one test by its name.
+    let voice = ran
+        .voices
+        .get("two_test")
+        .expect("the file with a red has a voice");
+    assert!(
+        voice.contains("holds_red"),
+        "and it is what cargo actually said: {voice}"
     );
 
     // Through the court: both verdicts land, each named.

@@ -25,6 +25,23 @@ fn git(dir: &Path, args: &[&str]) {
 /// and saying only that the wave is not closed: which test failed,
 /// the court knew and did not say, so a person had to run the whole
 /// battery again to learn what the court had just watched.
+/// The court's OWN lines -- everything it said itself, with the
+/// runner's quoted voice left out.
+///
+/// Since wave 0071 a red verdict is followed by what the runner said
+/// while that FILE ran, verbatim and unsearched, and that block
+/// carries the names of every test in the file, green ones included.
+/// A probe asking "is this name absent from the report" was really
+/// asking "does the court NAME it", and after the quotation arrived
+/// the two questions came apart. The quoted lines are indented; the
+/// court's are not.
+fn court_only(said: &str) -> String {
+    said.lines()
+        .filter(|line| !line.starts_with("    ") || line.trim_start().starts_with("натомість"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn the_closing_says_what_failed() {
     let dir = keel_sandbox("closingred");
@@ -92,8 +109,11 @@ fn the_closing_says_what_failed() {
          B6):\n{said}"
     );
     assert!(
-        !said.contains("holds_it"),
-        "and does not drown it in the names of the green ones:\n{said}"
+        !court_only(&said).contains("holds_it"),
+        "and does not drown it in the names of the green ones. The \
+         runner's quoted voice may well hold that name -- it is the \
+         runner's own text, kept whole since wave 0071 -- but no \
+         line the COURT says may:\n{said}"
     );
     assert!(
         said.contains("червоний тест") && said.contains("у кожному бігу"),

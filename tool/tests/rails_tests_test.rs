@@ -159,6 +159,23 @@ fn test_file(rev: &str) -> String {
 }
 
 /// proves: a-rails-project-is-judged-out-of-the-box@89e259
+/// The court's OWN lines -- everything it said itself, with the
+/// runner's quoted voice left out.
+///
+/// Since wave 0071 a red verdict is followed by what the runner said
+/// while that FILE ran, verbatim and unsearched, and that block
+/// carries the names of every test in the file, green ones included.
+/// A probe asking "is this name absent from the report" was really
+/// asking "does the court NAME it", and after the quotation arrived
+/// the two questions came apart. The quoted lines are indented; the
+/// court's are not.
+fn court_only(said: &str) -> String {
+    said.lines()
+        .filter(|line| !line.starts_with("    ") || line.trim_start().starts_with("натомість"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn a_rails_project_is_judged_out_of_the_box() {
     if !common::machine_has("ruby").ready() {
@@ -272,8 +289,10 @@ fn a_rails_project_is_judged_out_of_the_box() {
         "the closing court names the Rails test it watched fail:\n{said}"
     );
     assert!(
-        !said.contains("test_greets_a_user"),
-        "and the green one is not dragged in with it:\n{said}"
+        !court_only(&said).contains("test_greets_a_user"),
+        "and the green one is not dragged in with it -- by the COURT. \
+         Since wave 0071 the runner's own voice is quoted whole under \
+         a red, and minitest names every test of the file in it:\n{said}"
     );
     let seen = argv(&dir);
     assert!(

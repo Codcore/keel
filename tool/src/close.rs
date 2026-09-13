@@ -23,7 +23,23 @@ pub(crate) const BATTERY_RUNS: usize = 3;
 
 /// The verdicts of the closure battery, one per run, keyed like the
 /// adapter's map: (test file stem, function name).
-pub(crate) type Battery = BTreeMap<(String, String), Vec<bool>>;
+/// Every run's verdict for one test, by RUN NUMBER: `None` where
+/// that run did not judge it at all.
+///
+/// The position is the run, not "the n-th time we saw this test"
+/// (review 0071 R-4). A test skipped in one run of three is in the
+/// battery for the other two, and indexing the shorter vector put a
+/// failing run's words under the number of a run it had been green
+/// in -- with a `pytest.skip()`, an rspec `pending` or a node
+/// `skipped` enough to do it.
+pub(crate) type Battery = BTreeMap<(String, String), Vec<Option<bool>>>;
+
+/// What the runner said on each run, for each battery key that had a
+/// red in it (wave 0071). One entry per run of §7.13, in order, so a
+/// flaky test can be quoted from the runs where it actually fell --
+/// and the run NUMBER it carries is that run's own, not a position in
+/// a filtered list (review 0071 R-4).
+pub(crate) type Voices = Vec<BTreeMap<String, String>>;
 
 /// The structural stages of a wave -- close's own verdicts, opened
 /// pub(crate) so the stage eye (rung 11) asks instead of duplicating.
@@ -299,10 +315,29 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // purpose. Six seconds instead of thirteen minutes was the
     // SECOND sentence of the card, not the first.
     let mut battery: Battery = BTreeMap::new();
-    for _ in 0..BATTERY_RUNS {
-        for (key, green) in adapter::run_all(root)? {
-            battery.entry(key).or_default().push(green);
+    let mut voices: Voices = Vec::new();
+    let mut outsides: Vec<String> = Vec::new();
+    for at in 0..BATTERY_RUNS {
+        let ran = adapter::run_all(root)?;
+        // Every key this run judged goes in at THIS run's position,
+        // and every key the battery already knows gets a `None` there
+        // if this run said nothing of it.
+        for key in battery.keys().cloned().collect::<Vec<_>>() {
+            let seen = ran.verdicts.get(&key).copied();
+            battery.entry(key).or_default().push(seen);
         }
+        for (key, green) in ran.verdicts {
+            let runs = battery.entry(key).or_default();
+            if runs.len() <= at {
+                runs.resize(at, None);
+                runs.push(Some(green));
+            }
+        }
+        for runs in battery.values_mut() {
+            runs.resize(at + 1, None);
+        }
+        voices.push(ran.voices);
+        outsides.push(ran.outside);
     }
     let branch = scope::branch_wave(root, &scan.waves);
     // A scenario namesake may live in several waves: every wave's own
@@ -327,11 +362,26 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // ran the battery three times, saw red, and said only that the
     // wave is not closed -- so a person had to run the whole battery
     // again to learn what this court had already seen.
+    // ...and what it said while failing (wave 0071, issues #49/#52).
+    // The author of #52 re-ran a flaky test about twenty times by
+    // hand and never saw the failure this court had seen: the name
+    // alone leaves a red that cannot be investigated once it is gone.
+    //
+    // A red test carries the words of its LAST failing run; a flaky
+    // one carries every failing run it had, because three different
+    // assertions on one test is the most valuable thing anyone can
+    // say about flakiness. The window is the one wave 0070 already
+    // built for a red gate -- there is no second window in this tree.
     let mut fell: Vec<String> = battery
         .iter()
-        .filter(|(_, runs)| runs.iter().any(|green| !green))
+        .filter(|(_, runs)| runs.iter().any(|seen| seen == &Some(false)))
         .map(|((file, test), runs)| {
-            let every = runs.iter().all(|green| !green);
+            // "fell in EVERY run" means every run said so. A run that
+            // said nothing about this test -- pytest's `skip()` in one
+            // run of the three, the reason the type became
+            // `Option<bool>` at all -- is not a run it fell in
+            // (review 0071 R4-5).
+            let every = runs.iter().all(|seen| seen == &Some(false));
             ta(
                 if every {
                     "close-test-red"
@@ -343,6 +393,123 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         })
         .collect();
     fell.sort();
+    // The runner's own voice, ONE block per file (wave 0071, review
+    // R3-2). It belonged to the file from the start, and printing it
+    // under each of that file's red tests divided the report's own
+    // ceiling against itself.
+    //
+    // What the guard buys is now the HEADER, not the ceiling: the
+    // de-duplication below already folds the identical blocks, so
+    // dropping the guard changes neither the report's length nor the
+    // assertions in it (measured, round five: 523 lines and 32
+    // assertions with it and without). What it changes is what the
+    // fold then SAYS -- without it, one file of ten reds is announced
+    // as "these 10 files" and named ten times over.
+    //
+    // A steady red is quoted from the LAST run that saw the file
+    // fail; a file whose tests were flaky is quoted from every run
+    // that did, because three different assertions on one file is
+    // the most valuable thing that can be said about flakiness -- and
+    // the run NUMBER is that run's own (review R-4).
+    let mut spoken: std::collections::BTreeSet<String> = Default::default();
+    // Files whose voice is the SAME text share one block (review
+    // 0071 R4-3). pytest hands every red file the whole run's output,
+    // so quoting it per file divided the ceiling against itself a
+    // second way: measured, twelve red files on one road gave 466
+    // lines and eight assertions of twelve, where cargo's twelve gave
+    // 275 and twelve of twelve. Identical text is said once and the
+    // files that share it are named together.
+    let mut blocks: Vec<(Vec<String>, String)> = Vec::new();
+    for (file, _) in battery
+        .iter()
+        .filter(|(_, runs)| runs.iter().any(|seen| seen == &Some(false)))
+        .map(|((file, test), _)| (file, test))
+    {
+        if !spoken.insert(file.clone()) {
+            continue;
+        }
+        // Steady or flaky is a question about the FILE, and so it is
+        // asked of every red test in it -- not of whichever one the
+        // map happened to hold first (review 0071 R4-4). One flaky
+        // test makes the file flaky, and a flaky file is quoted from
+        // every run that saw it fall: three different assertions on
+        // one file is the most valuable thing that can be said about
+        // flakiness.
+        let every = battery
+            .iter()
+            .filter(|((other, _), runs)| {
+                other == file && runs.iter().any(|seen| seen == &Some(false))
+            })
+            .all(|(_, runs)| runs.iter().all(|seen| seen == &Some(false)));
+        let mut said = String::new();
+        let mut heard = false;
+        for (at, voice) in voices.iter().enumerate() {
+            let Some(block) = voice.get(file).filter(|b| !b.trim().is_empty()) else {
+                continue;
+            };
+            if every
+                && voices
+                    .iter()
+                    .skip(at + 1)
+                    .any(|later| later.contains_key(file))
+            {
+                continue;
+            }
+            heard = true;
+            said.push(FRAME_MARK);
+            said.push_str("    ");
+            said.push_str(&ta(
+                "close-test-said-run",
+                targs!("run" => (at + 1) as u64, "runs" => BATTERY_RUNS as u64),
+            ));
+            said.push('\n');
+            said.push_str(&window_of(block));
+        }
+        if !heard {
+            said.push(FRAME_MARK);
+            said.push_str("    ");
+            said.push_str(&t("close-test-said-nothing"));
+            said.push('\n');
+        }
+        match blocks.iter_mut().find(|(_, text)| *text == said) {
+            Some((shared, _)) => shared.push(file.clone()),
+            None => blocks.push((vec![file.clone()], said)),
+        }
+    }
+    for (files, said) in blocks {
+        let head = if files.len() == 1 {
+            ta("close-said-of-file", targs!("file" => files[0].clone()))
+        } else {
+            ta(
+                "close-said-of-files",
+                targs!("count" => files.len() as u64, "files" => files.join(", ")),
+            )
+        };
+        fell.push(format!("{head}\n{}", said.trim_end_matches('\n')));
+    }
+    // ...and what the run said outside any one target (review 0071
+    // R4-2). Only cargo has such a thing: it covers many targets in
+    // one process, and they write into one stderr in turn, so the
+    // text belongs to the RUN. Dropping it lost words that had been
+    // in the report -- a test whose child process explains the
+    // failure there -- and keeping it under a file's name would be a
+    // false attribution. The last run that had any is the one quoted,
+    // for the same reason a steady red is quoted from its last fall.
+    if let Some((at, outside)) = outsides
+        .iter()
+        .enumerate()
+        .rfind(|(_, said)| !said.trim().is_empty())
+        .filter(|_| !spoken.is_empty())
+    {
+        fell.push(format!(
+            "{}\n{}",
+            ta(
+                "close-said-outside",
+                targs!("run" => (at + 1) as u64, "runs" => BATTERY_RUNS as u64),
+            ),
+            window_of(outside).trim_end_matches('\n')
+        ));
+    }
     // Counted ONCE (review 0043 R-5). A red test that a scenario of
     // this branch's own wave claims is already a lack under that
     // wave, named there with its scenario; adding it here again made
@@ -397,7 +564,9 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     }
     let red_tests = battery
         .iter()
-        .filter(|(key, runs)| runs.iter().any(|green| !green) && !claimed.contains(*key))
+        .filter(|(key, runs)| {
+            runs.iter().any(|seen| seen == &Some(false)) && !claimed.contains(*key)
+        })
         .count();
     for line in &fell {
         report.push_str(line);
@@ -559,6 +728,56 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     report.push('\n');
     report.push('\n');
 
+    // The barrier at the PLAN (wave 0075, issue #53). §9.9 says a
+    // fresh eye reads a wave before it is merged, and the machine
+    // holds that over the WORK -- `close` does not close a wave whose
+    // report is not in history. But a plan is approved by merging its
+    // own PR (§6.6), long before any work exists, and over THAT merge
+    // nothing stood: measured on the released 1.4.0, a plan branch
+    // with an empty `keel/reviews/` gave check 0 and close 0.
+    //
+    // The name is `<wave>-plan.md` and not `<wave>.md`, and the issue
+    // that asked for this named the reason: a report filed under the
+    // wave's own name rides onto the work branch from birth and
+    // satisfies the gate that exists to demand a review of the WORK.
+    // So the court asks `report_text` for an exact name -- the same
+    // hand as over the work, with a different argument.
+    let mut plan_lacks: Option<&'static str> = None;
+    let planned = scope::plan_branch(root);
+    if let Some(slug) = &planned {
+        // A CANCELLED wave's plan needs no reader, and asking for one
+        // is a trap with no way out (review 0075 round six, measured):
+        // `close` demanded the plan's report and pointed at `keel
+        // review`, which refuses over a cancelled wave -- "there is
+        // nothing to judge" -- so the branch could not be closed and
+        // could not be made closeable either. §6.3-a withdraws the
+        // promises; a withdrawn plan is not a plan waiting to be read.
+        let live = scan
+            .waves
+            .iter()
+            .any(|wave| &wave.slug == slug && wave.cancelled.is_none());
+        plan_lacks = if live {
+            match report_text(root, &format!("{slug}-plan")) {
+                None => Some("close-lack-plan-review"),
+                Some(text) if text.trim().is_empty() => Some("close-lack-plan-review-empty"),
+                Some(_) => None,
+            }
+        } else if scan.waves.iter().any(|wave| &wave.slug == slug) {
+            // Named after a wave this tree HAS, and that wave is
+            // cancelled: nothing to read, nothing to demand.
+            None
+        } else {
+            // A plan branch named after no wave of this tree (review
+            // R-5). The first cut let the barrier vanish in silence
+            // there -- check 0, close 0, not a word -- which is the
+            // shape §4.10 calls worse than a red: a person reads a
+            // green court over a branch nobody can name.
+            //
+            // `keel check` already says this aloud, and `keel review`
+            // refuses with the reason; only this court was mute.
+            Some("close-plan-no-wave")
+        };
+    }
     let mut blockers = 0usize;
     let mut own_plan = false;
     let mut own_awaiting = false;
@@ -770,6 +989,31 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         report.push_str(&t("close-ci-blocker"));
         report.push('\n');
     }
+    if let Some(key) = plan_lacks {
+        report.push_str(&ta(
+            key,
+            targs!("wave" => planned.clone().unwrap_or_default()),
+        ));
+        report.push('\n');
+    }
+    // Everything that holds this branch out of a merge, counted ONCE
+    // and used twice: by the footer below and by the exit code at the
+    // end of this function.
+    //
+    // The footer used to enumerate the sources in a chain of `&&`,
+    // and every wave that added a source had to remember to extend
+    // it. Three waves did not (reviews 0052 R-13, 0055 R-6, 0068
+    // R-1), and this wave made it four (review 0075 R-1): the report
+    // counted a blocker and signed off "no blockers" two lines later,
+    // under an exit of 1. A chain a person must remember is not a
+    // court; a sum is.
+    let held = blockers
+        + verify_blockers
+        + form_blockers
+        + ci_blocker
+        + red_tests
+        + counted
+        + usize::from(plan_lacks.is_some());
     if blockers > 0 {
         // The blockers are named by the wave's own weight (global
         // review 2026-09-06, methodology R-16: "a full wave" was said
@@ -798,14 +1042,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
             targs!("wave" => branch.unwrap_or_default()),
         ));
         report.push('\n');
-    } else if verify_blockers == 0
-        && verify_unrun == 0
-        && !ci_unrun
-        && form_blockers == 0
-        && ci_blocker == 0
-        && red_tests == 0
-        && counted == 0
-    {
+    } else if held == 0 && verify_unrun == 0 && !ci_unrun {
         // The branch's own wave may be named and unblocked at once:
         // a light wave waiting for its merge (review 0052 R-13 -- the
         // old word called such a branch "not named as an unclosed
@@ -838,11 +1075,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // contracts -- review 0070 R-3 measured 1691 lines from twenty --
     // and `--json` puts this whole report into ONE field.
     let report = capped_report(report);
-    Ok((
-        report,
-        blockers + verify_blockers + form_blockers + ci_blocker + red_tests + counted,
-        red_commands,
-    ))
+    Ok((report, held, red_commands))
 }
 
 /// One command of the repository's files that ran and failed, with
@@ -1173,9 +1406,16 @@ fn window_of(text: &str) -> String {
     if total == 0 || text.lines().all(|l| quoted(l).trim().is_empty()) {
         return String::new();
     }
+    // Quoted lines wear a gutter of their own, and the court's frames
+    // do not. Before this both were four spaces, and a test printing
+    // `(run 1 of 3)` or `… 999 shown …` rendered byte for byte as a
+    // line of the court -- so a reader could not tell how much was
+    // really cut, or which run a block came from (review 0071 round
+    // five). The marks themselves were never forgeable; what was
+    // forgeable is what a person SEES.
     fn put(out: &mut String, line: &str) {
         out.push(QUOTE_MARK);
-        out.push_str("    ");
+        out.push_str("    │ ");
         out.push_str(&quoted(line));
         out.push('\n');
     }
@@ -1424,10 +1664,12 @@ pub(crate) fn wave_state(
                 // in some runs is a lack with its count, never a
                 // blessing by the one green run; red in all stays red.
                 match battery.get(&(stem, tag.test.clone())) {
-                    Some(runs) if runs.len() == BATTERY_RUNS && runs.iter().all(|g| *g) => {}
-                    Some(runs) if runs.iter().any(|g| *g) => lacks.push(ta(
+                    Some(runs)
+                        if runs.len() == BATTERY_RUNS
+                            && runs.iter().all(|seen| seen == &Some(true)) => {}
+                    Some(runs) if runs.iter().any(|seen| seen == &Some(true)) => lacks.push(ta(
                         "close-lack-flaky",
-                        targs!("scenario" => (*name).clone(), "test" => tag.test.clone(), "green" => runs.iter().filter(|g| **g).count() as u64, "runs" => BATTERY_RUNS as u64),
+                        targs!("scenario" => (*name).clone(), "test" => tag.test.clone(), "green" => runs.iter().filter(|seen| *seen == &Some(true)).count() as u64, "runs" => BATTERY_RUNS as u64),
                     )),
                     Some(_) => lacks.push(ta(
                         "close-lack-red",

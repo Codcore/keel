@@ -541,7 +541,50 @@ fn test_target(crate_dir: &Path, file: &Path) -> Result<String, Refusal> {
 /// One run instead of one per tag -- the closure court reads it
 /// once. A build that does not build is a refusal aloud with the
 /// compiler's words: without a build there is no verdict for anyone.
-pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal> {
+/// What a battery run came to: every test's verdict, and the
+/// runner's own voice for each key that had a red (wave 0071, issues
+/// #49/#52).
+///
+/// The voice is RAW -- what the runner printed, cut only by cargo's
+/// own `running N tests` boundary and by the window wave 0070 already
+/// built. Nothing is searched for inside it, and that is the
+/// decision, not an economy: a reader that hunts a test's block
+/// inside a runner's output can be fed a forged one by the test
+/// itself. Review 0050 R-1 caught a test printing a false `failures:`
+/// line and fooling cargo's reader; review 0071 R-2 caught the same
+/// class again, in the first cut of this very wave -- a test printing
+/// `---- other stdout ----` stole another test's words and left its
+/// victim silent.
+///
+/// So the voice belongs to the FILE (to the battery key), never to
+/// one test: whatever the runner said while that file ran, a person
+/// reads for themselves. rspec is the one named exception -- its
+/// JSON goes to a file and holds every example, green ones too, so
+/// there the words come from the document keel already parses.
+///
+/// **And what the run said OUTSIDE any one target is kept apart**
+/// (review 0071 R4-2). On the roads that run a process per file
+/// there is no such thing: every word of that process belongs to
+/// that file. cargo is the one road where a single run covers many
+/// targets -- there stdout is split by cargo's own boundary and
+/// stderr is not attributable to any of them, because the targets
+/// write into one stream in turn. Dropping it lost words that had
+/// been in the report: a test whose CHILD process explains the
+/// failure on stderr (libtest captures the test's own `eprintln!`
+/// into the stdout block; a child's output escapes that) went from
+/// one occurrence to none. So it is carried whole, said once per
+/// run, and never sold as belonging to a file.
+#[derive(Debug, Clone, Default)]
+pub struct Ran {
+    pub verdicts: BTreeMap<(String, String), bool>,
+    pub voices: BTreeMap<String, String>,
+    /// What the run said that belongs to no single target. Only
+    /// cargo fills it; empty everywhere else, and empty where the
+    /// run was green.
+    pub outside: String,
+}
+
+pub fn run_all(root: &Path) -> Result<Ran, Refusal> {
     match language_of(root) {
         Some(Language::Ruby) => return crate::ruby::run_all(root),
         Some(Language::Elixir) => return crate::elixir::run_all(root),
@@ -738,7 +781,145 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), bool>, Refusal>
             instead: t("adapter-cargo-failed-instead"),
         });
     }
-    Ok(verdicts)
+    // The voice, split by the boundary cargo itself prints -- the
+    // `running N tests` line that opens each target's block, which
+    // this reader already walks to key the verdicts above.
+    //
+    // Splitting it is NOT the search this wave refuses to do: no test
+    // is looked for by name, and a test cannot forge a boundary that
+    // the verdict counts do not also have to agree with. What a
+    // per-RUN voice costs was measured by review 0071 R2-1 and it is
+    // fatal: on keel's own tree the whole run speaks 1065 lines, the
+    // one red block stands at line 659, and a window of forty and
+    // forty keeps neither -- the report quotes 42 lines of green test
+    // names and nothing of what fell.
+    let mut voices: BTreeMap<String, String> = BTreeMap::new();
+    let mut outside = String::new();
+    if verdicts.values().any(|green| !green) {
+        let mut blocks: Vec<String> = Vec::new();
+        let mut current = String::new();
+        let mut started = false;
+        for line in stdout.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("running ") && trimmed.ends_with("tests")
+                || trimmed == "running 1 test"
+            {
+                if started {
+                    blocks.push(std::mem::take(&mut current));
+                }
+                started = true;
+            }
+            if started {
+                current.push_str(line);
+                current.push('\n');
+            }
+        }
+        if started {
+            blocks.push(current);
+        }
+        for (at, target) in targets.iter().enumerate() {
+            let red_here = verdicts
+                .iter()
+                .any(|((name, _), green)| name == target && !green);
+            if !red_here {
+                continue;
+            }
+            if let Some(block) = blocks.get(at) {
+                voices.insert(target.clone(), block.clone());
+            }
+        }
+        // ...and the rest of what the run said. Targets write into
+        // one stderr in turn, so it cannot be handed to any of them
+        // -- and it cannot be thrown away either: a test's child
+        // process explains itself there, and `cargo test` puts its
+        // own refusals there too. It travels apart and is said once.
+        // ...without cargo's own bookkeeping. `Compiling`,
+        // `Finished`, `Running <binary>` and the list of failed
+        // targets are its banner, not words of a failure -- measured
+        // on keel's own tree, 82 of the report's 205 lines were a
+        // list of test binaries standing under a heading that
+        // promises what made the battery red (review 0071 round
+        // five). This is not the search this wave refuses: nothing
+        // is hunted for by test name, and what is dropped is the
+        // RUNNER's own line, the same cut pytest's banner already
+        // gets.
+        outside = stderr
+            .lines()
+            .filter(|line| !cargo_said_it(line))
+            .collect::<Vec<&str>>()
+            .join("\n");
+    }
+    Ok(Ran {
+        verdicts,
+        voices,
+        outside,
+    })
+}
+
+/// Whether this line of stderr is cargo's own banner rather than
+/// something a test or its child wrote there.
+///
+/// cargo right-aligns its verbs in a gutter twelve columns wide, so
+/// its own lines are indented to exactly that and begin with one of a
+/// closed set of words; the failure roll-up at the end is not
+/// indented but says exactly what it says. Anything else is left
+/// alone.
+///
+/// The direction is NOT one-sided, and the body below is where that
+/// is paid for: a test's child writing cargo's exact shape is dropped
+/// with it. `safety.risk-identification` of wave 0071 carries the
+/// price both ways and the cure that removes the choice altogether
+/// (`--message-format json`, where cargo's own lines arrive in a
+/// field of their own).
+fn cargo_said_it(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let indent = line.len() - trimmed.len();
+    if indent == 0 {
+        // `error: 1 target failed:` in the singular as well -- the
+        // shape of the commonest red tree of all, and the first cut
+        // read only the plural, so the block said "the banner is cut"
+        // and showed the banner (review 0071 round six).
+        return trimmed.starts_with("error: test failed, to rerun pass")
+            || (trimmed.starts_with("error: ")
+                && (trimmed.contains(" target failed") || trimmed.contains(" targets failed")));
+    }
+    const VERBS: [&str; 17] = [
+        "Compiling",
+        "Checking",
+        "Documenting",
+        "Doc-tests",
+        "Finished",
+        "Running",
+        "Fresh",
+        "Building",
+        "Updating",
+        "Downloading",
+        "Downloaded",
+        "Locking",
+        "Adding",
+        "Removing",
+        "Blocking",
+        "Installing",
+        "Ignoring",
+    ];
+    // The continuation lines of `error: N targets failed:` are a
+    // backquoted argument and nothing else.
+    if trimmed.starts_with('`') && trimmed.ends_with('`') && trimmed.contains("--test ") {
+        return true;
+    }
+    // cargo right-aligns its verb in a gutter twelve columns wide, and
+    // the whole gutter has to match: the first cut asked only that the
+    // line be indented and begin with one of the words, and a test's
+    // child writing `Compiling my thing` lost its words (review 0071
+    // round six). The direction is NOT one-sided, and
+    // `safety.risk-identification` of the wave says so in as many
+    // words: a child that writes cargo's exact shape is still
+    // dropped. The cure that removes the choice altogether is
+    // `--message-format json`, where cargo's own lines arrive in a
+    // field of their own; BACKLOG carries it.
+    VERBS
+        .iter()
+        .any(|verb| trimmed.starts_with(verb) && indent + verb.len() == 12)
 }
 
 /// The number standing right before the given marker in cargo's

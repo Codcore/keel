@@ -14,7 +14,7 @@
 > follows them. Where the two disagree, the Ukrainian one is right —
 > and the disagreement is a defect to report, not a choice to make.
 >
-> `translated_from: 69df21` — the revision of the Ukrainian text this
+> `translated_from: d77acf` — the revision of the Ukrainian text this
 > translation was made from (constitution, rule 4: whoever leans on a
 > text holds its revision). `keel check` compares it with the
 > Ukrainian methodology as it now stands: change the original and the
@@ -749,9 +749,16 @@ there is no third state. The reviewer's report is kept as a file,
 happened travels in the repository rather than staying in a chat, and
 **no wave** without that file is merged — a barrier machinery holds
 (`keel close` does not call the wave closed, and `keel next` leads to
-the reviewer). Weight (§6.8) decides the number of pull requests and
-nothing else: the operator's decision of 2026-09-04 is a reviewer for
-every wave, since "one transform" does not make work safe, only
+the reviewer). **The plan has a file of its own**:
+`keel/reviews/<wave>-plan.md`, asked for by the same court on the
+`plan/<wave>` branch. The names differ on purpose -- a plan is
+approved by merging its own PR (§6.6), long before any work, and a
+report filed under the wave's own name would ride onto the work branch
+from birth and satisfy the gate that exists to demand a review of the
+WORK (measured on 1.4.0, wave 0075). Weight (§6.8) decides the number
+of pull requests and nothing else: the operator's decision of
+2026-09-04 is a reviewer for every wave, since "one transform" does not
+make work safe, only
 small. The honest limit: machinery does not prove the
 reviewer's context was clean; the visible trace of that cleanliness is
 the report itself, and the findings and refusals in it.
