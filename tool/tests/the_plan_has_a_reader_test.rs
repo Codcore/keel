@@ -175,6 +175,30 @@ fn the_plan_has_its_own_reader_and_its_own_report() {
          anybody reading the work:\n{said}"
     );
 
+    // --- a report on DISK is not a report in the branch ----------
+    //
+    // The line this court prints says it in as many words: the file
+    // "is not in the branch's history". A file no commit carries is
+    // gone from the merge, so the reader's record would vanish with
+    // it -- which is the whole reason §9.9 puts the record in git and
+    // not beside it. The same property over the WORK's report has a
+    // probe of its own (`report_commit_test`); over the plan's it had
+    // none, and a reader that takes the file off the disk passed the
+    // whole battery (review 0075 round seven).
+    let dir = plan_sandbox("planuncommitted");
+    fs::write(
+        dir.join("keel/reviews/0019-a-full-wave-plan.md"),
+        "# Рецензія плану\n\nчитав, але не закоммічено\n",
+    )
+    .unwrap();
+    let (said, code) = keel(&dir, &["close"]);
+    assert_ne!(
+        code, 0,
+        "a report standing only on the disk does not open the gate: \
+         a file no commit carries disappears from the merge, and the \
+         record §9.9 asks for would go with it:\n{said}"
+    );
+
     // --- an empty report is not a report --------------------------
     let dir = plan_sandbox("planempty");
     fs::write(dir.join("keel/reviews/0019-a-full-wave-plan.md"), "").unwrap();
