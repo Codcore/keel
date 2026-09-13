@@ -53,6 +53,24 @@ fn closing(dir: &Path) -> (String, i32) {
     )
 }
 
+/// The same court as a PACKAGE: the field that promises the command's
+/// own words is where the report's bookkeeping marks showed up last
+/// time (wave 0070, third round: six U+0001 per red command).
+fn closing_json(dir: &Path) -> (String, i32) {
+    let out = Command::new(env!("CARGO_BIN_EXE_keel"))
+        .args(["close", "--json", dir.to_str().unwrap()])
+        .output()
+        .unwrap();
+    (
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        ),
+        out.status.code().unwrap_or(-1),
+    )
+}
+
 /// A chore wave with no promises, its branch having done the work.
 fn frame(dir: &Path, adapter: &str, touched: &str) {
     fs::create_dir_all(dir.join("keel/contracts")).unwrap();
@@ -151,6 +169,16 @@ fn a_red_battery_carries_the_words_that_made_it_red() {
         !said.contains("stdout") && !said.contains("панік"),
         "and carries no quotation at all -- the words belong to a red \
          verdict, not to every verdict:\n{said}"
+    );
+    // ...and it is the HEADING that must be absent, not two words
+    // that happen not to appear. A reader of a green tree gets no
+    // block at all, and a court that quoted every file would put the
+    // output of work that passed into the log for nothing (review
+    // 0071 round seven: the guard rested on two substrings, and a
+    // mutant that quotes green files too walked past it).
+    assert!(
+        !said.contains("що сказав бігун") && !said.contains("поза будь-якою ціллю"),
+        "no block is opened over a green tree:\n{said}"
     );
 
     // --- minitest -------------------------------------------------
@@ -486,7 +514,7 @@ fn the_report_says_each_voice_once_and_from_the_right_run() {
         dir.join("tests/toy_test.rs"),
         "#[test]\nfn it_falls() {\n    \
          let _ = std::process::Command::new(\"sh\").arg(\"-c\")\n        \
-         .arg(\"echo WORDS-FROM-A-CHILD 1>&2\").status();\n    \
+         .arg(\"echo WORDS-FROM-A-CHILD 1>&2; echo '     Compiling my thing' 1>&2\").status();\n    \
          assert!(false, \"short\");\n}\n",
     )
     .unwrap();
@@ -520,6 +548,18 @@ fn the_report_says_each_voice_once_and_from_the_right_run() {
          not that:\n{said}"
     );
     // ...and the block says which run it came from, like every other.
+    // ...and the cut is by cargo's WHOLE gutter, not by the verb
+    // alone. cargo right-aligns its verbs in twelve columns; a
+    // child's `     Compiling my thing` is five spaces and a nine
+    // letter word, which is fourteen -- and it stays. Asking only
+    // that a line be indented and begin with one of the words took
+    // a child's words out of the report (review 0071 round six).
+    assert!(
+        said.contains("Compiling my thing"),
+        "and a line of the child that merely LOOKS like cargo's \
+         banner keeps its place: the gutter has to match to the \
+         column:\n{said}"
+    );
     assert!(
         said.contains("поза будь-якою ціллю (біг 3 із 3)"),
         "and the heading of THAT block says which run it came from -- \
@@ -619,6 +659,68 @@ fn the_report_says_each_voice_once_and_from_the_right_run() {
              verbatim:\n{said}"
         );
     }
+
+    // --- the ceiling and the run-wide block in one tree ----------
+    //
+    // The marks are the report's own bookkeeping and must never reach
+    // a reader: wave 0070 paid to remove them once, and this wave put
+    // one back by pushing the run-wide block with a mark of its own
+    // in front of `window_of`, which already marks every line it
+    // writes. The stripper trims ONE, so the second came out
+    // (review 0071 round six: one U+0001 in the prose and one in the
+    // `report` field).
+    //
+    // It shows only where the ceiling engages AND that block exists,
+    // and no sandbox of this probe had both -- so the guards that
+    // watch for U+0001 were looking at trees where there was nothing
+    // to find. Eight red files printing two hundred lines each take
+    // the report over its ceiling; the child on stderr gives the
+    // block.
+    let dir = keel_sandbox("wordsceiling");
+    fs::create_dir_all(dir.join("src")).unwrap();
+    fs::create_dir_all(dir.join("tests")).unwrap();
+    fs::write(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"toy\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\npath = \"src/lib.rs\"\n",
+    )
+    .unwrap();
+    fs::write(dir.join("src/lib.rs"), "pub fn a() {}\n").unwrap();
+    for n in 1..=8 {
+        fs::write(
+            dir.join(format!("tests/t{n}_test.rs")),
+            format!(
+                "#[test]\nfn falls_{n}() {{\n    \
+                 let _ = std::process::Command::new(\"sh\").arg(\"-c\")\n        \
+                 .arg(\"echo CHILD-OF-{n} 1>&2\").status();\n    \
+                 for i in 0..200 {{ println!(\"line-{{i}} of {n}\"); }}\n    \
+                 assert!(false, \"ASSERT-OF-{n}\");\n}}\n"
+            ),
+        )
+        .unwrap();
+    }
+    frame(&dir, "rust", "src/lib.rs");
+    let (said, code) = closing(&dir);
+    assert_ne!(code, 0, "eight red files hold the wave open:\n{said}");
+    assert!(
+        said.contains("поза будь-якою ціллю"),
+        "the run-wide block is there -- without it this tree proves \
+         nothing:\n{said}"
+    );
+    assert!(
+        said.lines().count() > 400,
+        "and the report is over its ceiling, which is the only state \
+         where the stripper's second pass runs at all:\n{said}"
+    );
+    assert!(
+        !said.contains('\u{1}') && !said.contains('\u{2}'),
+        "and not one mark of the report's own bookkeeping reaches a \
+         reader:\n{said}"
+    );
+    let (json, _) = closing_json(&dir);
+    assert!(
+        !json.contains('\u{1}') && !json.contains('\u{2}'),
+        "nor the package, which promises the command's own words:\n{json}"
+    );
 
     // --- a test cannot dress its output as a line of the court ----
     //

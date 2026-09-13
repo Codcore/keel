@@ -904,8 +904,12 @@ fn cargo_said_it(line: &str) -> bool {
     // the whole gutter has to match: the first cut asked only that the
     // line be indented and begin with one of the words, and a test's
     // child writing `Compiling my thing` lost its words (review 0071
-    // round six). The direction is NOT one-sided and the card says so:
-    // a child that writes cargo's exact shape is still dropped.
+    // round six). The direction is NOT one-sided, and
+    // `safety.risk-identification` of the wave says so in as many
+    // words: a child that writes cargo's exact shape is still
+    // dropped. The cure that removes the choice altogether is
+    // `--message-format json`, where cargo's own lines arrive in a
+    // field of their own; BACKLOG carries it.
     VERBS
         .iter()
         .any(|verb| trimmed.starts_with(verb) && indent + verb.len() == 12)
