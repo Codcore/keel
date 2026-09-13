@@ -415,25 +415,29 @@ fn battery_read_once() {
     // The library call itself: the whole battery, one map of
     // verdicts -- and since wave 0071 each verdict carries what the
     // runner said where it fell.
-    let verdicts = keel::adapter::run_all(&dir).unwrap();
-    let green = verdicts
-        .get(&("two_test".to_string(), "holds_green".to_string()))
-        .expect("the green test is in the map");
-    assert!(green.green, "the green test is green in the one run");
-    assert!(
-        green.words.is_empty(),
-        "and carries no words: the quotation belongs to a red verdict, \
-         not to every verdict"
+    let ran = keel::adapter::run_all(&dir).unwrap();
+    assert_eq!(
+        ran.verdicts
+            .get(&("two_test".to_string(), "holds_green".to_string())),
+        Some(&true),
+        "the green test is green in the one run"
     );
-    let red = verdicts
-        .get(&("two_test".to_string(), "holds_red".to_string()))
-        .expect("the red test is in the map");
-    assert!(!red.green, "the red test is red in the one run");
+    assert_eq!(
+        ran.verdicts
+            .get(&("two_test".to_string(), "holds_red".to_string())),
+        Some(&false),
+        "the red test is red in the one run"
+    );
+    // Since wave 0071 the run also carries the runner's own voice for
+    // every FILE that had a red -- whole and unsearched, never cut to
+    // one test by its name.
+    let voice = ran
+        .voices
+        .get("two_test")
+        .expect("the file with a red has a voice");
     assert!(
-        red.words.contains("holds_red"),
-        "and carries libtest's own block about it (§6.5, wave 0071): \
-         {}",
-        red.words
+        voice.contains("holds_red"),
+        "and it is what cargo actually said: {voice}"
     );
 
     // Through the court: both verdicts land, each named.

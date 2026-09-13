@@ -528,8 +528,8 @@ check-next-rung = next step: all green -- plan the next wave (sec. 6.6), or work
 close-title = keel close -- the closure court (§6.5)
 close-test-red = { "  " }red test: { $test } ({ $file }) -- it failed in every run
 close-test-flaky = { "  " }flaky test: { $test } ({ $file }) -- it failed in some runs and not others, which is why the battery runs three times (§7.13)
-close-test-said = — what the runner said on the failing run, verbatim:
-close-test-said-run = — what the runner said on failing run { $run }, verbatim:
+close-test-said-run = — what the runner said while this file ran, verbatim and unmasked (run { $run } of { $runs }):
+close-test-said-nothing = — and the runner said nothing this court could keep: it printed no failure where keel could see it. That is not a quiet red; it is a red whose words are elsewhere -- a runner told to hide them (pytest's `--tb=no`), or a reporter writing them to a file of its own
 close-battery = battery: { $count } tests × { $runs } runs (§7.13) — green only when green in every run
 close-check-red = the documents court has its say: findings of `keel check` on this branch's own files (§7.1-§7.9, chapter 4): { $count } -- blockers here as they are there, because the court that admits a branch to a merge is not narrower than the one beside it
 close-check-red-plan = the documents court has its say: findings of `keel check` on this branch's own files (§7.1-§7.9, chapter 4): { $count }, of them counted as blockers: { $counted }. This branch's wave is approved and not started, and the findings that say only that the declared work has not begun (§4.4, §4.1) are printed and not counted -- that is the state this report announces below, and a plan PR merges as a plan (§6.6). Everything else counts here as anywhere: drift, a promise worked on with no tag, a transform no commit closes, a contract a light wave grew

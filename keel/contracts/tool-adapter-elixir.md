@@ -5,7 +5,7 @@ exports:
   - "pub fn test_files(root: &Path) -> Result<Vec<PathBuf>, Refusal>"
   - "pub fn module_paths(root: &Path, module: &str) -> Vec<PathBuf>"
   - "pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, Refusal>"
-  - "pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter::Told>, Refusal>"
+  - "pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal>"
   - "pub fn ran(said: &str) -> Vec<String>"
   - "pub fn classify(said: &str, code: i32) -> crate::adapter::Outcome"
 ---

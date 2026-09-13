@@ -13,7 +13,6 @@ use crate::docs::Refusal;
 use crate::i18n::{t, ta};
 use crate::tags::TestTag;
 use crate::targs;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -292,8 +291,8 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
 /// A file that ran nothing at all is not a green file -- it is the
 /// adapter's refusal aloud, the same answer cargo's hand gives over
 /// "could not compile".
-pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter::Told>, Refusal> {
-    let mut out: BTreeMap<(String, String), crate::adapter::Told> = BTreeMap::new();
+pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal> {
+    let mut out = crate::adapter::Ran::default();
     // The second reading's roll: one rspec run per spec file, the
     // list and the verdicts alike from rspec's JSON. Pending is
     // neither green nor red and not in the map (§7.12); a file that
@@ -318,25 +317,28 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter:
             // Two examples of one full description are one key, red
             // if either is (the rule review 0046 R-2 asked to be one
             // in both courts).
-            // rspec is the one road with no raw voice to quote:
-            // its JSON goes to a FILE, and what it holds is every
-            // example, green ones too. So the words come from the
-            // document keel already parses -- one field of it,
-            // `exception.message` -- and not from a window over a
-            // text that does not exist.
-            let words = if green {
-                String::new()
-            } else {
-                example.message.clone().unwrap_or_default()
-            };
-            out.entry((key.clone(), example.description))
-                .and_modify(|was| {
-                    was.green = was.green && green;
-                    if !green && was.words.is_empty() {
-                        was.words = words.clone();
+            // rspec is the one named exception of this wave: its
+            // JSON goes to a FILE, and what that file holds is every
+            // example, green ones too. There is no raw voice to keep
+            // whole, and keeping the document would put the data of
+            // examples that did not fail into the log. So the voice
+            // is built from the field keel already parses --
+            // `exception.message` of the RED examples, and nothing
+            // else.
+            if !green {
+                let said = example.message.clone().unwrap_or_default();
+                let voice = out.voices.entry(key.clone()).or_default();
+                if !said.is_empty() {
+                    if !voice.is_empty() {
+                        voice.push_str("\n\n");
                     }
-                })
-                .or_insert(crate::adapter::Told { green, words });
+                    voice.push_str(&format!("{}: {said}", example.description));
+                }
+            }
+            out.verdicts
+                .entry((key.clone(), example.description))
+                .and_modify(|was| *was = *was && green)
+                .or_insert(green);
         }
     }
     for file in minitest_files(root)? {
@@ -376,25 +378,16 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter:
             };
             // Two classes in one file may name a method alike. The
             // safe direction joins them: green only if both were.
-            let words = if green {
-                String::new()
-            } else {
-                minitest_block(&said, &name)
-            };
             let key = (stem.clone(), name);
-            let held = out.get(&key).map(|told| told.green).unwrap_or(true);
-            let kept = out
-                .get(&key)
-                .map(|told| told.words.clone())
-                .filter(|w| !w.is_empty())
-                .unwrap_or(words);
-            out.insert(
-                key,
-                crate::adapter::Told {
-                    green: held && green,
-                    words: kept,
-                },
-            );
+            let held = out.verdicts.get(&key).copied().unwrap_or(true);
+            out.verdicts.insert(key, held && green);
+            if !green {
+                // One process per file on this road: what minitest
+                // said while that file ran IS the file's voice.
+                out.voices
+                    .entry(stem.clone())
+                    .or_insert_with(|| said.clone());
+            }
         }
         if ran == 0 {
             // Nothing ran. Either the file declares no test at all --
@@ -426,61 +419,6 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter:
         }
     }
     Ok(out)
-}
-
-/// What minitest said about one fallen test, as minitest says it.
-///
-/// Its failure reports come after the run, each opened by a numbered
-/// line and the test's own full name:
-///
-/// ```text
-///   1) Failure:
-/// ToyTest#test_it_falls [test/toy_test.rb:5]:
-/// the words of the assertion
-/// ```
-///
-/// The block is taken from the numbered line to the next one, or to
-/// the summary -- the runner's own voice, whole, and no field parsed
-/// out of it (wave 0071). What bounds it is minitest's shape and not
-/// a word, because a test may print anything at all into this stream.
-fn minitest_block(said: &str, method: &str) -> String {
-    let lines: Vec<&str> = said.lines().collect();
-    let opens = |line: &str| {
-        let trimmed = line.trim_start();
-        trimmed.split_once(") ").is_some_and(|(number, rest)| {
-            !number.is_empty()
-                && number.chars().all(|c| c.is_ascii_digit())
-                && (rest.trim() == "Failure:" || rest.trim() == "Error:")
-        })
-    };
-    let mut out: Vec<&str> = Vec::new();
-    let mut inside = false;
-    for (at, line) in lines.iter().enumerate() {
-        if opens(line) {
-            if inside {
-                break;
-            }
-            // The test's name stands on the line after the opener.
-            let named = lines
-                .get(at + 1)
-                .is_some_and(|next| next.contains(&format!("#{method}")));
-            if named {
-                inside = true;
-                out.push(line);
-            }
-            continue;
-        }
-        if inside {
-            if line.trim_start().starts_with("Finished in ") {
-                break;
-            }
-            out.push(line);
-        }
-    }
-    while out.last().is_some_and(|line| line.trim().is_empty()) {
-        out.pop();
-    }
-    out.join("\n")
 }
 
 /// What one `-v` line came to: green, fallen, or skipped -- and a

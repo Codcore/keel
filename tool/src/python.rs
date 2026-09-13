@@ -11,7 +11,6 @@ use crate::docs::Refusal;
 use crate::i18n::{t, ta};
 use crate::tags::TestTag;
 use crate::targs;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -152,52 +151,7 @@ pub fn run_test(root: &Path, tag: &TestTag) -> Result<crate::adapter::Outcome, R
 ///
 /// A collection that broke (code 2) is a refusal with python's own
 /// words: without a collection there is no verdict for anyone.
-/// What pytest said about one fallen test, as pytest says it.
-///
-/// Its FAILURES section opens each test with a ruled line carrying
-/// the test's name -- `____ test_it_falls ____` -- and runs to the
-/// next rule or to the short summary. The block is pytest's own
-/// voice, whole (wave 0071).
-///
-/// The node id is what the reader already keyed on (`file::name`),
-/// and only the name after the last `::` stands in the rule.
-fn pytest_block(said: &str, node: &str) -> String {
-    let bare = node.rsplit("::").next().unwrap_or(node);
-    let ruled = |line: &str| {
-        let trimmed = line.trim();
-        trimmed.starts_with('_') && trimmed.ends_with('_') && trimmed.len() > 4
-    };
-    let mut out: Vec<&str> = Vec::new();
-    let mut inside = false;
-    for line in said.lines() {
-        if ruled(line) {
-            if inside {
-                break;
-            }
-            if line.contains(bare) {
-                inside = true;
-                out.push(line);
-            }
-            continue;
-        }
-        if inside {
-            let trimmed = line.trim();
-            // The short summary and the closing rule both end the
-            // block, and both are pytest's own frame rather than
-            // anything the test said.
-            if trimmed.starts_with("=====") || trimmed.starts_with("- generated") {
-                break;
-            }
-            out.push(line);
-        }
-    }
-    while out.last().is_some_and(|line| line.trim().is_empty()) {
-        out.pop();
-    }
-    out.join("\n")
-}
-
-pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter::Told>, Refusal> {
+pub fn run_all(root: &Path) -> Result<crate::adapter::Ran, Refusal> {
     let (said, code) = pytest(root, &["-vv".to_string()])?;
     if code == 2 || (code == 4 && usage_error(&said)) {
         return Err(Refusal {
@@ -209,7 +163,7 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter:
             instead: t("adapter-python-broken-instead"),
         });
     }
-    let mut out: BTreeMap<(String, String), crate::adapter::Told> = BTreeMap::new();
+    let mut out = crate::adapter::Ran::default();
     for (file, name, verdict) in ran(&said) {
         let green = match verdict.as_str() {
             "PASSED" => true,
@@ -217,23 +171,17 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter:
             _ => continue,
         };
         let key = crate::adapter::battery_key(root, &root.join(&file));
-        // The words are looked up by the name pytest printed, before
-        // `bare_name` strips a parametrised suffix: the FAILURES rule
-        // carries the full node, brackets and all.
-        let words = if green {
-            String::new()
-        } else {
-            pytest_block(&said, &name)
-        };
         let name = bare_name(&name);
-        out.entry((key, name))
-            .and_modify(|was| {
-                was.green = was.green && green;
-                if !green && was.words.is_empty() {
-                    was.words = words.clone();
-                }
-            })
-            .or_insert(crate::adapter::Told { green, words });
+        out.verdicts
+            .entry((key.clone(), name))
+            .and_modify(|was| *was = *was && green)
+            .or_insert(green);
+        if !green {
+            // pytest gives ONE text for the whole run, so that text
+            // is the voice of every file that had a red in it. The
+            // window lies on all of it, which is what the card chose.
+            out.voices.entry(key).or_insert_with(|| said.clone());
+        }
     }
     // pytest left red and the reader saw none: the same belt cargo's
     // hand has (wave 0055). A session hook of the project's own --
@@ -244,7 +192,10 @@ pub fn run_all(root: &Path) -> Result<BTreeMap<(String, String), crate::adapter:
     // 2026-09-06, tests R-2). Where nothing was read at all the
     // courts above say "did not run" in their own words, and this
     // belt stays out of it.
-    if code != 0 && !out.values().any(|told| !told.green) && out.values().any(|told| told.green) {
+    if code != 0
+        && !out.verdicts.values().any(|green| !green)
+        && out.verdicts.values().any(|green| *green)
+    {
         return Err(Refusal {
             file: root.to_path_buf(),
             reason: ta("adapter-python-red-unseen", targs!("code" => code as i64)),
