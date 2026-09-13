@@ -21,6 +21,7 @@ transforms:
       - tool/i18n/en.ftl
       - keel/contracts/tool-close.md
       - docs/uk/METHODOLOGY-V2.md
+      - METHODOLOGY.md
       - docs/en/METHODOLOGY-V2.md
       - BACKLOG.md
       - tool/tests/the_plan_has_a_reader_test.rs
