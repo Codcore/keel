@@ -100,6 +100,12 @@ fn rspec(rev: &str, extra: &str) -> String {
 
 fn gate(dir: &Path) -> (String, i32) {
     git(dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(dir);
     let msg = dir.join("COMMIT_EDITMSG");
     std::fs::write(&msg, "work: тіло\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_keel"))
@@ -125,6 +131,12 @@ fn reviewed(dir: &Path) {
     git(dir, &["add", "-A"]);
     git(dir, &["commit", "-q", "-m", "review"]);
     git(dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(dir);
 }
 
 /// proves: minitest-and-rspec-live-in-one-project@0e8ee7
@@ -284,6 +296,12 @@ fn minitest_and_rspec_live_in_one_project() {
     // substring match.
     let dir = project("rsnext", None, Some(&rspec(&rev, "")));
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // No hand here, and on purpose: this side asks what `keel next`
+    // hands a person whose wave is still IN PROGRESS. The hand of
+    // wave 0068 finishes a wave -- red birth, declared files, a
+    // commit under each transform's slug -- and a finished wave gets
+    // the reviewer's step instead of the runner's line. Measured on
+    // a runner with rspec, which is the only place this side runs.
     let (said, _) = keel(&dir, &["next"]);
     assert!(
         said.contains("rspec spec/toy_spec.rb -e 'Toy works'"),
@@ -307,6 +325,12 @@ fn minitest_and_rspec_live_in_one_project() {
         Some("RSpec.describe Toy do\n  it \"untagged\" do\n  end\nend\n"),
     );
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(&dir);
     let (said, _) = keel(&dir, &["next"]);
     assert!(
         said.contains("читає тести в spec/"),

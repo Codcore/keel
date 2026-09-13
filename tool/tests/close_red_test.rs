@@ -52,6 +52,13 @@ fn have(tool: &str) -> bool {
 
 /// A wave with one chore transform and no promises: it closes light
 /// (§2.11), which is exactly the state that used to swallow the red.
+///
+/// It declares `one new in lib/` and not a bare `lib`, and that is
+/// not a dodge around the hand (review R2-3 asked): what this
+/// sandbox's branch does is add one file there, and §4.1 is the row
+/// that says so. A bare `lib` is §4.3's row about the directory
+/// itself, which §4.4 reads literally -- no file inside answers it,
+/// and this branch was never going to touch a path called `lib`.
 fn wave_file(dir: &Path) {
     let mut decisions = String::from("decisions:\n");
     for cut in keel::graph::cuts() {
@@ -60,7 +67,7 @@ fn wave_file(dir: &Path) {
     std::fs::write(
         dir.join("keel/waves/0001-a-wave.md"),
         format!(
-            "---\ntransforms:\n  work:\n    chore: \"робота без обіцянок\"\n    files:\n      - lib\n{decisions}---\n\n## transform: work\nтіло роботи\n"
+            "---\ntransforms:\n  work:\n    chore: \"робота без обіцянок\"\n    files:\n      - one new in lib/\n{decisions}---\n\n## transform: work\nтіло роботи\n"
         ),
     )
     .unwrap();
@@ -76,6 +83,12 @@ fn settle(dir: &Path) {
     git(dir, &["add", "-A"]);
     git(dir, &["commit", "-q", "-m", "init"]);
     git(dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(dir);
 }
 
 /// The whole scenario, in the three tongues this release leads.
@@ -327,6 +340,12 @@ fn the_shapes_a_red_test_comes_in() {
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-q", "-m", "init"]);
     git(&dir, &["checkout", "-q", "-b", "0001-a-wave"]);
+    // The branch does what wave 0068 made the closing court ask
+    // for: the promises are born red (§6.3), the declared files
+    // are touched (§4.4), and each transform is closed by a
+    // commit under its own slug (§6.2). The hand reads all of
+    // that out of the sandbox's own wave file.
+    common::did_the_work(&dir);
     let (said, _) = closing(&dir);
     assert!(
         said.contains("план-PR") || said.contains("затверджена"),
