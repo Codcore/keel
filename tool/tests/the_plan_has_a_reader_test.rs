@@ -124,6 +124,17 @@ fn the_plan_has_its_own_reader_and_its_own_report() {
             .any(|line| line.starts_with("блокерів нема") || line.starts_with("no blockers")),
         "and the footer does not deny what the exit code carries:\n{said}"
     );
+    // ...and it says which of the two states this is. Both lines name
+    // the same file and both hold the wave open, so a court that
+    // swapped them would keep every number right and still send a
+    // person to empty a file that is not there (review 0075 round
+    // five: the pair over the WORK's report is held, this pair was
+    // not).
+    assert!(
+        said.contains("не зустрів читача") && !said.contains("він порожній"),
+        "a plan with NO report is told the report is missing, not \
+         that it is empty:\n{said}"
+    );
 
     // --- with the plan's own report it merges ---------------------
     let dir = plan_sandbox("planread");
@@ -174,6 +185,12 @@ fn the_plan_has_its_own_reader_and_its_own_report() {
         code, 0,
         "an empty file is not a review, here as over the work \
          (§9.9):\n{said}"
+    );
+    assert!(
+        said.contains("він порожній") && !said.contains("не зустрів читача"),
+        "and THIS state is told apart from the other: the file is \
+         there and carries nothing, which is a different thing for \
+         its reader to do next:\n{said}"
     );
 
     // --- and the plan's report does NOT satisfy the work's gate ---
