@@ -545,25 +545,43 @@ fn test_target(crate_dir: &Path, file: &Path) -> Result<String, Refusal> {
 /// runner's own voice for each key that had a red (wave 0071, issues
 /// #49/#52).
 ///
-/// The voice is RAW -- what the runner printed, kept whole and cut
-/// only by the window wave 0070 already built. Nothing is searched
-/// for inside it, and that is the decision, not an economy: a reader
-/// that hunts a test's block inside a runner's output can be fed a
-/// forged one by the test itself. Review 0050 R-1 caught a test
-/// printing a false `failures:` line and fooling cargo's reader;
-/// review 0071 R-2 caught the same class again, in the first cut of
-/// this very wave -- a test printing `---- other stdout ----` stole
-/// another test's words and left its victim silent.
+/// The voice is RAW -- what the runner printed, cut only by cargo's
+/// own `running N tests` boundary and by the window wave 0070 already
+/// built. Nothing is searched for inside it, and that is the
+/// decision, not an economy: a reader that hunts a test's block
+/// inside a runner's output can be fed a forged one by the test
+/// itself. Review 0050 R-1 caught a test printing a false `failures:`
+/// line and fooling cargo's reader; review 0071 R-2 caught the same
+/// class again, in the first cut of this very wave -- a test printing
+/// `---- other stdout ----` stole another test's words and left its
+/// victim silent.
 ///
 /// So the voice belongs to the FILE (to the battery key), never to
 /// one test: whatever the runner said while that file ran, a person
 /// reads for themselves. rspec is the one named exception -- its
 /// JSON goes to a file and holds every example, green ones too, so
 /// there the words come from the document keel already parses.
+///
+/// **And what the run said OUTSIDE any one target is kept apart**
+/// (review 0071 R4-2). On the roads that run a process per file
+/// there is no such thing: every word of that process belongs to
+/// that file. cargo is the one road where a single run covers many
+/// targets -- there stdout is split by cargo's own boundary and
+/// stderr is not attributable to any of them, because the targets
+/// write into one stream in turn. Dropping it lost words that had
+/// been in the report: a test whose CHILD process explains the
+/// failure on stderr (libtest captures the test's own `eprintln!`
+/// into the stdout block; a child's output escapes that) went from
+/// one occurrence to none. So it is carried whole, said once per
+/// run, and never sold as belonging to a file.
 #[derive(Debug, Clone, Default)]
 pub struct Ran {
     pub verdicts: BTreeMap<(String, String), bool>,
     pub voices: BTreeMap<String, String>,
+    /// What the run said that belongs to no single target. Only
+    /// cargo fills it; empty everywhere else, and empty where the
+    /// run was green.
+    pub outside: String,
 }
 
 pub fn run_all(root: &Path) -> Result<Ran, Refusal> {
@@ -776,6 +794,7 @@ pub fn run_all(root: &Path) -> Result<Ran, Refusal> {
     // forty keeps neither -- the report quotes 42 lines of green test
     // names and nothing of what fell.
     let mut voices: BTreeMap<String, String> = BTreeMap::new();
+    let mut outside = String::new();
     if verdicts.values().any(|green| !green) {
         let mut blocks: Vec<String> = Vec::new();
         let mut current = String::new();
@@ -809,8 +828,18 @@ pub fn run_all(root: &Path) -> Result<Ran, Refusal> {
                 voices.insert(target.clone(), block.clone());
             }
         }
+        // ...and the rest of what the run said. Targets write into
+        // one stderr in turn, so it cannot be handed to any of them
+        // -- and it cannot be thrown away either: a test's child
+        // process explains itself there, and `cargo test` puts its
+        // own refusals there too. It travels apart and is said once.
+        outside = stderr.to_string();
     }
-    Ok(Ran { verdicts, voices })
+    Ok(Ran {
+        verdicts,
+        voices,
+        outside,
+    })
 }
 
 /// The number standing right before the given marker in cargo's

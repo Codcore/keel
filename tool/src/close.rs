@@ -316,6 +316,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // SECOND sentence of the card, not the first.
     let mut battery: Battery = BTreeMap::new();
     let mut voices: Voices = Vec::new();
+    let mut outsides: Vec<String> = Vec::new();
     for at in 0..BATTERY_RUNS {
         let ran = adapter::run_all(root)?;
         // Every key this run judged goes in at THIS run's position,
@@ -336,6 +337,7 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
             runs.resize(at + 1, None);
         }
         voices.push(ran.voices);
+        outsides.push(ran.outside);
     }
     let branch = scope::branch_wave(root, &scan.waves);
     // A scenario namesake may live in several waves: every wave's own
@@ -374,7 +376,12 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
         .iter()
         .filter(|(_, runs)| runs.iter().any(|seen| seen == &Some(false)))
         .map(|((file, test), runs)| {
-            let every = runs.iter().all(|seen| seen != &Some(true));
+            // "fell in EVERY run" means every run said so. A run that
+            // said nothing about this test -- pytest's `skip()` in one
+            // run of the three, the reason the type became
+            // `Option<bool>` at all -- is not a run it fell in
+            // (review 0071 R4-5).
+            let every = runs.iter().all(|seen| seen == &Some(false));
             ta(
                 if every {
                     "close-test-red"
@@ -398,14 +405,35 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
     // the most valuable thing that can be said about flakiness -- and
     // the run NUMBER is that run's own (review R-4).
     let mut spoken: std::collections::BTreeSet<String> = Default::default();
-    for ((file, _), runs) in battery
+    // Files whose voice is the SAME text share one block (review
+    // 0071 R4-3). pytest hands every red file the whole run's output,
+    // so quoting it per file divided the ceiling against itself a
+    // second way: measured, twelve red files on one road gave 466
+    // lines and eight assertions of twelve, where cargo's twelve gave
+    // 275 and twelve of twelve. Identical text is said once and the
+    // files that share it are named together.
+    let mut blocks: Vec<(Vec<String>, String)> = Vec::new();
+    for (file, _) in battery
         .iter()
         .filter(|(_, runs)| runs.iter().any(|seen| seen == &Some(false)))
+        .map(|((file, test), _)| (file, test))
     {
         if !spoken.insert(file.clone()) {
             continue;
         }
-        let every = runs.iter().all(|seen| seen != &Some(true));
+        // Steady or flaky is a question about the FILE, and so it is
+        // asked of every red test in it -- not of whichever one the
+        // map happened to hold first (review 0071 R4-4). One flaky
+        // test makes the file flaky, and a flaky file is quoted from
+        // every run that saw it fall: three different assertions on
+        // one file is the most valuable thing that can be said about
+        // flakiness.
+        let every = battery
+            .iter()
+            .filter(|((other, _), runs)| {
+                other == file && runs.iter().any(|seen| seen == &Some(false))
+            })
+            .all(|(_, runs)| runs.iter().all(|seen| seen == &Some(false)));
         let mut said = String::new();
         let mut heard = false;
         for (at, voice) in voices.iter().enumerate() {
@@ -436,10 +464,42 @@ pub fn judge(root: &Path) -> Result<(String, usize, Vec<RedCommand>), Refusal> {
             said.push_str(&t("close-test-said-nothing"));
             said.push('\n');
         }
+        match blocks.iter_mut().find(|(_, text)| *text == said) {
+            Some((shared, _)) => shared.push(file.clone()),
+            None => blocks.push((vec![file.clone()], said)),
+        }
+    }
+    for (files, said) in blocks {
+        let head = if files.len() == 1 {
+            ta("close-said-of-file", targs!("file" => files[0].clone()))
+        } else {
+            ta(
+                "close-said-of-files",
+                targs!("count" => files.len() as u64, "files" => files.join(", ")),
+            )
+        };
+        fell.push(format!("{head}\n{}", said.trim_end_matches('\n')));
+    }
+    // ...and what the run said outside any one target (review 0071
+    // R4-2). Only cargo has such a thing: it covers many targets in
+    // one process, and they write into one stderr in turn, so the
+    // text belongs to the RUN. Dropping it lost words that had been
+    // in the report -- a test whose child process explains the
+    // failure there -- and keeping it under a file's name would be a
+    // false attribution. The last run that had any is the one quoted,
+    // for the same reason a steady red is quoted from its last fall.
+    if let Some(outside) = outsides
+        .iter()
+        .rev()
+        .find(|said| !said.trim().is_empty())
+        .filter(|_| !spoken.is_empty())
+    {
         fell.push(format!(
             "{}\n{}",
-            ta("close-said-of-file", targs!("file" => file.clone())),
-            said.trim_end_matches('\n')
+            t("close-said-outside"),
+            format_args!("{FRAME_MARK}{}", window_of(outside))
+                .to_string()
+                .trim_end_matches('\n')
         ));
     }
     // Counted ONCE (review 0043 R-5). A red test that a scenario of

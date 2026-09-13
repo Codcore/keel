@@ -529,8 +529,10 @@ close-title = keel close -- the closure court (§6.5)
 close-test-red = { "  " }red test: { $test } ({ $file }) -- it failed in every run
 close-test-flaky = { "  " }flaky test: { $test } ({ $file }) -- it failed in some runs and not others, which is why the battery runs three times (§7.13)
 close-said-of-file = — what the runner said while "{ $file }" ran, verbatim and unmasked:
-close-test-said-run = — what the runner said while this file ran, verbatim and unmasked (run { $run } of { $runs }):
-close-test-said-nothing = — and the runner said nothing this court could keep: it printed no failure where keel could see it. That is not a quiet red; it is a red whose words are elsewhere -- a runner told to hide them (pytest's `--tb=no`), or a reporter writing them to a file of its own
+close-said-of-files = — what the runners said while these { $count } files ran, verbatim and unmasked, and the text of all of them is one and the same: { $files }
+close-said-outside = — and what the runner said outside any one target: cargo covers every target in one process, and they write into its stderr in turn, so this text belongs to no file -- but it is words that made the battery red all the same (a test's child process speaks from there, where the test itself does not):
+close-test-said-run = (run { $run } of { $runs })
+close-test-said-nothing = — and the runner said nothing this court could keep: under this red its voice is empty. None of the six roads does that -- the line stands for a hand that hands back a red with no words, so that emptiness is not what a reader finds instead of them
 close-battery = battery: { $count } tests × { $runs } runs (§7.13) — green only when green in every run
 close-check-red = the documents court has its say: findings of `keel check` on this branch's own files (§7.1-§7.9, chapter 4): { $count } -- blockers here as they are there, because the court that admits a branch to a merge is not narrower than the one beside it
 close-check-red-plan = the documents court has its say: findings of `keel check` on this branch's own files (§7.1-§7.9, chapter 4): { $count }, of them counted as blockers: { $counted }. This branch's wave is approved and not started, and the findings that say only that the declared work has not begun (§4.4, §4.1) are printed and not counted -- that is the state this report announces below, and a plan PR merges as a plan (§6.6). Everything else counts here as anywhere: drift, a promise worked on with no tag, a transform no commit closes, a contract a light wave grew
